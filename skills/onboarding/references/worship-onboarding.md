@@ -51,6 +51,21 @@ pastor changes it. Carry forward what is directly observable:
 - page flow, headings, footer structure, and other repeatable layout; and
 - reusable invitation and contact structure.
 
+Before saving prayer print choices, inspect the actual prayer body on its
+rendered pages. A heading, BCP page reference, opening dialogue, Sanctus,
+memorial acclamation, and final Amen do not establish a full printed prayer.
+Directions such as "The Celebrant continues the prayer" may replace omitted
+paragraphs. Record `print_full_eucharistic_prayer: false` when the bulletin
+prints only responses or excerpts; use true only when the prayer body is
+printed, or the pastor explicitly requests full text. Compare with the
+bundled prayer to distinguish a prayer identifier from its print treatment.
+Record the supporting pages in the private evidence ledger.
+
+Likewise, "read responsively" alone does not establish half verses, whole
+verses, or who begins. Inspect bold responses on the page; if they do not
+settle the pattern, ask the single remaining psalm question. Do not infer a
+standing preference from a familiar Episcopal default.
+
 Save the reusable choices that are clear in the source, including the service
 book and prayer forms, the ordinary role slots, the lectionary and translation
 when verified, the printed hymn practice, recurring sections and their broad

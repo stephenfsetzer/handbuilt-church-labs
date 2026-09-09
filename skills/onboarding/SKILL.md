@@ -51,8 +51,8 @@ Ask only when:
 - the pastor must choose between materially different outcomes.
 
 Bundle related website facts into one confirmation. Do not ask for a second
-confirmation of the bulletin template after the pastor supplied it. If the
-bulletin is clear, save its reusable structure and liturgical choices as the
+confirmation of the bulletin template. Matching sources do not replace the pastor's
+first identity confirmation. If clear, save the bulletin's structure and choices as
 working defaults. If it is ambiguous, ask one bundled question about the
 specific ambiguity.
 
