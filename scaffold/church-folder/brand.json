@@ -1,0 +1,40 @@
+{
+  "_comment": "Church identity lives in church.yaml. Onboarding records visual choices here. Blank values remain unresolved until the pastor confirms them.",
+  "church": {
+    "public_name": "",
+    "service_line": "",
+    "service_time": ""
+  },
+  "logo_status": "pending",
+  "logo": {
+    "banner": ""
+  },
+  "colors_status": "pending",
+  "colors": {
+    "ink": "#1a1a1a",
+    "accent": "#4a5d7e",
+    "accent_deep": "#2e3a52",
+    "paper": "#ffffff",
+    "rubric_red": "#8B3A3A"
+  },
+  "texts": {},
+  "qr": {
+    "_comment": "Image paths are private and relative to the church folder. A URL-only setup stores the generated image under brand/qr/.",
+    "standard_copy_accepted": null,
+    "connect": {
+      "image": "",
+      "url": ""
+    },
+    "give": {
+      "image": "",
+      "url": ""
+    },
+    "copy": {
+      "heading": "",
+      "connect_head": "",
+      "give_head": "",
+      "connect_body": "",
+      "give_body": ""
+    }
+  }
+}

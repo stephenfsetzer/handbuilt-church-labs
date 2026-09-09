@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "source": {
+    "title": "The Book of Common Prayer",
+    "url": "https://www.episcopalchurch.org/wp-content/uploads/2021/02/book-of-common-prayer-2006.pdf",
+    "pdf_sha256": "d4552eb39fcc26c7f2bb83ccd8e15fae4801521ac0e76df12b60bbd1525a0a57",
+    "edition": "1979 Book of Common Prayer, 2006 PDF",
+    "verified_on": "2026-09-08"
+  },
+  "data": {
+    "file": "sunday.json",
+    "sha256": "fded2141472ac28b1309f1e894972917389b1c8c5d78396908779898e8767b39"
+  },
+  "liturgy": {
+    "breaking-of-bread": {
+      "sha256": "7b7f426c08c15597fe10b99fd11d2198abcd39366da95445b5431bfdcd56c915",
+      "source_pages": [
+        364,
+        365
+      ],
+      "text_kind": "standard"
+    },
+    "breaking-of-bread-lent": {
+      "sha256": "082b436dcfce8b03356833ddd7347805063226b66f318395be09cdbe7da7df6b",
+      "source_pages": [
+        364,
+        365
+      ],
+      "text_kind": "standard"
+    },
+    "collect-for-purity": {
+      "sha256": "0857174330e9045005454533b5007a9c1dd0222fc58bb057afe32de8f9de4bfb",
+      "source_pages": [
+        355
+      ],
+      "text_kind": "standard"
+    },
+    "confession-of-sin": {
+      "sha256": "9e493b1774da58ac25c2abf471c0f9285ea278acab93250ca6ac578661131657",
+      "source_pages": [
+        360
+      ],
+      "text_kind": "standard"
+    },
+    "dismissal": {
+      "sha256": "b755e6727721cfaa030e10be2757466d255ec618cce8fff044421b3d9549ee87",
+      "source_pages": [
+        366
+      ],
+      "text_kind": "standard"
+    },
+    "doxology": {
+      "sha256": "4dcaed4a4b9d49c84074eec27ae522747153807ed04e1871ee08859876ff09ea",
+      "source_pages": [],
+      "text_kind": "standard"
+    },
+    "eucharistic-prayer-a": {
+      "sha256": "70d42e7d789bb4c27e3801354fa472208cfc4be87d8830b8928c54031707d160",
+      "source_pages": [
+        361,
+        362,
+        363
+      ],
+      "text_kind": "abridged"
+    },
+    "eucharistic-prayer-a-full": {
+      "sha256": "b63f78d5ae6532f0b66e65a665ccaebda3784ce4f61bb62fe7ca40b892442f68",
+      "source_pages": [
+        361,
+        362,
+        363
+      ],
+      "text_kind": "standard"
+    },
+    "eucharistic-prayer-b": {
+      "sha256": "9e2903881d956d375db3907959ca147884c4ad84cd38659d5e156fb5fee7a24b",
+      "source_pages": [
+        367,
+        368,
+        369
+      ],
+      "text_kind": "abridged"
+    },
+    "eucharistic-prayer-b-full": {
+      "sha256": "fd349dfd3706e2c5a4c85f58f98579e55bea9dc237eb0c2e0bca91d17e05c426",
+      "source_pages": [
+        367,
+        368,
+        369
+      ],
+      "text_kind": "standard"
+    },
+    "eucharistic-prayer-c": {
+      "sha256": "05aa37f0e66065397f1a421147aef07df58ce504cdf2b7a61f436b8be2317958",
+      "source_pages": [
+        369,
+        370,
+        371,
+        372
+      ],
+      "text_kind": "abridged"
+    },
+    "eucharistic-prayer-c-full": {
+      "sha256": "a6c097213e5ebfc2f63273a37608da4692951ea3e6e15291e66b90da112eafe9",
+      "source_pages": [
+        369,
+        370,
+        371,
+        372
+      ],
+      "text_kind": "standard"
+    },
+    "eucharistic-prayer-d": {
+      "sha256": "e174cb1a884afa5036f91bdc0caa5f5b98e14f861fa6dd2a2ee553c82bd290a8",
+      "source_pages": [
+        372,
+        373,
+        374,
+        375
+      ],
+      "text_kind": "abridged"
+    },
+    "eucharistic-prayer-d-full": {
+      "sha256": "30d4d64fee1f4be05d1a3a090fa7799425311aed215d5d8c403eeb1d48251058",
+      "source_pages": [
+        372,
+        373,
+        374,
+        375
+      ],
+      "text_kind": "standard"
+    },
+    "lords-prayer-contemporary": {
+      "sha256": "cbfa76b568c4b468eb5628a2ec06d714be6e6c6866b0fc4c103edd970b931c1d",
+      "source_pages": [
+        363,
+        364
+      ],
+      "text_kind": "standard"
+    },
+    "lords-prayer-traditional": {
+      "sha256": "e9b00269b47613d7df2e1c24b3ae40ad09ef2984839aae90c169b81df2510fbe",
+      "source_pages": [
+        363,
+        364
+      ],
+      "text_kind": "standard"
+    },
+    "nicene-creed": {
+      "sha256": "fa646710c84feb52ac6121bc77c9e1bf8ce2de1aee4f2cb59b871b5413c9ce55",
+      "source_pages": [
+        358,
+        359
+      ],
+      "text_kind": "standard"
+    },
+    "opening-acclamation": {
+      "sha256": "8191a2e959217ca68111ce7db715de35f6552cb4381ac358fe7c17c9042e3a2b",
+      "source_pages": [
+        355
+      ],
+      "text_kind": "standard"
+    },
+    "opening-acclamation-easter": {
+      "sha256": "de3f1b4453888ae96d9c7212f0828152b6f6e70085b53143a6c374a753d710fd",
+      "source_pages": [
+        355
+      ],
+      "text_kind": "standard"
+    },
+    "opening-acclamation-lent": {
+      "sha256": "d8f32b098818d3b9e3afb95b1f4588de243e32a7325f8dc2d5eb1f1ef72ec2cf",
+      "source_pages": [
+        355
+      ],
+      "text_kind": "standard"
+    },
+    "peace": {
+      "sha256": "8ca899af760df56264a8f32e1e0c74c6b41dcc4b69f837aa0b06be7259d1aa3d",
+      "source_pages": [
+        360
+      ],
+      "text_kind": "standard"
+    },
+    "post-communion-prayer": {
+      "sha256": "7cde0e7573e14ac7eb46d6844c267ffc5ce1d9813e7b540733c6fc3219d47894",
+      "source_pages": [
+        365,
+        366
+      ],
+      "text_kind": "standard"
+    },
+    "prayers-of-the-people": {
+      "sha256": "120e3de1cb43999242c690c58d2cde83f8d1595b8be76796367cc009dad99e57",
+      "source_pages": [
+        387,
+        388
+      ],
+      "text_kind": "standard"
+    },
+    "prayers-of-the-people-i": {
+      "sha256": "d61893252c63255abf252d4bf8b9ac27a3283fe981c75e25fdab019cd05a5cc2",
+      "source_pages": [
+        383,
+        384,
+        385
+      ],
+      "text_kind": "standard"
+    },
+    "prayers-of-the-people-ii": {
+      "sha256": "5146e0d8923fb3f0a8cc08b3c55a4c16fffa06ac4972c2019cc7f1c9fb94b832",
+      "source_pages": [
+        385,
+        386,
+        387
+      ],
+      "text_kind": "standard"
+    },
+    "prayers-of-the-people-iv": {
+      "sha256": "ba2f05d5b729a165c8ea108bf3abe87f23ee531bc7223a5719d5d33e91114a1f",
+      "source_pages": [
+        388,
+        389
+      ],
+      "text_kind": "standard"
+    },
+    "prayers-of-the-people-v": {
+      "sha256": "4c5323295d07eb0353e2bd6618369bd1ba87522a3348c99b716dee2de2e5a54a",
+      "source_pages": [
+        389,
+        390,
+        391
+      ],
+      "text_kind": "standard"
+    },
+    "prayers-of-the-people-vi": {
+      "sha256": "b813c55ed1533c28c850a808d655a07f38775a899cf84efc6ea6c755e32ae1bd",
+      "source_pages": [
+        392,
+        393
+      ],
+      "text_kind": "standard"
+    },
+    "absolution": {
+      "text_kind": "standard",
+      "source_pages": [
+        360
+      ],
+      "sha256": "0e4bb25e54e6b1b7584b8f1ae4675db08457212666c2223d8adf93dd5eae0be5"
+    }
+  }
+}

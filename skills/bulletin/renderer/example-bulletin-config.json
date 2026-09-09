@@ -1,0 +1,80 @@
+{
+  "_comment": "EXAMPLE weekly config. Copy into a week folder (e.g. bulletins/2026-09-06/bulletin-config.json), fill in real values, and put licensed music images in hymn-images/ beside it. Reading text placeholders below must be replaced with the full text of each reading (e.g. NRSV via your lectionary source).",
+  "service": {
+    "date": "2026-09-06",
+    "occasion": "The Fifteenth Sunday after Pentecost",
+    "proper": "Proper 18",
+    "lectionary_track": "Track 2",
+    "preacher": "The Rev. Example Pastor",
+    "celebrant": "The Rev. Example Pastor",
+    "liturgical_color": "green"
+  },
+  "hymns": {
+    "entrance": {
+      "number": 376,
+      "title": "Joyful, joyful, we adore thee",
+      "tune": "HYMN TO JOY",
+      "images": ["hymn-images/H376.png"]
+    },
+    "gradual": {
+      "number": 674,
+      "title": "\"Forgive our sins as we forgive\"",
+      "tune": "DETROIT",
+      "images": ["hymn-images/H674.png"]
+    },
+    "offertory": {
+      "number": 581,
+      "title": "Where charity and love prevail",
+      "tune": "CHESHIRE",
+      "images": ["hymn-images/H581.png"]
+    },
+    "closing": {
+      "number": 344,
+      "title": "Lord, dismiss us with thy blessing",
+      "tune": "SICILIAN MARINERS",
+      "images": ["hymn-images/H344.png"]
+    }
+  },
+  "service_music": {},
+  "liturgy": {
+    "eucharistic_prayer": "A",
+    "lords_prayer": "traditional",
+    "prayers_of_the_people": "III",
+    "include_creed": true,
+    "include_confession": true,
+    "print_full_eucharistic_prayer": false
+  },
+  "readings": {
+    "first": {
+      "citation": "Ezekiel 33:7-11",
+      "text": "[Full text of the first reading goes here.]"
+    },
+    "psalm": {
+      "number": "119:33-40",
+      "latin_title": "Legem pone",
+      "text": "33 [First half of the verse,] * **[second half of the verse, read by the congregation.]**\n\n34 [Continue each verse in this format.] * **[Bold marks the congregation's half.]**"
+    },
+    "second": {
+      "citation": "Romans 13:8-14",
+      "text": "[Full text of the second reading goes here.]"
+    },
+    "gospel": {
+      "citation": "Matthew 18:15-20",
+      "text": "[Full text of the gospel goes here.]"
+    }
+  },
+  "collect_of_day": "[The Collect of the Day from the Book of Common Prayer goes here.]",
+  "proper_preface": "Through Jesus Christ our Lord; who on the first day of the week overcame death and the grave, and by his glorious resurrection opened to us the way of everlasting life.",
+  "announcements": [
+    {
+      "title": "Example Announcement",
+      "text": "Replace with this week's parish announcements."
+    }
+  ],
+  "options": {
+    "include_creed": true,
+    "include_confession": true,
+    "eucharistic_prayer": "A",
+    "lords_prayer": "traditional"
+  }
+}

@@ -1,0 +1,51 @@
+# One machine-readable worship profile. The agent reads and updates this
+# file during onboarding. Leave a value blank when the pastor has not decided.
+schema_version: 1
+status: needs_onboarding
+tradition_pack: ""
+
+tradition:
+  family: ""
+  denomination: ""
+  service_book: ""
+  rite: ""
+
+defaults:
+  eucharistic_prayer: ""
+  lords_prayer: ""
+  prayers_of_the_people: ""
+  doxology: traditional      # traditional, custom, or omit
+  psalm_format: ""           # choose after the church confirms its psalm practice
+  psalm_response_start: second # people read the first or second whole verse
+  prayer_presentation: continuous # continuous or repeated_labels
+  rubric_style: concise      # concise or source
+  service_setting: ""
+  divine_service_setting: ""
+  include_creed: null
+  include_confession: null
+  print_full_eucharistic_prayer: null
+  blessing: general-blessing
+
+# Optional local overrides. Values may be a shipped identifier or a relative
+# path under worship/liturgy/ to text the church is licensed to use.
+sources:
+  eucharistic_prayer: ""
+  lords_prayer: ""
+  prayers_of_the_people: ""
+  gathering: ""
+  prayers: ""
+  great-thanksgiving: ""
+  lords-prayer: ""
+  communion: ""
+  sending: ""
+  doxology: ""              # private church-relative text, when doxology is custom
+  blessing: ""
+  communion_welcome: ""
+
+# Optional recurring orders. Keys are private, church-chosen variant ids.
+# Each entry must name a church-relative order file and a confirmation policy.
+service_variants: {}
+
+provenance:
+  last_reviewed_on: ""
+  reviewed_by: ""

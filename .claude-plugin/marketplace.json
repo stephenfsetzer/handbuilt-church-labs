@@ -1,0 +1,14 @@
+{
+  "name": "handbuilt-church-labs",
+  "owner": {
+    "name": "Handbuilt"
+  },
+  "description": "Church workflows for private onboarding, sermon research, and reviewable worship bulletins.",
+  "plugins": [
+    {
+      "name": "handbuilt-church-labs",
+      "source": "./",
+      "description": "Church workflows for private onboarding, sermon research, and reviewable worship bulletins."
+    }
+  ]
+}

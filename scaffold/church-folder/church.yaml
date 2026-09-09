@@ -1,0 +1,59 @@
+# Filled by /onboarding. Everything here is this church's private data.
+church:
+  name: ""
+  short_name: ""
+  tradition: ""
+  city: ""
+  address: ""
+  website: ""
+  regular_services: []
+
+# Optional people and print preferences. Blank or null values stay unresolved
+# until the pastor confirms them. Worship choices live only in the profile.
+leadership:
+  print_in_bulletin: null
+  clergy_and_staff: []
+  governing_body:
+    label: ""
+    member_label: ""
+    officers: []
+    members: []
+bulletin:
+  template: ""             # classic or modern; chosen once from the working template
+  include_serving_today: null
+  serving_roles: []
+  doxology_music: null       # optional standing hymn_block entry; a week may set service_music.doxology to null
+  footer:
+    contact_name: ""
+    address: ""
+    phone: ""
+    email: ""
+    website: ""
+worship_profile: worship/profile.yaml
+lectionary:
+  system: ""          # RCL, BCP, Roman, another named system, or blank
+  track: ""          # RCL: Track 1 or Track 2; leave blank otherwise
+  translation: ""    # The pastor's usual preaching translation
+  optional_verses: "" # appointed, include_all, omit_optional, ask_each_week
+  authorities:
+    - name: The Lectionary Page
+      url: https://lectionarypage.net/
+    - name: Vanderbilt Revised Common Lectionary
+      url: https://lectionary.library.vanderbilt.edu/
+sermon:
+  selection_mode: ""      # lectionary or pastor_selected; onboarding asks
+  primary_text: ""        # first, psalm, second, gospel, or selected; onboarding asks
+  research_preferences:
+    priority_voices: []        # optional names or traditions to search first
+    preferred_resources: []    # commentaries, databases, or licensed sources
+    voices_to_avoid: []        # optional names with a reason
+    language_depth: plain      # plain, moderate, or technical
+    human_sciences: true       # include only when they illuminate the text
+    contemporary_context: true # include only when current sources add value
+    additional_domain: ""      # a real area of pastor expertise, or blank
+people:
+  pastor: ""          # name and title as printed
+setup:
+  schema_version: 3
+  onboarded_on: ""
+  plugin: handbuilt-church-labs

@@ -1,0 +1,21 @@
+# Versions are resolved against PyPI and checked by the runtime doctor.
+# Keep pip inside the managed venv so setup never writes to global site-packages.
+weasyprint==70.0
+pypdf==6.18.0
+Pillow==12.3.0
+PyYAML==6.0.3
+qrcode[pil]==8.2
+pip==26.2.1
+setuptools==83.0.0
+brotli==1.2.0
+cffi==2.0.0
+cssselect2==0.8.0
+fonttools==4.60.2
+pycparser==2.23
+pydyf==0.11.0
+pyphen==0.17.2
+tinycss2==1.5.1
+tinyhtml5==2.0.0
+typing_extensions==4.16.0
+webencodings==0.5.1
+zopfli==0.2.3.post1

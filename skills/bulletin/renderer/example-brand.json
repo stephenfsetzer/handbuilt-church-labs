@@ -1,0 +1,24 @@
+{
+  "_comment": "EXAMPLE brand file. Copy to shared/brand/brand.json at your repository root and replace every value with your church's real facts. Colors are placeholder values; sample yours from your logo or letterhead.",
+  "church": {
+    "name": "Example Episcopal Church",
+    "public_name": "Example Episcopal Church",
+    "short_name": "Example Church",
+    "address": "123 Main Street, Anytown, ST 00000",
+    "website": "example.org",
+    "service_line": "Holy Eucharist, Rite II",
+    "service_time": "Sundays at 10:00 am"
+  },
+  "logo": {
+    "banner": "shared/brand/logos/banner-logo.png"
+  },
+  "colors": {
+    "ink": "#1a1a1a",
+    "accent": "#4a5d7e",
+    "accent_deep": "#2e3a52",
+    "paper": "#ffffff",
+    "rubric_red": "#8B3A3A"
+  },
+  "texts": {},
+  "qr": {}
+}

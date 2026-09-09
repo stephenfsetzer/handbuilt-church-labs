@@ -1,0 +1,18 @@
+__pycache__/
+.DS_Store
+*.log
+
+# Local credentials and environment files. Keep the example template visible.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Private church work and generated rehearsal output.
+.handbuilt-runtime/
+.private/
+private-church-data/
+tests/generated/
+tests/rehearsal-output/

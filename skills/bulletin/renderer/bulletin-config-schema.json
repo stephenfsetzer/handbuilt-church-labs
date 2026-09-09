@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://handbuilt.church/schemas/bulletin-config.json",
+  "title": "Resolved Bulletin Configuration",
+  "description": "Public-safe weekly input for the Handbuilt Church Labs bulletin renderer. Brand and church identity are explicit companion inputs to the renderer, not embedded weekly data.",
+  "type": "object",
+  "required": ["service"],
+  "properties": {
+    "service": {
+      "type": "object",
+      "required": ["date", "occasion"],
+      "properties": {
+        "date": {"type": "string", "format": "date"},
+        "occasion": {"type": "string"},
+        "display_name": {"type": "string"},
+        "proper": {"type": "string"},
+        "celebrant": {"type": "string"},
+        "preacher": {"type": "string"},
+        "serving": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/servingEntry"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "liturgy": {
+      "type": "object",
+      "required": ["service_plan", "blessing"],
+      "properties": {
+        "service_plan": {"type": "string"},
+        "service_variant": {"$ref": "#/$defs/serviceVariant"},
+        "service_variant_provenance": {"$ref": "#/$defs/serviceVariantProvenance"},
+        "blessing": {"type": "string"},
+        "files": {"type": "object", "additionalProperties": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "hymns": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/hymn"}
+    },
+    "options": {
+      "type": "object",
+      "properties": {
+        "include_serving_today": {"type": "boolean", "default": true},
+        "merge_back_page": {"type": "boolean", "default": false},
+        "serving_roles": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "servingEntry": {
+      "type": "object",
+      "required": ["role", "name"],
+      "properties": {
+        "role": {"type": "string"},
+        "name": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "serviceVariant": {
+      "type": "object",
+      "required": ["id", "name", "base_service_plan", "replace", "insert"],
+      "properties": {
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "base_service_plan": {"type": "string"},
+        "replace": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["unit", "with"],
+            "properties": {
+              "unit": {"type": "string"},
+              "with": {
+                "oneOf": [
+                  {"type": "string"},
+                  {"type": "array", "items": {"type": "string"}}
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "insert": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["after", "units"],
+            "properties": {
+              "after": {"type": "string"},
+              "units": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "hymn": {
+      "type": "object",
+      "properties": {
+        "number": {"type": ["string", "number"]},
+        "title": {"type": "string"},
+        "tune": {"type": "string"},
+        "images": {"type": "array", "items": {"type": "string"}},
+        "image": {"type": "string"},
+        "lyric_columns": {"type": "integer", "enum": [1, 2]},
+        "lyrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "speaker": {"type": "string"},
+              "part": {"type": "string"},
+              "bold": {"type": "boolean"},
+              "people": {"type": "boolean"},
+              "lines": {"oneOf": [
+                {"type": "string"},
+                {"type": "array", "items": {"type": "string"}}
+              ]}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "serviceVariantProvenance": {
+      "type": "object",
+      "required": ["variant_id", "order_file_chain", "confirmation_policy"],
+      "properties": {
+        "variant_id": {"type": "string"},
+        "order_file_chain": {"type": "array", "items": {"type": "string"}},
+        "confirmation_policy": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "brandCompanion": {
+      "description": "Explicit companion brand input supplied through the renderer brand argument.",
+      "type": "object",
+      "properties": {
+        "bulletin_footer": {"$ref": "#/$defs/bulletinFooter"},
+        "leadership": {"$ref": "#/$defs/leadership"},
+        "qr": {"$ref": "#/$defs/qr"}
+      },
+      "additionalProperties": true
+    },
+    "bulletinFooter": {
+      "type": "object",
+      "properties": {
+        "contact_name": {"type": "string"},
+        "address": {"type": "string"},
+        "phone": {"type": "string"},
+        "email": {"type": "string"},
+        "website": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "leadership": {
+      "type": "object",
+      "properties": {
+        "print_in_bulletin": {"type": "boolean"},
+        "clergy_and_staff": {"type": "array", "items": {"$ref": "#/$defs/person"}},
+        "governing_body": {
+          "type": "object",
+          "properties": {
+            "label": {"type": "string"},
+            "member_label": {"type": "string"},
+            "officers": {"type": "array", "items": {"$ref": "#/$defs/person"}},
+            "members": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"$ref": "#/$defs/person"}]}}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "person": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {"name": {"type": "string"}, "role": {"type": "string"}},
+      "additionalProperties": false
+    },
+    "qr": {
+      "type": "object",
+      "required": ["standard_copy_accepted"],
+      "properties": {
+        "standard_copy_accepted": {"type": "boolean"},
+        "connect": {"$ref": "#/$defs/qrAsset"},
+        "give": {"$ref": "#/$defs/qrAsset"},
+        "copy": {
+          "type": "object",
+          "properties": {
+            "heading": {"type": "string"},
+            "connect_head": {"type": "string"},
+            "give_head": {"type": "string"},
+            "connect_body": {"type": "string"},
+            "give_body": {"type": "string"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "qrAsset": {
+      "oneOf": [
+        {"type": "string"},
+        {
+          "type": "object",
+          "required": ["image", "url"],
+          "properties": {
+            "image": {"type": "string"},
+            "url": {"type": "string", "format": "uri"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

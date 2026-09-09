@@ -1,0 +1,27 @@
+{
+  "name": "handbuilt-church-labs",
+  "version": "0.3.0+codex.20260909213403",
+  "description": "Church operations workflows for onboarding, weekly bulletins, and sermon research.",
+  "author": {
+    "name": "Handbuilt",
+    "url": "https://gethandbuilt.com"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Handbuilt Church Labs",
+    "shortDescription": "Weekly church writing and worship workflows",
+    "longDescription": "Create a private church folder, prepare source-verified sermon research briefs, and produce reviewable worship bulletin booklets.",
+    "developerName": "Handbuilt",
+    "category": "Productivity",
+    "capabilities": [
+      "Church operations",
+      "Document creation"
+    ],
+    "defaultPrompt": [
+      "Set up my church folder.",
+      "Start my sermon research.",
+      "Build this week's bulletin."
+    ],
+    "brandColor": "#425B76"
+  }
+}

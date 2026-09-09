@@ -1,0 +1,1 @@
+"""Weekly bulletin workflow."""

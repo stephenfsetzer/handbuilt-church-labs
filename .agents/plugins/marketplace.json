@@ -1,0 +1,16 @@
+{
+  "name": "handbuilt-church-labs",
+  "interface": {
+    "displayName": "Handbuilt Church Labs"
+  },
+  "plugins": [
+    {
+      "name": "handbuilt-church-labs",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "description": "Church workflows for private onboarding, sermon research, and reviewable worship bulletins."
+    }
+  ]
+}

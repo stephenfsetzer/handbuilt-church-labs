@@ -1,0 +1,8 @@
+schema_version: 1
+packs:
+  - id: episcopal-bcp-rite-ii
+    file: episcopal-bcp-rite-ii.yaml
+  - id: lutheran-elca-elw
+    file: lutheran-elca-elw.yaml
+  - id: lutheran-lcms-lsb
+    file: lutheran-lcms-lsb.yaml

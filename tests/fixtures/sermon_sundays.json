@@ -1,0 +1,34 @@
+[
+  {
+    "date": "2026-09-20",
+    "occasion": "Synthetic Proper One",
+    "year": "A",
+    "track": "Track 2",
+    "gospel": "Test Gospel 3:1-5",
+    "optional_verses": "none"
+  },
+  {
+    "date": "2026-09-27",
+    "occasion": "Synthetic Proper Two",
+    "year": "A",
+    "track": "Track 2",
+    "gospel": "Test Gospel 4:1-8",
+    "optional_verses": "verses 6-8 optional"
+  },
+  {
+    "date": "2026-10-04",
+    "occasion": "Synthetic Proper Three",
+    "year": "A",
+    "track": "Track 2",
+    "gospel": "Test Gospel 5:1-9",
+    "optional_verses": "none"
+  },
+  {
+    "date": "2026-10-11",
+    "occasion": "Synthetic Feast Transfer",
+    "year": "A",
+    "track": "Track 2",
+    "gospel": "Test Gospel 6:1-7",
+    "optional_verses": "verse 7 optional"
+  }
+]

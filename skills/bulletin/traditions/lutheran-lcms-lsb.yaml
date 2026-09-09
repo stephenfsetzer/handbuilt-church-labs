@@ -1,0 +1,29 @@
+schema_version: 1
+id: lutheran-lcms-lsb
+label: Lutheran, Lutheran Service Book
+family: Lutheran
+denomination: Lutheran Church Missouri Synod
+service_book: Lutheran Service Book
+rite: Divine Service
+service_plan: lutheran-holy-communion
+
+# LSB text and music are not redistributed here. A church profile selects
+# the setting and points to text it is licensed to use locally.
+# The Lutheran service plan expects local files for gathering, prayers,
+# great-thanksgiving, lords-prayer, communion, and sending.
+choices:
+  divine_service_setting:
+    label: Divine Service setting
+    values: [Setting One, Setting Two, Setting Three, Setting Four, Setting Five, custom]
+  lords_prayer:
+    label: Lord's Prayer
+    values: [traditional, contemporary, custom]
+  prayers_of_the_people:
+    label: Prayers of the Church form
+    values: [seasonal, local, custom]
+  eucharistic_prayer:
+    label: Proper Preface and Thanksgiving
+    values: [appointed, local, custom]
+licensed_sources:
+  required: true
+  location_hint: worship/liturgy/

@@ -1,0 +1,164 @@
+/* Modern: asymmetric margin-rail architecture. Section labels hang in a
+   wide left rail beside the content instead of stacking above it, so the
+   page reads on a hard left axis: the opposite of classic's centered
+   ceremony. No rules, no ticks, no bars; the grid is the design.
+   Brand tokens: $ink $accent $accent_deep $rubric */
+
+body {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 12pt;
+}
+
+/* Every section indents to the text column; its label hangs in the rail */
+.section {
+    position: relative;
+    padding-left: 1.55in;
+    margin-top: 16pt;
+}
+.section-head {
+    position: absolute;
+    left: 0;
+    top: 2pt;
+    width: 1.35in;
+    margin: 0;
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 9pt;
+    font-weight: 700;
+    line-height: 1.45;
+    color: $ink;
+    text-align: left;
+}
+
+/* Display titles span the full width, pure oversized type */
+.service-title {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 26pt;
+    font-weight: 700;
+    color: $ink;
+    margin: 34pt 0 6pt 0;
+}
+
+.subhead {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10pt;
+    font-weight: 700;
+    color: $ink;
+}
+
+.dialogue .speaker {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    font-style: normal;
+    font-size: 9.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #666;
+    padding-top: 2pt;
+}
+.dialogue .speaker { width: 0.9in; }
+.lyrics-speaker { width: 1.15in; }
+
+.rubric, .speaker-mark { color: $rubric; }
+.congregational { margin-left: 0.9in; }
+.connect-give { padding-left: 1.55in; }
+.connect-give .section-head { top: 2pt; }
+.cg-grid { display: table; width: 100%; table-layout: fixed; }
+.cg-half { display: table-cell; vertical-align: top; width: 50%; }
+.cg-qr { width: 1in; height: 1in; margin: 0 0 6pt 0; }
+.cg-head { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.cg-body { font-size: 10pt; }
+.leadership-section { padding-left: 1.55in; }
+.lead-row { table-layout: fixed; }
+.lead-name { font-family: "Source Sans 3", Helvetica, Arial, sans-serif; font-size: 9.5pt; }
+.lead-role { font-family: "Source Sans 3", Helvetica, Arial, sans-serif; font-size: 8pt; }
+.lyrics-2col { column-gap: 20pt; }
+
+/* On the hard-left axis nothing centers; the preacher line sits in
+   the text column like everything else */
+.service-person.center { text-align: left; }
+
+/* Rail labels align to the top of their section content */
+.backpage .section-head { margin-top: 0; }
+
+/* Hymn and music blocks need the full page width; their labels sit
+   inline, small, above the music */
+.hymn-head {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 10pt;
+    font-weight: 700;
+    color: $ink;
+    margin: 14pt 0 2pt 0;
+}
+.hymn-title { font-style: normal; }
+
+.citation {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    font-style: normal;
+    font-size: 10pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #666;
+}
+
+.psalm-verse .vnum {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+}
+
+/* Editorial cover: wordmark up top, oversized type against a thick
+   accent rule, everything ranged left */
+.cover { text-align: left; }
+.cover-logo { margin: 0.1in 0 1.1in 0; }
+.cover-logo-mark { margin-bottom: 0.25in; }
+.cover-church-name { font-size: 20pt; font-weight: 600; margin: 0; }
+.cover-middle {
+    text-align: left;
+    margin-top: 1.3in;
+}
+.cover-kicker {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    color: $rubric;
+    text-align: left;
+    font-size: 12pt;
+    font-weight: 600;
+    margin-bottom: 14pt;
+}
+.cover-occasion {
+    font-size: 40pt;
+    line-height: 1.05;
+    font-weight: 700;
+    text-align: left;
+}
+.cover-proper, .cover-date { text-align: left; }
+.cover-proper {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    color: $rubric;
+    font-weight: 600;
+}
+.cover-date {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    font-size: 14pt;
+}
+.cover-foot {
+    text-align: left;
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+}
+
+@page {
+    @bottom-center {
+        content: counter(page);
+        font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+        font-size: 9.5pt;
+        font-weight: 600;
+        color: #888;
+    }
+}
+
+.qr-title, .ann-title, .order-ref {
+    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+}

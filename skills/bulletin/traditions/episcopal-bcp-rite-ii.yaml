@@ -1,0 +1,42 @@
+schema_version: 1
+id: episcopal-bcp-rite-ii
+label: Episcopal, Book of Common Prayer 1979, Rite II
+family: Anglican
+denomination: Episcopal
+service_book: Book of Common Prayer 1979
+rite: Rite II
+service_plan: episcopal-rite-ii
+
+# These are identifiers, not a second copy of the liturgical text. The
+# renderer resolves identifiers to shipped or church-owned sources.
+choices:
+  eucharistic_prayer:
+    label: Eucharistic Prayer
+    values: [A, B, C, D]
+  lords_prayer:
+    label: Lord's Prayer
+    values: [traditional, contemporary]
+  prayers_of_the_people:
+    label: Prayers of the People form
+    values: [I, II, III, IV, V, VI, custom]
+
+shipped_sources:
+  eucharistic_prayer:
+    A: eucharistic-prayer-a
+    A_full: eucharistic-prayer-a-full
+    B: eucharistic-prayer-b
+    B_full: eucharistic-prayer-b-full
+    C: eucharistic-prayer-c
+    C_full: eucharistic-prayer-c-full
+    D: eucharistic-prayer-d
+    D_full: eucharistic-prayer-d-full
+  lords_prayer:
+    traditional: lords-prayer-traditional
+    contemporary: lords-prayer-contemporary
+  prayers_of_the_people:
+    I: prayers-of-the-people-i
+    II: prayers-of-the-people-ii
+    III: prayers-of-the-people
+    IV: prayers-of-the-people-iv
+    V: prayers-of-the-people-v
+    VI: prayers-of-the-people-vi
