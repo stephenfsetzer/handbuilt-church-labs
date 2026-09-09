@@ -14,6 +14,26 @@ not require copying into each private church folder or creating a private
 source record. Full and congregation-only Eucharistic prayer presentation
 follow the saved print preference.
 
+### Identify an unnamed Prayers of the People form
+
+Use this index to choose a candidate, then compare its actual bundled text
+with the printed petitions and responses. Do not declare a prayer custom
+after checking only one or two forms. Local names or added petitions may be
+additions to a standard form. Keep those additions private and explicit.
+
+| Form | Recognizable opening | Bundled file in `renderer/liturgy/` |
+| --- | --- | --- |
+| I | With all our heart and with all our mind | `prayers-of-the-people-i.md` |
+| II | I ask your prayers for God's people throughout the world | `prayers-of-the-people-ii.md` |
+| III | Father, we pray for your holy Catholic Church | `prayers-of-the-people.md` |
+| IV | Let us pray for the Church and for the world; Grant, Almighty God | `prayers-of-the-people-iv.md` |
+| V | In peace, let us pray to the Lord | `prayers-of-the-people-v.md` |
+| VI | In peace, we pray to you, Lord God | `prayers-of-the-people-vi.md` |
+
+Form III intentionally uses the unsuffixed filename. Ask the pastor about
+unmatched wording only after inspecting the matching candidate and identifying
+the actual difference. Standard Form III does not require a private source.
+
 These are BCP words, including its original pronouns and titles. Do not label
 an inclusive adaptation as unchanged BCP text. An intentional church version
 belongs in the private church folder with its own verified source record.

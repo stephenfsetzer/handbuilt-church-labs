@@ -6,8 +6,12 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from skills.bulletin.renderer.render_bulletin import (
+    build_full_content,
+    build_lutheran_content,
+    NEUTRAL_BRAND,
     doxology_block,
     gospel_block,
+    parse_liturgy,
     psalm_block,
     reading_block,
     render_blocks,
@@ -16,7 +20,59 @@ from skills.bulletin.renderer.render_bulletin import (
 )
 
 
+from tests.helpers import bulletin_input
+
+
 class BulletinPresentationTest(unittest.TestCase):
+    def test_reading_order_preserves_two_lessons_and_single_second_lesson(self):
+        cfg = bulletin_input()
+        cfg["liturgy"].update(eucharistic_prayer="A", lords_prayer="traditional",
+                              prayers_of_the_people="III", include_first_reading=True,
+                              include_second_reading=True)
+        html = build_full_content(cfg, {"church": {"name": "Test Parish"}}, Path("."), Path("."), "classic")
+        self.assertLess(html.index("Test Book 1:1-3"), html.index("Test Psalm 1"))
+        self.assertLess(html.index("Test Psalm 1"), html.index("Test Letter 2:1-4"))
+
+        single = bulletin_input()
+        single["liturgy"].update(eucharistic_prayer="A", lords_prayer="traditional",
+                                 prayers_of_the_people="III", include_first_reading=False,
+                                 include_second_reading=True)
+        single["readings"].pop("first")
+        html = build_full_content(single, {"church": {"name": "Test Parish"}}, Path("."), Path("."), "classic")
+        self.assertIn("The Reading", html)
+        self.assertLess(html.index("Test Letter 2:1-4"), html.index("Test Psalm 1"))
+
+    def test_lutheran_single_second_lesson_honors_flags(self):
+        from tempfile import TemporaryDirectory
+        cfg = bulletin_input()
+        cfg["liturgy"].update(service_plan="lutheran-holy-communion",
+                              include_first_reading=False, include_second_reading=True,
+                              files={key: key for key in ("gathering", "prayers", "great-thanksgiving", "lords-prayer", "communion", "sending")})
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            for name in cfg["liturgy"]["files"].values():
+                (root / f"{name}.md").write_text(f"# {name}\n\nSynthetic Lutheran text.\n", encoding="utf-8")
+            with patch("skills.bulletin.renderer.render_bulletin.LITURGY_DIR", root):
+                html = build_lutheran_content(cfg, NEUTRAL_BRAND, root, root, "classic")
+        self.assertLess(html.index("Test Letter 2:1-4"), html.index("Test Psalm 1"))
+        self.assertNotIn("Test Book 1:1-3", html)
+
+
+    def test_private_source_comments_never_become_printed_prayer_text(self):
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "local-prayer.md"
+            path.write_text("<!-- Private source note\ncontinued on another line. -->\n"
+                            "# Local prayer\nLeader\tPray for peace.\n\n"
+                            "<!-- Weekly assignment note -->\n"
+                            "**People\tHear our prayer.**\n", encoding="utf-8")
+            html = render_blocks(parse_liturgy(path), {})
+        self.assertIn("Pray for peace.", html)
+        self.assertIn("Hear our prayer.", html)
+        self.assertNotIn("Private source", html)
+        self.assertNotIn("continued on another", html)
+        self.assertNotIn("Weekly assignment", html)
+        self.assertNotIn("&lt;!--", html)
+
     def test_cover_title_uses_resolved_service_without_internal_variant_label(self):
         cfg = {"liturgy": {"service_plan": "episcopal-rite-ii",
                            "service_variant": {"id": "none", "name": "Ordinary service"}}}

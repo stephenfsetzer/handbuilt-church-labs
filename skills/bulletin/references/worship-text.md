@@ -34,6 +34,26 @@ An older text without a verified sidecar blocks worship dependent production.
 Any later edit to the formatted text or source snapshot requires a new
 verification record. Never reconstruct a missing prayer from memory.
 
+## Format and check imported prayers
+
+Use the bundled liturgy files as format examples: a `#` heading, italic
+rubrics, and a literal tab between a speaker and the words. For a congregation
+response, bold the complete speaker-and-text line. Blank lines separate
+paragraphs. Source notes belong in HTML comments and do not print.
+
+Compare the formatted text with every paragraph of the relevant source pages
+before recording verification. Preserve general petitions, responses, and
+local wording even when adjacent paragraphs contain weekly names. A petition
+for the poor or refugees is not date-specific merely because it follows a
+named petition. Keep changing names and dates as weekly inputs, but do not
+replace whole prayer paragraphs with invisible comments. Comments are notes,
+not working placeholders or an automatic substitution mechanism.
+
+For a dated service, prepare any changed local prayer as a separate private
+weekly text, verify it, and pass its path through worship resolution's weekly
+source override. Do not overwrite the standing source to prepare one week.
+Compare the rendered prayer with that week's supplied or confirmed wording.
+
 When preparing reading input, use `reading.paragraphs` as a list of strings
 whose boundaries come from the verified source. Omit displayed verse numbers
 from ordinary prose. Preserve poetry with `reading.format: poetry`; do not

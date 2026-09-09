@@ -47,7 +47,8 @@ _PROFILE_SECTIONS = {"status", "tradition_pack", "tradition", "defaults", "sourc
 _PROFILE_TRADITION = {"family", "denomination", "service_book", "rite"}
 _PROFILE_DEFAULTS = {
     "eucharistic_prayer", "lords_prayer", "prayers_of_the_people", "service_setting",
-    "divine_service_setting", "include_creed", "include_confession", "print_full_eucharistic_prayer", "blessing",
+    "divine_service_setting", "include_creed", "include_confession", "print_full_eucharistic_prayer",
+    "include_first_reading", "include_second_reading", "blessing",
     "doxology", "psalm_format", "psalm_response_start", "prayer_presentation", "rubric_style",
 }
 _PROFILE_SOURCES = {
@@ -211,7 +212,8 @@ def _validate_profile_values(profile_patch: dict[str, Any], current: dict[str, A
     if defaults is None:
         return
     for key, value in defaults.items():
-        if key in {"include_creed", "include_confession", "print_full_eucharistic_prayer"}:
+        if key in {"include_creed", "include_confession", "print_full_eucharistic_prayer",
+                   "include_first_reading", "include_second_reading"}:
             _bool_or_blank(value, f"worship_profile.defaults.{key}")
         elif value is not None and not isinstance(value, str):
             raise SetupError(f"worship_profile.defaults.{key} must be text or blank")
@@ -223,6 +225,9 @@ def _validate_profile_values(profile_patch: dict[str, Any], current: dict[str, A
             raise SetupError(f"Choose a tradition pack before setting worship_profile.defaults.{key}")
         if choices and isinstance(value, str) and value and value not in choices:
             raise SetupError(f"worship_profile.defaults.{key} is not a choice in {pack_id}")
+    effective_defaults = effective.get("defaults") if isinstance(effective.get("defaults"), dict) else {}
+    if effective_defaults.get("include_first_reading", True) is False and effective_defaults.get("include_second_reading", True) is False:
+        raise SetupError("At least one non-Gospel reading must be included")
     variants = profile_patch.get("service_variants")
     if variants is not None and any(not isinstance(value, dict) for value in variants.values()):
         raise SetupError("worship_profile.service_variants entries must be objects")
@@ -562,7 +567,12 @@ def status(church_folder: str | Path) -> dict[str, Any]:
     )
     defaults = profile.get("defaults") if isinstance(profile.get("defaults"), dict) else {}
     uses_episcopal_order = resolver.get("liturgy", {}).get("service_plan") == "episcopal-rite-ii"
-    print_defaults_ready = not uses_episcopal_order or all(isinstance(defaults.get(key), bool) for key in ("include_creed", "include_confession", "print_full_eucharistic_prayer"))
+    print_defaults_ready = not uses_episcopal_order or (
+        all(isinstance(defaults.get(key), bool)
+            for key in ("include_creed", "include_confession", "print_full_eucharistic_prayer"))
+        and all(isinstance(defaults.get(key, True), bool)
+                for key in ("include_first_reading", "include_second_reading"))
+    )
     church = config.get("church") if isinstance(config.get("church"), dict) else {}
     identity_ready = bool(str(church.get("name") or "").strip())
     folder_ready = scaffold_ready and identity_ready

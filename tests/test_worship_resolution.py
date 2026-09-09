@@ -23,6 +23,25 @@ EPISCOPAL_PACK = {
 
 
 class WorshipResolutionTest(unittest.TestCase):
+    def test_reading_flags_default_true_and_weekly_override_is_local(self) -> None:
+        profile = {
+            "status": "confirmed",
+            "tradition_pack": "episcopal-bcp-rite-ii",
+            "defaults": {"eucharistic_prayer": "A", "lords_prayer": "traditional"},
+        }
+        result = resolve_profile_data(profile, EPISCOPAL_PACK, {"liturgy": {"include_second_reading": False}})
+        self.assertTrue(result["liturgy"]["include_first_reading"])
+        self.assertFalse(result["liturgy"]["include_second_reading"])
+        self.assertNotIn("include_second_reading", profile["defaults"])
+
+    def test_both_reading_flags_disabled_are_rejected(self) -> None:
+        with self.assertRaisesRegex(WorshipResolutionError, "At least one non-Gospel"):
+            resolve_profile_data(
+                {"defaults": {"eucharistic_prayer": "A", "lords_prayer": "traditional",
+                               "include_first_reading": False, "include_second_reading": False}},
+                EPISCOPAL_PACK,
+            )
+
     def test_standing_defaults_merge_with_weekly_overrides(self) -> None:
         result = resolve_profile_data(
             {

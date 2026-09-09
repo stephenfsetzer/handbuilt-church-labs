@@ -279,7 +279,13 @@ field names or status values.
 | Service book and order | `worship_profile.tradition_pack` and `worship_profile.tradition` |
 | Prayer forms and printed sections | `worship_profile.defaults`, with true or false for Episcopal print decisions |
 | Verified local worship text | `worship_profile.sources`, using church-relative paths; leave shipped-source overrides blank |
-| Standing worship preferences | `worship_profile.defaults.doxology`, `psalm_format`, `psalm_response_start`, `prayer_presentation`, and `rubric_style` |
+| Standing worship preferences | `worship_profile.defaults.doxology`, `psalm_format`, `psalm_response_start`, `prayer_presentation`, `rubric_style`, `include_first_reading`, and `include_second_reading` |
+
+The reading flags default to true to preserve the usual two-lesson order. A
+church may set either flag to false when its appointed service has only one
+non-Gospel lesson. The weekly `liturgy` object may override either flag for a
+single service; this does not change the standing profile. The psalm and Gospel
+remain required, and both lesson flags cannot be false.
 | Standing doxology music | `bulletin.doxology_music`, using the existing hymn block shape; a weekly null remains weekly |
 | Clergy names and regular roles | `leadership.clergy_and_staff`, each with `name` and `role` |
 | Usual reading practice | `lectionary` and `sermon.selection_mode` / `sermon.primary_text` |

@@ -24,6 +24,8 @@ defaults:
   include_creed: null
   include_confession: null
   print_full_eucharistic_prayer: null
+  include_first_reading: true
+  include_second_reading: true
   blessing: general-blessing
 
 # Optional local overrides. Values may be a shipped identifier or a relative

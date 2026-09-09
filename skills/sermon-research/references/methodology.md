@@ -127,7 +127,10 @@ cost attached to each center.
 
 List every materially used source with a followable URL or a precise primary
 citation. The source ledger in metadata carries retrieval and claim-support
-details. The visible list lets the pastor follow the trail.
+details. The visible list lets the pastor follow the trail. Check each author,
+title, publication, and date against the opened source. For a journal issue
+containing several articles, identify the actual article and author supporting
+the claim. Never borrow the title of a different essay on the same passage.
 
 ### Questions for reflection
 

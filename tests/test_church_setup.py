@@ -204,6 +204,16 @@ class ChurchSetupTest(unittest.TestCase):
         self.assertEqual((self.church / "church.yaml").read_bytes(), before_config)
         self.assertEqual((self.church / "worship" / "profile.yaml").read_bytes(), before_profile)
 
+    def test_reading_display_preferences_require_booleans(self) -> None:
+        with self.assertRaises(church_setup.SetupError):
+            church_setup.update_standing(self.church, {"worship_profile": {"defaults": {"include_first_reading": "yes"}}})
+        church_setup.update_standing(self.church, {"worship_profile": {"defaults": {"include_first_reading": False, "include_second_reading": True}}})
+        profile = yaml.safe_load((self.church / "worship" / "profile.yaml").read_text())
+        self.assertFalse(profile["defaults"]["include_first_reading"])
+        self.assertTrue(profile["defaults"]["include_second_reading"])
+        with self.assertRaises(church_setup.SetupError):
+            church_setup.update_standing(self.church, {"worship_profile": {"defaults": {"include_second_reading": False}}})
+
     def test_non_rcl_research_does_not_require_an_inapplicable_track(self) -> None:
         church_setup.update_standing(self.church, {
             "church": {"name": "Synthetic Parish"},

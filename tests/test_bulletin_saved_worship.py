@@ -11,11 +11,22 @@ import yaml
 from pypdf import PdfReader
 
 from skills.bulletin.bulletin_production import produce
+from skills.bulletin.bulletin_production.interface import _normalize_liturgy, _validate_bulletin
 from skills.bulletin.worship_resolution import resolve_worship_profile
 from tests.helpers import bulletin_input, make_church, verify_liturgy_source
 
 
 class SavedWorshipTest(unittest.TestCase):
+    def test_explicit_single_lesson_allows_missing_slot_and_both_disabled_rejects(self):
+        request = bulletin_input()
+        request["liturgy"].update(include_first_reading=True, include_second_reading=False)
+        request["readings"].pop("second")
+        _normalize_liturgy(request)
+        _validate_bulletin(request)
+        request["liturgy"].update(include_first_reading=False, include_second_reading=False)
+        with self.assertRaisesRegex(Exception, "At least one non-Gospel"):
+            _validate_bulletin(request)
+
     def test_numbered_reading_and_unshaped_psalm_stop_before_render(self):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))

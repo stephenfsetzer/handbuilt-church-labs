@@ -90,12 +90,11 @@ def parse_liturgy(path):
     """
     blocks = []
     cur = None  # open dialogue or prose block
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    text = re.sub(r"<!--.*?-->", "", path.read_text(encoding="utf-8"), flags=re.DOTALL)
+    for raw in text.splitlines():
         line = raw.rstrip()
         if not line.strip():
             cur = None
-            continue
-        if line.startswith("<!--") and line.endswith("-->"):
             continue
         if line.startswith("## "):
             blocks.append(("subtitle", line[3:].strip()))
@@ -543,6 +542,7 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
     num = hymn.get("number")
     title = hymn.get("title", "")
     tune = hymn.get("tune")
+    composer = hymn.get("composer")
     lyrics = hymn.get("lyrics") or []
     if label and num:
         head = f"{label} &middot; Hymn {num}"
@@ -567,8 +567,10 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
     cls = "hymn-page" if full_page else "hymn-inline"
     head_html = (f'<h2 class="hymn-head"><span class="sh-label">{head}</span></h2>'
                  if head else "")
+    composer_html = (f'<p class="hymn-composer">Composer: {esc(str(composer))}</p>'
+                     if str(composer or "").strip() else "")
     return (f'<div class="{cls}">'
-            + keep(head_html + f'<p class="hymn-title">{sub}</p>',
+            + keep(head_html + f'<p class="hymn-title">{sub}</p>' + composer_html,
                    img_html if not full_page else "")
             + (img_html + lyrics_html if full_page else lyrics_html)
             + "</div>")
@@ -1170,7 +1172,7 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
 
     svc = cfg["service"]
     hymns = cfg.get("hymns", {})
-    music = cfg.get("service_music", {})
+    music = cfg.get("service_music") or {}
     opts = cfg.get("options", {})
     liturgy = cfg.get("liturgy", {})
     if not isinstance(liturgy, dict):
@@ -1199,10 +1201,12 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
 
     parts = [cover_page(cfg, brand, repo_root, template)]
 
+    parts.append(hymn_block("Prelude", music.get("prelude"), config_dir))
     parts.append(hymn_block("Entrance Hymn", hymns.get("entrance"), config_dir))
     parts.append(service_title("The Word of God"))
     parts.append(liturgy_steps(variant, "opening-acclamation", ctx))
     parts.append(liturgy_steps(variant, "collect-for-purity", ctx))
+    parts.append(hymn_block("Gloria", music.get("gloria"), config_dir))
     parts.append('<div class="section">' + section_head("The Collect of the Day")
                  + dialogue_pair("Priest", "The Lord be with you.",
                                  "People", "And also with you.")
@@ -1211,11 +1215,17 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
                  + f'<p class="prose">{inline_md(cfg.get("collect_of_day", ""))}</p></div>')
 
     readings = cfg.get("readings", {})
-    if readings.get("first"):
-        parts.append(reading_block("The First Reading", readings["first"]))
+    include_first = liturgy.get("include_first_reading", True)
+    include_second = liturgy.get("include_second_reading", True)
+    if include_first and readings.get("first"):
+        parts.append(reading_block("The Reading" if not include_second else "The First Reading", readings["first"]))
+    if not include_first and include_second and readings.get("second"):
+        parts.append(reading_block("The Reading", readings["second"]))
+    parts.append(hymn_block("Psalm Antiphon", music.get("psalm_antiphon"), config_dir,
+                            full_page=False))
     if readings.get("psalm"):
         parts.append(psalm_block(readings["psalm"]))
-    if readings.get("second"):
+    if include_first and include_second and readings.get("second"):
         parts.append(reading_block("The Second Reading", readings["second"]))
     parts.append(hymn_block("Gradual Hymn", hymns.get("gradual"), config_dir))
     parts.append(hymn_block("Gospel Acclamation", hymns.get("gospel_acclamation"), config_dir))
@@ -1246,6 +1256,8 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     parts.append(liturgy_steps(variant, "peace", ctx))
     parts.append(qr_block(brand, repo_root))
 
+    parts.append(hymn_block("Offertory Anthem", music.get("offertory_anthem"), config_dir,
+                            full_page=False))
     parts.append(hymn_block("Offertory Hymn", hymns.get("offertory"), config_dir))
     parts.append(doxology_block(cfg, ctx, variant, config_dir))
 
@@ -1254,6 +1266,10 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     ep_file = (f"{ep_choice}-full"
                if liturgy.get("print_full_eucharistic_prayer", opts.get("print_full_eucharistic_prayer"))
                and ep_choice in {f"eucharistic-prayer-{letter}" for letter in "abcd"} else ep_choice)
+    # Keep the written Sursum Corda dialogue in the Great Thanksgiving. The
+    # supplied notation is adjacent music, never a replacement.
+    parts.append(hymn_block("Sursum Corda", music.get("sursum_corda"), config_dir,
+                            full_page=False))
     parts.append(liturgy_steps(variant, "eucharistic-prayer", ep_ctx,
                                default_unit=ep_file,
                                head="The Great Thanksgiving"))
@@ -1284,6 +1300,8 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
                                full_page=False, max_h=5.9)
     parts.append(fraction)
 
+    parts.append(hymn_block("Communion Anthem", music.get("communion_anthem"), config_dir,
+                            full_page=False))
     parts.append(hymn_block("Communion Hymn", hymns.get("communion"),
                             config_dir, full_page=False))
     parts.append(liturgy_steps(variant, "post-communion-prayer", ctx))
@@ -1293,6 +1311,7 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     parts.append(liturgy_steps(variant, "dismissal", ctx))
     closing_hymn = hymns.get("closing")
     closing = hymn_block("Closing Hymn", closing_hymn, config_dir)
+    closing += hymn_block("Postlude", music.get("postlude"), config_dir, full_page=False)
     back = announcements_block(cfg, brand, repo_root)
     if can_merge_back_page(cfg, closing_hymn, back):
         parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')
@@ -1307,6 +1326,7 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
     """Render a Lutheran service plan using church-supplied local sources."""
     svc = cfg["service"]
     hymns = cfg.get("hymns", {})
+    music = cfg.get("service_music") or {}
     liturgy = cfg.get("liturgy", {})
     if not isinstance(liturgy, dict):
         liturgy = {}
@@ -1330,15 +1350,22 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
         return liturgy_steps(variant, logical, ctx, default_unit=identifier, head=label)
 
     parts = [cover_page(cfg, brand, repo_root, template)]
+    parts.append(hymn_block("Prelude", music.get("prelude"), config_dir))
     parts.append(hymn_block("Entrance Hymn", hymns.get("entrance"), config_dir))
     parts.append(section("gathering", "Gathering"))
     parts.append(service_title("The Word of God"))
     readings = cfg.get("readings", {})
-    if readings.get("first"):
-        parts.append(reading_block("The First Reading", readings["first"]))
+    include_first = liturgy.get("include_first_reading", True)
+    include_second = liturgy.get("include_second_reading", True)
+    if include_first and readings.get("first"):
+        parts.append(reading_block("The Reading" if not include_second else "The First Reading", readings["first"]))
+    if not include_first and include_second and readings.get("second"):
+        parts.append(reading_block("The Reading", readings["second"]))
+    parts.append(hymn_block("Psalm Antiphon", music.get("psalm_antiphon"), config_dir,
+                            full_page=False))
     if readings.get("psalm"):
         parts.append(psalm_block(readings["psalm"]))
-    if readings.get("second"):
+    if include_first and include_second and readings.get("second"):
         parts.append(reading_block("The Second Reading", readings["second"]))
     parts.append(hymn_block("Gospel Acclamation", hymns.get("gospel_acclamation"), config_dir))
     if readings.get("gospel"):
@@ -1346,16 +1373,21 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
     parts.append('<div class="section">' + keep(section_head("The Sermon"),
                  f'<p class="service-person center">{esc(svc.get("preacher", ""))}</p>') + '</div>')
     parts.append(section("prayers", "Prayers of the Church"))
+    parts.append(hymn_block("Offertory Anthem", music.get("offertory_anthem"), config_dir,
+                            full_page=False))
     parts.append(hymn_block("Offertory Hymn", hymns.get("offertory"), config_dir))
     parts.append(service_title("Holy Communion"))
     parts.append(section("great-thanksgiving", "The Great Thanksgiving", logical="meal"))
     parts.append(section("lords-prayer", "The Lord's Prayer"))
     parts.append(section("communion", "The Holy Communion"))
+    parts.append(hymn_block("Communion Anthem", music.get("communion_anthem"), config_dir,
+                            full_page=False))
     parts.append(hymn_block("Communion Hymn", hymns.get("communion"), config_dir,
                             full_page=False))
     parts.append(section("sending", "Sending"))
     closing_hymn = hymns.get("closing")
     closing = hymn_block("Closing Hymn", closing_hymn, config_dir)
+    closing += hymn_block("Postlude", music.get("postlude"), config_dir, full_page=False)
     back = announcements_block(cfg, brand, repo_root)
     if can_merge_back_page(cfg, closing_hymn, back):
         parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')

@@ -20,6 +20,7 @@ GENERAL_BLESSING = "general-blessing"
 VARIANT_FIELD = "service.variant"
 SOURCE_CHOICE_KEYS = ("eucharistic_prayer", "lords_prayer", "prayers_of_the_people")
 EXPLICIT_PRINT_CHOICES = ("include_creed", "include_confession", "print_full_eucharistic_prayer")
+READING_DISPLAY_CHOICES = ("include_first_reading", "include_second_reading")
 SERVICE_PLAN_ANCHORS = {
     "episcopal-rite-ii": frozenset({
         "opening-acclamation",
@@ -548,10 +549,24 @@ def resolve_profile_data(
 
     liturgy = copy.deepcopy(profile_defaults)
     liturgy.update(copy.deepcopy(weekly_liturgy))
+    # These defaults preserve the two-lesson practice for existing profiles.
+    # Keep the resolved values explicit so production never infers an omission
+    # from missing reading data.
+    for key in READING_DISPLAY_CHOICES:
+        liturgy.setdefault(key, True)
     if not str(liturgy.get("blessing", "")).strip():
         liturgy["blessing"] = GENERAL_BLESSING
     unresolved: list[dict[str, str]] = []
     invalid: list[dict[str, str]] = []
+    for key in READING_DISPLAY_CHOICES:
+        if not isinstance(liturgy[key], bool):
+            invalid.append({"field": f"liturgy.{key}", "value": liturgy[key]})
+    if not liturgy["include_first_reading"] and not liturgy["include_second_reading"]:
+        raise WorshipResolutionError(
+            "invalid_reading_selection",
+            "At least one non-Gospel reading must be included",
+            field="liturgy.include_first_reading",
+        )
     if "psalm_format" in liturgy and not str(liturgy.get("psalm_format") or "").strip():
         unresolved.append({"field": "liturgy.psalm_format", "reason": "Confirm whether the psalm uses half-verse responses, whole-verse responses, unison, or plain text."})
     choice_keys = [*REQUIRED_CHOICES, "blessing"]

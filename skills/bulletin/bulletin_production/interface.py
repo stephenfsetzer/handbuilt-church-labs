@@ -24,7 +24,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 
-IMPLEMENTATION_VERSION = "0.4.3"
+IMPLEMENTATION_VERSION = "0.4.4"
 SUPPORTED_TEMPLATES = {"classic", "modern"}
 REQUIRED_READING_SLOTS = ("first", "psalm", "second", "gospel")
 PLACEHOLDER_PATTERNS = (
@@ -35,6 +35,18 @@ PLACEHOLDER_PATTERNS = (
     re.compile(r"\bReplace with this week", re.I),
 )
 MAX_FOOTER_ROSTER = 9
+
+# Weekly service music uses the same hymn block shape as `hymns`. Keep this
+# list deliberately small so a supplied slot cannot disappear silently.
+SERVICE_MUSIC_SLOTS = frozenset({
+    "prelude", "gloria", "psalm_antiphon", "offertory_anthem",
+    "sursum_corda", "sanctus", "fraction_anthem", "doxology",
+    "communion_anthem", "postlude",
+})
+LUTHERAN_SERVICE_MUSIC_SLOTS = frozenset({
+    "prelude", "psalm_antiphon", "offertory_anthem", "communion_anthem",
+    "postlude",
+})
 
 
 class StageFailure(Exception):
@@ -306,7 +318,8 @@ def _normalize_liturgy(bulletin: dict[str, Any]) -> None:
     for key in ("eucharistic_prayer", "lords_prayer", "prayers_of_the_people"):
         if not str(liturgy.get(key, "")).strip() and str(options.get(key, "")).strip():
             liturgy[key] = options[key]
-    for key in ("include_creed", "include_confession", "print_full_eucharistic_prayer"):
+    for key in ("include_creed", "include_confession", "print_full_eucharistic_prayer",
+                "include_first_reading", "include_second_reading"):
         if key not in liturgy and key in options:
             liturgy[key] = options[key]
     if liturgy.get("doxology", "traditional") != "custom":
@@ -657,6 +670,43 @@ def _validate_lyric_layout(bulletin: dict[str, Any]) -> None:
             raise StageFailure("invalid_lyric_columns", "validation", "lyric_columns must be 1 or 2", field=f"{field}.lyric_columns")
 
 
+def _validate_service_music(bulletin: dict[str, Any]) -> None:
+    """Reject service music that the selected plan cannot render."""
+    music = bulletin.get("service_music", {})
+    if music is None:
+        return
+    if not isinstance(music, dict):
+        raise StageFailure("invalid_request", "validation", "Service music must be a mapping", field="service_music")
+    plan = (bulletin.get("liturgy") or {}).get("service_plan")
+    allowed = (LUTHERAN_SERVICE_MUSIC_SLOTS
+               if plan == "lutheran-holy-communion" else SERVICE_MUSIC_SLOTS)
+    for slot, entry in music.items():
+        if not entry:
+            continue
+        field = f"service_music.{slot}"
+        if slot not in allowed:
+            if plan == "lutheran-holy-communion":
+                raise StageFailure(
+                    "unsupported_service_music",
+                    "validation",
+                    f"The Lutheran service plan does not have a supported position for {slot!r}. Use one of: {', '.join(sorted(allowed))}.",
+                    field=field,
+                )
+            raise StageFailure(
+                "unsupported_service_music",
+                "validation",
+                f"Unknown service music slot {slot!r}. Use one of: {', '.join(sorted(allowed))}.",
+                field=field,
+            )
+        if not isinstance(entry, dict):
+            raise StageFailure(
+                "invalid_service_music",
+                "validation",
+                "Service music entries use the hymn shape with title, image(s), custom_text, or lyrics.",
+                field=field,
+            )
+
+
 def _validate_service_variant(bulletin: dict[str, Any], church_root: Path) -> None:
     liturgy = bulletin.get("liturgy")
     if not isinstance(liturgy, dict) or "service_variant" not in liturgy:
@@ -959,9 +1009,26 @@ def _validate_bulletin(bulletin: dict[str, Any]) -> None:
     readings = bulletin.get("readings")
     if not isinstance(readings, dict):
         raise StageFailure("invalid_request", "validation", "Missing readings", field="readings")
+    liturgy = bulletin.get("liturgy")
+    if not isinstance(liturgy, dict):
+        raise StageFailure("unresolved_liturgy", "validation", "Missing resolved worship choices", field="liturgy")
+    include_first = liturgy.get("include_first_reading", True) if isinstance(liturgy, dict) else True
+    include_second = liturgy.get("include_second_reading", True) if isinstance(liturgy, dict) else True
+    for key, value in (("include_first_reading", include_first), ("include_second_reading", include_second)):
+        if not isinstance(value, bool):
+            raise StageFailure("unresolved_liturgy", "validation", f"Confirm whether {key.replace('_', ' ')} should be included before producing", field=f"liturgy.{key}")
+    if not include_first and not include_second:
+        raise StageFailure("invalid_request", "validation", "At least one non-Gospel reading must be included", field="liturgy.include_first_reading")
+    required_slots = ["psalm", "gospel"]
+    if include_first:
+        required_slots.append("first")
+    if include_second:
+        required_slots.append("second")
     for slot in REQUIRED_READING_SLOTS:
         reading = readings.get(slot)
         if not isinstance(reading, dict):
+            if slot not in required_slots and reading is None:
+                continue
             raise StageFailure("invalid_request", "validation", f"Missing {slot}", field=f"readings.{slot}")
         _validate_reading_presentation(reading, slot)
         citation_key = "number" if slot == "psalm" else "citation"
@@ -981,9 +1048,6 @@ def _validate_bulletin(bulletin: dict[str, Any]) -> None:
             "Missing collect of the day",
             field="collect_of_day",
         )
-    liturgy = bulletin.get("liturgy")
-    if not isinstance(liturgy, dict):
-        raise StageFailure("unresolved_liturgy", "validation", "Missing resolved worship choices", field="liturgy")
     for key, choices in {
         "doxology": ("traditional", "custom", "omit"),
         "prayer_presentation": ("continuous", "repeated_labels"),
@@ -1696,6 +1760,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         _validate_brand_asset_paths(brand, root)
         _validate_qr(brand, root, warnings, church_config)
         _validate_lyric_layout(source_resolved)
+        _validate_service_music(source_resolved)
         _validate_service_variant(source_resolved, root)
         _validate_back_page_merge(source_resolved)
         if (source_resolved.get("options") or {}).get("merge_back_page") is True:

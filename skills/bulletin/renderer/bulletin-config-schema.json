@@ -28,6 +28,8 @@
       "required": ["service_plan", "blessing"],
       "properties": {
         "service_plan": {"type": "string"},
+        "include_first_reading": {"type": "boolean", "default": true},
+        "include_second_reading": {"type": "boolean", "default": true},
         "service_variant": {"$ref": "#/$defs/serviceVariant"},
         "service_variant_provenance": {"$ref": "#/$defs/serviceVariantProvenance"},
         "blessing": {"type": "string"},
@@ -38,6 +40,23 @@
     "hymns": {
       "type": "object",
       "additionalProperties": {"$ref": "#/$defs/hymn"}
+    },
+    "service_music": {
+      "type": "object",
+      "description": "Optional weekly music at a supported service position. Lutheran plans support only the compatible positions documented in weekly-input.md.",
+      "properties": {
+        "prelude": {"$ref": "#/$defs/hymn"},
+        "gloria": {"$ref": "#/$defs/hymn"},
+        "psalm_antiphon": {"$ref": "#/$defs/hymn"},
+        "offertory_anthem": {"$ref": "#/$defs/hymn"},
+        "sursum_corda": {"$ref": "#/$defs/hymn"},
+        "sanctus": {"$ref": "#/$defs/hymn"},
+        "fraction_anthem": {"$ref": "#/$defs/hymn"},
+        "doxology": {"$ref": "#/$defs/hymn"},
+        "communion_anthem": {"$ref": "#/$defs/hymn"},
+        "postlude": {"$ref": "#/$defs/hymn"}
+      },
+      "additionalProperties": false
     },
     "options": {
       "type": "object",
@@ -104,6 +123,7 @@
         "number": {"type": ["string", "number"]},
         "title": {"type": "string"},
         "tune": {"type": "string"},
+        "composer": {"type": "string"},
         "images": {"type": "array", "items": {"type": "string"}},
         "image": {"type": "string"},
         "lyric_columns": {"type": "integer", "enum": [1, 2]},

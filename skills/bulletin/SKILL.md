@@ -191,6 +191,15 @@ automated quality gate, stores artifacts in the dated week folder, and writes
 a production receipt. A successful result is `ready_for_review`, not approved
 or print-ready.
 
+For a supplied-bulletin reproduction, compare each source section with the
+rendered output before closeout. Check supplied prayer paragraphs and local
+petitions, music titles, lyrics, notation, credits, and recurring information.
+A field saved in JSON is not evidence that it printed. Inspect the PDFs and
+their extracted text. Recover an available supplied image before accepting a
+missing-image fallback. Explain any unsupported content and obtain the
+pastor's choice before deliberately omitting it; a receipt does not establish
+content completeness. Broad layout changes do not authorize removing words.
+
 Show the user the sequential PDF, booklet PDF, warnings, and receipt. Human
 review is required before finalization. Printing or sending requires separate
 explicit authorization.
