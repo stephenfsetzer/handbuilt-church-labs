@@ -36,6 +36,12 @@ Do not put the entire resolver response inside `liturgy`. The production tool
 validates the resulting input; it does not turn an incomplete weekly object
 into a complete worship service.
 
+An Episcopal service variant may insert a verified private collect after the
+Collect of the Day by using the `collect-of-day` anchor. The built-in collect
+still renders from `collect_of_day`; inserted units use the normal verified
+church source path. A later collect may also be inserted after the existing
+`post-communion-prayer` anchor.
+
 Keep weekly work in the private church folder so another task can resume it.
 Use the private launcher to produce the review package. A rejected input should
 lead to a focused correction of that input. It is never a reason to change the

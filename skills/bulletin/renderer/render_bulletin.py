@@ -1033,7 +1033,7 @@ def _variant_unit(value):
 
 
 EPISCOPAL_VARIANT_ANCHORS = frozenset({
-    "opening-acclamation", "collect-for-purity", "nicene-creed",
+    "opening-acclamation", "collect-for-purity", "collect-of-day", "nicene-creed",
     "prayers-of-the-people", "confession-of-sin", "peace", "doxology",
     "eucharistic-prayer", "lords-prayer", "breaking-of-bread",
     "post-communion-prayer", "dismissal",
@@ -1199,6 +1199,16 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     ep_ctx = dict(ctx)
     ep_ctx["subtitle_hook"] = sanctus_hook
 
+    def render_collect(identifier, render_ctx, **kwargs):
+        if identifier == "collect-of-day":
+            return ('<div class="section">' + section_head("The Collect of the Day")
+                    + dialogue_pair("Priest", "The Lord be with you.",
+                                    "People", "And also with you.")
+                    + '<div class="dialogue"><span class="speaker">Priest</span>'
+                      '<span class="line">Let us pray.</span></div>'
+                    + f'<p class="prose">{inline_md(cfg.get("collect_of_day", ""))}</p></div>')
+        return liturgy_section(identifier, render_ctx, **kwargs)
+
     parts = [cover_page(cfg, brand, repo_root, template)]
 
     parts.append(hymn_block("Prelude", music.get("prelude"), config_dir))
@@ -1207,12 +1217,8 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     parts.append(liturgy_steps(variant, "opening-acclamation", ctx))
     parts.append(liturgy_steps(variant, "collect-for-purity", ctx))
     parts.append(hymn_block("Gloria", music.get("gloria"), config_dir))
-    parts.append('<div class="section">' + section_head("The Collect of the Day")
-                 + dialogue_pair("Priest", "The Lord be with you.",
-                                 "People", "And also with you.")
-                 + '<div class="dialogue"><span class="speaker">Priest</span>'
-                   '<span class="line">Let us pray.</span></div>'
-                 + f'<p class="prose">{inline_md(cfg.get("collect_of_day", ""))}</p></div>')
+    parts.append(liturgy_steps(variant, "collect-of-day", ctx,
+                               renderer=render_collect, default_unit="collect-of-day"))
 
     readings = cfg.get("readings", {})
     include_first = liturgy.get("include_first_reading", True)

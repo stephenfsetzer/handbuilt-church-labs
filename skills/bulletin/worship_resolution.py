@@ -25,6 +25,7 @@ SERVICE_PLAN_ANCHORS = {
     "episcopal-rite-ii": frozenset({
         "opening-acclamation",
         "collect-for-purity",
+        "collect-of-day",
         "nicene-creed",
         "prayers-of-the-people",
         "confession-of-sin",
