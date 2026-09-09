@@ -4,8 +4,10 @@ The installed plugin owns skills and rendering code. The private folder owns
 church information and results. Creating the folder also installs a small
 `handbuilt.py` launcher and records its plugin location privately.
 
-For a returning folder with a missing or moved connection, first locate the
-installed Handbuilt onboarding skill, then run:
+For every returning folder, compare `.handbuilt/installation.json` with the
+plugin root of the skill the app currently exposes. An old cached installation
+can still exist after an update; its presence does not make it current. If the
+roots differ or the connection is missing, use this installed skill's root and run:
 
 ```bash
 python3 "<plugin-root>/tools/church_workflow.py" --church-folder "<church-folder>" connect

@@ -16,6 +16,11 @@ The public production interface has four operations: `orient`, `produce`,
 
 ## 0. Confirm the bulletin runtime
 
+Compare the saved plugin root in `.handbuilt/installation.json` with this
+app-loaded skill's plugin root. If they differ, reconnect using the installed
+[onboarding connection reference](../onboarding/references/connection-and-brand.md)
+before running the launcher. An old cache may still exist after an update.
+
 Before interviewing the pastor or staging a bulletin, verify the connected skill and runtime:
 
 ```bash

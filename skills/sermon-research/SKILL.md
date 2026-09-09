@@ -23,6 +23,11 @@ deleted, modified, or interpreted as workflow state.
 
 ## Start or resume
 
+Compare the saved plugin root in `.handbuilt/installation.json` with this
+app-loaded skill's plugin root. If they differ, reconnect using the installed
+[onboarding connection reference](../onboarding/references/connection-and-brand.md)
+before running the launcher. An old cache may still exist after an update.
+
 Run `python3 "<church-folder>/handbuilt.py" start sermon-research` first.
 Read the returned skill path to confirm this installed Handbuilt workflow.
 The launcher selects the managed runtime and records the installation used.

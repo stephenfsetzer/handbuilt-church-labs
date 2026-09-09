@@ -5,18 +5,24 @@ Everything about this church stays here.
 
 ## Session startup
 
-1. Run `python3 handbuilt.py start onboarding`, `start bulletin`, or
-   `start sermon-research` for the requested workflow.
-2. Read the exact `skill` path returned by that command. This identifies the
-   connected Handbuilt installation. Follow its canonical instructions.
-3. Read `church.yaml` and the workflow's saved private state before asking
-   questions. Preserve answers and pastor-authored files.
-4. Use `python3 handbuilt.py` for supported workflow operations. It selects
-   Handbuilt's managed Python and records the installation used privately.
-5. If the connection is missing, load the installed Handbuilt onboarding skill
-   and reconnect this existing folder. If Handbuilt is not installed, explain
-   how to install it. Stop production until the connection works. Do not use
-   a personal sermon skill, generic PDF skill, or invented renderer as a fallback.
+1. Activate the app's installed `handbuilt-church-labs:onboarding`,
+   `handbuilt-church-labs:bulletin`, or `handbuilt-church-labs:sermon-research`
+   skill for the requested work. Use the app's skill loader when available.
+   Its current installation is authoritative; an older cached copy may still
+   exist after an update.
+2. Compare that skill's plugin root with `.handbuilt/installation.json`. If
+   they differ, follow the installed onboarding connection reference to
+   reconnect this folder before running its launcher. Do not select a cached
+   version by its filename or a previous conversation.
+3. Run `python3 handbuilt.py start onboarding`, `start bulletin`, or
+   `start sermon-research`. Verify the returned skill belongs to the same
+   installed plugin, then follow its canonical instructions.
+4. Read `church.yaml` and the workflow's saved state before asking questions.
+   Preserve answers and pastor-authored files. Use `python3 handbuilt.py` for
+   supported operations; it selects managed Python and records the installation.
+5. If Handbuilt is unavailable, explain how to install or reconnect it. Stop
+   production until the connection works. Do not substitute a personal sermon
+   skill, generic PDF skill, or invented renderer.
 
 
 ## Layout
