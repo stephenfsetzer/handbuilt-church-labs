@@ -9,7 +9,10 @@ Work inside the church's private folder. Use this skill's production interface
 instead of calling renderer scripts directly.
 
 Read [Worship text and source records](references/worship-text.md) when a
-private or locally formatted prayer or reading text is needed.
+private or locally formatted prayer or reading text is needed. Read
+[Source import and inventory](references/source-inventory.md) when this
+week's input draws on a bulletin imported during onboarding; check
+`validate_for_production` before relying on that import.
 
 The public production interface has four operations: `orient`, `produce`,
 `revise`, and `finalize`.

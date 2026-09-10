@@ -24,7 +24,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 
-IMPLEMENTATION_VERSION = "0.4.5"
+IMPLEMENTATION_VERSION = "0.5.0"
 SUPPORTED_TEMPLATES = {"classic", "modern"}
 REQUIRED_READING_SLOTS = ("first", "psalm", "second", "gospel")
 PLACEHOLDER_PATTERNS = (
@@ -52,12 +52,24 @@ LUTHERAN_SERVICE_MUSIC_SLOTS = frozenset({
 class StageFailure(Exception):
     """Expected operational failure with a stable code and stage."""
 
-    def __init__(self, code: str, stage: str, message: str, *, field: str | None = None):
+    def __init__(
+        self,
+        code: str,
+        stage: str,
+        message: str,
+        *,
+        field: str | None = None,
+        diagnostics: dict[str, Any] | None = None,
+    ):
         super().__init__(message)
         self.code = code
         self.stage = stage
         self.message = message
         self.field = field
+        # Structured detail (e.g. every unresolved source-inventory section
+        # or import, not just the first one named in ``message``) a caller
+        # can use to resolve the specific entry, not just retry blindly.
+        self.diagnostics = diagnostics
 
 
 def _now() -> str:
@@ -168,6 +180,8 @@ def _failure(exc: StageFailure | Exception, *, status: str = "blocked") -> dict[
         }
         if exc.field:
             error["field"] = exc.field
+        if exc.diagnostics:
+            error["diagnostics"] = exc.diagnostics
     else:
         status = "failed"
         error = {
@@ -455,10 +469,38 @@ def _leadership_entries(leadership: dict[str, Any]) -> list[tuple[str, Any]]:
     return entries
 
 
+LEADERSHIP_PLACEMENTS = ("auto", "footer", "body")
+
+
+def _resolve_leadership_placement(entry_count: int, requested: Any) -> str:
+    """Resolve where the leadership roster prints without guessing silently.
+
+    ``auto`` keeps the running-footer roster for a small roster and flows a
+    roster over the footer's capacity into a normal readable body section.
+    An explicit ``footer`` or ``body`` choice always wins, so an explicit
+    footer request still enforces the footer's capacity. Only a missing or
+    blank value defaults to ``auto``; any other unrecognized value is a
+    configuration error rather than a silent fallback.
+    """
+    value = str(requested or "").strip().lower()
+    if not value:
+        value = "auto"
+    if value not in LEADERSHIP_PLACEMENTS:
+        raise StageFailure(
+            "invalid_leadership_placement",
+            "validation",
+            f"leadership.placement must be one of {', '.join(LEADERSHIP_PLACEMENTS)}, not {value!r}",
+            field="leadership.placement",
+        )
+    if value == "auto":
+        return "footer" if entry_count <= MAX_FOOTER_ROSTER else "body"
+    return value
+
+
 def _validate_leadership(church_config: dict[str, Any]) -> dict[str, Any]:
     leadership = church_config.get("leadership")
     if not isinstance(leadership, dict) or leadership.get("print_in_bulletin") is not True:
-        return {"entries": [], "printed": False}
+        return {"entries": [], "printed": False, "placement": "footer"}
     entries = _leadership_entries(leadership)
     governing = leadership.get("governing_body")
     governing = governing if isinstance(governing, dict) else {}
@@ -502,14 +544,15 @@ def _validate_leadership(church_config: dict[str, Any]) -> dict[str, Any]:
                 field=f"leadership.{group}",
             )
     printed = leadership.get("print_in_bulletin") is True
-    if printed and len(entries) > MAX_FOOTER_ROSTER:
+    placement = _resolve_leadership_placement(len(entries), leadership.get("placement"))
+    if printed and placement == "footer" and len(entries) > MAX_FOOTER_ROSTER:
         raise StageFailure(
             "leadership_roster_capacity",
             "quality_gate",
-            f"The printed leadership roster has {len(entries)} people; the running footer supports at most {MAX_FOOTER_ROSTER}. Send this bulletin for layout review",
+            f"The printed leadership roster has {len(entries)} people; the running footer supports at most {MAX_FOOTER_ROSTER}. Set leadership.placement to body for a directory section, or send this bulletin for layout review",
             field="leadership",
         )
-    return {"entries": copy.deepcopy(entries), "printed": printed, "label": label or ""}
+    return {"entries": copy.deepcopy(entries), "printed": printed, "label": label or "", "placement": placement}
 
 
 def _qr_item_path(item: Any) -> str | None:
@@ -1133,6 +1176,9 @@ def _stage_effective_brand(
             for key in ("print_in_bulletin", "clergy_and_staff", "governing_body")
             if key in leadership
         }
+        effective["leadership"]["placement"] = _resolve_leadership_placement(
+            len(_leadership_entries(leadership)), leadership.get("placement")
+        )
     bulletin = church_config.get("bulletin")
     if isinstance(bulletin, dict) and "footer" in bulletin:
         footer = bulletin["footer"]
@@ -1209,7 +1255,52 @@ def _json_digest(value: Any) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def _authority_fingerprint(root: Path, bulletin: dict[str, Any]) -> str:
+def _source_inventory_diagnostics(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "errors": result.get("errors", []),
+        "unresolved_sections": result.get("unresolved_sections", []),
+        "visual_review": result.get("visual_review", []),
+        "imports_checked": result.get("imports_checked"),
+    }
+
+
+def _validate_source_inventory(root: Path, bulletin: dict[str, Any]) -> dict[str, Any]:
+    """Block on an invalid supplied-bulletin source mapping before production
+    relies on it, using the source inventory validator.
+
+    A church with no imported bulletin is always valid: there is nothing to
+    check. An invalid result blocks with a pastor-actionable reason drawn
+    from the first problem, and every error, unresolved section, and
+    required visual review attached as diagnostics, so the agent can
+    resolve the specific entry rather than retry blindly. This never
+    silently ignores an invalid inventory: a status other than valid, or a
+    raised InventoryError, always becomes a StageFailure.
+    """
+    from ..source_inventory import InventoryError, validate_for_production
+
+    try:
+        result = validate_for_production(root, bulletin)
+    except InventoryError as exc:
+        raise StageFailure("source_inventory_invalid", "source_inventory", str(exc)) from exc
+    if result.get("status") != "valid":
+        first = next(iter(result.get("errors") or result.get("unresolved_sections") or []), {})
+        message = first.get("message") or "A supplied bulletin's source mapping is not ready for production."
+        locator = ".".join(
+            str(part) for part in (first.get("import_id"), first.get("section_id")) if part
+        )
+        raise StageFailure(
+            "source_inventory_invalid",
+            "source_inventory",
+            message,
+            field=f"source_inventory.{locator}" if locator else "source_inventory",
+            diagnostics=_source_inventory_diagnostics(result),
+        )
+    return result
+
+
+def _authority_fingerprint(
+    root: Path, bulletin: dict[str, Any], *, source_inventory_fingerprint: str | None = None
+) -> str:
     """Fingerprint consumed private authorities and referenced file content."""
     records: list[dict[str, str]] = []
 
@@ -1281,7 +1372,11 @@ def _authority_fingerprint(root: Path, bulletin: dict[str, Any]) -> str:
                 path = _qr_item_path(item)
                 if path:
                     private_path(path, f"brand.qr.{key}")
-    return _json_digest({"implementation_version": IMPLEMENTATION_VERSION, "files": sorted(records, key=lambda item: item["path"])})
+    return _json_digest({
+        "implementation_version": IMPLEMENTATION_VERSION,
+        "files": sorted(records, key=lambda item: item["path"]),
+        "source_inventory_fingerprint": source_inventory_fingerprint,
+    })
 
 
 def _copy_music_assets(
@@ -1713,6 +1808,84 @@ def _load_prior_revision(root: Path, prior_run: str | Path) -> dict[str, Any]:
     return {"path": receipt_path, "receipt": receipt, "source": _migrate_v1_source_config(root, receipt_path, receipt), "package_dir": package_dir}
 
 
+def _consume_saved_worship_resolution(root: Path, bulletin: dict[str, Any]) -> None:
+    """Merge the church's saved worship resolution into the weekly liturgy.
+
+    A church that has never chosen a worship tradition pack yet (the
+    onboarding-in-progress case: the profile file exists at its default,
+    unconfigured) has no saved worship resolution to consult, so its weekly
+    liturgy passes through unchanged, and ``_validate_bulletin`` still
+    requires that weekly liturgy to be a complete, explicit set of worship
+    choices on its own. That bypass is narrow: a profile the church folder
+    is supposed to have, but that is missing or unreadable (moved, deleted,
+    corrupted), is a broken connection, not an unconfigured church, and
+    blocks production with reconnect guidance rather than silently reverting
+    to the legacy no-profile path and losing every saved preference.
+
+    Once a tradition pack is chosen, production consults the same resolver
+    the agent uses instead of trusting a hand-merged weekly input, so a
+    saved choice (doxology, confession, closing-hymn position, a configured
+    service variant, or any other worship-profile default) cannot be
+    silently dropped. An explicit weekly override always wins: the resolver
+    applies it after the saved defaults. A choice the profile still needs
+    blocks production with the resolver's own reason instead of guessing.
+    """
+    from ..worship_resolution import WorshipResolutionError, resolve_worship_profile
+
+    liturgy = bulletin.get("liturgy")
+    liturgy = liturgy if isinstance(liturgy, dict) else {}
+    service = bulletin.get("service")
+    service = service if isinstance(service, dict) else {}
+    weekly: dict[str, Any] = {"liturgy": liturgy, "service": service}
+    if str(liturgy.get("service_plan", "")).strip():
+        weekly["service_plan"] = liturgy["service_plan"]
+    try:
+        resolution = resolve_worship_profile(root, weekly)
+    except WorshipResolutionError as exc:
+        if exc.code == "tradition_pack_unresolved":
+            return
+        if exc.code == "profile_missing":
+            raise StageFailure(
+                "worship_profile_missing",
+                "worship_resolution",
+                f"{exc.message} Reconnect or restore the saved worship profile through onboarding before producing; "
+                "do not treat a missing saved profile as an unconfigured church.",
+                field=exc.field or "worship_profile",
+            ) from exc
+        raise StageFailure(exc.code, "worship_resolution", exc.message, field=exc.field) from exc
+    if resolution["status"] == "needs_input":
+        reason = resolution["unresolved"][0]
+        raise StageFailure(
+            "worship_resolution_needs_input",
+            "worship_resolution",
+            reason["reason"],
+            field=reason["field"],
+        )
+    bulletin["liturgy"] = resolution["liturgy"]
+
+
+def _validate_service_time_choice(church_config: dict[str, Any], bulletin: dict[str, Any]) -> None:
+    """Require an explicit weekly time when the church has several services.
+
+    A single saved service safely fills the printed time (see
+    ``_stage_effective_brand``). Several saved services must never be
+    guessed among; the weekly input must say which one this bulletin is for.
+    """
+    identity = church_config.get("church")
+    services = identity.get("regular_services") if isinstance(identity, dict) else None
+    if not isinstance(services, list) or len(services) <= 1:
+        return
+    service = bulletin.get("service")
+    weekly_time = service.get("time") if isinstance(service, dict) else None
+    if not str(weekly_time or "").strip():
+        raise StageFailure(
+            "service_time_choice_required",
+            "validation",
+            f"This church has {len(services)} saved services; confirm which one's time applies to this week's bulletin",
+            field="service.time",
+        )
+
+
 def _history_has_run(root: Path, service_date: str, run_id: str) -> bool:
     history_path = root / "bulletins" / "bulletin-log.json"
     if not history_path.is_file():
@@ -1753,6 +1926,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         root = _require_church_folder(Path(church_folder))
         church_config, brand = _load_church_configuration(root)
         source_resolved = copy.deepcopy(bulletin)
+        _validate_service_time_choice(church_config, source_resolved)
+        _consume_saved_worship_resolution(root, source_resolved)
         _normalize_liturgy(source_resolved)
         _resolve_standing_preferences(source_resolved, church_config)
         _validate_leadership(church_config)
@@ -1771,6 +1946,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             })
         _validate_bulletin(source_resolved)
         _validate_liturgy_sources(source_resolved, root)
+        inventory_result = _validate_source_inventory(root, source_resolved)
         template = source_resolved.get("template") or source_resolved.get("_template") or "classic"
         if template in SUPPORTED_TEMPLATES:
             from ..renderer.render_bulletin import cover_logo
@@ -1793,7 +1969,9 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         run_id = str(uuid.uuid4())
         digest = _json_digest({
             "implementation_version": IMPLEMENTATION_VERSION,
-            "authority_fingerprint": _authority_fingerprint(root, source_resolved),
+            "authority_fingerprint": _authority_fingerprint(
+                root, source_resolved, source_inventory_fingerprint=inventory_result["fingerprint"]
+            ),
             "template": template,
             "bulletin": source_resolved,
         })
@@ -1955,6 +2133,11 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "blocking_failures": [],
             "dependency_versions": _dependency_checks(),
             "cleanup_status": "clean",
+            "source_inventory": {
+                "fingerprint": inventory_result["fingerprint"],
+                "imports_checked": inventory_result["imports_checked"],
+                "visual_review": inventory_result["visual_review"],
+            },
         }
         receipt_path = stage_dir / "bulletin-production-receipt.json"
         receipt_path.write_text(json.dumps(receipt, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -2153,6 +2336,27 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
 
         config_artifact = next(item for item in receipt["artifacts"] if item["role"] == "config")
         config = json.loads((root / config_artifact["path"]).read_text(encoding="utf-8"))
+
+        # Re-run the same read-only source-inventory gate used at production.
+        # An artifact/config file hash matching the receipt only proves the
+        # resolved bulletin is unchanged; it says nothing about a mapped
+        # source file, or its review attestation, changing since. That would
+        # never be caught otherwise, and source review would silently vanish
+        # from the approved handoff.
+        inventory_result = _validate_source_inventory(root, config)
+        stored_inventory = receipt.get("source_inventory") or {}
+        if (
+            stored_inventory.get("fingerprint") is not None
+            and inventory_result["fingerprint"] != stored_inventory["fingerprint"]
+        ):
+            raise StageFailure(
+                "source_inventory_changed",
+                "finalization",
+                "The source mapping or its reviewed content changed since this bulletin was produced; "
+                "produce a fresh review package before approving.",
+                field="source_inventory",
+            )
+
         approval_id = str(uuid.uuid4())
         approval_receipt = {
             "receipt_version": 1,
@@ -2164,6 +2368,11 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
             "reviewed_artifact_hashes": actual_hashes,
             "production_receipt_sha256": _sha256(receipt_path),
             "history_update": "verified",
+            "source_inventory": {
+                "fingerprint": inventory_result["fingerprint"],
+                "imports_checked": inventory_result["imports_checked"],
+                "visual_review": inventory_result["visual_review"],
+            },
         }
 
         bulletins = root / "bulletins"

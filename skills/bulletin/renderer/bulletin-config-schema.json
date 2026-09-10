@@ -32,6 +32,7 @@
         "include_second_reading": {"type": "boolean", "default": true},
         "service_variant": {"$ref": "#/$defs/serviceVariant"},
         "service_variant_provenance": {"$ref": "#/$defs/serviceVariantProvenance"},
+        "closing_hymn_position": {"type": "string", "enum": ["before_dismissal", "after_dismissal"]},
         "blessing": {"type": "string"},
         "files": {"type": "object", "additionalProperties": {"type": "string"}}
       },
@@ -182,6 +183,7 @@
       "type": "object",
       "properties": {
         "print_in_bulletin": {"type": "boolean"},
+        "placement": {"type": "string", "enum": ["auto", "footer", "body"]},
         "clergy_and_staff": {"type": "array", "items": {"$ref": "#/$defs/person"}},
         "governing_body": {
           "type": "object",

@@ -1,5 +1,10 @@
 # Prepare the weekly input
 
+If this week's content draws on a bulletin imported during onboarding, check
+[source import and inventory](source-inventory.md)'s `validate_for_production`
+before relying on it; a mapped section that never made it into this JSON, or
+one whose source changed, blocks there rather than silently missing.
+
 Use this reference and the [field schema](../renderer/bulletin-config-schema.json)
 before preparing JSON. The [example](../renderer/example-bulletin-config.json)
 illustrates field shapes only. Its names, date, readings, music, and placeholders

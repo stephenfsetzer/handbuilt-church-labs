@@ -25,6 +25,12 @@ standing-setting hypotheses separate. For a PDF, pair text extraction with a
 rendered visual check. For a Word document, inspect text and rendered page
 structure when layout matters.
 
+For a PDF, follow the
+[source import and inventory workflow](../../bulletin/references/source-inventory.md):
+snapshot the file, inspect the extracted page renders and text (a page with no
+selectable text is not necessarily blank), and record each decided section
+before treating the import as usable for a future bulletin.
+
 Build a private evidence ledger with the source file, page or section
 location, extracted value, and confidence. This is internal workflow support.
 Do not introduce it as a pastor-facing deliverable or ask the pastor to review

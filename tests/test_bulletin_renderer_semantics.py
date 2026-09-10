@@ -13,10 +13,12 @@ from skills.bulletin.renderer.render_bulletin import (
     blessing_block,
     build_css,
     build_full_content,
+    closing_hymn_position,
     footer_line,
     hymn_block,
     inline_md,
     leadership_block,
+    leadership_directory_block,
     liturgy_steps,
     _qr_copy,
     qr_block,
@@ -269,6 +271,61 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
             ".dialogue-group .dialogue .line { display: inline; }",
             css,
         )
+
+    def test_closing_hymn_position_defaults_to_after_dismissal(self) -> None:
+        self.assertEqual(closing_hymn_position({"liturgy": {}}), "after_dismissal")
+        self.assertEqual(closing_hymn_position({}), "after_dismissal")
+        self.assertEqual(closing_hymn_position({"liturgy": {"closing_hymn_position": "sideways"}}), "after_dismissal")
+        self.assertEqual(
+            closing_hymn_position({"liturgy": {"closing_hymn_position": "before_dismissal"}}),
+            "before_dismissal",
+        )
+
+    def test_closing_hymn_position_moves_the_hymn_before_the_spoken_dismissal(self) -> None:
+        cfg = bulletin_input()
+        cfg["liturgy"].update({
+            "eucharistic_prayer": "A", "lords_prayer": "traditional",
+            "prayers_of_the_people": "III", "blessing": "omit",
+        })
+        cfg["service_music"]["postlude"] = {"title": "Test Postlude"}
+        brand = {"church": {"name": "Synthetic Church"}, "colors": {}, "texts": {}}
+        default_html = build_full_content(cfg, brand, Path("/tmp"), Path("/tmp"), "classic")
+        self.assertLess(default_html.index("The Dismissal"), default_html.index("Test Closing"))
+        self.assertLess(default_html.index("Test Closing"), default_html.index("Test Postlude"))
+
+        cfg["liturgy"]["closing_hymn_position"] = "before_dismissal"
+        reordered_html = build_full_content(cfg, brand, Path("/tmp"), Path("/tmp"), "classic")
+        self.assertLess(reordered_html.index("Test Closing"), reordered_html.index("The Dismissal"))
+        # The postlude always plays the congregation out, so it stays after
+        # the dismissal in both orders rather than moving with the hymn.
+        self.assertLess(reordered_html.index("The Dismissal"), reordered_html.index("Test Postlude"))
+
+    def test_leadership_directory_renders_the_full_roster_in_the_body_not_the_footer(self) -> None:
+        brand = {
+            "church": {"name": "Synthetic Church"},
+            "leadership": {
+                "print_in_bulletin": True,
+                "placement": "body",
+                "clergy_and_staff": [{"name": f"Person {i}", "role": "Staff"} for i in range(35)],
+            },
+        }
+        directory_html = leadership_directory_block(brand)
+        self.assertIn("Parish Directory", directory_html)
+        self.assertIn("Person 0", directory_html)
+        self.assertIn("Person 34", directory_html)
+        self.assertEqual(directory_html.count("Person 34"), 1)
+        self.assertEqual(leadership_block(brand), "")
+
+    def test_leadership_footer_placement_is_the_legacy_default(self) -> None:
+        brand = {
+            "church": {"name": "Synthetic Church"},
+            "leadership": {
+                "print_in_bulletin": True,
+                "clergy_and_staff": [{"name": "Alex Reed", "role": "Pastor"}],
+            },
+        }
+        self.assertIn("Alex Reed", leadership_block(brand))
+        self.assertEqual(leadership_directory_block(brand), "")
 
     def test_congregational_responses_are_bold_in_the_rendered_contract(self) -> None:
         css_path = (

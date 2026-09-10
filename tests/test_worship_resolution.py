@@ -235,6 +235,39 @@ service_variants:
         self.assertEqual(result["status"], "needs_input")
         self.assertEqual(result["unresolved"][0]["field"], "service.variant")
 
+    def test_standing_only_does_not_require_a_weekly_variant_selection(self) -> None:
+        profile = """
+schema_version: 1
+status: confirmed
+tradition_pack: episcopal-bcp-rite-ii
+defaults:
+  eucharistic_prayer: A
+  lords_prayer: traditional
+  prayers_of_the_people: III
+  blessing: omit
+service_variants:
+  local:
+    name: Synthetic local variation
+    base_service_plan: episcopal-rite-ii
+    order_file: worship/orders/local.yaml
+    confirmation_policy: ask_each_week
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            church = self._church_with_profile(Path(tmp), profile, {"local.yaml": "{}\n"})
+            standing = resolve_worship_profile(church, standing_only=True)
+            self.assertEqual(standing["status"], "resolved")
+            self.assertEqual(standing["unresolved"], [])
+            self.assertTrue(standing["service_variant_pending"])
+
+            weekly = resolve_worship_profile(church)
+            self.assertEqual(weekly["status"], "needs_input")
+            self.assertEqual(weekly["unresolved"][0]["field"], "service.variant")
+            self.assertTrue(weekly["service_variant_pending"])
+
+            selected = resolve_worship_profile(church, {"service": {"variant": "local"}}, standing_only=True)
+            self.assertEqual(selected["status"], "resolved")
+            self.assertFalse(selected["service_variant_pending"])
+
     def test_variant_files_merge_into_liturgy_files_for_staging(self) -> None:
         profile = """
 schema_version: 1

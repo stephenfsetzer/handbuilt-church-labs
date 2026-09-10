@@ -307,6 +307,9 @@ class SermonQualityContractTest(unittest.TestCase):
         self.assertEqual(result["errors"][0]["code"], "scheduled_research_focus_required")
 
     def test_config_change_invalidates_only_active_research_chain(self) -> None:
+        # Receipts fingerprint only the church.yaml fields that govern each
+        # stage (see tests/test_sermon_workflow.py), so this must be an
+        # actual semantic change, not a formatting or comment-only edit.
         self._record_readings()
         record(
             self.church,
@@ -316,7 +319,10 @@ class SermonQualityContractTest(unittest.TestCase):
             research_metadata(),
         )
         config = self.church / "church.yaml"
-        config.write_text(config.read_text(encoding="utf-8") + "\n# changed track policy\n", encoding="utf-8")
+        config.write_text(
+            config.read_text(encoding="utf-8").replace("  track: Track 2", "  track: Track 1"),
+            encoding="utf-8",
+        )
         state = orient(self.church, self.target_date)
         self.assertEqual(state["workflow_state"], "needs_readings")
         self.assertEqual(state["stage_files"]["readings"]["status"], "stale")

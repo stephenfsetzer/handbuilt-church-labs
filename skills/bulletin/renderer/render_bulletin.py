@@ -536,7 +536,7 @@ def sized_img(path, cls, content_w=7.3, max_h=8.2, max_upscale=1.25):
             f'style="width:{w_in * scale:.2f}in; height:{h_in * scale:.2f}in;">')
 
 
-def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=None):
+def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=None, lead_in=""):
     if not hymn:
         return ""
     num = hymn.get("number")
@@ -550,29 +550,35 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
         head = label or (f"Hymn {num}" if num else "")
     sub = esc(title) + (f' <span class="tune">({esc(tune)})</span>' if tune else "")
     imgs = hymn.get("images") or ([hymn["image"]] if hymn.get("image") else [])
-    img_html = ""
     if max_h is None:
         max_h = 8.2 if full_page else 5.2
+    systems = []
     for img in imgs:
         p = (config_dir / img).resolve()
         if p.exists():
             # Inline music sits inside the modern theme's left-rail section,
             # so its usable width is the text column, not the full page.
             image_w = content_w if content_w is not None else (5.75 if not full_page else 7.3)
-            img_html += sized_img(p, "hymn-img", content_w=image_w,
-                                  max_h=max_h) + "\n"
+            systems.append(sized_img(p, "hymn-img", content_w=image_w, max_h=max_h))
     if hymn.get("custom_text"):
-        img_html += f'<p class="rubric">{esc(hymn["custom_text"])}</p>'
+        systems.append(f'<p class="rubric">{esc(hymn["custom_text"])}</p>')
     lyrics_html = lyrics_block(lyrics, hymn.get("lyric_columns")) if lyrics else ""
     cls = "hymn-page" if full_page else "hymn-inline"
     head_html = (f'<h2 class="hymn-head"><span class="sh-label">{head}</span></h2>'
                  if head else "")
     composer_html = (f'<p class="hymn-composer">Composer: {esc(str(composer))}</p>'
                      if str(composer or "").strip() else "")
+    header = lead_in + head_html + f'<p class="hymn-title">{sub}</p>' + composer_html
+    # Keep any caller-supplied lead-in (a subtitle and rubric, say) with the
+    # heading and only the first system, all as one unit. A long piece's
+    # later systems then flow across pages on their own, instead of the
+    # whole piece being forced onto a fresh page as one unbreakable block
+    # and stranding the page before it near-empty.
+    first_system, later_systems = (systems[0], systems[1:]) if systems else ("", [])
     return (f'<div class="{cls}">'
-            + keep(head_html + f'<p class="hymn-title">{sub}</p>' + composer_html,
-                   img_html if not full_page else "")
-            + (img_html + lyrics_html if full_page else lyrics_html)
+            + keep(header, first_system)
+            + "\n".join(later_systems)
+            + lyrics_html
             + "</div>")
 
 
@@ -900,40 +906,73 @@ def roster_names(brand):
     return leadership_roster(brand)[2]
 
 
-def leadership_block(brand):
-    """Render a church-neutral name-over-role leadership roster."""
-    lead = brand.get("leadership", {}) or {}
-    if lead.get("print_in_bulletin") is not True:
-        return ""
-    staff, governing, _names, governing_label = leadership_roster(brand)
-    if not (staff or governing):
-        return ""
+def _leadership_rows(entries, per_row=3):
+    out = []
+    for i in range(0, len(entries), per_row):
+        chunk = entries[i:i + per_row]
+        name_cells = "".join(f'<td class="lead-name">{esc(name)}</td>'
+                             for _role, name in chunk)
+        role_cells = "".join(f'<td class="lead-role">{esc(role)}</td>'
+                             for role, _name in chunk)
+        pad = per_row - len(chunk)
+        out.append(
+            f'<table class="lead-row"><tr>{name_cells}'
+            f'{"<td></td>" * pad}</tr><tr>{role_cells}'
+            f'{"<td></td>" * pad}</tr></table>')
+    return "".join(out)
 
-    def rows(entries, per_row=3):
-        out = []
-        for i in range(0, len(entries), per_row):
-            chunk = entries[i:i + per_row]
-            name_cells = "".join(f'<td class="lead-name">{esc(name)}</td>'
-                                 for _role, name in chunk)
-            role_cells = "".join(f'<td class="lead-role">{esc(role)}</td>'
-                                 for role, _name in chunk)
-            pad = per_row - len(chunk)
-            out.append(
-                f'<table class="lead-row"><tr>{name_cells}'
-                f'{"<td></td>" * pad}</tr><tr>{role_cells}'
-                f'{"<td></td>" * pad}</tr></table>')
-        return "".join(out)
 
+def _leadership_groups(staff, governing, governing_label):
     groups = ""
     if staff:
-        groups += f'<div class="lead-group">{rows(staff)}</div>'
+        groups += f'<div class="lead-group">{_leadership_rows(staff)}</div>'
     if governing:
         groups += '<div class="lead-group">'
         if governing_label:
             groups += f'<p class="lead-group-label">{esc(governing_label)}</p>'
-        groups += rows(governing) + '</div>'
+        groups += _leadership_rows(governing) + '</div>'
+    return groups
+
+
+def leadership_block(brand):
+    """Render a church-neutral name-over-role leadership roster in the running footer.
+
+    Renders only when the roster's resolved placement is ``footer`` (the
+    default when a staged brand carries no placement, for legacy callers).
+    A roster placed in the body directory instead is not duplicated here.
+    """
+    lead = brand.get("leadership", {}) or {}
+    if lead.get("print_in_bulletin") is not True:
+        return ""
+    if lead.get("placement", "footer") != "footer":
+        return ""
+    staff, governing, _names, governing_label = leadership_roster(brand)
+    if not (staff or governing):
+        return ""
+    groups = _leadership_groups(staff, governing, governing_label)
     return (f'<div class="section leadership-section">'
             f'{section_head("Parish Leadership")}<div class="leadership">'
+            f'{groups}</div></div>')
+
+
+def leadership_directory_block(brand):
+    """Render the full leadership roster as a normal readable body section.
+
+    Used when the resolved placement is ``body``: either the church asked
+    for a directory explicitly, or the roster is too large for the running
+    footer's fixed capacity. All names are retained, not truncated.
+    """
+    lead = brand.get("leadership", {}) or {}
+    if lead.get("print_in_bulletin") is not True:
+        return ""
+    if lead.get("placement", "footer") != "body":
+        return ""
+    staff, governing, _names, governing_label = leadership_roster(brand)
+    if not (staff or governing):
+        return ""
+    groups = _leadership_groups(staff, governing, governing_label)
+    return (f'<div class="section leadership-directory">'
+            f'{section_head("Parish Directory")}<div class="leadership">'
             f'{groups}</div></div>')
 
 
@@ -989,6 +1028,9 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
         sections.append(f'<div class="section">{keep(section_head("Serving Today"), ppl)}</div>')
     if include_qr:
         sections.append(qr_block(brand, repo_root))
+    directory = leadership_directory_block(brand)
+    if directory:
+        sections.append(directory)
     roster = leadership_block(brand)
     footline = footer_line(brand, escaped=True)
     roster = (f'<div class="bp-running">{roster}'
@@ -1002,6 +1044,22 @@ def _backpage_inner(markup):
     if markup.startswith(prefix) and markup.endswith(suffix):
         return markup[len(prefix):-len(suffix)]
     return markup
+
+
+CLOSING_HYMN_POSITIONS = ("before_dismissal", "after_dismissal")
+
+
+def closing_hymn_position(cfg):
+    """Resolve where the closing hymn prints relative to the spoken dismissal.
+
+    ``after_dismissal`` is the documented, long-standing default: the hymn
+    follows the dismissal words. A church may choose ``before_dismissal``
+    instead. Any other or missing value keeps the default rather than
+    guessing at the church's intent.
+    """
+    liturgy = cfg.get("liturgy")
+    value = str(liturgy.get("closing_hymn_position", "")).strip() if isinstance(liturgy, dict) else ""
+    return value if value in CLOSING_HYMN_POSITIONS else "after_dismissal"
 
 
 def can_merge_back_page(cfg, closing_hymn, back_markup):
@@ -1187,13 +1245,18 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
 
     def sanctus_hook(subtitle):
         # Congregational music must be legible: the Sanctus gets near
-        # full-page treatment even when that forces a page break.
+        # full-page treatment even when that forces a page break. The short
+        # heading and rubric join hymn_block's own first-system keep-together
+        # as one unit, so the heading and the actual first music system land
+        # on the same page; a long setting's later systems still flow,
+        # rather than the whole thing being forced onto a fresh page (or the
+        # heading being stranded ahead of the system that belongs with it).
         if subtitle.strip().lower() == "the sanctus" and music.get("sanctus"):
-            return keep('<h3 class="subhead">The Sanctus</h3>',
-                        '<p class="rubric">Sung by all.</p>',
-                        hymn_block("", music["sanctus"], config_dir,
-                                   full_page=False, max_h=7.5,
-                                   content_w=5.7 if template == "modern" else None))
+            return hymn_block("", music["sanctus"], config_dir,
+                              full_page=False, max_h=7.5,
+                              content_w=5.7 if template == "modern" else None,
+                              lead_in='<h3 class="subhead">The Sanctus</h3>'
+                                      '<p class="rubric">Sung by all.</p>')
         return None
 
     ep_ctx = dict(ctx)
@@ -1314,10 +1377,17 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
 
     parts.append(blessing_block(cfg, brand, ctx))
 
-    parts.append(liturgy_steps(variant, "dismissal", ctx))
     closing_hymn = hymns.get("closing")
-    closing = hymn_block("Closing Hymn", closing_hymn, config_dir)
-    closing += hymn_block("Postlude", music.get("postlude"), config_dir, full_page=False)
+    closing_hymn_markup = hymn_block("Closing Hymn", closing_hymn, config_dir)
+    postlude_markup = hymn_block("Postlude", music.get("postlude"), config_dir, full_page=False)
+    dismissal_markup = liturgy_steps(variant, "dismissal", ctx)
+    if closing_hymn_position(cfg) == "before_dismissal":
+        parts.append(closing_hymn_markup)
+        parts.append(dismissal_markup)
+        closing = postlude_markup
+    else:
+        parts.append(dismissal_markup)
+        closing = closing_hymn_markup + postlude_markup
     back = announcements_block(cfg, brand, repo_root)
     if can_merge_back_page(cfg, closing_hymn, back):
         parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')
@@ -1390,10 +1460,20 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
                             full_page=False))
     parts.append(hymn_block("Communion Hymn", hymns.get("communion"), config_dir,
                             full_page=False))
-    parts.append(section("sending", "Sending"))
     closing_hymn = hymns.get("closing")
-    closing = hymn_block("Closing Hymn", closing_hymn, config_dir)
-    closing += hymn_block("Postlude", music.get("postlude"), config_dir, full_page=False)
+    closing_hymn_markup = hymn_block("Closing Hymn", closing_hymn, config_dir)
+    postlude_markup = hymn_block("Postlude", music.get("postlude"), config_dir, full_page=False)
+    sending_markup = section("sending", "Sending")
+    # The Lutheran plan's "sending" section already includes its own spoken
+    # dismissal, so the hymn position choice only moves the hymn relative to
+    # that section, mirroring the Episcopal plan's before/after dismissal.
+    if closing_hymn_position(cfg) == "before_dismissal":
+        parts.append(closing_hymn_markup)
+        parts.append(sending_markup)
+        closing = postlude_markup
+    else:
+        parts.append(sending_markup)
+        closing = closing_hymn_markup + postlude_markup
     back = announcements_block(cfg, brand, repo_root)
     if can_merge_back_page(cfg, closing_hymn, back):
         parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')

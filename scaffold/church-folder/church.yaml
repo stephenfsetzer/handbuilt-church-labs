@@ -12,6 +12,7 @@ church:
 # until the pastor confirms them. Worship choices live only in the profile.
 leadership:
   print_in_bulletin: null
+  placement: auto           # auto, footer, or body; large directories use the body
   clergy_and_staff: []
   governing_body:
     label: ""

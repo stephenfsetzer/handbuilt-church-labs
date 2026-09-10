@@ -1,7 +1,10 @@
 # Worship text and source records
 
 Use this reference when a bulletin needs church supplied or locally formatted
-worship text. The source record belongs beside the private formatted text:
+worship text. When that text originated as a page in a bulletin imported
+during onboarding, also record the mapping in
+[source import and inventory](source-inventory.md) alongside this text's
+source record; the two are complementary, not a replacement for each other. The source record belongs beside the private formatted text:
 `worship/liturgy/example.txt.source.json`. A source record binds the source
 snapshot and the formatted text by hash. It records an agent or pastor's
 verification assertion. It does not prove that a public page or private copy

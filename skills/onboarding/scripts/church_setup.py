@@ -32,7 +32,8 @@ _SCALAR_SECTIONS = {
     "people": {"pastor"},
     "worship_profile": set(),
 }
-_LEADERSHIP_FIELDS = {"print_in_bulletin", "clergy_and_staff", "governing_body"}
+_LEADERSHIP_FIELDS = {"print_in_bulletin", "clergy_and_staff", "governing_body", "placement"}
+_LEADERSHIP_PLACEMENT_CHOICES = {"auto", "footer", "body"}
 _GOVERNING_FIELDS = {"label", "member_label", "officers", "members"}
 _BULLETIN_FIELDS = {"include_serving_today", "serving_roles", "footer", "template", "doxology_music"}
 _FOOTER_FIELDS = {"contact_name", "address", "phone", "email", "website"}
@@ -50,6 +51,7 @@ _PROFILE_DEFAULTS = {
     "divine_service_setting", "include_creed", "include_confession", "print_full_eucharistic_prayer",
     "include_first_reading", "include_second_reading", "blessing",
     "doxology", "psalm_format", "psalm_response_start", "prayer_presentation", "rubric_style",
+    "closing_hymn_position",
 }
 _PROFILE_SOURCES = {
     "eucharistic_prayer", "lords_prayer", "prayers_of_the_people", "blessing", "communion_welcome",
@@ -63,6 +65,7 @@ _PREFERENCE_CHOICES = {
     "psalm_response_start": {"first", "second"},
     "prayer_presentation": {"continuous", "repeated_labels"},
     "rubric_style": {"concise", "source"},
+    "closing_hymn_position": {"before_dismissal", "after_dismissal"},
 }
 
 
@@ -341,6 +344,9 @@ def _validate_patch(patch: Any, *, profile: bool = False, prefix: str = "") -> N
                 _validate_person_list(value["clergy_and_staff"], f"{path}.clergy_and_staff")
             if "print_in_bulletin" in value:
                 _bool_or_blank(value["print_in_bulletin"], f"{path}.print_in_bulletin")
+            if "placement" in value and value["placement"] not in _LEADERSHIP_PLACEMENT_CHOICES:
+                choices = ", ".join(sorted(_LEADERSHIP_PLACEMENT_CHOICES))
+                raise SetupError(f"{path}.placement must be one of: {choices}")
             if "governing_body" in value:
                 body = value["governing_body"]
                 if not isinstance(body, dict) or set(body) - _GOVERNING_FIELDS:
@@ -547,7 +553,11 @@ def status(church_folder: str | Path) -> dict[str, Any]:
     try:
         sys.path.insert(0, str(_plugin_root()))
         from skills.bulletin.worship_resolution import resolve_worship_profile
-        resolver = resolve_worship_profile(root)
+        # Standing readiness never has this week's context, so a configured
+        # service variant with no selection yet must not block it. Weekly
+        # production resolves without standing_only and still requires an
+        # explicit choice.
+        resolver = resolve_worship_profile(root, standing_only=True)
     except Exception as exc:
         resolver = {"status": "needs_input", "errors": [{"message": str(exc)}]}
     sermon = config.get("sermon") if isinstance(config.get("sermon"), dict) else {}
@@ -627,7 +637,11 @@ def status(church_folder: str | Path) -> dict[str, Any]:
         "first_results": first_results,
         "unresolved": unresolved,
         "present": present,
-        "worship": {"status": resolver.get("status"), "profile_status": resolver.get("profile_status")},
+        "worship": {
+            "status": resolver.get("status"),
+            "profile_status": resolver.get("profile_status"),
+            "service_variant_pending": resolver.get("service_variant_pending", False),
+        },
         "brand": brand,
         "next_action": next_action,
     }

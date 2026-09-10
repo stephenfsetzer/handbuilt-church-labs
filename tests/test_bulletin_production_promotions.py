@@ -102,6 +102,27 @@ class BulletinProductionPromotionTest(unittest.TestCase):
             self.assertEqual(effective["bulletin_footer"]["contact_name"], "Synthetic Contact")
             self.assertEqual(brand["leadership"]["name"], "stale")
 
+    def test_staged_service_time_does_not_guess_among_several_services(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            config, brand = _load_church_configuration(church)
+            config["church"]["regular_services"] = [
+                {"day": "Sunday", "time": "9:00"},
+                {"day": "Sunday", "time": "11:15"},
+            ]
+            multiple = church / "stage-multiple"
+            multiple.mkdir()
+            staged = _stage_effective_brand(brand, config, church, multiple)
+            effective = json.loads(staged.read_text(encoding="utf-8"))
+            self.assertEqual(effective["church"]["service_time"], "")
+
+            config["church"]["regular_services"] = [{"day": "Sunday", "time": "9:00"}]
+            single = church / "stage-single"
+            single.mkdir()
+            staged_single = _stage_effective_brand(brand, config, church, single)
+            effective_single = json.loads(staged_single.read_text(encoding="utf-8"))
+            self.assertEqual(effective_single["church"]["service_time"], "9:00")
+
     def test_footer_must_be_a_mapping(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
@@ -215,8 +236,32 @@ class BulletinProductionPromotionTest(unittest.TestCase):
         )
         people = [{"name": f"Person {i}", "role": "Staff"} for i in range(10)]
         with self.assertRaises(StageFailure) as caught:
-            _validate_leadership({"leadership": {"print_in_bulletin": True, "staff": people}})
+            _validate_leadership({"leadership": {"print_in_bulletin": True, "placement": "footer", "staff": people}})
         self.assertEqual(caught.exception.code, "leadership_roster_capacity")
+
+    def test_leadership_placement_auto_flows_a_large_roster_to_the_body(self) -> None:
+        small = [{"name": f"Person {i}", "role": "Staff"} for i in range(9)]
+        small_result = _validate_leadership({"leadership": {"print_in_bulletin": True, "staff": small}})
+        self.assertEqual(small_result["placement"], "footer")
+
+        large = [{"name": f"Person {i}", "role": "Staff"} for i in range(35)]
+        large_result = _validate_leadership({"leadership": {"print_in_bulletin": True, "staff": large}})
+        self.assertEqual(large_result["placement"], "body")
+        self.assertEqual(len(large_result["entries"]), 35)
+
+        explicit_body = _validate_leadership(
+            {"leadership": {"print_in_bulletin": True, "placement": "body", "staff": small}}
+        )
+        self.assertEqual(explicit_body["placement"], "body")
+
+    def test_leadership_placement_rejects_an_unrecognized_value(self) -> None:
+        with self.assertRaises(StageFailure) as caught:
+            _validate_leadership({"leadership": {
+                "print_in_bulletin": True, "placement": "sidebar",
+                "staff": [{"name": "Ada", "role": "Staff"}],
+            }})
+        self.assertEqual(caught.exception.code, "invalid_leadership_placement")
+        self.assertEqual(caught.exception.field, "leadership.placement")
 
     def test_private_lyrics_need_no_rights_metadata_but_validate_columns(self) -> None:
         _validate_lyric_layout({"hymns": {"closing": {"lyrics": []}}})

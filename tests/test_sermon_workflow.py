@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 from tests.helpers import (
     REPO_ROOT,
     make_church,
@@ -242,6 +244,65 @@ class SermonWorkflowTest(unittest.TestCase):
         state = orient(self.church, self.target_date)
         self.assertEqual(state["stage_files"]["readings"]["status"], "verified")
         self.assertEqual(state["stage_files"]["research"]["status"], "stale")
+
+    def test_directory_footer_and_layout_changes_do_not_stale_verified_sermon_stages(self) -> None:
+        self._record_research()
+        config_path = self.church / "church.yaml"
+        text = config_path.read_text(encoding="utf-8")
+        text += (
+            "\nleadership:\n"
+            "  clergy_and_staff:\n"
+            "    - name: The Rev. New Associate\n"
+            "      role: Associate Rector\n"
+            "bulletin:\n"
+            "  template: modern\n"
+            "  footer:\n"
+            "    contact_name: New Contact\n"
+        )
+        config_path.write_text(text, encoding="utf-8")
+        state = orient(self.church, self.target_date)
+        self.assertEqual(state["stage_files"]["readings"]["status"], "verified")
+        self.assertEqual(state["stage_files"]["research"]["status"], "verified")
+        self.assertEqual(state["workflow_state"], "research_complete")
+
+    def test_reformatted_church_yaml_with_unchanged_values_does_not_stale_stages(self) -> None:
+        self._record_research()
+        config_path = self.church / "church.yaml"
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        # Reordered keys and an inline comment; every value is unchanged.
+        reformatted = "# reformatted for the reliability regression\n" + yaml.safe_dump(
+            dict(reversed(list(config.items()))), sort_keys=False
+        )
+        config_path.write_text(reformatted, encoding="utf-8")
+        state = orient(self.church, self.target_date)
+        self.assertEqual(state["stage_files"]["readings"]["status"], "verified")
+        self.assertEqual(state["stage_files"]["research"]["status"], "verified")
+
+    def test_translation_change_stales_readings_and_cascades_to_research(self) -> None:
+        self._record_research()
+        config_path = self.church / "church.yaml"
+        text = config_path.read_text(encoding="utf-8").replace(
+            "translation: Synthetic Test Translation",
+            "translation: Revised Synthetic Translation",
+        )
+        config_path.write_text(text, encoding="utf-8")
+        state = orient(self.church, self.target_date)
+        self.assertEqual(state["stage_files"]["readings"]["status"], "stale")
+        self.assertEqual(state["stage_files"]["research"]["status"], "stale")
+        self.assertEqual(state["workflow_state"], "needs_readings")
+
+    def test_research_preference_change_stales_only_research(self) -> None:
+        self._record_research()
+        config_path = self.church / "church.yaml"
+        text = config_path.read_text(encoding="utf-8").replace(
+            "language_depth: plain",
+            "language_depth: technical",
+        )
+        config_path.write_text(text, encoding="utf-8")
+        state = orient(self.church, self.target_date)
+        self.assertEqual(state["stage_files"]["readings"]["status"], "verified")
+        self.assertEqual(state["stage_files"]["research"]["status"], "stale")
+        self.assertEqual(state["workflow_state"], "needs_research")
 
     def test_typed_pass_text_does_not_govern_state(self) -> None:
         sermon_dir = self.church / "sermons" / self.target_date

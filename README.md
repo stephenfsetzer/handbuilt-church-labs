@@ -21,8 +21,10 @@ propose the details it finds. It asks you to confirm the church identity and
 where to create the private church folder. The Desktop is the default location.
 
 A recent bulletin is optional. When you provide one, the agent uses it to
-understand the order of worship and recurring sections. When you do not have
-one, it asks a short fallback set of worship questions. You can say "not sure"
+understand the order of worship and recurring sections. It keeps a private
+source copy, extracts artwork and music, and records where each reviewed
+section will be used. It asks before leaving supplied content out. When you
+do not have a bulletin, it asks a short fallback set of worship questions. You can say "not sure"
 or "later" for optional details.
 
 The agent saves progress in the private folder and tells you what is ready and
@@ -55,7 +57,9 @@ The workflow starts with your saved worship choices, asks for this week's
 changes, and produces a bulletin for review. The current renderer offers the
 Classic and Modern layouts and booklet output. Importing a bulletin does not
 promise an exact reproduction of its design. Some prayers, service-book text,
-and music require material supplied by your church.
+and music require material supplied by your church. A supplied logo appears on
+the cover in both layouts. Large parish directories flow into the bulletin
+body, and the church can save its usual closing-hymn position.
 
 ## Come back to your work
 
@@ -89,7 +93,9 @@ ask Handbuilt onboarding to reconnect your existing folder.
 
 The agent reads the current setting, saves the confirmed change, and explains
 its scope. Existing approved work remains available. A change that affects an
-existing result may require that result to be regenerated.
+existing result may require that result to be regenerated. Directory and
+layout changes leave verified sermon research intact; changes to the chosen
+readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 

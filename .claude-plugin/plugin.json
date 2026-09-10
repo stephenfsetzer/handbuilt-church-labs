@@ -1,7 +1,7 @@
 {
   "name": "handbuilt-church-labs",
   "displayName": "Handbuilt Church Labs",
-  "version": "0.3.0+codex.20260909222021",
+  "version": "0.4.0",
   "description": "Church operations workflows for pastors working with AI agents: onboarding that builds a private church folder, source-verified sermon research briefs, and print-ready 11x17 bulletin booklets.",
   "author": {
     "name": "Handbuilt",

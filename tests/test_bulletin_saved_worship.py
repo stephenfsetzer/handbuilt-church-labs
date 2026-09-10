@@ -16,6 +16,27 @@ from skills.bulletin.worship_resolution import resolve_worship_profile
 from tests.helpers import bulletin_input, make_church, verify_liturgy_source
 
 
+def _configured_profile(church: Path, **overrides) -> None:
+    """Save a fully resolvable worship profile with no private sources needed.
+
+    Every default in ``overrides`` still comes from the shipped Sunday
+    library, so a test can exercise the real resolver without staging any
+    church-owned liturgy text.
+    """
+    profile_path = church / "worship/profile.yaml"
+    profile = yaml.safe_load(profile_path.read_text())
+    profile["status"] = "confirmed"
+    profile["tradition_pack"] = "episcopal-bcp-rite-ii"
+    profile["defaults"].update(
+        eucharistic_prayer="B", lords_prayer="traditional", prayers_of_the_people="III",
+        blessing="omit", include_creed=True, include_confession=False,
+        print_full_eucharistic_prayer=False, psalm_format="plain", psalm_response_start="second",
+        doxology="omit", prayer_presentation="continuous", rubric_style="concise",
+    )
+    profile["defaults"].update(overrides)
+    profile_path.write_text(yaml.safe_dump(profile))
+
+
 class SavedWorshipTest(unittest.TestCase):
     def test_explicit_single_lesson_allows_missing_slot_and_both_disabled_rejects(self):
         request = bulletin_input()
@@ -99,6 +120,113 @@ class SavedWorshipTest(unittest.TestCase):
             self.assertNotIn('Synthetic sung doxology.', html)
             self.assertEqual(config_path.read_bytes(), original_config)
             self.assertEqual(profile_path.read_bytes(), original_profile)
+
+
+    def test_produce_consumes_saved_worship_resolution_with_override_and_reversion(self):
+        # No pre-resolution by the caller: produce() itself must call the
+        # resolver and merge saved defaults before validation/rendering.
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            _configured_profile(church, closing_hymn_position="before_dismissal")
+
+            week_one = bulletin_input()
+            week_one["liturgy"] = {}
+            result = produce(church, week_one)
+            self.assertEqual(result["status"], "ready_for_review", result)
+            html = next(Path(result["week_folder"]).glob("*.html")).read_text()
+            # Saved default: confession omitted, doxology omitted, closing
+            # hymn before the spoken dismissal.
+            self.assertNotIn("The Confession of Sin", html)
+            self.assertLess(html.index("Test Closing"), html.index("The Dismissal"))
+
+            week_two = bulletin_input()
+            week_two["service"]["date"] = "2026-09-27"
+            week_two["liturgy"] = {"include_confession": True}
+            result_two = produce(church, week_two)
+            self.assertEqual(result_two["status"], "ready_for_review", result_two)
+            html_two = next(Path(result_two["week_folder"]).glob("*.html")).read_text()
+            # An explicit weekly override wins over the saved default.
+            self.assertIn("The Confession of Sin", html_two)
+
+            week_three = bulletin_input()
+            week_three["service"]["date"] = "2026-10-04"
+            week_three["liturgy"] = {}
+            result_three = produce(church, week_three)
+            self.assertEqual(result_three["status"], "ready_for_review", result_three)
+            html_three = next(Path(result_three["week_folder"]).glob("*.html")).read_text()
+            # Week two's override does not stick; omitting it again reverts
+            # to the saved default rather than carrying week two forward.
+            self.assertNotIn("The Confession of Sin", html_three)
+
+    def test_produce_blocks_on_unresolved_required_worship_choice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            # psalm_format is left blank (the scaffold default), so the
+            # profile has a real, still-unresolved required choice.
+            _configured_profile(church, psalm_format="")
+            request = bulletin_input()
+            request["liturgy"] = {}
+            result = produce(church, request)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "worship_resolution_needs_input")
+            self.assertEqual(result["errors"][0]["field"], "liturgy.psalm_format")
+            self.assertFalse(list((church / "bulletins").rglob("bulletin-production-receipt.json")))
+
+    def test_produce_blocks_when_a_configured_variant_choice_is_omitted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            _configured_profile(church)
+            profile_path = church / "worship/profile.yaml"
+            profile = yaml.safe_load(profile_path.read_text())
+            profile["service_variants"] = {"principal": {
+                "name": "Principal Sunday", "base_service_plan": "episcopal-rite-ii",
+                "order_file": "worship/variants/principal.json",
+                "confirmation_policy": "ask_each_week",
+            }}
+            profile_path.write_text(yaml.safe_dump(profile))
+            request = bulletin_input()
+            request["liturgy"] = {}
+            result = produce(church, request)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "worship_resolution_needs_input")
+            self.assertEqual(result["errors"][0]["field"], "service.variant")
+
+    def test_produce_blocks_rather_than_treats_a_missing_saved_profile_as_unconfigured(self):
+        # church.yaml names worship/profile.yaml; deleting that saved file
+        # is a broken connection, not a fresh unconfigured church. A silent
+        # fallback here would make every saved worship preference vanish.
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            _configured_profile(church)
+            (church / "worship/profile.yaml").unlink()
+            request = bulletin_input()
+            request["liturgy"] = {}
+            result = produce(church, request)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "worship_profile_missing")
+            self.assertFalse(list((church / "bulletins").rglob("bulletin-production-receipt.json")))
+
+    def test_produce_requires_an_explicit_time_among_several_saved_services(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            config_path = church / "church.yaml"
+            config = yaml.safe_load(config_path.read_text())
+            config["church"]["regular_services"] = [
+                {"day": "Sunday", "time": "9:00"},
+                {"day": "Sunday", "time": "11:15"},
+            ]
+            config_path.write_text(yaml.safe_dump(config))
+            request = bulletin_input()
+            result = produce(church, request)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "service_time_choice_required")
+            self.assertEqual(result["errors"][0]["field"], "service.time")
+
+            request["service"]["time"] = "11:15 am"
+            result_with_choice = produce(church, request)
+            self.assertEqual(result_with_choice["status"], "ready_for_review", result_with_choice)
+            html = next(Path(result_with_choice["week_folder"]).glob("*.html")).read_text()
+            self.assertIn("11:15", html)
 
 
 if __name__ == '__main__':

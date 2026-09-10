@@ -67,6 +67,64 @@ class ChurchSetupTest(unittest.TestCase):
         self.assertTrue(ready["workflow_ready"])
         self.assertFalse(ready["actual_first_result"])
 
+    def test_standing_readiness_ignores_an_unselected_but_configured_variant(self) -> None:
+        orders_dir = self.church / "worship" / "orders"
+        orders_dir.mkdir(parents=True, exist_ok=True)
+        (orders_dir / "labor-day.yaml").write_text(
+            "replace:\n  - unit: collect-of-day\n    with: [labor-day-collect]\n", encoding="utf-8"
+        )
+        church_setup.update_standing(self.church, {
+            "church": {"name": "Sample Church", "short_name": "Sample"},
+            "worship_profile": {
+                "tradition_pack": "episcopal-bcp-rite-ii",
+                "status": "confirmed",
+                "defaults": {
+                    "eucharistic_prayer": "A", "lords_prayer": "traditional", "prayers_of_the_people": "III",
+                    "include_creed": True, "include_confession": True,
+                    "print_full_eucharistic_prayer": False,
+                },
+                "service_variants": {
+                    "labor_day": {
+                        "name": "Labor Day",
+                        "base_service_plan": "episcopal-rite-ii",
+                        "order_file": "worship/orders/labor-day.yaml",
+                        "confirmation_policy": "ask_each_week",
+                    },
+                },
+            },
+            "sermon": {"selection_mode": "lectionary", "primary_text": "gospel"},
+            "lectionary": {"system": "RCL", "track": "Track 2", "translation": "NRSV"},
+        })
+        church_setup.update_standing(self.church, {
+            "worship_profile": {"defaults": {"psalm_format": "responsive_half_verse"}},
+        })
+        import brand_setup
+        brand_setup.update(self.church, {"logo_status": "none", "colors_status": "neutral"})
+
+        ready = church_setup.status(self.church)
+        self.assertTrue(ready["bulletin_ready"])
+        self.assertEqual(ready["worship"]["status"], "resolved")
+        self.assertTrue(ready["worship"]["service_variant_pending"])
+
+        from skills.bulletin.worship_resolution import resolve_worship_profile
+        weekly = resolve_worship_profile(self.church)
+        self.assertEqual(weekly["status"], "needs_input")
+        self.assertEqual(weekly["unresolved"][0]["field"], "service.variant")
+
+    def test_shared_closing_hymn_position_and_leadership_placement_are_validated(self) -> None:
+        church_setup.update_standing(self.church, {
+            "worship_profile": {"defaults": {"closing_hymn_position": "after_dismissal"}},
+            "leadership": {"placement": "body"},
+        })
+        profile = yaml.safe_load((self.church / "worship" / "profile.yaml").read_text(encoding="utf-8"))
+        config = yaml.safe_load((self.church / "church.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(profile["defaults"]["closing_hymn_position"], "after_dismissal")
+        self.assertEqual(config["leadership"]["placement"], "body")
+        with self.assertRaises(church_setup.SetupError):
+            church_setup.update_standing(self.church, {"worship_profile": {"defaults": {"closing_hymn_position": "sometime"}}})
+        with self.assertRaises(church_setup.SetupError):
+            church_setup.update_standing(self.church, {"leadership": {"placement": "sidebar"}})
+
     def test_track_alias_is_saved_canonically_and_invalid_track_cannot_be_ready(self) -> None:
         result = church_setup.update_standing(self.church, {
             "church": {"name": "Sample Church"},

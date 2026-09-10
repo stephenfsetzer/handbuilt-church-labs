@@ -13,8 +13,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import yaml
 
-IMPLEMENTATION_VERSION = "0.6.0"
+
+IMPLEMENTATION_VERSION = "0.7.0"
 RECEIPT_SCHEMA_VERSION = 3
 STAGE_FILES = {
     "readings": "readings.md",
@@ -25,9 +27,35 @@ DEPENDENCIES = {
     "readings": (),
     "research": ("readings",),
 }
-AUXILIARY_DEPENDENCIES = {
-    "readings": {"church_config": "church.yaml"},
-    "research": {},
+# Each stage's receipt depends only on the church.yaml fields that actually
+# govern it, not the whole file. Roster, footer, template, branding and other
+# display-only preferences must not stale a verified stage; a change to one
+# of these semantic fields must. church.tradition and lectionary.authorities
+# are included because they affect the calendar/source contract readings are
+# verified against.
+CONFIG_DEPENDENCY_FIELDS = {
+    "readings": (
+        ("church", "tradition"),
+        ("lectionary", "system"),
+        ("lectionary", "track"),
+        ("lectionary", "translation"),
+        ("lectionary", "optional_verses"),
+        ("lectionary", "authorities"),
+        ("sermon", "selection_mode"),
+        ("sermon", "primary_text"),
+    ),
+    "research": (
+        ("sermon", "research_preferences"),
+    ),
+}
+# The receipt key each stage's fingerprint is recorded under. Renamed from
+# the legacy "church_config" whole-file dependency so an older receipt (which
+# recorded a full-file hash under that key) is never mistaken for a match
+# against the new narrower fingerprint; it safely falls back to "stale" and
+# must be re-verified once.
+CONFIG_DEPENDENCY_KEY = {
+    "readings": "sermon_config",
+    "research": "research_preferences",
 }
 REQUIRED_CHECKS = {
     "readings": {"content", "sources", "dependencies"},
@@ -180,6 +208,24 @@ def _yaml_scalar(root: Path, section_name: str, key: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
+def _config_fingerprint(root: Path, stage: str) -> str:
+    """Hash only the church.yaml field values that govern this stage's output.
+
+    Parsed with yaml.safe_load rather than matched as raw text, so
+    reordering keys, reformatting, or adding a comment leaves the
+    fingerprint unchanged; only an actual change to a selected field's
+    value does.
+    """
+    config = yaml.safe_load((root / "church.yaml").read_text(encoding="utf-8"))
+    config = config if isinstance(config, dict) else {}
+    values: dict[str, Any] = {}
+    for section, key in CONFIG_DEPENDENCY_FIELDS.get(stage, ()):
+        section_value = config.get(section)
+        values[f"{section}.{key}"] = section_value.get(key) if isinstance(section_value, dict) else None
+    canonical = json.dumps(values, sort_keys=True, default=str)
+    return _sha256_bytes(canonical.encode("utf-8"))
+
+
 def _receipt_sort_key(item: tuple[Path, dict[str, Any]]) -> tuple[str, str]:
     _, receipt = item
     return (str(receipt.get("created_at", "")), str(receipt.get("receipt_id", "")))
@@ -280,14 +326,12 @@ def _artifact_states(
             if dependency_failure:
                 stale_reason = f"{dependency_failure} changed or is not verified"
                 continue
-            auxiliary_failure = next(
-                (
-                    key
-                    for key, relative_path in AUXILIARY_DEPENDENCIES[stage].items()
-                    if not _nonempty(root / relative_path)
-                    or recorded_dependencies.get(key) != _sha256(root / relative_path)
-                ),
-                None,
+            config_key = CONFIG_DEPENDENCY_KEY.get(stage)
+            auxiliary_failure = (
+                config_key
+                if config_key is not None
+                and recorded_dependencies.get(config_key) != _config_fingerprint(root, stage)
+                else None
             )
             if auxiliary_failure:
                 stale_reason = f"{auxiliary_failure} changed or is not verified"
@@ -1307,15 +1351,14 @@ def _dependency_receipt_values(
         {"key": dependency, "kind": "artifact", "sha256": str(states[dependency]["sha256"])}
         for dependency in DEPENDENCIES[stage]
     ]
-    values.extend(
-        {
-            "key": key,
-            "kind": "configuration",
-            "path": relative_path,
-            "sha256": _sha256(root / relative_path),
-        }
-        for key, relative_path in AUXILIARY_DEPENDENCIES[stage].items()
-    )
+    config_key = CONFIG_DEPENDENCY_KEY.get(stage)
+    if config_key is not None:
+        values.append({
+            "key": config_key,
+            "kind": "configuration_fields",
+            "path": "church.yaml",
+            "sha256": _config_fingerprint(root, stage),
+        })
     return values
 
 

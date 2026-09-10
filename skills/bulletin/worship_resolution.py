@@ -536,11 +536,19 @@ def resolve_profile_data(
     profile_ref: str = PROFILE_NAME,
     church_root: str | Path | None = None,
     plugin_root: str | Path | None = None,
+    standing_only: bool = False,
 ) -> dict[str, Any]:
     """Resolve already-loaded profile and pack data.
 
     This pure function is the testable seam. File loading is kept in the
     wrapper below so the merge and validation rules do not depend on a host.
+
+    ``standing_only`` checks standing worship completeness without a weekly
+    context. It must not report a configured-but-unselected service variant
+    as blocking, since choosing this week's variant is inherently a weekly
+    decision. Weekly production always resolves with ``standing_only=False``
+    (the default) and keeps demanding an explicit selection when variants are
+    configured.
     """
     weekly = weekly or {}
     profile_defaults = profile.get("defaults", {})
@@ -629,6 +637,7 @@ def resolve_profile_data(
     resolved_church_root = Path(church_root).expanduser().resolve() if church_root is not None else None
     resolved_plugin_root = Path(plugin_root).expanduser().resolve() if plugin_root is not None else None
     variant_unresolved: list[dict[str, str]] = []
+    service_variant_pending = False
     service = weekly.get("service", {})
     variant_id = service.get("variant") if isinstance(service, dict) else None
     variants = profile.get("service_variants", {})
@@ -636,11 +645,13 @@ def resolve_profile_data(
         variant_unresolved.append({"field": VARIANT_FIELD, "reason": "service_variants must be a mapping"})
     elif isinstance(variants, dict) and variants:
         if not str(variant_id or "").strip():
-            configured = ", ".join(sorted(str(key) for key in variants))
-            variant_unresolved.append({
-                "field": VARIANT_FIELD,
-                "reason": f"Confirm the service variant for this week. Configured choices: {configured}",
-            })
+            service_variant_pending = True
+            if not standing_only:
+                configured = ", ".join(sorted(str(key) for key in variants))
+                variant_unresolved.append({
+                    "field": VARIANT_FIELD,
+                    "reason": f"Confirm the service variant for this week. Configured choices: {configured}",
+                })
         elif str(variant_id).strip().lower() == "none":
             liturgy["service_variant"] = {
                 "id": "none",
@@ -727,6 +738,7 @@ def resolve_profile_data(
             "profile": profile.get("provenance", {}),
             "weekly_override_supplied": bool(weekly_liturgy),
         },
+        "service_variant_pending": service_variant_pending,
         "unresolved": [*unresolved, *variant_unresolved],
     }
     result["status"] = "needs_input" if result["unresolved"] else "resolved"
@@ -738,6 +750,7 @@ def resolve_worship_profile(
     weekly: dict[str, Any] | None = None,
     *,
     plugin_root: str | Path | None = None,
+    standing_only: bool = False,
 ) -> dict[str, Any]:
     """Load and resolve the church profile and its tradition pack."""
     profile_path, profile_ref = _profile_path(church_folder)
@@ -753,6 +766,7 @@ def resolve_worship_profile(
         profile_ref=profile_ref,
         church_root=Path(church_folder),
         plugin_root=plugin_root,
+        standing_only=standing_only,
     )
 
 
