@@ -349,3 +349,56 @@ what will become available after verification.
 The separate doxology setting applies to the Episcopal service plan. In the
 Lutheran service plan, keep any doxology within the church's verified local
 order or Great Thanksgiving text so it is not printed twice.
+
+## Checking a saved choice against a retained bulletin
+
+When a bulletin was imported (Episcopal Rite II only), `church_setup.py
+status` returns a `source_choices` object: `status` (`not_applicable`,
+`no_import`, `checked`, or `unavailable`), `observations` (what the retained
+text actually shows for `eucharistic_prayer`, `closing_hymn_position`, and
+`gospel_acclamation`, each `unknown`, `ambiguous`, or `high` confidence with
+a page and short evidence string), and `contradictions` (only the fields
+where a `high`-confidence observation disagrees with the saved standing
+choice). A matching or `unknown`/`ambiguous` observation never blocks
+anything; only a real, unacknowledged contradiction makes `bulletin_ready`
+false.
+
+When `contradictions` is non-empty, explain the mismatch in plain language
+("the imported bulletin shows Prayer A on page 3, but the saved choice is
+Prayer B"). Use the pastor's instructions already given: correct an agent's
+saving mistake when the confirmed instruction was to follow that source,
+or record an intentional change the pastor has already requested. Explain
+what was saved. Ask once only when the intended choice remains unclear.
+
+- If the pastor says the source was right, save the new value as an ordinary
+  standing update through `church_setup.py update --scope standing`.
+- If the pastor confirms the saved choice is intentional even though it
+  differs from that one dated bulletin, record an explicit override through
+  the same `update --scope standing` command, using the `source_sha256` from
+  `source_choices.observations.<field>.source_sha256s` (do not guess or
+  compute this hash yourself):
+
+```json
+{
+  "worship_profile": {
+    "source_overrides": {
+      "eucharistic_prayer": {
+        "source_sha256": "<one value from source_sha256s>",
+        "value": "B",
+        "reason": "The rector confirmed Prayer B is the intended standing choice."
+      }
+    }
+  }
+}
+```
+
+An override is tied to that exact source hash and that exact standing value.
+It becomes stale when that source no longer supports the observation or the
+standing value changes. Adding another agreeing sample does not erase an
+already confirmed preference; conflicting samples are reported as ambiguous.
+
+The automated check covers only a few clear textual clues. An `unknown`
+result does not replace ordinary page review: use clear printed or visual
+evidence, and ask when that evidence does not settle the choice. Distinguish
+your own source review from an automated finding. Never invent a value to
+fill an unknown observation.

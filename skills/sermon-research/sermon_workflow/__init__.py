@@ -8,7 +8,7 @@ import os
 import re
 import tempfile
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -16,7 +16,10 @@ from urllib.parse import urlparse
 import yaml
 
 
-IMPLEMENTATION_VERSION = "0.7.1"
+IMPLEMENTATION_VERSION = "0.7.2"
+# Small tolerance for ordinary clock skew between an agent's tool and this
+# runtime's clock; not a general allowance for imprecise timestamps.
+RETRIEVED_AT_CLOCK_SKEW = timedelta(minutes=5)
 RECEIPT_SCHEMA_VERSION = 3
 STAGE_FILES = {
     "readings": "readings.md",
@@ -447,6 +450,39 @@ def _require_iso_datetime(value: Any, field: str) -> str:
     return text
 
 
+def _validate_retrieved_at(source: dict[str, Any], field: str) -> None:
+    """retrieved_at is optional. An agent that has no actual observed fetch
+    timestamp (its tool call result, a receipt, a browser record) should
+    omit the field rather than write a plausible-looking one; source
+    access_result and URL stay required regardless. When retrieved_at is
+    present, it must be a real, timezone-aware timestamp that is not in the
+    future (a small clock-skew tolerance covers ordinary drift, not
+    imprecise guessing)."""
+    value = source.get("retrieved_at")
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return
+    text = _require_text(value, field)
+    omit_hint = "Omit retrieved_at if you have no actual observed fetch time; do not guess one."
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise WorkflowFailure(
+            "invalid_timestamp", f"{field} is not a valid ISO timestamp. {omit_hint}", field=field,
+        ) from exc
+    if parsed.tzinfo is None:
+        raise WorkflowFailure(
+            "invalid_timestamp",
+            f"{field} must include a timezone offset (for example +00:00 or Z). {omit_hint}",
+            field=field,
+        )
+    if parsed.astimezone(timezone.utc) > datetime.now(timezone.utc) + RETRIEVED_AT_CLOCK_SKEW:
+        raise WorkflowFailure(
+            "invalid_timestamp",
+            f"{field} is in the future. Use the actual timestamp your tool recorded for this fetch, or omit retrieved_at rather than guess a plausible time.",
+            field=field,
+        )
+
+
 def _reading_selection(metadata: dict[str, Any]) -> dict[str, Any]:
     selection = metadata.get("selection")
     if not isinstance(selection, dict):
@@ -767,7 +803,7 @@ def _validate_reading_sources(
         prefix = f"metadata.sources[{index}]"
         for key in ("label", "url", "host", "verified_on", "supports"):
             _require_text(source.get(key), f"{prefix}.{key}")
-        _require_iso_datetime(source.get("retrieved_at"), f"{prefix}.retrieved_at")
+        _validate_retrieved_at(source, f"{prefix}.retrieved_at")
         if source.get("result") != "verified":
             raise WorkflowFailure(
                 "unverified_sources",
@@ -844,7 +880,6 @@ def _validate_research_sources(metadata: dict[str, Any]) -> None:
         "publisher",
         "url_or_citation",
         "source_type",
-        "retrieved_at",
         "access_result",
         "claim_support",
         "currency_note",
@@ -855,9 +890,9 @@ def _validate_research_sources(metadata: dict[str, Any]) -> None:
             raise WorkflowFailure("unverified_sources", "Each source must be a record")
         prefix = f"metadata.sources[{index}]"
         for key in required:
-            if key != "retrieved_at":
-                _require_text(source.get(key), f"{prefix}.{key}")
-        _require_iso_datetime(source.get("retrieved_at"), f"{prefix}.retrieved_at")
+            _require_text(source.get(key), f"{prefix}.{key}")
+        # retrieved_at is optional; see _validate_retrieved_at.
+        _validate_retrieved_at(source, f"{prefix}.retrieved_at")
         if source["access_result"] not in {"opened", "verified"}:
             raise WorkflowFailure(
                 "unverified_sources",

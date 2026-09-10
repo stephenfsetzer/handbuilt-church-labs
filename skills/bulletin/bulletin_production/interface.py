@@ -24,7 +24,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 
-IMPLEMENTATION_VERSION = "0.6.0"
+IMPLEMENTATION_VERSION = "0.6.1"
 SUPPORTED_TEMPLATES = {"classic", "modern"}
 REQUIRED_READING_SLOTS = ("first", "psalm", "second", "gospel")
 PLACEHOLDER_PATTERNS = (

@@ -110,8 +110,7 @@ body {
     font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
 }
 
-/* Editorial cover: wordmark up top, oversized type against a thick
-   accent rule, everything ranged left */
+/* Cover headings use the church accent; service rubrics keep their own color. */
 .cover { text-align: left; }
 .cover-logo { margin: 0.1in 0 1.1in 0; }
 .cover-logo-mark { margin-bottom: 0.25in; }
@@ -122,7 +121,7 @@ body {
 }
 .cover-kicker {
     font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
-    color: $rubric;
+    color: $accent;
     text-align: left;
     font-size: 12pt;
     font-weight: 600;
@@ -137,7 +136,7 @@ body {
 .cover-proper, .cover-date { text-align: left; }
 .cover-proper {
     font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
-    color: $rubric;
+    color: $accent;
     font-weight: 600;
 }
 .cover-date {

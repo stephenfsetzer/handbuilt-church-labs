@@ -922,10 +922,6 @@ def leadership_roster(brand):
             str(body.get("label") or "").strip())
 
 
-def roster_names(brand):
-    return leadership_roster(brand)[2]
-
-
 def _leadership_rows(entries, per_row=3):
     out = []
     for i in range(0, len(entries), per_row):
@@ -1026,37 +1022,60 @@ def parish_information_block(cfg, scope):
     return "".join(parts)
 
 
-def _announcement_image_markup(entry, repo_root):
-    """A supplied event poster or inline QR graphic attached to one
-    announcement. Preserves aspect ratio, fits the printable width, and is
-    never forced into the same unbreakable block as its title/text, so a
-    near-full-page poster can flow to its own page instead of being cropped
-    or squeezed. No raw HTML, no remote fetch, no generic layout builder."""
+def _announcement_images(entry, repo_root):
+    """Resolve a supplied event poster or inline QR graphic's staged image
+    paths for one announcement, preserving supplied order. No raw HTML, no
+    remote fetch, no generic layout builder."""
     images = entry.get("images") or ([entry["image"]] if entry.get("image") else [])
-    parts = []
+    paths = []
     for img in images:
         path = (repo_root / str(img)).resolve()
         if path.exists():
-            parts.append(sized_img(path, "announcement-img", content_w=7.3, max_h=9.2))
-    if not parts:
-        return ""
-    caption = str(entry.get("caption", "")).strip()
-    if caption:
-        parts.append(f'<p class="rubric">{inline_md(caption)}</p>')
-    return "\n".join(parts)
+            paths.append(path)
+    return paths
 
 
 def announcements_block(cfg, brand, repo_root, include_qr=False):
     items = cfg.get("announcements", [])
     lis_parts = []
     for a in items:
-        title = f'<p class="ann-title">{inline_md(a["title"])}</p>' if str(a.get("title", "")).strip() else ""
+        title_html = f'<p class="ann-title">{inline_md(a["title"])}</p>' if str(a.get("title", "")).strip() else ""
         text = str(a.get("text", "")).strip()
         text_html = f'<p class="ann-text">{inline_md(text)}</p>' if text else ""
-        images_html = _announcement_image_markup(a, repo_root)
-        lis_parts.append(
-            f'<div class="announcement"><div class="keep-together">{title}{text_html}</div>{images_html}</div>'
-        )
+        caption = str(a.get("caption", "")).strip()
+        caption_html = f'<p class="rubric">{inline_md(caption)}</p>' if caption else ""
+        image_paths = _announcement_images(a, repo_root)
+        if image_paths:
+            # The back page reserves footer space on every page it spans,
+            # so its usable height is well under a plain full page. Only
+            # the first panel shares a page with the heading, so it gets a
+            # tighter bound (leaves headroom for the title and a short
+            # lead-in); later panels get their own page and can use most
+            # of it. A small QR graphic is unaffected either way (it is
+            # well under both bounds already, so it is never stretched).
+            first_h, later_h = 7.2, 8.5
+            systems = ([sized_img(image_paths[0], "announcement-img", content_w=7.3, max_h=first_h)]
+                       + [sized_img(path, "announcement-img", content_w=7.3, max_h=later_h)
+                          for path in image_paths[1:]])
+            first_system, later_systems = systems[0], systems[1:]
+            rest = "\n".join(later_systems) + caption_html
+            if not text or len(text) <= 220:
+                # A short (or absent) lead-in safely hard-glues to the
+                # first artwork panel, in supplied order (title, text,
+                # image), so neither strands alone on a near-empty page.
+                body = keep(title_html, text_html, first_system) + rest
+            else:
+                # A long description cannot be safely forced into one
+                # unbreakable block together with a full artwork panel
+                # without risking overflow, so it stays in its original
+                # place and flows normally; only a soft break-after hint
+                # (see .ann-lead-text) biases it toward staying with the
+                # image that follows, without forcing the whole group
+                # together or reordering the user's own text.
+                body = title_html + f'<div class="ann-lead-text">{text_html}</div>' + first_system + rest
+        else:
+            body = keep(title_html, text_html)
+        lis_parts.append(f'<div class="announcement">{body}</div>')
     lis = "\n".join(lis_parts)
     svc = cfg["service"]
     options = cfg.get("options", {}) or {}
@@ -1082,12 +1101,16 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
             people.extend((_person_role(entry), _person_name(entry))
                           for entry in serving if _person_name(entry)
                           and role_allowed(_person_role(entry)))
-        known = roster_names(brand)
+        # Being on the standing roster (staff, vestry) is not the same as
+        # being credited for serving this particular week, so weekly
+        # credits are never filtered against it. Only an exact repeated
+        # (role, name) pair within the weekly list itself collapses; the
+        # same person serving in two different roles keeps both credits.
         deduped = []
         seen = set()
         for role, name in people:
-            key = name.casefold()
-            if key not in known and key not in seen:
+            key = (role.casefold(), name.casefold())
+            if key not in seen:
                 deduped.append((role, name))
                 seen.add(key)
         people = deduped

@@ -4,6 +4,16 @@ Source verification has two layers. Retrieval proves that a source was opened.
 Claim review proves that the opened source supports the sentence that uses it.
 Both layers are required.
 
+Each source's `retrieved_at` is optional. Record the actual timestamp your
+tool reported for that fetch when you have one; otherwise omit the field
+entirely. Never write a plausible-looking timestamp -- the runtime's own
+`created_at` on the receipt is the trustworthy machine record of when the
+work was recorded, and a guessed `retrieved_at` only degrades that. When
+`retrieved_at` is present it must be a real, timezone-aware timestamp
+(include an offset, for example `+00:00` or `Z`) that is not in the future;
+the examples below omit it for that reason. `access_result` and the source's
+`url` remain required either way.
+
 ## Reading selection modes
 
 The workflow has one downstream path and two ways to establish the preaching
@@ -51,7 +61,6 @@ keep the shape.
       "label": "Lectionary Calendar One",
       "url": "https://lectionary-one.example/2026-09-20",
       "host": "lectionary-one.example",
-      "retrieved_at": "2026-08-26T12:00:00+00:00",
       "verified_on": "2026-08-26",
       "result": "verified",
       "supports": "date, occasion, year, track, Gospel, and optional verses",
@@ -77,7 +86,6 @@ keep the shape.
       "label": "Lectionary Calendar Two",
       "url": "https://lectionary-two.example/2026-09-20",
       "host": "lectionary-two.example",
-      "retrieved_at": "2026-08-26T12:01:00+00:00",
       "verified_on": "2026-08-26",
       "result": "verified",
       "supports": "date, occasion, year, track, Gospel, and optional verses",
@@ -178,7 +186,6 @@ and `sources` (one entry is enough; lectionary mode needs two).
       "label": "Published Bible or translation source",
       "url": "https://bible-text.example/luke/4",
       "host": "bible-text.example",
-      "retrieved_at": "2026-08-26T12:00:00+00:00",
       "verified_on": "2026-08-26",
       "result": "verified",
       "supports": "selected passage citation and translation",
@@ -269,7 +276,6 @@ Every materially used research source receives one ledger record:
   "publisher": "Publisher or host institution",
   "url_or_citation": "Followable URL or precise primary citation",
   "source_type": "primary, scholarly, commentary, reporting, or other",
-  "retrieved_at": "2026-08-26T12:00:00+00:00",
   "access_result": "opened",
   "claim_support": "The claims or section this source supports",
   "currency_note": "Why its date is appropriate for the claim"
@@ -304,7 +310,6 @@ alone, is what is most often missed without reading the module directly.
       "publisher": "Established Academic Press",
       "url_or_citation": "https://commentary-one.example/mark-9",
       "source_type": "scholarly",
-      "retrieved_at": "2026-08-26T12:00:00+00:00",
       "access_result": "verified",
       "claim_support": "Supports reading the child as a figure of status reversal",
       "currency_note": "A durable critical commentary; not time-sensitive"
@@ -316,7 +321,6 @@ alone, is what is most often missed without reading the module directly.
       "publisher": "Established Academic Press",
       "url_or_citation": "https://historical-context-one.example/article",
       "source_type": "scholarly",
-      "retrieved_at": "2026-08-26T12:05:00+00:00",
       "access_result": "verified",
       "claim_support": "Supports the social meaning of receiving a child in the household",
       "currency_note": "A durable historical study; not time-sensitive"
@@ -328,7 +332,6 @@ alone, is what is most often missed without reading the module directly.
       "publisher": "Established critical edition",
       "url_or_citation": "https://primary-source-one.example/text",
       "source_type": "primary",
-      "retrieved_at": "2026-08-26T12:10:00+00:00",
       "access_result": "opened",
       "claim_support": "Supports the described household status hierarchy",
       "currency_note": "Ancient primary text; does not expire"
@@ -340,7 +343,6 @@ alone, is what is most often missed without reading the module directly.
       "publisher": "Responsible Publisher",
       "url_or_citation": "https://reporting-one.example/article",
       "source_type": "reporting",
-      "retrieved_at": "2026-08-26T12:15:00+00:00",
       "access_result": "verified",
       "claim_support": "Supports the contemporary convergence example on humility and status",
       "currency_note": "Current as of the preaching date; refresh before reuse"

@@ -21,6 +21,7 @@ from skills.bulletin.source_inventory import (
     InventoryError, add_section, check_mapping_integrity, check_rendered_text,
     list_inventories, mark_review_complete, read_inventory, validate_for_production,
 )
+from skills.onboarding.source_choices import observe_manifest
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -95,14 +96,22 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
         if args.command == "import":
-            result = {"status": "imported", **import_bulletin(
+            root = Path(args.church_folder).expanduser().resolve()
+            manifest = import_bulletin(
                 args.church_folder, args.source_pdf,
                 original_filename=args.original_filename, dpi=args.dpi,
-            )}
+            )
+            # Computed fresh on every call from the retained page text, never
+            # written into manifest.json: onboarding sees this evidence
+            # before recording a standing choice, without a second stored
+            # copy that could drift from the module that actually validates.
+            result = {"status": "imported", **manifest, "source_choices": observe_manifest(root, manifest)}
         elif args.command == "list-imports":
             result = {"status": "ok", "imports": list_imports(args.church_folder)}
         elif args.command == "manifest":
-            result = {"status": "ok", "manifest": read_manifest(args.church_folder, args.import_id)}
+            root = Path(args.church_folder).expanduser().resolve()
+            manifest = read_manifest(args.church_folder, args.import_id)
+            result = {"status": "ok", "manifest": manifest, "source_choices": observe_manifest(root, manifest)}
         elif args.command == "map-section":
             target = {}
             if args.config_path:

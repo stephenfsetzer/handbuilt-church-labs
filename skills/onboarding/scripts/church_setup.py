@@ -14,6 +14,7 @@ import copy
 import importlib.util
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -46,7 +47,18 @@ _RESEARCH_FIELDS = {
     "priority_voices", "preferred_resources", "voices_to_avoid", "language_depth",
     "human_sciences", "contemporary_context", "additional_domain",
 }
-_PROFILE_SECTIONS = {"status", "tradition_pack", "tradition", "defaults", "sources", "service_variants", "provenance"}
+_PROFILE_SECTIONS = {"status", "tradition_pack", "tradition", "defaults", "sources", "service_variants", "provenance", "source_overrides"}
+# Fields the source-choice guard (skills/onboarding/source_choices.py) can
+# observe from a retained bulletin import and therefore accepts an override
+# record for. Keep in sync with source_choices.OBSERVERS.
+_SOURCE_OVERRIDE_FIELDS = {"eucharistic_prayer", "closing_hymn_position", "gospel_acclamation"}
+_SOURCE_OVERRIDE_RECORD_FIELDS = {"source_sha256", "value", "reason", "acknowledged_at"}
+_SOURCE_OVERRIDE_VALUE_CHOICES = {
+    "eucharistic_prayer": {"A", "B", "C", "D"},
+    "closing_hymn_position": {"before_dismissal", "after_dismissal"},
+    "gospel_acclamation": {"lord", "savior"},
+}
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PROFILE_TRADITION = {"family", "denomination", "service_book", "rite"}
 _PROFILE_DEFAULTS = {
     "eucharistic_prayer", "lords_prayer", "prayers_of_the_people", "service_setting",
@@ -214,6 +226,23 @@ def _validate_profile_values(profile_patch: dict[str, Any], current: dict[str, A
                     source_path = Path(value)
                     if source_path.is_absolute() or ".." in source_path.parts:
                         raise SetupError(f"worship_profile.sources.{child} must stay inside the church folder")
+    overrides = profile_patch.get("source_overrides")
+    if overrides is not None:
+        for field, record in overrides.items():
+            if field not in _SOURCE_OVERRIDE_FIELDS:
+                raise SetupError(f"worship_profile.source_overrides.{field} is not a source-checked field")
+            if not isinstance(record, dict) or set(record) - _SOURCE_OVERRIDE_RECORD_FIELDS:
+                raise SetupError(f"worship_profile.source_overrides.{field} has an unsupported shape")
+            for required in ("source_sha256", "value", "reason"):
+                if not str(record.get(required) or "").strip():
+                    raise SetupError(f"worship_profile.source_overrides.{field}.{required} is required")
+            if not _SHA256_RE.match(str(record.get("source_sha256"))):
+                raise SetupError(f"worship_profile.source_overrides.{field}.source_sha256 must be a 64-character hex sha256")
+            if record.get("value") not in _SOURCE_OVERRIDE_VALUE_CHOICES[field]:
+                choices = ", ".join(sorted(_SOURCE_OVERRIDE_VALUE_CHOICES[field]))
+                raise SetupError(f"worship_profile.source_overrides.{field}.value must be one of: {choices}")
+            if "acknowledged_at" in record and record["acknowledged_at"] is not None and not isinstance(record["acknowledged_at"], str):
+                raise SetupError(f"worship_profile.source_overrides.{field}.acknowledged_at must be text")
     defaults = profile_patch.get("defaults")
     if defaults is None:
         return
@@ -369,7 +398,7 @@ def _validate_patch(patch: Any, *, profile: bool = False, prefix: str = "") -> N
             if child_allowed is not None:
                 if not isinstance(value, dict) or set(value) - child_allowed:
                     raise SetupError(f"Unsupported setting path under {path}")
-            elif key in {"service_variants"}:
+            elif key in {"service_variants", "source_overrides"}:
                 if not isinstance(value, dict):
                     raise SetupError(f"{path} must be a mapping")
             elif key in {"status", "tradition_pack"} and not isinstance(value, (str, type(None))):
@@ -622,6 +651,46 @@ def status(church_folder: str | Path) -> dict[str, Any]:
     )
     defaults = profile.get("defaults") if isinstance(profile.get("defaults"), dict) else {}
     uses_episcopal_order = resolver.get("liturgy", {}).get("service_plan") == "episcopal-rite-ii"
+    # A retained bulletin import is an optional, additional check, and its
+    # anchors (Eucharistic Prayer letters, BCP page numbers) are Episcopal
+    # Rite II specific, so it only ever runs once the resolved service plan
+    # is confirmed as episcopal-rite-ii. No import present never blocks
+    # readiness. An unexpected failure while running the guard itself is
+    # surfaced as an explicit "unavailable" diagnostic rather than silently
+    # treated as a clean pass -- it must not read as "checked, no problems".
+    source_contradictions: list[dict[str, Any]] = []
+    source_observations: dict[str, Any] = {}
+    source_check_status = "not_applicable"
+    if scaffold_ready and uses_episcopal_order:
+        try:
+            sys.path.insert(0, str(_plugin_root()))
+            from skills.onboarding.bulletin_import import IMPORT_ROOT, list_imports
+            from skills.onboarding.source_choices import aggregate_imports, find_contradictions, observe_manifest
+            imports = [item for item in list_imports(root) if isinstance(item, dict) and item.get("import_id")]
+            if not imports:
+                # list_imports() silently skips a directory whose
+                # manifest.json is missing or unparseable, so an empty
+                # result here is ambiguous between "nothing was ever
+                # imported" and "an import exists but could not be read."
+                # Only the first is genuinely no_import.
+                imports_root = root / IMPORT_ROOT
+                has_import_paths = imports_root.is_dir() and any(imports_root.iterdir())
+                source_check_status = "unavailable" if has_import_paths else "no_import"
+            else:
+                observations_by_import = {item["import_id"]: observe_manifest(root, item) for item in imports}
+                sha256_by_import = {
+                    item["import_id"]: item.get("source", {}).get("sha256")
+                    for item in imports
+                    if isinstance(item.get("source"), dict)
+                }
+                source_observations = aggregate_imports(observations_by_import, sha256_by_import)
+                overrides = profile.get("source_overrides") if isinstance(profile.get("source_overrides"), dict) else {}
+                source_contradictions = find_contradictions(source_observations, defaults, overrides)
+                source_check_status = "checked"
+        except Exception:
+            source_check_status = "unavailable"
+            source_contradictions = []
+            source_observations = {}
     print_defaults_ready = not uses_episcopal_order or (
         all(isinstance(defaults.get(key), bool)
             for key in ("include_creed", "include_confession", "print_full_eucharistic_prayer"))
@@ -631,7 +700,10 @@ def status(church_folder: str | Path) -> dict[str, Any]:
     church = config.get("church") if isinstance(config.get("church"), dict) else {}
     identity_ready = bool(str(church.get("name") or "").strip())
     folder_ready = scaffold_ready and identity_ready
-    bulletin_ready = folder_ready and brand.get("ready", False) and resolver.get("status") == "resolved" and lectionary_defaults_ready and print_defaults_ready
+    bulletin_ready = (
+        folder_ready and brand.get("ready", False) and resolver.get("status") == "resolved"
+        and lectionary_defaults_ready and print_defaults_ready and not source_contradictions
+    )
     research_ready = folder_ready and sermon_ready
     workflow_ready = bulletin_ready or research_ready
     first_results = _first_results(root)
@@ -665,10 +737,27 @@ def status(church_folder: str | Path) -> dict[str, Any]:
         unresolved.append({"field": "sermon.selection_mode", "reason": "Choose lectionary or pastor-selected preaching"})
     if folder_ready and primary_text and primary_text not in ({"selected"} if selection_mode == "pastor_selected" else {"first", "psalm", "second", "gospel"}):
         unresolved.append({"field": "sermon.primary_text", "reason": "Choose a primary reading that matches the preaching practice"})
+    for item in source_contradictions:
+        page_note = f" (page {item['page']})" if item.get("page") else ""
+        unresolved.append({
+            "field": f"worship_profile.defaults.{item['field']}",
+            "reason": (
+                f"The imported bulletin shows {item['field_label']} as {item['source_value']}{page_note}, "
+                f"but the saved standing choice is {item['standing_value']}. Confirm this is intentional and "
+                "record it, or update the saved choice to match the source."
+            ),
+        })
     readiness_status = "ready" if bulletin_ready and research_ready else "partially_ready" if workflow_ready else "needs_input"
     next_action = _next_action(scaffold_ready, folder_ready, bulletin_ready, research_ready, print_defaults_ready, first_result, resolver, brand)
     if folder_ready and uses_rcl and not track_ready:
         next_action = "Save the confirmed lectionary.track as Track 1 or Track 2 through onboarding update; do not repeat an answered question"
+    if source_contradictions:
+        fields = ", ".join(item["field_label"] for item in source_contradictions)
+        next_action = (
+            f"Resolve {len(source_contradictions)} source-backed worship choice mismatch"
+            f"{'es' if len(source_contradictions) != 1 else ''} against the imported bulletin ({fields}) "
+            "before trusting bulletin_ready"
+        )
     return {
         "status": readiness_status,
         "message": "Both workflows are ready for their first result" if readiness_status == "ready" else "Report each workflow separately; setup remains incomplete for the workflows marked false. Correct saved values from confirmed answers before asking again.",
@@ -690,6 +779,11 @@ def status(church_folder: str | Path) -> dict[str, Any]:
             "service_variant_pending": resolver.get("service_variant_pending", False),
         },
         "brand": brand,
+        "source_choices": {
+            "status": source_check_status,
+            "observations": source_observations,
+            "contradictions": source_contradictions,
+        },
         "next_action": next_action,
     }
 

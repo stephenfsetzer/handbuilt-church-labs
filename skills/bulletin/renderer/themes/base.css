@@ -278,6 +278,7 @@ body {
     break-after: avoid;
 }
 .ann-text { margin: 1pt 0 0 0; }
+.ann-lead-text { break-after: avoid; }
 .qr-row {
     display: table;
     width: 70%;

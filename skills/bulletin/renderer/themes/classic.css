@@ -65,7 +65,7 @@ body {
     margin: 0 0 0.2in 0;
 }
 .cover-middle { margin-top: 1.15in; }
-.cover-kicker { color: $rubric; }
+.cover-kicker { color: $accent; }
 .cover-occasion { font-weight: 500; }
 .cover-date { font-style: italic; }
 .cover-foot { bottom: 0.35in; }
