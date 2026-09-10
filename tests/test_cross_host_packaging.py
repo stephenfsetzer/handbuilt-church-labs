@@ -12,6 +12,7 @@ class CrossHostPackagingTest(unittest.TestCase):
     def test_plugin_and_church_folder_support_codex_and_claude(self) -> None:
         manifest = json.loads((REPO_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "handbuilt-church-labs")
+        self.assertRegex(manifest["version"], r"^\d+\.\d+\.\d+$")
         self.assertEqual(manifest["skills"], "./skills/")
         self.assertEqual(manifest["author"]["name"], "Handbuilt")
         self.assertEqual(manifest["interface"]["displayName"], "Handbuilt Church Labs")
@@ -20,16 +21,35 @@ class CrossHostPackagingTest(unittest.TestCase):
         )
         self.assertEqual(codex_marketplace["name"], "handbuilt-church-labs")
         self.assertEqual(codex_marketplace["plugins"][0]["name"], manifest["name"])
-        self.assertEqual(codex_marketplace["plugins"][0]["source"], {"source": "local", "path": "."})
+        codex_entry = codex_marketplace["plugins"][0]
+        self.assertEqual(codex_entry["version"], manifest["version"])
+        self.assertEqual(codex_entry["source"], {"source": "local", "path": "./"})
+        self.assertEqual(
+            codex_entry["policy"],
+            {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+        )
+        self.assertEqual(codex_entry["category"], "Productivity")
         claude_manifest = json.loads(
             (REPO_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         self.assertEqual(claude_manifest["name"], manifest["name"])
+        self.assertEqual(claude_manifest["version"], manifest["version"])
         claude_marketplace = json.loads(
             (REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
         )
         self.assertEqual(claude_marketplace["name"], "handbuilt-church-labs")
-        self.assertEqual(claude_marketplace["plugins"][0]["source"], "./")
+        claude_entry = claude_marketplace["plugins"][0]
+        self.assertEqual(claude_entry["name"], claude_manifest["name"])
+        self.assertEqual(claude_entry["version"], claude_manifest["version"])
+        self.assertEqual(claude_entry["source"], "./")
+        self.assertEqual(claude_entry["author"], claude_manifest["author"])
+        self.assertEqual(claude_entry["homepage"], "https://github.com/stephenfsetzer/handbuilt-church-labs")
+        self.assertEqual(claude_entry["category"], "productivity")
+        self.assertIsInstance(claude_entry["keywords"], list)
+        self.assertTrue(
+            claude_entry["keywords"]
+            and all(isinstance(keyword, str) and keyword for keyword in claude_entry["keywords"])
+        )
         for skill in ("onboarding", "bulletin", "sermon-research"):
             canonical = f"skills/{skill}/SKILL.md"
             for host in (".agents", ".claude"):

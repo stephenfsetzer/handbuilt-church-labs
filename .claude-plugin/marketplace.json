@@ -8,7 +8,21 @@
     {
       "name": "handbuilt-church-labs",
       "source": "./",
-      "description": "Church workflows for private onboarding, sermon research, and reviewable worship bulletins."
+      "description": "Church workflows for private onboarding, sermon research, and reviewable worship bulletins.",
+      "version": "0.4.3",
+      "author": {
+        "name": "Handbuilt",
+        "url": "https://gethandbuilt.com"
+      },
+      "homepage": "https://github.com/stephenfsetzer/handbuilt-church-labs",
+      "category": "productivity",
+      "keywords": [
+        "church",
+        "worship",
+        "sermon",
+        "bulletin",
+        "onboarding"
+      ]
     }
   ]
 }

@@ -33,6 +33,10 @@ Before the first bulletin, it saves a usable local logo and visual choices, or
 your explicit choice to proceed without a logo. You do not need to edit
 configuration files.
 
+For the pilot, follow this short sequence: set up your church, run sermon
+research, then build a bulletin. Review the research sources and bulletin PDF
+before using the result in worship.
+
 ## Two weekly workflows
 
 ### Sermon research
@@ -102,10 +106,10 @@ readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 
-Install from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
+Install Handbuilt Church Labs version 0.4.3 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
 During the private pilot, your GitHub account must have access and your local
-Git client must be authenticated. Once the repository is public, that access
-requirement is removed.
+Git client must be authenticated. If the repository is public, no GitHub access
+grant is needed.
 
 ### Codex
 
@@ -117,22 +121,47 @@ codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
 ```
 
 Start a new task and ask for Handbuilt Church Labs onboarding. In Codex Desktop,
-use the Plugins directory's GitHub marketplace control when it is available
-for your account. Desktop controls vary; the CLI route provides an explicit
-installation path.
+use the Plugins directory route when it is available for your account. Desktop
+controls vary, so the CLI route above remains the fallback.
 
 ### Claude Code
 
-In Claude Code, run:
+In a terminal with Claude Code installed, run:
+
+```bash
+claude plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs
+claude plugin install handbuilt-church-labs@handbuilt-church-labs
+```
+
+Inside an existing Claude Code session, the equivalent commands are:
 
 ```text
-/plugin marketplace add stephenfsetzer/handbuilt-church-labs
+/plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs
 /plugin install handbuilt-church-labs@handbuilt-church-labs
 ```
 
-Start a new task and ask for Handbuilt Church Labs onboarding. These commands
-are for Claude Code. Availability in other Claude surfaces depends on whether
-that surface supports Code plugins and local file tools.
+Start a new task and ask for Handbuilt Church Labs onboarding. Availability in
+other Claude surfaces depends on whether that surface supports Code plugins
+and local file tools.
+
+### Update an installation
+
+Refresh the marketplace first, then update the plugin:
+
+```bash
+codex plugin marketplace upgrade handbuilt-church-labs --json
+codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
+```
+
+```bash
+claude plugin marketplace update handbuilt-church-labs
+claude plugin update handbuilt-church-labs@handbuilt-church-labs
+```
+
+Restart the app when your host requires it, then start a new task. If an update
+needs troubleshooting, return to the same private church folder first. Check
+the installed version with `codex plugin list` or `claude plugin list`, then
+ask Handbuilt onboarding to reconnect the existing folder if needed.
 
 ### Runtime and support
 

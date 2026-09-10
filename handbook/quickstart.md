@@ -2,15 +2,17 @@
 
 ## First setup
 
-1. Choose a local plugin route from the repository root. For Codex CLI, run
-   `codex plugin marketplace add . --json`, then
-   `codex plugin add handbuilt-church-labs@handbuilt-church-labs --json`.
-   For Claude Code CLI, run `claude plugin marketplace add .`, then
-   `claude plugin install handbuilt-church-labs@handbuilt-church-labs`. See the [installation and
-   support guide](../README.md#installation-and-support) for Codex Desktop and
-   public marketplace routes. Claude Cowork may use the shared skills when
-   plugin support is available; this release does not claim an independent
-   Cowork rehearsal.
+1. Install from the GitHub repository. For Codex CLI, run
+   `codex plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs --json`,
+   then `codex plugin add handbuilt-church-labs@handbuilt-church-labs --json`.
+   For Claude Code CLI, run
+   `claude plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs`,
+   then `claude plugin install handbuilt-church-labs@handbuilt-church-labs`.
+   During a private pilot, your GitHub account needs repository access. A public
+   repository does not need an access grant. See the [installation and support
+   guide](../README.md#installation-and-support) for Codex Desktop. Claude Cowork
+   may use the shared skills when plugin support is available; this release does
+   not claim an independent Cowork rehearsal.
 2. Ask:
 
    ```text
@@ -53,6 +55,9 @@ the selected source requirements are present. Read the result and approve it
 before printing. Reflection, outlining, drafting, and sermon review are outside
 the research workflow.
 
+For the pilot, use the sequence above: finish onboarding, run sermon research,
+then build and review a bulletin.
+
 ## Return to the private folder
 
 Your church folder is the home for every sermon, bulletin, preference, source,
@@ -76,6 +81,26 @@ Show me the preferences saved in my church folder.
 If the folder is in a different location, use the app's open-folder control or
 give the agent its path. It should read the existing `ONBOARDING.md` before
 asking setup questions again.
+
+After an update, check the installed plugin version with `codex plugin list` or
+`claude plugin list` if you need to troubleshoot. Return to this same private
+church folder before asking onboarding to reconnect it.
+
+## Update the plugin
+
+Refresh the marketplace before updating the plugin itself:
+
+```text
+codex plugin marketplace upgrade handbuilt-church-labs --json
+codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
+```
+
+```text
+claude plugin marketplace update handbuilt-church-labs
+claude plugin update handbuilt-church-labs@handbuilt-church-labs
+```
+
+Restart the app when required by your host, then start a new task.
 
 ## Change a preference
 
