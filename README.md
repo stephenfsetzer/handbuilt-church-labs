@@ -171,7 +171,7 @@ not desktop Chat commands.
 In a terminal with Codex CLI installed, run:
 
 ```bash
-codex plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs --json
+codex plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs.git --ref main --json
 codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
 ```
 
@@ -182,14 +182,14 @@ Start a new task and ask for Handbuilt Church Labs onboarding.
 In a terminal with Claude Code installed, run:
 
 ```bash
-claude plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs
+claude plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs.git
 claude plugin install handbuilt-church-labs@handbuilt-church-labs
 ```
 
 Inside an existing Claude Code terminal session, the equivalent commands are:
 
 ```text
-/plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs
+/plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs.git
 /plugin install handbuilt-church-labs@handbuilt-church-labs
 ```
 
@@ -211,10 +211,11 @@ claude plugin marketplace update handbuilt-church-labs
 claude plugin update handbuilt-church-labs@handbuilt-church-labs
 ```
 
-Restart the app when your host requires it, then start a new task. If an update
-needs troubleshooting, return to the same private church folder first. Check
-the installed version with `codex plugin list` or `claude plugin list`, then
-ask Handbuilt onboarding to reconnect the existing folder if needed.
+Restart the app when required, then start a new task. Confirm that Handbuilt
+is enabled in the app's plugin settings. If an update needs troubleshooting,
+return to the same private church folder and ask Handbuilt onboarding to
+reconnect it. Advanced users can also inspect the installed version with
+`codex plugin list` or `claude plugin list`.
 
 ### Runtime and support
 

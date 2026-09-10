@@ -93,25 +93,16 @@ If the folder is in a different location, use the app's open-folder control or
 give the agent its path. It should read the existing `ONBOARDING.md` before
 asking setup questions again.
 
-After an update, check the installed plugin version with `codex plugin list` or
-`claude plugin list` if you need to troubleshoot. Return to this same private
-church folder before asking onboarding to reconnect it.
+After an update, return to the same private church folder before asking
+onboarding to reconnect it.
 
 ## Update the plugin
 
-Refresh the marketplace before updating the plugin itself:
-
-```text
-codex plugin marketplace upgrade handbuilt-church-labs --json
-codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
-```
-
-```text
-claude plugin marketplace update handbuilt-church-labs
-claude plugin update handbuilt-church-labs@handbuilt-church-labs
-```
-
-Restart the app when required by your host, then start a new task.
+Follow the [update instructions](../README.md#update-an-installation) in the
+installation guide. They include the verified Claude desktop update controls
+and optional advanced terminal commands. Confirm Handbuilt is enabled in the
+app's plugin settings, then start a new task. Your private church folder stays
+in place.
 
 ## Change a preference
 

@@ -19,11 +19,33 @@ in a later task without repeating the whole interview.
 
 **Which AI tools can run the workflows?**
 
-This release provides a Codex plugin manifest and a Claude Code plugin
-manifest. The maintained local rehearsal routes install the repository as a marketplace
-in Codex CLI or Claude Code CLI. New tasks then load the installed workflows. The repository has not established a
-complete matrix across apps, models, operating systems, or account types.
-Availability depends on the host and account. See the [installation guide](../README.md#installation-and-support).
+You can install through the ChatGPT/Codex desktop app or the Claude desktop
+app using point-and-click controls. First add the Handbuilt marketplace, then
+find and install Handbuilt Church Labs from its catalog. Follow the
+[installation guide](../README.md#installation-and-support) for your app's
+exact steps. Terminal installation is an optional advanced route.
+
+Graphical installation has been verified in both desktop routes. The full
+workflows have been rehearsed in Codex and Claude Code; the Claude Cowork
+content workflow remains a pilot item. Other app, model, account, and operating
+system combinations have not all been tested.
+
+**I added the marketplace. Why is onboarding unavailable?**
+
+Adding the marketplace makes Handbuilt available to install. It does not
+install the plugin. In ChatGPT/Codex, open Settings, Plugins, then Browse
+directory. Search for Handbuilt, open Handbuilt Church Labs, and install it.
+In Claude, find Handbuilt in Discover and choose Add. Confirm the plugin is
+enabled, then start a fresh task. Handbuilt will not appear in a new user's
+default directory until they add its marketplace.
+
+**Why does the app say the marketplace is already added from a different source?**
+
+An older Handbuilt marketplace registration remains. Uninstalling the plugin
+and removing its marketplace are separate actions. Remove the old
+`handbuilt-church-labs` entry from the app's marketplace settings, then follow
+the installation guide to add the current source and install the plugin.
+Keep your private church folders; they do not need to be removed.
 
 **Can I use the church website and a bulletin together?**
 
