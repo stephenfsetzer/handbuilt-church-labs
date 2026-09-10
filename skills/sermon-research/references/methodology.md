@@ -127,8 +127,10 @@ cost attached to each center.
 
 List every materially used source with a followable URL or a precise primary
 citation. The source ledger in metadata carries retrieval and claim-support
-details. The visible list lets the pastor follow the trail. Check each author,
-title, publication, and date against the opened source. For a journal issue
+details. The visible list lets the pastor follow the trail. Check each
+author, title, publication, and date against the opened source, including
+each named person's actual role (author, editor, translator, or reviser) as
+the source itself credits it. For a journal issue
 containing several articles, identify the actual article and author supporting
 the claim. Never borrow the title of a different essay on the same passage.
 
@@ -174,3 +176,19 @@ Read the brief once as a skeptical pastor:
 - Does the final section stop and hand judgment to the pastor?
 - Did the research follow the pastor's declared preferences without turning
   them into a predetermined conclusion?
+- Does every direct quotation match the opened source's actual words?
+  Compare it with the source text itself, not a search snippet or a generated
+  summary. Put a faithful paraphrase in your own words without quotation
+  marks; remove a quotation when the original wording cannot be checked.
+- Does each bibliographic credit correctly separate author, editor,
+  translator, and reviser, matching the opened source's own credit line?
+- For an empirical or social-science claim, does the brief preserve the
+  actual study design and population, and does it distinguish observed
+  behavior from a self-reported intention?
+- Is a scholar's interpretive reading kept distinct from an established
+  historical fact?
+
+This is a final cross-check against the opened sources themselves, not a new
+attestation step. The workflow module checks format and citation shape; it
+cannot check whether a claim is true. That judgment stays with the
+researching model at this last read, before recording.

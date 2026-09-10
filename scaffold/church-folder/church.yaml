@@ -30,6 +30,7 @@ bulletin:
     phone: ""
     email: ""
     website: ""
+  parish_information: {}    # before_service / after_service: ordered [{title, text}]; standing, distinct from weekly announcements
 worship_profile: worship/profile.yaml
 lectionary:
   system: ""          # RCL, BCP, Roman, another named system, or blank

@@ -15,6 +15,8 @@ from skills.bulletin.renderer.render_bulletin import (
     build_full_content,
     closing_hymn_position,
     footer_line,
+    gospel_acclamation_choice,
+    gospel_block,
     hymn_block,
     inline_md,
     leadership_block,
@@ -280,6 +282,15 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
             closing_hymn_position({"liturgy": {"closing_hymn_position": "before_dismissal"}}),
             "before_dismissal",
         )
+
+    def test_gospel_acclamation_defaults_to_lord_and_rejects_unrecognized_values(self) -> None:
+        self.assertEqual(gospel_acclamation_choice({"liturgy": {}}), "lord")
+        self.assertEqual(gospel_acclamation_choice({}), "lord")
+        self.assertEqual(gospel_acclamation_choice({"liturgy": {"gospel_acclamation": "sideways"}}), "lord")
+        self.assertEqual(gospel_acclamation_choice({"liturgy": {"gospel_acclamation": "SAVIOR"}}), "savior")
+        reading = {"citation": "Test Gospel 3:1-5", "text": "Body."}
+        self.assertIn("our Lord Jesus Christ according to Test", gospel_block(reading, "lord"))
+        self.assertIn("our Savior Jesus Christ according to Test", gospel_block(reading, "savior"))
 
     def test_closing_hymn_position_moves_the_hymn_before_the_spoken_dismissal(self) -> None:
         cfg = bulletin_input()

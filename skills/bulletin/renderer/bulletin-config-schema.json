@@ -33,6 +33,7 @@
         "service_variant": {"$ref": "#/$defs/serviceVariant"},
         "service_variant_provenance": {"$ref": "#/$defs/serviceVariantProvenance"},
         "closing_hymn_position": {"type": "string", "enum": ["before_dismissal", "after_dismissal"]},
+        "gospel_acclamation": {"type": "string", "enum": ["lord", "savior"]},
         "blessing": {"type": "string"},
         "files": {"type": "object", "additionalProperties": {"type": "string"}}
       },
@@ -67,6 +68,19 @@
         "serving_roles": {"type": "array", "items": {"type": "string"}}
       },
       "additionalProperties": true
+    },
+    "announcements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/announcementEntry"}
+    },
+    "parish_information": {
+      "type": "object",
+      "description": "Optional weekly override of the church's saved standing parish-information sections (church.yaml bulletin.parish_information). Omit a scope to use the saved sections; set it explicitly, including an empty list, to override or suppress it for this week only.",
+      "properties": {
+        "before_service": {"type": "array", "items": {"$ref": "#/$defs/parishInformationSection"}},
+        "after_service": {"type": "array", "items": {"$ref": "#/$defs/parishInformationSection"}}
+      },
+      "additionalProperties": false
     }
   },
   "$defs": {
@@ -202,6 +216,29 @@
       "type": "object",
       "required": ["name"],
       "properties": {"name": {"type": "string"}, "role": {"type": "string"}},
+      "additionalProperties": false
+    },
+    "announcementEntry": {
+      "description": "A dated weekly announcement. image/images may carry a supplied event poster or inline QR graphic; caption is optional text under the image(s).",
+      "type": "object",
+      "properties": {
+        "title": {"type": "string"},
+        "text": {"type": "string"},
+        "image": {"type": "string"},
+        "images": {"type": "array", "items": {"type": "string"}},
+        "caption": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "parishInformationSection": {
+      "description": "A simple, standing, ordered title-and-text section, distinct from a dated announcement.",
+      "type": "object",
+      "required": ["title", "text"],
+      "properties": {
+        "title": {"type": "string"},
+        "text": {"type": "string"},
+        "source": {"type": "object"}
+      },
       "additionalProperties": false
     },
     "qr": {

@@ -16,6 +16,7 @@ defaults:
   prayers_of_the_people: ""
   doxology: traditional      # traditional, custom, or omit
   closing_hymn_position: after_dismissal  # confirm before_dismissal or after_dismissal from the sample
+  gospel_acclamation: lord  # lord (standard BCP) or savior; confirm from the sample's exact printed wording
   psalm_format: ""           # choose after the church confirms its psalm practice
   psalm_response_start: second # people read the first or second whole verse
   prayer_presentation: continuous # continuous or repeated_labels

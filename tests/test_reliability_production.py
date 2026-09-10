@@ -15,6 +15,7 @@ from skills.bulletin.bulletin_production.interface import finalize
 from skills.bulletin.source_inventory import add_section, mark_review_complete
 from skills.onboarding.bulletin_import import import_bulletin
 from tests.helpers import bulletin_input, make_church
+from tests.test_bulletin_music_slots import _painted_image_colors
 
 
 def _synthetic_supplied_pdf(path: Path, pages: int = 2) -> None:
@@ -330,6 +331,276 @@ class SourceInventoryProductionGateTest(unittest.TestCase):
             }
             outcome = finalize(produced["receipt_path"], approval)
             self.assertEqual(outcome["status"], "approved", outcome)
+
+
+class ParishInformationTest(unittest.TestCase):
+    """Standing before/after-service parish-information sections: saved
+    defaults consumed automatically by canonical produce, distinct from
+    dated announcements, in both canonical layouts."""
+
+    def _church_with_parish_information(self, tmp: Path) -> Path:
+        church = make_church(tmp)
+        config_path = church / "church.yaml"
+        config = yaml.safe_load(config_path.read_text())
+        config["bulletin"] = {"parish_information": {
+            "before_service": [
+                {"title": "Welcome", "text": "Welcome to All Saints. We are glad you are here today."},
+            ],
+            "after_service": [
+                {"title": "Accessibility", "text": "Ramp access is available at the side door."},
+                {"title": "Pastoral Contact", "text": "Reach the parish office at 555-0100."},
+                {"title": "About Our Worship Book", "text": "Hymnal numbers are printed above each hymn."},
+            ],
+        }}
+        config_path.write_text(yaml.safe_dump(config))
+        return church
+
+    def test_saved_defaults_flow_through_real_produce_in_both_layouts_in_order(self) -> None:
+        for template, service_date in (("classic", "2026-09-20"), ("modern", "2026-09-27")):
+            with self.subTest(template=template), tempfile.TemporaryDirectory() as tmp:
+                church = self._church_with_parish_information(Path(tmp))
+                bulletin = bulletin_input()
+                bulletin["template"] = template
+                bulletin["service"]["date"] = service_date
+                result = produce(church, bulletin)
+                self.assertEqual(result["status"], "ready_for_review", result)
+                folder = Path(result["week_folder"])
+                html = next(folder.glob("*.html")).read_text(encoding="utf-8")
+                pdf_text = "\n".join(
+                    page.extract_text() or ""
+                    for page in PdfReader(str(next(folder.glob(f"*{template}.pdf")))).pages
+                )
+
+                titles_in_order = [
+                    "Welcome", "Accessibility", "Pastoral Contact", "About Our Worship Book",
+                ]
+                texts_in_order = [
+                    "Welcome to All Saints. We are glad you are here today.",
+                    "Ramp access is available at the side door.",
+                    "Reach the parish office at 555-0100.",
+                    "Hymnal numbers are printed above each hymn.",
+                ]
+                # The embedded test font's extracted text can insert stray
+                # spaces around some glyphs (a known artifact elsewhere in
+                # this fixture, e.g. "T est"); compare the PDF compactly.
+                compact_pdf_text = "".join(pdf_text.split())
+                for text in texts_in_order:
+                    self.assertIn(text, html)
+                    self.assertIn("".join(text.split()), compact_pdf_text)
+                # Order preserved, both in the HTML flow and in the printed
+                # page-extracted text.
+                self.assertEqual(
+                    sorted(range(len(titles_in_order)), key=lambda i: html.index(titles_in_order[i])),
+                    list(range(len(titles_in_order))),
+                )
+                self.assertEqual(
+                    sorted(
+                        range(len(texts_in_order)),
+                        key=lambda i: compact_pdf_text.index("".join(texts_in_order[i].split())),
+                    ),
+                    list(range(len(texts_in_order))),
+                )
+                # Distinct from dated announcements: each parish-information
+                # section is its own section (one per entry), never folded
+                # into the dated Announcements block.
+                self.assertEqual(html.count('<div class="section parish-info">'), 4)
+                # The welcome (before_service) prints ahead of the actual
+                # service content; the logo/service content are not omitted.
+                self.assertLess(html.index("Welcome to All Saints"), html.index("Entrance Hymn"))
+                self.assertIn("cover-church-name", html)
+
+    def test_weekly_explicit_empty_override_suppresses_only_that_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = self._church_with_parish_information(Path(tmp))
+            bulletin = bulletin_input()
+            bulletin["parish_information"] = {"after_service": []}
+            result = produce(church, bulletin)
+            self.assertEqual(result["status"], "ready_for_review", result)
+            html = next(Path(result["week_folder"]).glob("*.html")).read_text(encoding="utf-8")
+            # Suppressed this week by explicit pastor request.
+            self.assertNotIn("Accessibility", html)
+            self.assertNotIn("Pastoral Contact", html)
+            self.assertNotIn("About Our Worship Book", html)
+            # The scope the week did not mention still uses the saved default.
+            self.assertIn("Welcome to All Saints", html)
+
+            # A later week that omits the override entirely reverts to the
+            # saved default rather than carrying the suppression forward.
+            next_week = bulletin_input()
+            next_week["service"]["date"] = "2026-09-27"
+            result_two = produce(church, next_week)
+            self.assertEqual(result_two["status"], "ready_for_review", result_two)
+            html_two = next(Path(result_two["week_folder"]).glob("*.html")).read_text(encoding="utf-8")
+            self.assertIn("Accessibility", html_two)
+
+    def test_unrecognized_scope_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            bulletin = bulletin_input()
+            bulletin["parish_information"] = {"mid_service": []}
+            result = produce(church, bulletin)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")
+            self.assertEqual(result["errors"][0]["field"], "parish_information")
+
+    def test_section_missing_required_text_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            bulletin = bulletin_input()
+            bulletin["parish_information"] = {"before_service": [{"title": "Welcome"}]}
+            result = produce(church, bulletin)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")
+            self.assertEqual(result["errors"][0]["field"], "parish_information.before_service[0].text")
+
+    def test_unrecognized_section_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            bulletin = bulletin_input()
+            bulletin["parish_information"] = {
+                "before_service": [{"title": "Welcome", "text": "Hi", "html": "<script>bad</script>"}],
+            }
+            result = produce(church, bulletin)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")
+
+    def test_non_string_title_or_text_is_rejected_not_coerced(self) -> None:
+        # A null, number, list, or mapping must never be stringified into
+        # nonsense printed text such as the literal word "None".
+        for bad_entry in (
+            {"title": None, "text": "Hi"},
+            {"title": "Welcome", "text": None},
+            {"title": 12, "text": "Hi"},
+            {"title": "Welcome", "text": ["Hi"]},
+            {"title": "Welcome", "text": {"nested": "Hi"}},
+        ):
+            with self.subTest(bad_entry=bad_entry), tempfile.TemporaryDirectory() as tmp:
+                church = make_church(Path(tmp))
+                bulletin = bulletin_input()
+                bulletin["parish_information"] = {"before_service": [bad_entry]}
+                result = produce(church, bulletin)
+                self.assertEqual(result["status"], "blocked", result)
+                self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")
+
+    def test_explicit_null_scope_is_rejected_distinct_from_missing_or_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = self._church_with_parish_information(Path(tmp))
+            bulletin = bulletin_input()
+            # Explicit null is neither "missing" (inherit) nor "[]" (suppress).
+            bulletin["parish_information"] = {"before_service": None}
+            result = produce(church, bulletin)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")
+            self.assertEqual(result["errors"][0]["field"], "parish_information.before_service")
+
+    def test_malformed_saved_standing_value_blocks_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            config_path = church / "church.yaml"
+            config = yaml.safe_load(config_path.read_text())
+            config["bulletin"] = {"parish_information": {"before_service": [{"title": "Welcome"}]}}
+            config_path.write_text(yaml.safe_dump(config))
+            result = produce(church, bulletin_input())
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")
+            self.assertIn("church.yaml", result["errors"][0]["message"])
+
+    def test_unknown_saved_standing_scope_blocks_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            config_path = church / "church.yaml"
+            config = yaml.safe_load(config_path.read_text())
+            config["bulletin"] = {"parish_information": {"mid_service": []}}
+            config_path.write_text(yaml.safe_dump(config))
+            result = produce(church, bulletin_input())
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")
+
+
+class AnnouncementImageTest(unittest.TestCase):
+    """Supported event-poster/QR artwork attached to a dated announcement,
+    distinct from a generic layout builder: a church-relative image or
+    images field, staged and source-accounted like a hymn image."""
+
+    def test_two_distinct_posters_are_painted_in_order_in_both_layouts(self) -> None:
+        colors = [(220, 20, 60), (30, 60, 200)]
+        for template in ("classic", "modern"):
+            with self.subTest(template=template), tempfile.TemporaryDirectory() as tmp:
+                church = make_church(Path(tmp))
+                music_dir = church / "music"
+                music_dir.mkdir(exist_ok=True)
+                # Same basename in two different source directories: staged
+                # filenames must not collide and overwrite one another.
+                second_dir = music_dir / "second"
+                second_dir.mkdir()
+                Image.new("RGB", (900, 1200), colors[0]).save(music_dir / "poster.png")
+                Image.new("RGB", (900, 1200), colors[1]).save(second_dir / "poster.png")
+                bulletin = bulletin_input()
+                bulletin["template"] = template
+                bulletin["announcements"] = [
+                    {"title": "Fall Festival", "image": "music/poster.png", "caption": "See you there"},
+                    {"title": "Sign Up", "text": "Scan to register.", "image": "music/second/poster.png"},
+                ]
+                result = produce(church, bulletin)
+                self.assertEqual(result["status"], "ready_for_review", result)
+                folder = Path(result["week_folder"])
+                html = next(folder.glob("*.html")).read_text(encoding="utf-8")
+                first_marker = "announcement-images/0-0-poster.png"
+                second_marker = "announcement-images/1-0-poster.png"
+                self.assertIn(first_marker, html)
+                self.assertIn(second_marker, html)
+                self.assertLess(html.index("Fall Festival"), html.index("Sign Up"))
+                self.assertLess(html.index(first_marker), html.index(second_marker))
+                self.assertIn("See you there", html)
+                # Both staged files exist separately: neither overwrote the
+                # other despite sharing a source basename.
+                staged_first = next(folder.rglob("0-0-poster.png"))
+                staged_second = next(folder.rglob("1-0-poster.png"))
+                self.assertNotEqual(staged_first.read_bytes(), staged_second.read_bytes())
+
+                pdf = next(folder.glob(f"*{template}.pdf"))
+                reader = PdfReader(str(pdf))
+                pages_painted = [_painted_image_colors(page) for page in reader.pages]
+                painted = {color for page in pages_painted for color in page}
+                # Both distinct posters actually reached the printed PDF,
+                # not just the staged HTML config. Visual QA checks cropping.
+                self.assertEqual(painted, set(colors))
+                first_page = next(i for i, colors_on_page in enumerate(pages_painted) if colors[0] in colors_on_page)
+                second_page = next(i for i, colors_on_page in enumerate(pages_painted) if colors[1] in colors_on_page)
+                self.assertLessEqual(first_page, second_page)
+
+    def test_missing_announcement_image_blocks_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            bulletin = bulletin_input()
+            bulletin["announcements"] = [{"title": "Bake Sale", "image": "music/missing.png"}]
+            result = produce(church, bulletin)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "missing_announcement_image")
+
+    def test_announcement_image_resolves_the_exact_path_not_a_music_basename_fallback(self) -> None:
+        # A same-named file elsewhere under music/ must never be silently
+        # substituted for a missing exact path.
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            music_dir = church / "music"
+            music_dir.mkdir(exist_ok=True)
+            Image.new("RGB", (10, 10), (1, 2, 3)).save(music_dir / "poster.png")
+            bulletin = bulletin_input()
+            bulletin["announcements"] = [{"title": "Bake Sale", "image": "announcements/poster.png"}]
+            result = produce(church, bulletin)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "missing_announcement_image")
+
+    def test_announcement_image_cannot_escape_the_church_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            Image.new("RGB", (10, 10), (0, 0, 0)).save(Path(tmp) / "outside.png")
+            bulletin = bulletin_input()
+            bulletin["announcements"] = [{"title": "Bake Sale", "image": "../outside.png"}]
+            result = produce(church, bulletin)
+            self.assertEqual(result["status"], "blocked", result)
+            self.assertEqual(result["errors"][0]["code"], "unsafe_path")
 
 
 if __name__ == "__main__":

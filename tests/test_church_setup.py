@@ -51,7 +51,7 @@ class ChurchSetupTest(unittest.TestCase):
                 },
             },
             "sermon": {"selection_mode": "lectionary", "primary_text": "gospel"},
-            "lectionary": {"system": "RCL", "track": "Track 2", "translation": "NRSV"},
+            "lectionary": {"system": "RCL", "track": "Track 2", "translation": "NRSV", "optional_verses": "appointed"},
         })
         pending = church_setup.status(self.church)
         self.assertFalse(pending["bulletin_ready"])
@@ -66,6 +66,28 @@ class ChurchSetupTest(unittest.TestCase):
         self.assertTrue(ready["bulletin_ready"])
         self.assertTrue(ready["workflow_ready"])
         self.assertFalse(ready["actual_first_result"])
+
+    def test_research_readiness_requires_lectionary_optional_verse_policy(self) -> None:
+        church_setup.update_standing(self.church, {
+            "church": {"name": "Sample Church"},
+            "sermon": {"selection_mode": "lectionary", "primary_text": "gospel"},
+            "lectionary": {"system": "RCL", "track": "Track 2", "translation": "NRSV"},
+        })
+        for policy in (None, "", "unsupported"):
+            with self.subTest(policy=policy):
+                config_path = self.church / "church.yaml"
+                config = yaml.safe_load(config_path.read_text())
+                config["lectionary"]["optional_verses"] = policy
+                config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+                pending = church_setup.status(self.church)
+                self.assertFalse(pending["research_ready"])
+                self.assertIn("lectionary.optional_verses", [item.get("field") for item in pending["unresolved"]])
+        for policy in ("appointed", "include_all", "omit_optional", "ask_each_week"):
+            with self.subTest(confirmed_policy=policy):
+                result = church_setup.update_standing(self.church, {
+                    "lectionary": {"optional_verses": policy},
+                })
+                self.assertTrue(result["readiness"]["research_ready"])
 
     def test_standing_readiness_ignores_an_unselected_but_configured_variant(self) -> None:
         orders_dir = self.church / "worship" / "orders"
@@ -93,7 +115,7 @@ class ChurchSetupTest(unittest.TestCase):
                 },
             },
             "sermon": {"selection_mode": "lectionary", "primary_text": "gospel"},
-            "lectionary": {"system": "RCL", "track": "Track 2", "translation": "NRSV"},
+            "lectionary": {"system": "RCL", "track": "Track 2", "translation": "NRSV", "optional_verses": "appointed"},
         })
         church_setup.update_standing(self.church, {
             "worship_profile": {"defaults": {"psalm_format": "responsive_half_verse"}},
@@ -124,6 +146,41 @@ class ChurchSetupTest(unittest.TestCase):
             church_setup.update_standing(self.church, {"worship_profile": {"defaults": {"closing_hymn_position": "sometime"}}})
         with self.assertRaises(church_setup.SetupError):
             church_setup.update_standing(self.church, {"leadership": {"placement": "sidebar"}})
+
+    def test_standing_parish_information_is_saved_and_rejects_unsafe_shapes(self) -> None:
+        church_setup.update_standing(self.church, {"bulletin": {"parish_information": {
+            "before_service": [{"title": "Welcome", "text": "Welcome to our parish family."}],
+            "after_service": [
+                {"title": "Accessibility", "text": "Ramp access is at the side door."},
+                {"title": "About Our Worship Book", "text": "Hymnal numbers are printed above each hymn."},
+            ],
+        }}})
+        config = yaml.safe_load((self.church / "church.yaml").read_text(encoding="utf-8"))
+        saved = config["bulletin"]["parish_information"]
+        self.assertEqual(saved["before_service"][0]["title"], "Welcome")
+        self.assertEqual([s["title"] for s in saved["after_service"]], ["Accessibility", "About Our Worship Book"])
+        with self.assertRaises(church_setup.SetupError):
+            church_setup.update_standing(self.church, {"bulletin": {"parish_information": {"mid_service": []}}})
+        with self.assertRaises(church_setup.SetupError):
+            church_setup.update_standing(self.church, {"bulletin": {"parish_information": {
+                "before_service": [{"title": "Welcome"}],
+            }}})
+        with self.assertRaises(church_setup.SetupError):
+            church_setup.update_standing(self.church, {"bulletin": {"parish_information": {
+                "before_service": [{"title": "Welcome", "text": "Hi", "html": "<script>"}],
+            }}})
+        # A null, number, or list must never be stringified into nonsense
+        # printed text such as the literal word "None".
+        for bad_entry in ({"title": None, "text": "Hi"}, {"title": "Welcome", "text": 12}):
+            with self.assertRaises(church_setup.SetupError):
+                church_setup.update_standing(self.church, {"bulletin": {"parish_information": {
+                    "before_service": [bad_entry],
+                }}})
+        # Explicit null is neither "missing" (inherit) nor "[]" (blank).
+        with self.assertRaises(church_setup.SetupError):
+            church_setup.update_standing(self.church, {"bulletin": {"parish_information": {
+                "before_service": None,
+            }}})
 
     def test_track_alias_is_saved_canonically_and_invalid_track_cannot_be_ready(self) -> None:
         result = church_setup.update_standing(self.church, {
@@ -276,7 +333,7 @@ class ChurchSetupTest(unittest.TestCase):
         church_setup.update_standing(self.church, {
             "church": {"name": "Synthetic Parish"},
             "sermon": {"selection_mode": "lectionary", "primary_text": "gospel"},
-            "lectionary": {"system": "BCP", "track": "", "translation": "Synthetic Translation"},
+            "lectionary": {"system": "BCP", "track": "", "translation": "Synthetic Translation", "optional_verses": "appointed"},
         })
         self.assertTrue(church_setup.status(self.church)["research_ready"])
 

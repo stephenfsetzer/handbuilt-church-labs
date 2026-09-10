@@ -746,15 +746,35 @@ def reading_block(label, reading, response=("Reader", "The Word of the Lord.",
             + "</div>")
 
 
-def gospel_block(reading):
+GOSPEL_ACCLAMATIONS = ("lord", "savior")
+
+
+def gospel_acclamation_choice(cfg):
+    """Resolve the saved wording for the Gospel announcement dialogue.
+
+    Sources vary on an actual, verified point of wording: the standard BCP
+    text reads "our Lord Jesus Christ"; some parishes' printed bulletins
+    read "our Savior Jesus Christ" instead. This is source fidelity, not
+    cosmetic rewording, so it is a saved choice, not a hardcoded default
+    silently applied to every church. ``lord`` is the standard BCP default
+    used when no local choice is supplied; any other or missing value keeps
+    that default rather than guessing.
+    """
+    liturgy = cfg.get("liturgy")
+    value = str(liturgy.get("gospel_acclamation", "")).strip().lower() if isinstance(liturgy, dict) else ""
+    return value if value in GOSPEL_ACCLAMATIONS else "lord"
+
+
+def gospel_block(reading, acclamation="lord"):
     citation = reading.get("citation", "")
     book = citation.split()[0] if citation else "the Gospel"
+    title = "Savior" if acclamation == "savior" else "Lord"
     body = _reading_body(reading)
     return (f'<div class="section">'
             + keep(section_head("The Holy Gospel"),
                    f'<p class="citation">{esc(citation)}</p>',
                    dialogue_pair("Priest",
-                                 f"The Holy Gospel of our Savior Jesus Christ according to {book}.",
+                                 f"The Holy Gospel of our {title} Jesus Christ according to {book}.",
                                  "People", "Glory to you, Lord Christ."))
             + body
             + dialogue_pair("Priest", "The Gospel of the Lord.",
@@ -976,12 +996,68 @@ def leadership_directory_block(brand):
             f'{groups}</div></div>')
 
 
+def parish_information_block(cfg, scope):
+    """Render the church's standing parish-information sections for one
+    placement, distinct from dated announcements.
+
+    Simple ordered title-and-text sections: a recurring welcome,
+    accessibility note, pastoral contact, or worship-book explanation.
+    Reuses the same paragraph splitting and inline escaping as a reading or
+    the collect of the day; no raw HTML, and no page-layout engine.
+    """
+    sections = (cfg.get("parish_information") or {}).get(scope)
+    if not isinstance(sections, list) or not sections:
+        return ""
+    parts = []
+    for entry in sections:
+        if not isinstance(entry, dict):
+            continue
+        title = str(entry.get("title", "")).strip()
+        text = str(entry.get("text", "")).strip()
+        if not text:
+            continue
+        paragraphs = "\n".join(
+            f'<p class="prose">{inline_md(paragraph.strip())}</p>'
+            for paragraph in re.split(r"\n\s*\n", text)
+            if paragraph.strip()
+        )
+        head = section_head(title) if title else ""
+        parts.append(f'<div class="section parish-info">{head}{paragraphs}</div>')
+    return "".join(parts)
+
+
+def _announcement_image_markup(entry, repo_root):
+    """A supplied event poster or inline QR graphic attached to one
+    announcement. Preserves aspect ratio, fits the printable width, and is
+    never forced into the same unbreakable block as its title/text, so a
+    near-full-page poster can flow to its own page instead of being cropped
+    or squeezed. No raw HTML, no remote fetch, no generic layout builder."""
+    images = entry.get("images") or ([entry["image"]] if entry.get("image") else [])
+    parts = []
+    for img in images:
+        path = (repo_root / str(img)).resolve()
+        if path.exists():
+            parts.append(sized_img(path, "announcement-img", content_w=7.3, max_h=9.2))
+    if not parts:
+        return ""
+    caption = str(entry.get("caption", "")).strip()
+    if caption:
+        parts.append(f'<p class="rubric">{inline_md(caption)}</p>')
+    return "\n".join(parts)
+
+
 def announcements_block(cfg, brand, repo_root, include_qr=False):
     items = cfg.get("announcements", [])
-    lis = "\n".join(
-        f'<div class="announcement keep-together"><p class="ann-title">{inline_md(a["title"])}</p>'
-        f'<p class="ann-text">{inline_md(a["text"])}</p></div>'
-        for a in items)
+    lis_parts = []
+    for a in items:
+        title = f'<p class="ann-title">{inline_md(a["title"])}</p>' if str(a.get("title", "")).strip() else ""
+        text = str(a.get("text", "")).strip()
+        text_html = f'<p class="ann-text">{inline_md(text)}</p>' if text else ""
+        images_html = _announcement_image_markup(a, repo_root)
+        lis_parts.append(
+            f'<div class="announcement"><div class="keep-together">{title}{text_html}</div>{images_html}</div>'
+        )
+    lis = "\n".join(lis_parts)
     svc = cfg["service"]
     options = cfg.get("options", {}) or {}
     serving_enabled = options.get("include_serving_today", True)
@@ -1028,6 +1104,9 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
         sections.append(f'<div class="section">{keep(section_head("Serving Today"), ppl)}</div>')
     if include_qr:
         sections.append(qr_block(brand, repo_root))
+    after_service = parish_information_block(cfg, "after_service")
+    if after_service:
+        sections.append(after_service)
     directory = leadership_directory_block(brand)
     if directory:
         sections.append(directory)
@@ -1272,7 +1351,7 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
                     + f'<p class="prose">{inline_md(cfg.get("collect_of_day", ""))}</p></div>')
         return liturgy_section(identifier, render_ctx, **kwargs)
 
-    parts = [cover_page(cfg, brand, repo_root, template)]
+    parts = [cover_page(cfg, brand, repo_root, template), parish_information_block(cfg, "before_service")]
 
     parts.append(hymn_block("Prelude", music.get("prelude"), config_dir))
     parts.append(hymn_block("Entrance Hymn", hymns.get("entrance"), config_dir))
@@ -1299,7 +1378,7 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     parts.append(hymn_block("Gradual Hymn", hymns.get("gradual"), config_dir))
     parts.append(hymn_block("Gospel Acclamation", hymns.get("gospel_acclamation"), config_dir))
     if readings.get("gospel"):
-        parts.append(gospel_block(readings["gospel"]))
+        parts.append(gospel_block(readings["gospel"], gospel_acclamation_choice(cfg)))
 
     preacher = svc.get("preacher", "")
     parts.append('<div class="section">'
@@ -1425,7 +1504,7 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
             raise ValueError(f"Lutheran service plan is missing liturgy.files.{identifier}")
         return liturgy_steps(variant, logical, ctx, default_unit=identifier, head=label)
 
-    parts = [cover_page(cfg, brand, repo_root, template)]
+    parts = [cover_page(cfg, brand, repo_root, template), parish_information_block(cfg, "before_service")]
     parts.append(hymn_block("Prelude", music.get("prelude"), config_dir))
     parts.append(hymn_block("Entrance Hymn", hymns.get("entrance"), config_dir))
     parts.append(section("gathering", "Gathering"))
@@ -1445,7 +1524,7 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
         parts.append(reading_block("The Second Reading", readings["second"]))
     parts.append(hymn_block("Gospel Acclamation", hymns.get("gospel_acclamation"), config_dir))
     if readings.get("gospel"):
-        parts.append(gospel_block(readings["gospel"]))
+        parts.append(gospel_block(readings["gospel"], gospel_acclamation_choice(cfg)))
     parts.append('<div class="section">' + keep(section_head("The Sermon"),
                  f'<p class="service-person center">{esc(svc.get("preacher", ""))}</p>') + '</div>')
     parts.append(section("prayers", "Prayers of the Church"))

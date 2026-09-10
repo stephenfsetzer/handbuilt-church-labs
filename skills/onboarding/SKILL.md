@@ -51,10 +51,9 @@ Ask only when:
 - the pastor must choose between materially different outcomes.
 
 Bundle related website facts into one confirmation. Do not ask for a second
-confirmation of the bulletin template. Matching sources do not replace the pastor's
-first identity confirmation. If clear, save the bulletin's structure and choices as
-working defaults. If it is ambiguous, ask one bundled question about the
-specific ambiguity.
+confirmation of the bulletin template. Save a clear bulletin structure and
+choice as a working default; ask one bundled question only where it is
+ambiguous.
 
 Assume the pastor is new to a local agent. Before they have to ask, say what
 you are doing, why it matters, what will happen next, whether anything leaves
@@ -181,7 +180,11 @@ become the initial working template for detailed worship and bulletin work.
 
 If a usable bulletin is available, read and follow
 [Worship onboarding](references/worship-onboarding.md), using the bulletin as
-the working template for worship details and recurring bulletin structure.
+the working template for worship details and recurring bulletin structure. For
+a supplied PDF, run the canonical [source import and
+inventory](../bulletin/references/source-inventory.md) workflow and account
+for every page; a shorter website roster never excuses skipping a supplied
+standing directory or recurring section, only a recorded conflict or omission.
 
 If no bulletin is available, read the same reference and use its standard
 purpose-first worship questions. Missing a bulletin must not block onboarding
@@ -189,9 +192,9 @@ or pressure the pastor to find one.
 
 ## Safety and progress
 
-Church-specific information, uploaded bulletins, licensed material, generated
-assets, and receipts belong in the private church folder. This public
-repository contains only reusable workflows and synthetic tests.
+Church-specific information, uploaded bulletins, licensed material, and
+receipts belong in the private folder; this public repository holds only
+reusable workflows and synthetic tests.
 
 After each meaningful stage, report:
 
@@ -199,25 +202,21 @@ After each meaningful stage, report:
 - what is **pending** because a tool or asset needs attention; and
 - what is **still unresolved** because the pastor has not decided it.
 
-Batch related changes and update the progress record at meaningful stage
-boundaries, without extra edits only to synchronize intermediate prose.
+Batch related changes and update the progress record at meaningful stage boundaries, not for every intermediate edit.
 
-Do not report a terminal command or a successful helper call as proof that
-onboarding is complete. The folder, progress record, relevant configuration,
-and first useful result must be checked.
+A successful terminal command or helper call is not proof onboarding is
+complete: check the folder, progress record, configuration, and first result.
 
 ## Re-running
 On return, read the private folder and `ONBOARDING.md`; preserve pastor-authored material and update only workflow-owned values.
 
 ## Bounded setup updates
 When a setup value must be saved or changed, use the skill's
-`scripts/church_setup.py` helper. It reads the existing `church.yaml` and
-`worship/profile.yaml`, validates a small named patch, and writes only standing
-settings that the bulletin and sermon workflows already consume. It preserves
-the existing folder and refuses paths inside the Labs repository, either
-plugin cache, or a symlink into those locations. `status` reports the actual
-folder, bulletin, sermon, and first-result readiness from the files and their
-workflow checks.
+`scripts/church_setup.py` helper. It reads the existing `church.yaml` and `worship/profile.yaml`, validates a
+small named patch, and writes only standing settings the bulletin and sermon
+workflows already consume; it refuses paths inside the Labs repository,
+either plugin cache, or a symlink into those locations. `status` reports
+actual folder, bulletin, sermon, and first-result readiness from the files.
 Use `--scope standing` for reusable church practice, such as the service book,
 prayer forms, roster, footer, lectionary settings, translation, research
 preferences, and the Classic or Modern bulletin choice. Use the weekly

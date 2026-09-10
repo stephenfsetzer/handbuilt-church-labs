@@ -16,6 +16,7 @@ from tests.helpers import (
     pastor_selected_readings_content,
     pastor_selected_research_metadata,
     reading_metadata,
+    reading_selection,
     reading_sources,
     readings_content,
     research_brief,
@@ -303,6 +304,62 @@ class SermonWorkflowTest(unittest.TestCase):
         self.assertEqual(state["stage_files"]["readings"]["status"], "verified")
         self.assertEqual(state["stage_files"]["research"]["status"], "stale")
         self.assertEqual(state["workflow_state"], "needs_research")
+
+    def test_non_rcl_track_is_not_cross_checked_against_church_yaml(self) -> None:
+        # church_setup.status() already treats a blank track as fine for a
+        # non-RCL lectionary system; record() must accept the same church
+        # without demanding a track value church.yaml never asked for.
+        church = make_church(Path(self.temporary.name) / "non-rcl")
+        config_path = church / "church.yaml"
+        text = config_path.read_text(encoding="utf-8")
+        text = text.replace("  system: RCL", "  system: BCP").replace("  track: Track 2", '  track: ""')
+        config_path.write_text(text, encoding="utf-8")
+
+        selection = reading_selection()
+        selection["lectionary_system"] = "BCP"
+        selection["track"] = "Not applicable"
+        result = record(
+            church,
+            self.target_date,
+            "readings",
+            readings_content(selection=selection),
+            {"selection": selection, "sources": reading_sources(selection)},
+        )
+        self.assertEqual(result["status"], "recorded", result)
+
+    def test_non_rcl_church_with_an_explicit_track_still_cross_checks_it(self) -> None:
+        # A non-RCL system with no configured track is not cross-checked
+        # (above), but an explicitly configured nonblank track is still a
+        # real church choice and must still be enforced like any other
+        # configured value.
+        church = make_church(Path(self.temporary.name) / "non-rcl-explicit-track")
+        config_path = church / "church.yaml"
+        text = config_path.read_text(encoding="utf-8")
+        text = text.replace("  system: RCL", "  system: BCP").replace("  track: Track 2", "  track: Year One")
+        config_path.write_text(text, encoding="utf-8")
+
+        selection = reading_selection()
+        selection["lectionary_system"] = "BCP"
+        selection["track"] = "Year Two"
+        blocked = record(
+            church,
+            self.target_date,
+            "readings",
+            readings_content(selection=selection),
+            {"selection": selection, "sources": reading_sources(selection)},
+        )
+        self.assertEqual(blocked["errors"][0]["code"], "reading_policy_mismatch")
+        self.assertEqual(blocked["errors"][0]["field"], "metadata.selection.track")
+
+        selection["track"] = "Year One"
+        result = record(
+            church,
+            self.target_date,
+            "readings",
+            readings_content(selection=selection),
+            {"selection": selection, "sources": reading_sources(selection)},
+        )
+        self.assertEqual(result["status"], "recorded", result)
 
     def test_typed_pass_text_does_not_govern_state(self) -> None:
         sermon_dir = self.church / "sermons" / self.target_date

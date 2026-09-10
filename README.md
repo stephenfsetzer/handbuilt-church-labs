@@ -59,7 +59,10 @@ Classic and Modern layouts and booklet output. Importing a bulletin does not
 promise an exact reproduction of its design. Some prayers, service-book text,
 and music require material supplied by your church. A supplied logo appears on
 the cover in both layouts. Large parish directories flow into the bulletin
-body, and the church can save its usual closing-hymn position.
+body, and the church can save its usual closing-hymn position. Recurring
+welcome and accessibility information can appear before or after the service.
+Supplied event posters and QR artwork can accompany announcements without
+being reduced to a text summary.
 
 ## Come back to your work
 

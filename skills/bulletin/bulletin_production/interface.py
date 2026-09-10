@@ -24,7 +24,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 
-IMPLEMENTATION_VERSION = "0.5.0"
+IMPLEMENTATION_VERSION = "0.6.0"
 SUPPORTED_TEMPLATES = {"classic", "modern"}
 REQUIRED_READING_SLOTS = ("first", "psalm", "second", "gospel")
 PLACEHOLDER_PATTERNS = (
@@ -407,6 +407,115 @@ def _resolve_standing_preferences(bulletin: dict[str, Any], church_config: dict[
     for key, value in standing.items():
         if key not in options or options[key] is None:
             options[key] = copy.deepcopy(value)
+
+
+PARISH_INFORMATION_SCOPES = ("before_service", "after_service")
+
+
+def _validate_parish_information_shape(value: Any, field: str) -> None:
+    """Reject an unsafe or unrecognized parish-information shape outright.
+
+    Shared by the saved standing value (``church.yaml bulletin.parish_information``)
+    and the resolved weekly value, so a hand-edited bad standing config fails
+    here just as clearly as a bad weekly override, rather than being
+    silently dropped. Consistent with the JSON schema: only an *absent*
+    scope means "inherit the saved sections"; an explicit ``null`` is
+    neither a list nor a valid override and is rejected here, not treated
+    as either inheritance or suppression. Never coerces a non-string title
+    or text (``None``, a number, a list, a mapping) into text: each must
+    already be an actual nonblank string.
+    """
+    if not isinstance(value, dict) or set(value) - set(PARISH_INFORMATION_SCOPES):
+        raise StageFailure(
+            "invalid_parish_information",
+            "validation",
+            f"{field} may only use: {', '.join(PARISH_INFORMATION_SCOPES)}",
+            field=field,
+        )
+    for scope in PARISH_INFORMATION_SCOPES:
+        if scope not in value:
+            continue
+        sections = value[scope]
+        scope_field = f"{field}.{scope}"
+        if not isinstance(sections, list):
+            raise StageFailure(
+                "invalid_parish_information", "validation", f"{scope_field} must be a list", field=scope_field
+            )
+        for index, entry in enumerate(sections):
+            entry_field = f"{scope_field}[{index}]"
+            if not isinstance(entry, dict) or set(entry) - {"title", "text", "source"}:
+                raise StageFailure(
+                    "invalid_parish_information",
+                    "validation",
+                    f"{entry_field} must contain only title, text, and an optional source",
+                    field=entry_field,
+                )
+            title = entry.get("title")
+            if not isinstance(title, str) or not title.strip():
+                raise StageFailure(
+                    "invalid_parish_information", "validation", f"{entry_field}.title must be nonblank text",
+                    field=f"{entry_field}.title",
+                )
+            text = entry.get("text")
+            if not isinstance(text, str) or not text.strip():
+                raise StageFailure(
+                    "invalid_parish_information", "validation", f"{entry_field}.text must be nonblank text",
+                    field=f"{entry_field}.text",
+                )
+            if "source" in entry:
+                _validate_source(entry["source"], f"{entry_field}.source")
+
+
+def _resolve_parish_information(bulletin: dict[str, Any], church_config: dict[str, Any]) -> None:
+    """Carry the saved standing parish-information sections into the week.
+
+    Ordered title-and-text sections for recurring content that belongs
+    neither to a dated announcement nor to any other supported standing
+    field: a welcome, an accessibility note, pastoral contact, or a
+    worship-book explanation. Each scope resolves independently: a weekly
+    value, present at all, always wins, whether it is a non-empty override
+    or an explicit empty list suppressing that scope for the week. A scope
+    the week omits entirely falls back to the saved sections in
+    ``church.yaml bulletin.parish_information``. The saved value is
+    validated here too, so a malformed hand-edited standing config blocks
+    with a clear error instead of silently losing its content.
+    """
+    saved_bulletin = church_config.get("bulletin")
+    saved = saved_bulletin.get("parish_information") if isinstance(saved_bulletin, dict) else None
+    if saved is not None:
+        _validate_parish_information_shape(saved, "church.yaml bulletin.parish_information")
+    saved = saved if isinstance(saved, dict) else {}
+    weekly = bulletin.get("parish_information")
+    if weekly is None:
+        # Absent entirely (not an explicit null further below): inherit
+        # every scope from the saved sections.
+        weekly = {}
+    if not isinstance(weekly, dict) or set(weekly) - set(PARISH_INFORMATION_SCOPES):
+        # Leave an unsafe or unrecognized weekly value exactly as supplied.
+        # _validate_parish_information (run after resolution) rejects it
+        # clearly; silently discarding an unrecognized key here instead
+        # would let it through as if the week had said nothing.
+        bulletin["parish_information"] = weekly
+        return
+    resolved: dict[str, Any] = {}
+    for scope in PARISH_INFORMATION_SCOPES:
+        resolved[scope] = weekly[scope] if scope in weekly else copy.deepcopy(saved.get(scope, []))
+    bulletin["parish_information"] = resolved
+
+
+def _validate_parish_information(bulletin: dict[str, Any]) -> None:
+    """Reject an unsafe or unrecognized resolved parish-information shape.
+
+    Never silently drops or reinterprets a bad value: an unknown scope, a
+    non-list scope (including an explicit ``null``), a section missing its
+    title or text, a non-string title or text, or an unknown field inside a
+    section all fail clearly rather than rendering nothing or something
+    unintended such as the literal text "None".
+    """
+    value = bulletin.get("parish_information")
+    if value is None:
+        return
+    _validate_parish_information_shape(value, "parish_information")
 
 
 def _leadership_entries(leadership: dict[str, Any]) -> list[tuple[str, Any]]:
@@ -1341,6 +1450,16 @@ def _authority_fingerprint(
                 for index, raw in enumerate(raw_images):
                     private_path(raw, f"{group_name}.{slot}.images[{index}]", music_fallback=True)
 
+    announcements = bulletin.get("announcements", [])
+    if isinstance(announcements, list):
+        for ann_index, entry in enumerate(announcements):
+            if not isinstance(entry, dict):
+                continue
+            raw_images = entry.get("images") or ([entry["image"]] if entry.get("image") else [])
+            if isinstance(raw_images, list):
+                for index, raw in enumerate(raw_images):
+                    private_path(raw, f"announcements[{ann_index}].images[{index}]", music_fallback=True)
+
     liturgy = bulletin.get("liturgy", {})
     if isinstance(liturgy, dict):
         for group_name in ("sources", "files"):
@@ -1422,6 +1541,57 @@ def _copy_music_assets(
                 })
             entry["images"] = copied
             entry.pop("image", None)
+
+
+def _copy_announcement_assets(bulletin: dict[str, Any], root: Path, stage: Path) -> None:
+    """Stage a supplied event poster or inline QR graphic attached to one
+    announcement, with the same folder-safety as a hymn image, but two
+    differences suited to announcement content specifically: the exact
+    supplied church-relative (or absolute-but-confined) path is resolved,
+    never a ``music/<basename>`` fallback that could silently substitute an
+    unrelated same-named file; and a missing image blocks production
+    outright rather than becoming a soft warning, because a poster or QR
+    graphic has no safe text substitute for its content the way a hymn's
+    number and title do. Staged filenames are index-qualified so two
+    different source images that happen to share a basename never collide
+    and silently overwrite one another in the review package.
+    """
+    items = bulletin.get("announcements", [])
+    if not isinstance(items, list):
+        return
+    destination = stage / "announcement-images"
+    for index, entry in enumerate(items):
+        if not isinstance(entry, dict):
+            continue
+        requested = entry.get("images") or ([entry["image"]] if entry.get("image") else [])
+        if not requested:
+            continue
+        if not destination.is_dir():
+            destination.mkdir()
+        copied: list[str] = []
+        for position, raw in enumerate(requested):
+            field = f"announcements[{index}].images[{position}]"
+            candidate = Path(str(raw))
+            source = (candidate if candidate.is_absolute() else (root / candidate)).resolve()
+            if not source.is_file():
+                raise StageFailure(
+                    "missing_announcement_image",
+                    "asset_resolution",
+                    f"Announcement image was not found: {raw}",
+                    field=field,
+                )
+            if not _inside(source, root):
+                raise StageFailure(
+                    "unsafe_path",
+                    "asset_resolution",
+                    f"Announcement image escapes the church folder: {raw}",
+                    field=field,
+                )
+            target = destination / f"{index}-{position}-{source.name}"
+            shutil.copy2(source, target)
+            copied.append(f"announcement-images/{target.name}")
+        entry["images"] = copied
+        entry.pop("image", None)
 
 
 def _copy_liturgy_sources(
@@ -1930,6 +2100,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         _consume_saved_worship_resolution(root, source_resolved)
         _normalize_liturgy(source_resolved)
         _resolve_standing_preferences(source_resolved, church_config)
+        _resolve_parish_information(source_resolved, church_config)
         _validate_leadership(church_config)
         warnings: list[dict[str, Any]] = []
         _validate_brand_asset_paths(brand, root)
@@ -1944,6 +2115,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
                 "field": "options.merge_back_page",
                 "message": "Back-page merge was requested and requires human visual review if the selected template applies it.",
             })
+        _validate_parish_information(source_resolved)
         _validate_bulletin(source_resolved)
         _validate_liturgy_sources(source_resolved, root)
         inventory_result = _validate_source_inventory(root, source_resolved)
@@ -2029,6 +2201,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         resolved.pop("template", None)
         resolved.pop("_template", None)
         _copy_music_assets(resolved, root, stage_dir, warnings)
+        _copy_announcement_assets(resolved, root, stage_dir)
         staged_liturgy = _copy_liturgy_sources(resolved, root, stage_dir)
         config_path = stage_dir / "bulletin-config.json"
         config_path.write_text(json.dumps(source_resolved, indent=2, ensure_ascii=False), encoding="utf-8")

@@ -228,6 +228,33 @@ class SavedWorshipTest(unittest.TestCase):
             html = next(Path(result_with_choice["week_folder"]).glob("*.html")).read_text()
             self.assertIn("11:15", html)
 
+    def test_gospel_acclamation_defaults_to_lord_and_honors_a_saved_savior_choice(self):
+        # No accidental change after default resolution: a church that has
+        # never set gospel_acclamation still prints the standard BCP "Lord".
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            _configured_profile(church)
+            request = bulletin_input()
+            request["liturgy"] = {}
+            result = produce(church, request)
+            self.assertEqual(result["status"], "ready_for_review", result)
+            html = next(Path(result["week_folder"]).glob("*.html")).read_text()
+            self.assertIn("The Holy Gospel of our Lord Jesus Christ according to", html)
+            self.assertNotIn("The Holy Gospel of our Savior Jesus Christ", html)
+
+        # A church whose source verifiably reads "our Savior" instead.
+        with tempfile.TemporaryDirectory() as tmp:
+            church = make_church(Path(tmp))
+            _configured_profile(church, gospel_acclamation="savior")
+            request = bulletin_input()
+            request["service"]["date"] = "2026-09-27"
+            request["liturgy"] = {}
+            result = produce(church, request)
+            self.assertEqual(result["status"], "ready_for_review", result)
+            html = next(Path(result["week_folder"]).glob("*.html")).read_text()
+            self.assertIn("The Holy Gospel of our Savior Jesus Christ according to", html)
+            self.assertNotIn("The Holy Gospel of our Lord Jesus Christ according to", html)
+
 
 if __name__ == '__main__':
     unittest.main()

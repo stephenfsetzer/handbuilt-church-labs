@@ -108,6 +108,7 @@ _WEEKLY_DESTINATION_TEMPLATES = (
     "readings.first", "readings.second", "readings.psalm", "readings.gospel",
     "readings.*.citation", "readings.*.number", "readings.*.text", "readings.*.source",
     "announcements", "announcements.#", "announcements.#.title", "announcements.#.text",
+    "announcements.#.image", "announcements.#.images", "announcements.#.caption",
     "options", "options.*",
     "liturgy", "liturgy.service_plan", "liturgy.sources", "liturgy.sources.*",
     "liturgy.files", "liturgy.files.*",
@@ -122,6 +123,12 @@ _STANDING_DESTINATION_TEMPLATES = (
     "leadership.placement",
     "bulletin.include_serving_today", "bulletin.serving_roles", "bulletin.footer", "bulletin.template",
     "bulletin.doxology_music",
+    # Standing, ordered before/after-service sections such as a recurring
+    # welcome, accessibility note, pastoral contact, or worship-book
+    # explanation -- distinct from a dated weekly announcement.
+    "bulletin.parish_information",
+    "bulletin.parish_information.before_service.#.title", "bulletin.parish_information.before_service.#.text",
+    "bulletin.parish_information.after_service.#.title", "bulletin.parish_information.after_service.#.text",
     "lectionary.system", "lectionary.track", "lectionary.translation", "lectionary.optional_verses",
     "lectionary.authorities",
     "sermon.selection_mode", "sermon.primary_text", "sermon.research_preferences",
@@ -706,6 +713,16 @@ def _collect_hymn_like_references(root: Path, container: dict[str, Any]) -> set[
             if not isinstance(slot, dict):
                 continue
             candidates = [slot.get("image")] + list(slot.get("images") or [])
+            for item in candidates:
+                normalized = _confined_relative(root, item)
+                if normalized:
+                    values.add(normalized)
+    announcements = container.get("announcements")
+    if isinstance(announcements, list):
+        for entry in announcements:
+            if not isinstance(entry, dict):
+                continue
+            candidates = [entry.get("image")] + list(entry.get("images") or [])
             for item in candidates:
                 normalized = _confined_relative(root, item)
                 if normalized:

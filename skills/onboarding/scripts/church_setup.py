@@ -35,8 +35,10 @@ _SCALAR_SECTIONS = {
 _LEADERSHIP_FIELDS = {"print_in_bulletin", "clergy_and_staff", "governing_body", "placement"}
 _LEADERSHIP_PLACEMENT_CHOICES = {"auto", "footer", "body"}
 _GOVERNING_FIELDS = {"label", "member_label", "officers", "members"}
-_BULLETIN_FIELDS = {"include_serving_today", "serving_roles", "footer", "template", "doxology_music"}
+_BULLETIN_FIELDS = {"include_serving_today", "serving_roles", "footer", "template", "doxology_music", "parish_information"}
 _FOOTER_FIELDS = {"contact_name", "address", "phone", "email", "website"}
+_PARISH_INFORMATION_SCOPES = {"before_service", "after_service"}
+_PARISH_INFORMATION_SECTION_FIELDS = {"title", "text", "source"}
 _MUSIC_FIELDS = {"number", "title", "tune", "image", "images", "lyrics", "custom_text", "lyric_columns"}
 _LYRIC_GROUP_FIELDS = {"speaker", "part", "lines", "bold", "people"}
 _SERMON_FIELDS = {"selection_mode", "primary_text", "research_preferences"}
@@ -51,7 +53,7 @@ _PROFILE_DEFAULTS = {
     "divine_service_setting", "include_creed", "include_confession", "print_full_eucharistic_prayer",
     "include_first_reading", "include_second_reading", "blessing",
     "doxology", "psalm_format", "psalm_response_start", "prayer_presentation", "rubric_style",
-    "closing_hymn_position",
+    "closing_hymn_position", "gospel_acclamation",
 }
 _PROFILE_SOURCES = {
     "eucharistic_prayer", "lords_prayer", "prayers_of_the_people", "blessing", "communion_welcome",
@@ -66,6 +68,7 @@ _PREFERENCE_CHOICES = {
     "prayer_presentation": {"continuous", "repeated_labels"},
     "rubric_style": {"concise", "source"},
     "closing_hymn_position": {"before_dismissal", "after_dismissal"},
+    "gospel_acclamation": {"lord", "savior"},
 }
 
 
@@ -295,6 +298,40 @@ def _validate_music_entry(value: Any, path: str) -> None:
         raise SetupError(f"{path}.lyric_columns must be 1, 2, or blank")
 
 
+def _validate_parish_information(value: Any, path: str) -> None:
+    """Validate the standing before/after-service parish-information sections.
+
+    Simple ordered title-and-text sections, distinct from dated
+    announcements: a recurring welcome, accessibility note, pastoral
+    contact, or worship-book explanation. Reuses the reading source-record
+    shape when a section names one.
+    """
+    if not isinstance(value, dict) or set(value) - _PARISH_INFORMATION_SCOPES:
+        choices = ", ".join(sorted(_PARISH_INFORMATION_SCOPES))
+        raise SetupError(f"{path} may only use: {choices}")
+    for scope, sections in value.items():
+        scope_path = f"{path}.{scope}"
+        if not isinstance(sections, list):
+            raise SetupError(f"{scope_path} must be a list")
+        for index, entry in enumerate(sections):
+            entry_path = f"{scope_path}[{index}]"
+            if not isinstance(entry, dict) or set(entry) - _PARISH_INFORMATION_SECTION_FIELDS:
+                raise SetupError(f"{entry_path} may contain only title, text, and an optional source")
+            title = entry.get("title")
+            if not isinstance(title, str) or not title.strip():
+                raise SetupError(f"{entry_path}.title must be nonblank text")
+            text = entry.get("text")
+            if not isinstance(text, str) or not text.strip():
+                raise SetupError(f"{entry_path}.text must be nonblank text")
+            if "source" in entry:
+                source = entry["source"]
+                if not isinstance(source, dict) or any(
+                    not isinstance(source.get(field), str) or not source[field].strip()
+                    for field in ("label", "location", "verified_on")
+                ):
+                    raise SetupError(f"{entry_path}.source needs label, location, and verified_on")
+
+
 def _text_or_blank(value: Any, path: str) -> None:
     if value is not None and not isinstance(value, str):
         raise SetupError(f"{path} must be text")
@@ -373,6 +410,8 @@ def _validate_patch(patch: Any, *, profile: bool = False, prefix: str = "") -> N
                     _text_or_blank(item, f"{path}.footer.{field}")
             if "doxology_music" in value:
                 _validate_music_entry(value["doxology_music"], f"{path}.doxology_music")
+            if "parish_information" in value:
+                _validate_parish_information(value["parish_information"], f"{path}.parish_information")
         elif key == "lectionary":
             if not isinstance(value, dict) or set(value) - {"system", "track", "translation", "optional_verses", "authorities"}:
                 raise SetupError(f"Unsupported setting path under {path}")
@@ -569,7 +608,13 @@ def status(church_folder: str | Path) -> dict[str, Any]:
     uses_rcl = system.casefold() in {"rcl", "revised common lectionary"}
     track_ready = not uses_rcl or str(lectionary.get("track") or "").strip().casefold() in {"track 1", "track 2"}
     lectionary_defaults_ready = translation_ready and bool(system) and track_ready
-    reading_defaults_ready = translation_ready and (selection_mode == "pastor_selected" or lectionary_defaults_ready)
+    optional_verses_ready = str(lectionary.get("optional_verses") or "").strip() in {
+        "appointed", "include_all", "omit_optional", "ask_each_week",
+    }
+    reading_defaults_ready = translation_ready and (
+        selection_mode == "pastor_selected"
+        or (lectionary_defaults_ready and optional_verses_ready)
+    )
     sermon_ready = (
         selection_mode in {"lectionary", "pastor_selected"}
         and primary_text in ({"selected"} if selection_mode == "pastor_selected" else {"first", "psalm", "second", "gospel"})
@@ -610,6 +655,8 @@ def status(church_folder: str | Path) -> dict[str, Any]:
         unresolved.append({"field": "sermon.primary_text", "reason": "Choose the usual primary sermon reading"})
     if folder_ready and not translation_ready:
         unresolved.append({"field": "lectionary.translation", "reason": "Choose the usual preaching translation"})
+    if folder_ready and selection_mode == "lectionary" and not optional_verses_ready:
+        unresolved.append({"field": "lectionary.optional_verses", "reason": "Confirm whether optional verses follow the published appointment, always use the longer or shorter form, or are chosen each week"})
     if folder_ready and not system:
         unresolved.append({"field": "lectionary.system", "reason": "Choose the lectionary used for regular preaching"})
     if folder_ready and uses_rcl and not track_ready:

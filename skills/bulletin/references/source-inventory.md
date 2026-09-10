@@ -27,7 +27,13 @@ page means is a separate, explicit step below.
    (`standing` carries forward; `weekly` needs the service date and applies
    only to that dated bulletin), and where it maps to (`config_path`,
    `text_file`, and/or `asset_path`). Leave anything undecided as
-   `unresolved` rather than guessing.
+   `unresolved` rather than guessing. A recurring welcome, accessibility
+   note, pastoral contact, or worship-book explanation is `standing` scope
+   mapped to `bulletin.parish_information.before_service.<n>.text` or
+   `.after_service.<n>.text` (with the matching `.title`); it is a supported
+   destination now, not something to defer to a first bulletin. A supplied
+   event poster or inline QR graphic maps to
+   `announcements.<n>.image` (weekly scope, that service date).
 4. **Mark the review complete.** Once every page has been accounted for,
    `mark-review-complete` with a short note. This is the agent's own record
    that it went through every page, not a pastor approval and not a claim

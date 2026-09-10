@@ -275,6 +275,16 @@ above a leadership roster. Do not make the pastor resolve internal print-layout
 language during core onboarding. Defer weekly questions about combining a
 closing hymn with that page until an actual proof exists.
 
+A supplied source's recurring welcome, accessibility note, pastoral contact,
+or worship-book explanation is a supported standing field, not a gap to defer.
+Save it as ordered `title`/`text` sections under
+`bulletin.parish_information.before_service` and/or `.after_service` (see the
+[bulletin skill's weekly input reference](../../bulletin/references/weekly-input.md)
+and [source import and inventory](../../bulletin/references/source-inventory.md)
+when the text came from an imported PDF). This is distinct from dated
+`announcements`; do not carry recurring parish information there, defer it to
+"the first bulletin," or treat it as a future feature request.
+
 ## Save and resolve
 
 Use these existing settings when saving answers. Do not invent alternative
@@ -286,6 +296,7 @@ field names or status values.
 | Prayer forms and printed sections | `worship_profile.defaults`, with true or false for Episcopal print decisions |
 | Verified local worship text | `worship_profile.sources`, using church-relative paths; leave shipped-source overrides blank |
 | Standing worship preferences | `worship_profile.defaults.doxology`, `psalm_format`, `psalm_response_start`, `prayer_presentation`, `rubric_style`, `include_first_reading`, and `include_second_reading` |
+| Gospel announcement wording | `worship_profile.defaults.gospel_acclamation`: `lord` (standard BCP, the default) or `savior`, when the sample's exact printed wording differs |
 
 The reading flags default to true to preserve the usual two-lesson order. A
 church may set either flag to false when its appointed service has only one
@@ -293,6 +304,7 @@ non-Gospel lesson. The weekly `liturgy` object may override either flag for a
 single service; this does not change the standing profile. The psalm and Gospel
 remain required, and both lesson flags cannot be false.
 | Standing doxology music | `bulletin.doxology_music`, using the existing hymn block shape; a weekly null remains weekly |
+| Standing parish information | `bulletin.parish_information.before_service` / `.after_service`, ordered `{title, text}` lists; an explicit weekly empty list suppresses a scope for that week only |
 | Clergy names and regular roles | `leadership.clergy_and_staff`, each with `name` and `role` |
 | Usual reading practice | `lectionary` and `sermon.selection_mode` / `sermon.primary_text` |
 | Reusable layout | `bulletin.template`: `classic` or `modern` |

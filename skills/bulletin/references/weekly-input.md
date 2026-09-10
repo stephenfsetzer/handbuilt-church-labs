@@ -22,8 +22,17 @@ The agent builds one private JSON object:
 | `proper_preface` | The verified selected preface when required by the prayer. |
 | `liturgy` | The `liturgy` object returned by worship resolution, including its service plan and profile reference. |
 | `hymns`, `service_music` | The week's selections. Empty objects represent no selections; do not copy example hymns. Music blocks may include `composer`, which prints as a plain source credit. Service music supports `prelude`, `gloria`, `psalm_antiphon`, `offertory_anthem`, `sursum_corda`, `sanctus`, `fraction_anthem`, `doxology`, `communion_anthem`, and `postlude`. Lutheran plans support `prelude`, `psalm_antiphon`, `offertory_anthem`, `communion_anthem`, and `postlude`. Unsupported or unknown nonempty slots are rejected. |
-| `announcements` | The week's announcements, or an empty list when none were supplied. |
+| `announcements` | The week's announcements, or an empty list when none were supplied. An entry may add `image` or `images` (church-relative paths, resolved like a hymn image) to carry a supplied event poster or inline QR graphic, and an optional `caption`. `text` is optional when the image already carries the content; `title` is still required. |
+| `parish_information` | Optional. Omit it to use the church's saved standing sections. Set `before_service` and/or `after_service` explicitly, including an empty list, to override or suppress that scope for this week only; each is an ordered list of `{title, text}`. |
 | `options` | Supported weekly display choices from the schema. Do not invent a `presentation` wrapper. |
+
+A recurring welcome, accessibility note, pastoral contact, or worship-book
+explanation found in a supplied source belongs in the standing
+`church.yaml bulletin.parish_information` field (see
+[worship onboarding](../../onboarding/references/worship-onboarding.md) and
+[source import and inventory](source-inventory.md)), not in this week's
+`announcements`, and not deferred to "the first bulletin" or a future
+feature. It is a supported field now.
 
 `service.display_name` is an optional service title such as "Holy Eucharist,
 Rite II". It is not the Sunday occasion. Leave it absent unless a source or the

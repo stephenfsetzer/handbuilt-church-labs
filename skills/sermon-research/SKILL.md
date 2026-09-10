@@ -82,6 +82,13 @@ python3 "<church-folder>/handbuilt.py" sermon-research record --date <YYYY-MM-DD
   --metadata-file <readings-metadata.json>
 ```
 
+For a complete, valid, copy-adaptable metadata and content pair for both
+lectionary and pastor-selected mode, including every visible label the
+module checks, see the examples in
+[source-verification.md](references/source-verification.md). Do not
+construct a first attempt from memory of the module's field names; adapt
+those examples instead.
+
 Memory and search snippets do not qualify. For lectionary runs, duplicate pages
 on one host and disagreeing observed selections do not qualify. For a
 pastor-selected run, neither the published text reference nor the agent may
@@ -143,7 +150,10 @@ a `research_target` containing the primary reading role and exact verified
 citation. In lectionary mode, set `selection_basis` to `church_profile` or
 `pastor_override`. In pastor-selected mode, set it to `pastor_selection`.
 
-Record with the same command shape and `--stage research`.
+Record with the same command shape and `--stage research`. For a complete,
+valid metadata example (`research_target`, the source ledger, and
+`scope_note` together), see
+[source-verification.md](references/source-verification.md#complete-research-metadata-example).
 
 ## `research_complete`
 

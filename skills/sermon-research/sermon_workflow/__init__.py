@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 import yaml
 
 
-IMPLEMENTATION_VERSION = "0.7.0"
+IMPLEMENTATION_VERSION = "0.7.1"
 RECEIPT_SCHEMA_VERSION = 3
 STAGE_FILES = {
     "readings": "readings.md",
@@ -632,11 +632,23 @@ def _validate_reading_sources(
         "translation": _yaml_scalar(root, "lectionary", "translation"),
     }
     if selection_mode == "lectionary":
+        configured_system = _yaml_scalar(root, "lectionary", "system")
         configured_values.update({
-            "lectionary_system": _yaml_scalar(root, "lectionary", "system"),
-            "track": _yaml_scalar(root, "lectionary", "track"),
+            "lectionary_system": configured_system,
             "optional_verses_policy": _yaml_scalar(root, "lectionary", "optional_verses"),
         })
+        # Track is a Revised Common Lectionary concept, so RCL always
+        # cross-checks it, blank or not. A non-RCL system (for example the
+        # Book of Common Prayer lectionary) usually has no track to
+        # configure, so church.yaml is allowed to leave it blank and an
+        # empty non-RCL track is not cross-checked; the recorded
+        # selection.track still displays as-is in readings.md. If a non-RCL
+        # church has explicitly configured a nonblank track, that explicit
+        # choice is still cross-checked like any other configured value.
+        configured_track = _yaml_scalar(root, "lectionary", "track")
+        is_rcl = str(configured_system or "").strip().casefold() in {"rcl", "revised common lectionary"}
+        if is_rcl or configured_track:
+            configured_values["track"] = configured_track
     missing_policy = [key for key, value in configured_values.items() if not value]
     if missing_policy:
         raise WorkflowFailure(
@@ -1310,10 +1322,14 @@ def _validate_content(
         else:
             required_fields = common_fields + ("Selected Text", "Selection confirmation")
             minimum_links = 1
-        if not all(re.search(rf"\b{re.escape(name)}\b", content, re.I) for name in required_fields):
+        missing_fields = [
+            name for name in required_fields
+            if not re.search(rf"\b{re.escape(name)}\b", content, re.I)
+        ]
+        if missing_fields:
             raise WorkflowFailure(
                 "invalid_readings",
-                "Readings are missing required service, selection, translation, or citation fields",
+                f"Readings are missing required fields: {', '.join(missing_fields)}",
                 field="content",
             )
         if len(re.findall(r"\]\(https?://", content)) < minimum_links:
