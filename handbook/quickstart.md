@@ -2,18 +2,19 @@
 
 ## First setup
 
-1. Install from the GitHub repository. For Codex CLI, run
-   `codex plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs --json`,
-   then `codex plugin add handbuilt-church-labs@handbuilt-church-labs --json`.
-   For Claude Code CLI, run
-   `claude plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs`,
-   then `claude plugin install handbuilt-church-labs@handbuilt-church-labs`.
-   During a private pilot, your GitHub account needs repository access. A public
-   repository does not need an access grant. See the [installation and support
-   guide](../README.md#installation-and-support) for Codex Desktop. Claude Cowork
-   may use the shared skills when plugin support is available; this release does
-   not claim an independent Cowork rehearsal.
-2. Ask:
+1. In the Claude desktop app, choose **Chat and Cowork** mode, then choose
+   **Customize** in the sidebar, **Plugins**, **Add plugin**, **Add marketplace**,
+   and **Add from a repository**. Enter
+   `https://github.com/stephenfsetzer/handbuilt-church-labs.git`, then choose the
+   offered URL option. Leave **Sync automatically** off, then choose **Sync**.
+   In **Discover**, choose **Add Handbuilt Church Labs**. Open **Yours** and
+   confirm version 0.4.3, three skills, and **Enable plugin** on. Manual sync
+   does not require a new GitHub App grant. See the [installation and support
+   guide](../README.md#installation-and-support) for optional Codex CLI and
+   Claude Code CLI routes.
+2. Start a new Claude Cowork task. For a first setup, choose where to create the
+   private church work folder. Plain Chat is useful for conversation, but is
+   not suitable for persistent local work. Ask:
 
    ```text
    Help me set up my church with Handbuilt Church Labs.

@@ -107,11 +107,45 @@ readings, translation, or research preferences trigger the relevant recheck.
 ## Installation and support
 
 Install Handbuilt Church Labs version 0.4.3 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
-During the private pilot, your GitHub account must have access and your local
-Git client must be authenticated. If the repository is public, no GitHub access
-grant is needed.
+The point-and-click path below is the primary path for pastors. The repository
+is public, so manual installation does not require a GitHub access grant.
 
-### Codex
+### Claude Chat and Cowork
+
+Use the Claude desktop app in **Chat and Cowork** mode. Choose
+**Customize** in the sidebar, then **Plugins**, **Add plugin**, **Add
+marketplace**, and **Add from a repository**. Enter:
+
+```text
+https://github.com/stephenfsetzer/handbuilt-church-labs.git
+```
+
+Choose the offered **Use [pasted URL]** option. Leave **Sync automatically**
+off, then choose **Sync**. In **Discover**, choose **Add Handbuilt Church Labs**.
+Open **Yours** and confirm that the detail view shows version 0.4.3, three
+skills, and **Enable plugin** on. The success message is
+“Handbuilt Church Labs is installed and ready to use.”
+
+Manual sync works without a new GitHub App grant. To update later, open
+**Manage marketplaces**, find `handbuilt-church-labs`, open its More actions
+menu, and choose **Check for updates**. Use the plugin's **Update** button if
+it is offered. Start a new Cowork task after installing or updating. For a first setup, choose where to
+create the private church work folder. Plain Chat is useful for conversation,
+but Cowork is the right place for persistent local church work.
+
+The graphical installation is verified in Claude Chat and Cowork. The full
+onboarding and bulletin workflows have been rehearsed in Codex and Claude
+Code; the Cowork workflow remains a pilot item. Codex graphical installation
+has not been verified, and the plugin has not been submitted to a public
+directory.
+
+### Advanced CLI installation
+
+These terminal commands are optional advanced routes for users who already
+work in a CLI. The `/plugin` commands below are Claude Code terminal commands,
+not desktop Chat commands.
+
+#### Codex
 
 In a terminal with Codex CLI installed, run:
 
@@ -120,11 +154,9 @@ codex plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-
 codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
 ```
 
-Start a new task and ask for Handbuilt Church Labs onboarding. In Codex Desktop,
-use the Plugins directory route when it is available for your account. Desktop
-controls vary, so the CLI route above remains the fallback.
+Start a new task and ask for Handbuilt Church Labs onboarding.
 
-### Claude Code
+#### Claude Code
 
 In a terminal with Claude Code installed, run:
 
@@ -133,20 +165,20 @@ claude plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church
 claude plugin install handbuilt-church-labs@handbuilt-church-labs
 ```
 
-Inside an existing Claude Code session, the equivalent commands are:
+Inside an existing Claude Code terminal session, the equivalent commands are:
 
 ```text
 /plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs
 /plugin install handbuilt-church-labs@handbuilt-church-labs
 ```
 
-Start a new task and ask for Handbuilt Church Labs onboarding. Availability in
-other Claude surfaces depends on whether that surface supports Code plugins
-and local file tools.
+Start a new task and ask for Handbuilt Church Labs onboarding.
 
 ### Update an installation
 
-Refresh the marketplace first, then update the plugin:
+For desktop Claude, use **Manage marketplaces** and **Check for updates** as
+described above. CLI users can refresh the marketplace first, then update the
+plugin:
 
 ```bash
 codex plugin marketplace upgrade handbuilt-church-labs --json
