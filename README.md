@@ -110,6 +110,26 @@ Install Handbuilt Church Labs version 0.4.3 from [the Handbuilt Church Labs repo
 The point-and-click path below is the primary path for pastors. The repository
 is public, so manual installation does not require a GitHub access grant.
 
+### ChatGPT and Codex desktop
+
+In the ChatGPT or Codex desktop app:
+
+1. Open **Settings**, choose **Plugins**, then **Add**, and choose **Add plugin
+   marketplace**. Enter
+
+   ```text
+   https://github.com/stephenfsetzer/handbuilt-church-labs.git
+   ```
+
+2. Set **Git ref** to `main` and leave **Sparse paths** blank, then choose **Add
+   marketplace**. Adding the marketplace makes the catalog available; it does
+   not install or enable the plugin.
+3. In **Plugins**, choose **Browse directory**, search for **Handbuilt**, open
+   **Handbuilt Church Labs**, and choose **Install**. Confirm that the plugin is
+   enabled.
+4. Start a fresh task outside the Labs development project and ask Handbuilt
+   Church Labs to create your private church folder.
+
 ### Claude Chat and Cowork
 
 Use the Claude desktop app in **Chat and Cowork** mode. Choose
@@ -133,11 +153,12 @@ it is offered. Start a new Cowork task after installing or updating. For a first
 create the private church work folder. Plain Chat is useful for conversation,
 but Cowork is the right place for persistent local church work.
 
-The graphical installation is verified in Claude Chat and Cowork. The full
-onboarding and bulletin workflows have been rehearsed in Codex and Claude
-Code; the Cowork workflow remains a pilot item. Codex graphical installation
-has not been verified, and the plugin has not been submitted to a public
-directory.
+The graphical installation is verified in ChatGPT/Codex desktop, Claude Chat,
+and Cowork. The full onboarding and bulletin workflows have been rehearsed in
+Codex and Claude Code; the Cowork content workflow remains a pilot item. The
+plugin has not been submitted to a public directory. This personal marketplace
+path requires adding the marketplace first, so a public directory submission is
+not needed for discovery here.
 
 ### Advanced CLI installation
 
