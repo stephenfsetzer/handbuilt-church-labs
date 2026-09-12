@@ -17,6 +17,15 @@ No. You talk to the agent in plain language. Onboarding explains each decision,
 saves progress, and shows what to do next. You can return to the private folder
 in a later task without repeating the whole interview.
 
+**Can I add my own skills or change the agent's instructions?**
+
+Yes. Your church folder is yours. Ask your agent to create a local skill under
+`skills/`, adapt a supplied workflow, or update `CLAUDE.md` and `AGENTS.md`.
+You can edit or remove these files and use other tools without uninstalling
+Handbuilt. Reconnection preserves local changes. See
+[Make your church workspace your own](workspace-customization.md), including
+guidance for updating older folders and making custom bulletin edits.
+
 **Which AI tools can run the workflows?**
 
 You can install through the ChatGPT/Codex desktop app or the Claude desktop

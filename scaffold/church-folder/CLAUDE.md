@@ -1,50 +1,56 @@
 # CLAUDE.md
 
-This is a private church operating folder created by Handbuilt Church Labs.
-Everything about this church stays here.
+This is the church's private workspace. The pastor owns its files and decides
+how the agent works here. Handbuilt Church Labs supplies optional workflows.
 
-## Session startup
+## Work with the pastor
 
-1. Activate the app's installed `handbuilt-church-labs:onboarding`,
+- Follow the pastor's request and local instructions. The pastor may add,
+  edit, replace, or remove these instructions, local skills, and working files.
+  Do not require plugin approval for those changes.
+- Read relevant local skills under `skills/<name>/SKILL.md` when requested or
+  when their stated purpose matches the task. Follow a user-selected local or
+  personal skill instead of automatically routing back to Handbuilt.
+- Use Handbuilt for its supported work when it is the selected workflow.
+  Ordinary editing and other church work do not require a Handbuilt command,
+  connection check, or receipt.
+- Preserve existing work during setup and reconnection, including custom
+  instructions and skills. Do not restore intentionally removed files.
+- If a Handbuilt setting cannot express an authorized edit, help carry it out
+  with local files or another tool. Preserve the earlier version and verify
+  the changed result. A receipt describes the files checked at that time;
+  do not claim it verifies a later edit.
+
+## When using Handbuilt
+
+1. Load the app's installed `handbuilt-church-labs:onboarding`,
    `handbuilt-church-labs:bulletin`, or `handbuilt-church-labs:sermon-research`
-   skill for the requested work. Use the app's skill loader when available.
-   Its current installation is authoritative; an older cached copy may still
-   exist after an update.
+   skill for the requested Handbuilt operation.
 2. Compare that skill's plugin root with `.handbuilt/installation.json`. If
-   they differ, follow the installed onboarding connection reference to
-   reconnect this folder before running its launcher. Do not select a cached
-   version by its filename or a previous conversation.
+   they differ, use the installed onboarding connection reference to reconnect
+   this folder. An older cached copy may still exist after an update.
 3. Run `python3 handbuilt.py start onboarding`, `start bulletin`, or
-   `start sermon-research`. Verify the returned skill belongs to the same
-   installed plugin, then follow its canonical instructions.
+   `start sermon-research`. Follow the returned installed skill for that
+   Handbuilt operation.
 4. Read `church.yaml` and the workflow's saved state before asking questions.
-   Preserve answers and pastor-authored files. Use `python3 handbuilt.py` for
-   supported operations; it selects managed Python and records the installation.
-5. If Handbuilt is unavailable, explain how to install or reconnect it. Stop
-   production until the connection works. Do not substitute a personal sermon
-   skill, generic PDF skill, or invented renderer.
+   The launcher selects managed Python and records the installation used.
+5. If Handbuilt is unavailable, explain how to reconnect it for Handbuilt
+   operations. Continue other requested work with the tools available.
 
+## Where work lives
 
-## Layout
-
-- `church.yaml`: church identity, services, sermon selection mode, lectionary, and people
+- `skills/`: the church's own reusable skills and supporting files
+- `church.yaml`: church identity, services, lectionary, and people
 - `worship/profile.yaml`: standing worship practice and source references
-- `brand.json`: colors, logos, and optional display overrides; identity comes from `church.yaml`
-- `sermons/<date>/`: verified readings and the cited research brief
+- `brand.json`: visual identity and optional display overrides
+- `sermons/<date>/`: readings, research, and pastor-directed sermon work
 - `bulletins/YYYY/MM/<week>/`: bulletin inputs, PDFs, and receipts
-- `bulletins/bulletin-log.json`: approved bulletin history
-- `music/`: scans this parish is licensed to reproduce
+- `music/`: private music files
 
-## Rules
+## Working care
 
-- Verify liturgical sources. Never rely on memory or invent a sermon passage.
-- In pastor-selected sermon mode, automation waits for the pastor to confirm
-  the passage for that service.
-- Keep private church material in this folder.
-- Sermon research ends at a verified `research-brief.md`. Reflection and
-  drafting are outside the Labs workflow.
-- Preserve existing pastor reflection and draft files without interpreting
-  them as research workflow state.
-- Bulletins require human review before finalization or printing.
-- Approved history describes approved bulletins. It does not prove what
-  happened during a service.
+Verify liturgical sources and preserve private material. Never invent a
+pastor-selected passage. Review a changed bulletin before printing or sending.
+Handbuilt research ends at the cited brief; continue into writing or another
+skill when the pastor requests it. Handbuilt approval history records the
+specific approved artifact, and does not prove what happened in a service.

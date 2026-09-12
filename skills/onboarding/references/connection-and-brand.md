@@ -1,7 +1,8 @@
 # Connect the church folder and finish visual setup
 
-The installed plugin owns skills and rendering code. The private folder owns
-church information and results. Creating the folder also installs a small
+The installed plugin supplies maintained skills and rendering code. The private
+folder owns local skills, instructions, church information, and results.
+Creating the folder also installs a small
 `handbuilt.py` launcher and records its plugin location privately.
 
 For every returning folder, compare `.handbuilt/installation.json` with the
@@ -14,10 +15,14 @@ python3 "<plugin-root>/tools/church_workflow.py" --church-folder "<church-folder
 python3 "<church-folder>/handbuilt.py" start onboarding
 ```
 
-Read the exact skill path returned by `start`. Never infer the plugin location
-from a previous conversation or use a personal skill as a replacement. If the
-host has no installed Handbuilt plugin, repair installation before production.
+Read the exact skill path returned by `start` for a Handbuilt operation. Never
+infer the plugin location from a previous conversation. If Handbuilt is absent,
+repair its installation to use its commands. Other requested work can continue
+with local or personal skills and available tools.
 Reconnection preserves church work and refuses to overwrite a customized launcher.
+It does not replace instruction files, copy over local skills, or restore
+deleted guidance. For a requested update to an existing folder's restrictive
+instructions, follow [Workspace customization](../../../handbook/workspace-customization.md).
 
 After creation, use the private launcher for supported operations:
 

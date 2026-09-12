@@ -5,8 +5,12 @@ description: Prepare, render, verify, and approval-finalize a weekly worship bul
 
 # Weekly Bulletin
 
-Work inside the church's private folder. Use this skill's production interface
-instead of calling renderer scripts directly.
+Work inside the church's private folder. For a Handbuilt production run, use
+this skill's production interface instead of calling renderer scripts directly.
+The pastor may choose a local skill, custom editing, or another tool, including
+after starting this workflow. Follow that request without requiring plugin
+approval. Read [Workspace customization](../../handbook/workspace-customization.md)
+for edits beyond supported settings and handling existing reviewed files.
 
 Read [Worship text and source records](references/worship-text.md) when a
 private or locally formatted prayer or reading text is needed. Read
@@ -39,8 +43,8 @@ ready until both the Python packages and the computer-level PDF tools pass.
 Read the exact skill path returned by `start`. The launcher selects the managed
 Python for production and records the installed workflow used. For supporting
 tools invoked directly, use the returned `runtime_python` executable. If the
-connection is missing, repair it through onboarding. Do not create a substitute
-renderer or use a personal PDF skill.
+connection is missing, repair it through onboarding to use Handbuilt commands.
+A missing connection does not prevent the pastor from choosing another tool.
 
 ## 1. Orient
 
@@ -258,7 +262,9 @@ change, revise through a new production run rather than finalizing the old one.
 
 - Private church data and licensed music stay in the church folder.
 - Only approved receipts update history.
-- Do not patch templates inside a church folder.
+- Keep local template adaptations in the church folder; installed plugin
+  edits may be lost on update. The stock renderer does not automatically load
+  local templates. Use the selected local workflow to apply and verify them.
 - Do not call a generated package print-ready before human approval.
 
 The separate doxology setting applies to the Episcopal service plan. In the

@@ -22,7 +22,8 @@ from pathlib import Path
 from typing import Any
 
 
-REQUIRED_FILES = ("AGENTS.md", "CLAUDE.md", "START-HERE.md", "ONBOARDING.md", "church.yaml", "brand.json")
+REQUIRED_FILES = ("church.yaml", "brand.json")
+OPTIONAL_DOCUMENTS = ("AGENTS.md", "CLAUDE.md", "START-HERE.md", "ONBOARDING.md")
 PROFILE_DEFAULT = "worship/profile.yaml"
 _SCALAR_SECTIONS = {
     "church": {"name", "short_name", "tradition", "city", "address", "website", "regular_services"},
@@ -601,8 +602,10 @@ def update(church_folder: str | Path, patch: dict[str, Any], *, scope: str) -> d
 def status(church_folder: str | Path) -> dict[str, Any]:
     """Return readiness based on actual files and the worship resolver."""
     root = _assert_private_root(church_folder)
-    present = {name: (root / name).is_file() for name in REQUIRED_FILES}
-    scaffold_ready = all(present.values())
+    present = {name: (root / name).is_file() for name in REQUIRED_FILES + OPTIONAL_DOCUMENTS}
+    # Workspace instructions and welcome documents belong to the church.
+    # Removing them does not remove the inputs needed by Handbuilt workflows.
+    scaffold_ready = all(present[name] for name in REQUIRED_FILES)
     config: dict[str, Any] = {}
     profile: dict[str, Any] = {}
     brand: dict[str, Any] = {"status": "unavailable", "ready": False, "unresolved": [{"field": "brand.json", "reason": "Create the private church folder first"}]}

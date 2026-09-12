@@ -95,8 +95,13 @@ Use a different Eucharistic Prayer this Sunday only.
 
 A small local launcher connects your church folder to the installed Handbuilt
 workflows. It selects the required runtime and records which installation ran.
-Skills remain in the plugin. If that connection breaks after an update or move,
-ask Handbuilt onboarding to reconnect your existing folder.
+The supplied skills remain in the plugin. If that connection breaks after an
+update or move, ask Handbuilt onboarding to reconnect your existing folder.
+
+Your workspace is yours to change. Add local skills under `skills/`, edit
+`CLAUDE.md` and `AGENTS.md`, and use other tools when you need them. You can
+adapt or remove local files without plugin permission. Reconnecting Handbuilt
+preserves your changes. See [Make your church workspace your own](handbook/workspace-customization.md).
 
 The agent reads the current setting, saves the confirmed change, and explains
 its scope. Existing approved work remains available. A change that affects an
@@ -106,7 +111,7 @@ readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 
-Install Handbuilt Church Labs version 0.4.3 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
+Install Handbuilt Church Labs version 0.4.4 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
 The point-and-click path below is the primary path for pastors. The repository
 is public, so manual installation does not require a GitHub access grant.
 
@@ -142,7 +147,7 @@ https://github.com/stephenfsetzer/handbuilt-church-labs.git
 
 Choose the offered **Use [pasted URL]** option. Leave **Sync automatically**
 off, then choose **Sync**. In **Discover**, choose **Add Handbuilt Church Labs**.
-Open **Yours** and confirm that the detail view shows version 0.4.3, three
+Open **Yours** and confirm that the detail view shows version 0.4.4, three
 skills, and **Enable plugin** on. The success message is
 “Handbuilt Church Labs is installed and ready to use.”
 

@@ -5,6 +5,11 @@ description: Run or resume the portable sermon research workflow from passage se
 
 # Sermon Research
 
+This skill governs Handbuilt research. The pastor may choose a local or
+personal skill, adapt this workflow, or request other sermon work in the same
+folder. Follow that request without treating this skill's endpoint as a ban.
+See [Workspace customization](../../handbook/workspace-customization.md).
+
 Use one canonical workflow for manual and scheduled runs. Work only inside the
 supplied private church folder. The workflow governs two files under
 `sermons/<YYYY-MM-DD>/`:
@@ -17,9 +22,10 @@ records the verified scope that supports it. Hidden `.receipts/` files govern
 state. Never ask the pastor to manage them.
 
 The workflow ends at `research_complete`. Reflection, outlining, drafting,
-editing, and sermon review are outside this product. Existing pastor files such
-as `reflections.md` or `sermon-draft.md` remain pastor-owned and must not be
-deleted, modified, or interpreted as workflow state.
+editing, and sermon review are outside this Handbuilt research operation.
+Existing pastor files such as `reflections.md` or `sermon-draft.md` remain
+pastor-owned. Do not change them as a side effect of research or interpret them
+as workflow state. Edit them when the pastor requests that separate work.
 
 ## Start or resume
 
@@ -32,7 +38,8 @@ Run `python3 "<church-folder>/handbuilt.py" start sermon-research` first.
 Read the returned skill path to confirm this installed Handbuilt workflow.
 The launcher selects the managed runtime and records the installation used.
 If the connection is missing, follow the onboarding connection reference to
-repair it. Do not substitute a personal sermon workflow.
+repair it for Handbuilt commands. Continue with another workflow when the
+pastor chooses one, without claiming it completed Handbuilt's checks.
 
 Run:
 

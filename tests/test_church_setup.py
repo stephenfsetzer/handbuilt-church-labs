@@ -67,6 +67,32 @@ class ChurchSetupTest(unittest.TestCase):
         self.assertTrue(ready["workflow_ready"])
         self.assertFalse(ready["actual_first_result"])
 
+    def test_removing_workspace_guidance_keeps_configured_workflows_ready(self) -> None:
+        church = make_church(Path(self.temp.name) / "configured")
+        church_setup.update_standing(church, {"worship_profile": {
+            "tradition_pack": "episcopal-bcp-rite-ii", "status": "confirmed",
+            "defaults": {"eucharistic_prayer": "A", "lords_prayer": "traditional",
+                         "prayers_of_the_people": "III", "psalm_format": "unison",
+                         "include_creed": True, "include_confession": True,
+                         "print_full_eucharistic_prayer": False},
+        }})
+        before = church_setup.status(church)
+        self.assertTrue(before["bulletin_ready"])
+        self.assertTrue(before["research_ready"])
+        for name in ("AGENTS.md", "CLAUDE.md", "START-HERE.md", "ONBOARDING.md"):
+            (church / name).unlink()
+        after = church_setup.status(church)
+        for field in ("scaffold_ready", "folder_ready", "workflow_readiness", "state", "next_action"):
+            self.assertEqual(after[field], before[field])
+        self.assertFalse(after["present"]["AGENTS.md"])
+        self.assertFalse(after["present"]["ONBOARDING.md"])
+
+        (church / "church.yaml").unlink()
+        missing_config = church_setup.status(church)
+        self.assertFalse(missing_config["scaffold_ready"])
+        self.assertFalse(missing_config["bulletin_ready"])
+        self.assertFalse(missing_config["research_ready"])
+
     def test_research_readiness_requires_lectionary_optional_verse_policy(self) -> None:
         church_setup.update_standing(self.church, {
             "church": {"name": "Sample Church"},

@@ -31,13 +31,49 @@ class ChurchConnectionTests(unittest.TestCase):
         note.write_text("Keep my notes")
         self.assertEqual(setup.create(self.base, "new-church")["status"], "returning")
         self.assertEqual(note.read_text(), "Keep my notes")
-        self.assertFalse((church / "skills").exists())
+        self.assertTrue((church / "skills" / "README.md").is_file())
+        self.assertFalse((church / "skills" / "bulletin").exists())
+
+    def test_returning_setup_preserves_local_instructions_skills_and_deletions(self):
+        setup = bridge._load_setup()
+        church = Path(setup.create(self.base, "custom-church")["church_folder"])
+        local_files = {
+            "CLAUDE.md": "Use my parish newsletter skill when I request the newsletter.\n",
+            "AGENTS.md": "Use my local skills and follow my editing preferences.\n",
+            "skills/parish-newsletter/SKILL.md": "# Parish newsletter\nSave a draft for review.\n",
+            "skills/parish-newsletter/template.md": "# This week\n",
+        }
+        for relative, content in local_files.items():
+            path = church / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        removed = [church / "START-HERE.md", church / "skills/README.md"]
+        for path in removed:
+            path.unlink()
+        before = setup.status(church)
+        result = setup.create(self.base, "custom-church")
+        self.assertEqual(result["status"], "returning")
+        for relative, content in local_files.items():
+            self.assertEqual((church / relative).read_text(), content)
+        self.assertTrue(all(not path.exists() for path in removed))
+        self.assertEqual(result["readiness"]["workflow_readiness"], before["workflow_readiness"])
+
+        # A pastor may later remove the local skill and both host instructions.
+        shutil.rmtree(church / "skills/parish-newsletter")
+        for name in ("CLAUDE.md", "AGENTS.md"):
+            (church / name).unlink()
+        bridge.connect(church)
+        setup.create(self.base, "custom-church")
+        self.assertFalse((church / "skills/parish-newsletter").exists())
+        self.assertTrue(all(not (church / name).exists() for name in ("CLAUDE.md", "AGENTS.md")))
+        self.assertEqual(setup.status(church)["workflow_readiness"], before["workflow_readiness"])
 
     def test_launcher_missing_connection_blocks_without_running_workflow(self):
         result = subprocess.run([sys.executable, str(self.church / "handbuilt.py"),
                                  "start", "bulletin"], cwd=self.base, capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
         self.assertEqual(json.loads(result.stdout)["code"], "handbuilt_not_connected")
+        self.assertIn("Other work", json.loads(result.stdout)["message"])
 
     def test_missing_installation_blocks_and_does_not_search_personal_skills(self):
         bridge.connect(self.church)

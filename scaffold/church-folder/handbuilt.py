@@ -23,8 +23,8 @@ def main():
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(json.dumps({
             "status": "blocked", "code": "handbuilt_not_connected",
-            "message": "This church folder needs its Handbuilt plugin connection repaired.",
-            "next_action": "Load the installed Handbuilt onboarding skill and reconnect this existing folder. Do not create another renderer or use a personal sermon skill.",
+            "message": "This Handbuilt command needs its plugin connection repaired. Other work in your church folder can continue.",
+            "next_action": "Load the installed Handbuilt onboarding skill to reconnect this existing folder, or use another tool for your requested work.",
             "detail": str(exc),
         }, indent=2))
         return 2

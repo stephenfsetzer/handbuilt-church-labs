@@ -115,7 +115,7 @@ def execute(church: Path, workflow: str, operation: str, arguments: list[str]) -
         return doctor, 2
     script = ROOT / WORKFLOWS[workflow]
     if not script.is_file():
-        raise ValueError(f"The installed {workflow} tool is missing. Reinstall Handbuilt; do not substitute another workflow.")
+        raise ValueError(f"The installed Handbuilt {workflow} tool is missing. Reinstall Handbuilt to use this command. Other work can continue with available tools.")
     # A launcher never replaces the production interface's source and approval
     # checks. It also verifies brand readiness before a new bulletin build.
     if workflow == "bulletin" and operation in {"produce", "revise"}:

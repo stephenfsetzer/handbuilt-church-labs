@@ -5,12 +5,15 @@ description: "Create a private church operating folder through website discovery
 
 # Church onboarding
 
-Create a private church folder, establish the smallest useful church profile,
-and leave the pastor with a visible progress record and a clear first result.
-The pastor should not have to translate church practice into configuration
-fields or confirm information that the supplied sources already establish.
+Create a private church folder, a useful church profile, and a visible progress
+record. Recover source facts before asking the pastor for configuration details.
 
-Read supporting references only when their stage is reached:
+The pastor owns this workspace and may add, edit, replace, or remove its
+instructions, skills, and files. This skill governs requested Handbuilt setup.
+It does not restrict other work. Read [Workspace customization](../../handbook/workspace-customization.md)
+for local skills, custom editing, or updating an existing folder's instructions.
+
+Read supporting references when their stage is reached:
 
 - [Connection and visual setup](references/connection-and-brand.md) when creating or resuming a church folder.
 - [Website discovery and QR](references/website-discovery.md) for bounded
@@ -20,8 +23,6 @@ Read supporting references only when their stage is reached:
   questions.
 
 ## Source roles
-
-Use sources together; the bulletin does not replace the website.
 
 - **Website:** public identity, names, leadership, contact details, service
   times, brand candidates, newcomer information, and likely QR destinations.
@@ -168,8 +169,9 @@ verify its files. Immediately record the folder path, website source,
 discovery summary, confirmed identity, pending items, and next step in
 `ONBOARDING.md`. Tell the pastor the exact private path.
 
-If the folder already exists, switch to update mode. Never overwrite sermons,
-bulletins, church-edited onboarding notes, or other pastor-authored files.
+If the folder already exists, switch to update mode. Preserve custom skills,
+host instructions, sermons, bulletins, and church-edited notes. Do not restore
+intentionally removed files. Reconnection does not replace workspace guidance.
 
 ## Route to worship onboarding
 
@@ -207,10 +209,9 @@ Batch related changes and update the progress record at meaningful stage boundar
 A successful terminal command or helper call is not proof onboarding is
 complete: check the folder, progress record, configuration, and first result.
 
-## Re-running
-On return, read the private folder and `ONBOARDING.md`; preserve pastor-authored material and update only workflow-owned values.
-
 ## Bounded setup updates
+On return, read existing setup notes and preserve local work. Update requested values only.
+
 When a setup value must be saved or changed, use the skill's
 `scripts/church_setup.py` helper. It reads the existing `church.yaml` and `worship/profile.yaml`, validates a
 small named patch, and writes only standing settings the bulletin and sermon
