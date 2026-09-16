@@ -1,9 +1,9 @@
 ---
 name: onboarding
-description: "Create a private church operating folder through website discovery, identity confirmation, and bulletin-assisted worship setup. Use when a pastor asks to set up a church, get started, run onboarding, check saved setup, or update standing church preferences."
+description: "Set up my church workspace: create or resume a private church folder through website discovery and worship setup. Use when a pastor asks to set up their church workspace, get started, run onboarding, check saved setup, or update standing church preferences."
 ---
 
-# Church onboarding
+# Set up my church workspace
 
 Create a private church folder, a useful church profile, and a visible progress
 record. Recover source facts before asking the pastor for configuration details.
@@ -15,6 +15,7 @@ for local skills, custom editing, or updating an existing folder's instructions.
 
 Read supporting references when their stage is reached:
 
+- [Computer preparation and progress](references/computer-preparation.md) at the start or when resuming setup.
 - [Connection and visual setup](references/connection-and-brand.md) when creating or resuming a church folder.
 - [Website discovery and QR](references/website-discovery.md) for bounded
   website inspection, brand candidates, and QR destinations.
@@ -70,7 +71,7 @@ result and link the private church folder or progress record once.
 
 Do not ask a later-stage question while an earlier stage is incomplete:
 
-`runtime ready -> welcome -> website discovery -> identity confirmed -> private
+`workspace runtime ready -> welcome -> website discovery -> identity confirmed -> private
 folder created -> worship source chosen -> worship setup -> first useful result
 -> optional setup when requested`
 
@@ -92,27 +93,24 @@ require a magic confirmation phrase.
 
 ## Runtime gate
 
-Before the first onboarding question, run the read-only runtime doctor using
-the host bootstrap Python:
+Give a brief setup orientation, then follow
+[Computer preparation and progress](references/computer-preparation.md).
+Check all dependencies together, using workspace readiness for this stage:
 
 ```bash
-python3 <plugin-root>/tools/handbuilt_runtime.py doctor --format json
+python3 "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
 ```
 
 After `ready`, use the returned `runtime.python` executable for workflow
 commands. `<plugin-root>` is the installed plugin directory containing this
 skill, not the private church folder. Quote complete executable and file paths.
+Missing PDF tools remain pending until PDF import or bulletin work needs them.
+Before that work, run the separate `verify` check described in the reference.
 
 Verify onboarding with `church_setup.py status` and read back saved values and
 progress. Do not run developer tests after each stage or install `pytest`.
 For requested regression tests, use the plugin root's `AGENTS.md` commands
 with built-in `unittest`.
-
-The doctor must report `ready` before a new onboarding interview begins. If
-the runtime is not ready, follow the reported host setup plan. Explain the
-practical effect first, do not ask the pastor to run repository commands, and
-do not show package names during the welcome. Preserve existing progress when
-repairing a returning onboarding run.
 
 ## Welcome
 Start with a short orientation before collecting details:

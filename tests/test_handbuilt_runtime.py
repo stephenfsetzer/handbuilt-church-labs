@@ -45,6 +45,12 @@ class FakeRunner:
                 for distribution, module in runtime.PACKAGE_IMPORTS.items()
             ]
             return subprocess.CompletedProcess(command, 0, json.dumps(observed), "")
+        if any(str(value).endswith("/runtime_probe.py") for value in command):
+            if self.fail_operation == "verify":
+                return subprocess.CompletedProcess(command, 1, json.dumps({"ok": False, "error": "Pango could not load"}), "")
+            return subprocess.CompletedProcess(command, 0, json.dumps({
+                "ok": True, "checks": ["pdffonts", "pdfinfo", "pdftoppm", "pdftotext", "render"],
+            }), "")
         raise AssertionError(f"Unexpected command: {command}")
 
 
@@ -113,6 +119,74 @@ class RuntimeManagerTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "python-unavailable")
         self.assertFalse(result["ready"])
+
+    def test_workspace_can_continue_with_native_tools_pending(self):
+        self.make_managed_python()
+        runner = FakeRunner()
+        manager = self.manager(runner, missing_tools=(*runtime.NATIVE_TOOLS, "brew"))
+        workspace = manager.doctor(capability="workspace")
+        self.assertTrue(workspace["ready"])
+        self.assertEqual(workspace["native_tools"]["missing"], list(runtime.NATIVE_TOOLS))
+        self.assertFalse(workspace["native_install"]["available"])
+        self.assertEqual(manager.doctor()["status"], "native-tool-missing")
+        self.assertEqual(manager.verify()["status"], "native-tool-missing")
+        self.assertFalse(any("runtime_probe.py" in str(command) for command, _ in runner.commands))
+
+    def test_workspace_still_requires_usable_python_and_managed_packages(self):
+        missing = (*runtime.NATIVE_TOOLS, "brew", self.bootstrap)
+        report = self.manager(FakeRunner(), missing_tools=missing).doctor(capability="workspace")
+        self.assertEqual(report["status"], "python-unavailable")
+        self.assertEqual(report["native_tools"]["missing"], list(runtime.NATIVE_TOOLS))
+        self.make_managed_python()
+        report = self.manager(FakeRunner(missing_modules=("yaml",))).doctor(capability="workspace")
+        self.assertEqual(report["status"], "python-package-missing")
+        self.assertFalse(report["ready"])
+
+    def test_verify_uses_managed_python_and_detected_tools_without_installing(self):
+        python = self.make_managed_python()
+        runner = FakeRunner()
+        before = sorted(self.base.rglob("*"))
+        report = self.manager(runner).verify()
+        self.assertTrue(report["verification"]["ok"])
+        self.assertTrue(report["ready"])
+        self.assertFalse(report["changed"])
+        self.assertEqual(sorted(self.base.rglob("*")), before)
+        command, options = runner.commands[-1]
+        self.assertEqual(command[0], str(python))
+        self.assertEqual(command[-4:], [f"/synthetic/bin/{name}" for name in runtime.NATIVE_TOOLS])
+        self.assertEqual(options["timeout"], 60)
+        self.assertFalse(any("install" in command or "venv" in command for command, _ in runner.commands))
+
+    def test_failed_pdf_check_can_be_retried_without_blocking_workspace_work(self):
+        self.make_managed_python()
+        runner = FakeRunner(fail_operation="verify")
+        manager = self.manager(runner)
+        failed = manager.verify()
+        self.assertEqual(failed["status"], "install-failed")
+        self.assertFalse(failed["ready"])
+        self.assertIn("Pango", failed["technical_detail"])
+        self.assertTrue(manager.doctor(capability="workspace")["ready"])
+        runner.fail_operation = None
+        self.assertTrue(manager.verify()["ready"])
+        self.assertFalse(any("install" in command or "venv" in command for command, _ in runner.commands))
+
+    def test_verify_rejects_incomplete_success_and_subprocess_timeout(self):
+        self.make_managed_python()
+        manager = self.manager(FakeRunner())
+        for output in ('{"ok":true}', '[]', 'not-json'):
+            with self.subTest(output=output), mock.patch.object(manager, "_run", wraps=manager._run) as run:
+                original = run._mock_wraps
+                run.side_effect = lambda command, **kw: (
+                    subprocess.CompletedProcess(command, 0, output, "")
+                    if any(str(value).endswith("/runtime_probe.py") for value in command)
+                    else original(command, **kw))
+                self.assertFalse(manager.verify()["ready"])
+        runner = FakeRunner()
+        def timeout_probe(command, **kwargs):
+            if any(str(value).endswith("/runtime_probe.py") for value in command):
+                raise subprocess.TimeoutExpired(command, 60)
+            return runner(command, **kwargs)
+        self.assertFalse(self.manager(timeout_probe).verify()["ready"])
 
     def test_doctor_rejects_unsupported_python_with_actionable_status(self):
         class OldPythonRunner(FakeRunner):

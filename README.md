@@ -8,12 +8,12 @@ learning and experimentation space for [Handbuilt](https://gethandbuilt.com).
 You bring your church's practice and judgment. The plugin gives the agent a
 repeatable way to help with the routine work.
 
-## Start with your church
+## Set up my church workspace
 
 Install the plugin using the instructions below, then ask the agent:
 
 ```text
-Help me set up my church with Handbuilt Church Labs.
+Set up my church workspace.
 ```
 
 The agent can inspect your public church website when you provide one and
@@ -26,6 +26,12 @@ source copy, extracts artwork and music, and records where each reviewed
 section will be used. It asks before leaving supplied content out. When you
 do not have a bulletin, it asks a short fallback set of worship questions. You can say "not sure"
 or "later" for optional details.
+
+The agent shows brief progress: plugin installed, computer prepared, church
+folder created, and first useful result. It checks missing computer tools
+together and guides only the preparation you need. Workspace setup and sermon
+research can continue while PDF tools are pending; PDF import and bulletin
+work need their own successful check.
 
 The agent saves progress in the private folder and tells you what is ready and
 what still needs attention. Sermon and bulletin readiness are reported separately.
@@ -96,7 +102,7 @@ Use a different Eucharistic Prayer this Sunday only.
 A small local launcher connects your church folder to the installed Handbuilt
 workflows. It selects the required runtime and records which installation ran.
 The supplied skills remain in the plugin. If that connection breaks after an
-update or move, ask Handbuilt onboarding to reconnect your existing folder.
+update or move, ask your agent to reconnect Handbuilt to your existing folder.
 
 Your workspace is yours to change. Add local skills under `skills/`, edit
 `CLAUDE.md` and `AGENTS.md`, and use other tools when you need them. You can
@@ -111,7 +117,7 @@ readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 
-Install Handbuilt Church Labs version 0.4.4 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
+Install Handbuilt Church Labs version 0.4.5 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
 The point-and-click path below is the primary path for pastors. The repository
 is public, so manual installation does not require a GitHub access grant.
 
@@ -147,7 +153,7 @@ https://github.com/stephenfsetzer/handbuilt-church-labs.git
 
 Choose the offered **Use [pasted URL]** option. Leave **Sync automatically**
 off, then choose **Sync**. In **Discover**, choose **Add Handbuilt Church Labs**.
-Open **Yours** and confirm that the detail view shows version 0.4.4, three
+Open **Yours** and confirm that the detail view shows version 0.4.5, three
 skills, and **Enable plugin** on. The success message is
 “Handbuilt Church Labs is installed and ready to use.”
 
@@ -180,7 +186,7 @@ codex plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-
 codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
 ```
 
-Start a new task and ask for Handbuilt Church Labs onboarding.
+Start a new task and ask, “Set up my church workspace.”
 
 #### Claude Code
 
@@ -198,7 +204,7 @@ Inside an existing Claude Code terminal session, the equivalent commands are:
 /plugin install handbuilt-church-labs@handbuilt-church-labs
 ```
 
-Start a new task and ask for Handbuilt Church Labs onboarding.
+Start a new task and ask, “Set up my church workspace.”
 
 ### Update an installation
 
@@ -218,7 +224,7 @@ claude plugin update handbuilt-church-labs@handbuilt-church-labs
 
 Restart the app when required, then start a new task. Confirm that Handbuilt
 is enabled in the app's plugin settings. If an update needs troubleshooting,
-return to the same private church folder and ask Handbuilt onboarding to
+return to the same private church folder and ask your agent to
 reconnect it. Advanced users can also inspect the installed version with
 `codex plugin list` or `claude plugin list`.
 
@@ -233,7 +239,7 @@ Installation and workflow behavior depend on your app, model, account, and
 operating system. The plugin has isolated Codex and Claude Code rehearsals and
 automated regression tests; it does not claim every combination has been tested.
 A new task is required after installing or updating the plugin. If an existing
-church folder needs reconnecting after an update, ask Handbuilt onboarding to
+church folder needs reconnecting after an update, ask your agent to
 reconnect it before starting weekly work.
 
 Maintainers can find the canonical test commands in

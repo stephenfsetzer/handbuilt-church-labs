@@ -4,9 +4,12 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 from pypdf import PdfWriter
+from pypdf._page import PageObject
+from pypdf.errors import LimitReachedError
 from pypdf.generic import ArrayObject, BooleanObject, DecodedStreamObject, DictionaryObject, NameObject, NumberObject
 from weasyprint import HTML
 
@@ -183,6 +186,94 @@ class BulletinImportTests(unittest.TestCase):
             if a1 != a2:
                 pixels_differ = True
         self.assertTrue(pixels_differ, "an asymmetric stencil pattern must produce different shapes when inverted")
+
+    def test_oversized_embedded_image_does_not_abort_the_import(self):
+        """A real 16-page bulletin crashed the importer when one embedded
+        image's decompressed size exceeded pypdf's zlib output limit: the
+        exception surfaced while pypdf lazily decoded the image during
+        ``for image_file in page.images``, outside any of our try/except
+        blocks, and aborted the whole import -- losing every other page's
+        text and renders along with it. Simulate that failure mode by
+        making the first of two images on a page raise pypdf's
+        LimitReachedError, and confirm the import still completes, the
+        failing asset is recorded as an error, and the surrounding text and
+        the second image are unaffected."""
+        second_logo_path = self.tmp / "second-logo.png"
+        second_image = Image.new("RGBA", (120, 120), (0, 0, 0, 0))
+        ImageDraw.Draw(second_image).ellipse([20, 20, 100, 100], fill=(20, 90, 180, 255))
+        second_image.save(second_logo_path)
+        pdf_path = _pdf_from_html(f"""
+            <html><body>
+              <p>Text before the oversized image.</p>
+              <img src="file://{self.logo_path}" style="width:80px;height:80px;">
+              <p>Text between the two images.</p>
+              <img src="file://{second_logo_path}" style="width:60px;height:60px;">
+            </body></html>
+        """, self.tmp / "oversized-image.pdf")
+
+        original_get_image = PageObject._get_image
+        calls = {"n": 0}
+
+        def flaky_get_image(self, id, obj=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise LimitReachedError("Limit reached while decompressing. 175587 bytes remaining.")
+            return original_get_image(self, id, obj)
+
+        with patch.object(PageObject, "_get_image", flaky_get_image):
+            manifest = import_bulletin(self.church, pdf_path, original_filename="oversized-image.pdf")
+
+        page = manifest["pages"][0]
+        page_text = (self.church / page["text_path"]).read_text()
+        self.assertIn("Text before the oversized image.", page_text)
+        self.assertIn("Text between the two images.", page_text)
+        images = page["images"]
+        self.assertEqual(len(images), 2)
+        self.assertIn("error", images[0])
+        self.assertIn("Limit reached while decompressing", images[0]["error"])
+        self.assertFalse((self.church / images[0]["asset_path"]).is_file())
+        self.assertNotIn("error", images[1])
+        self.assertTrue((self.church / images[1]["asset_path"]).is_file())
+
+    def test_image_enumeration_failure_preserves_pages_and_saved_manifest(self):
+        pdf_path = _pdf_from_html(f"""
+            <html><body>
+              <p>Text on the page with unreadable image references.</p>
+              <div style="break-before:page">
+                <p>Text on the following page.</p>
+                <img src="file://{self.logo_path}" style="width:80px;height:80px;">
+              </div>
+            </body></html>
+        """, self.tmp / "enumeration-failure.pdf")
+        original_get_ids = PageObject._get_ids_image
+        failed_pages = []
+
+        def failing_first_page(page, *args, **kwargs):
+            if not failed_pages:
+                failed_pages.append(page)
+            if page is failed_pages[0]:
+                raise LimitReachedError("Synthetic image enumeration failure")
+            return original_get_ids(page, *args, **kwargs)
+
+        with patch.object(PageObject, "_get_ids_image", failing_first_page):
+            manifest = import_bulletin(self.church, pdf_path)
+
+        self.assertEqual(len(manifest["pages"]), 2)
+        first, second = manifest["pages"]
+        self.assertEqual(first["images"], [{
+            "error": "Could not enumerate embedded images on this page: Synthetic image enumeration failure",
+        }])
+        for page, expected_text in (
+            (first, "Text on the page with unreadable image references."),
+            (second, "Text on the following page."),
+        ):
+            self.assertIn(expected_text, (self.church / page["text_path"]).read_text())
+            self.assertTrue((self.church / page["render_path"]).is_file())
+        self.assertEqual(len(second["images"]), 1)
+        self.assertTrue((self.church / second["images"][0]["asset_path"]).is_file())
+        self.assertEqual(read_manifest(self.church, manifest["import_id"]), manifest)
+        with patch.object(PageObject, "_get_ids_image", side_effect=AssertionError("Unexpected re-import")):
+            self.assertEqual(import_bulletin(self.church, pdf_path), manifest)
 
     def test_symlinked_import_root_cannot_write_outside_church(self):
         outside = self.tmp / "outside-escape"

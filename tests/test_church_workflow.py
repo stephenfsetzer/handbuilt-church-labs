@@ -105,6 +105,47 @@ class ChurchConnectionTests(unittest.TestCase):
         self.assertEqual(code, 2)
         run.assert_not_called()
 
+    def test_pdf_failure_blocks_bulletin_but_not_workspace_or_research(self):
+        actual_run = subprocess.run
+        runtime_calls = []
+
+        def with_pdf_tools_unavailable(command, **kwargs):
+            if any(str(value).endswith("/handbuilt_runtime.py") for value in command):
+                runtime_calls.append(command)
+                if "--capability" in command and command[command.index("--capability") + 1] == "workspace":
+                    report = {**self.doctor, "native_tools": {"missing": ["pdftoppm"]}}
+                    return subprocess.CompletedProcess(command, 0, json.dumps(report), "")
+                report = {"status": "native-tool-missing", "next_action": "Prepare the missing PDF tools."}
+                return subprocess.CompletedProcess(command, 2, json.dumps(report), "")
+            return actual_run(command, **kwargs)
+
+        with mock.patch.object(bridge.subprocess, "run", side_effect=with_pdf_tools_unavailable):
+            workspace, workspace_code = bridge.execute(self.church, "onboarding", "status", [])
+            research, research_code = bridge.execute(self.church, "sermon-research", "orient", ["--date", "2026-09-13"])
+            bulletin, bulletin_code = bridge.execute(self.church, "bulletin", "produce", ["--input", "missing.json"])
+        self.assertEqual(workspace_code, 0)
+        self.assertEqual(research_code, 0)
+        self.assertTrue(Path(workspace["handbuilt_run"]).is_file())
+        self.assertTrue(Path(research["handbuilt_run"]).is_file())
+        self.assertEqual((bulletin["code"], bulletin_code), ("runtime_not_ready", 2))
+        self.assertEqual(bulletin["next_action"], "Prepare the missing PDF tools.")
+        self.assertIn("verify", runtime_calls[-1])
+
+    def test_working_check_failure_is_not_reported_as_another_package_install(self):
+        report = {"status": "install-failed", "next_action": "Repair the native rendering library."}
+        with mock.patch.object(bridge.subprocess, "run", return_value=subprocess.CompletedProcess([], 20, json.dumps(report), "")):
+            result = bridge._doctor("bulletin")
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["next_action"], report["next_action"])
+
+    def test_verify_cannot_be_requested_with_workspace_only_requirements(self):
+        bridge.connect(self.church)
+        result = subprocess.run([sys.executable, str(self.church / "handbuilt.py"),
+                                 "runtime", "verify", "--capability", "workspace"],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("verify always checks all PDF tools", json.loads(result.stdout)["message"])
+
     def test_pending_brand_blocks_bulletin_but_allows_research_orientation(self):
         brand = self.church / "brand.json"
         data = json.loads(brand.read_text())

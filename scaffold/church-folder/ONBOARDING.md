@@ -1,9 +1,13 @@
-# Church setup progress
+# Set up my church workspace
 
 This file is the visible record of your Handbuilt Church Labs setup.
 
 ## Status
 
+- Plugin installed: to be checked
+- Computer prepared: to be checked for workspace work; PDF tools checked separately
+- Church folder created: to be checked
+- First useful result: pending
 - Setup status: in progress
 - Church folder: to be confirmed
 - Website source: to be confirmed

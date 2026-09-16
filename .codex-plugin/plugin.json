@@ -1,7 +1,7 @@
 {
   "name": "handbuilt-church-labs",
-  "version": "0.4.4",
-  "description": "Church operations workflows for onboarding, weekly bulletins, and sermon research.",
+  "version": "0.4.5",
+  "description": "Church workspace setup, weekly bulletins, and sermon research.",
   "author": {
     "name": "Handbuilt",
     "url": "https://gethandbuilt.com"
@@ -18,7 +18,7 @@
       "Document creation"
     ],
     "defaultPrompt": [
-      "Set up my church folder.",
+      "Set up my church workspace.",
       "Start my sermon research.",
       "Build this week's bulletin."
     ],

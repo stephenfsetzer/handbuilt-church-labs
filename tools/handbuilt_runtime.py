@@ -258,8 +258,11 @@ class RuntimeManager:
             "requires_elevation": False,
         }
 
-    def doctor(self, *, operation: str = "doctor", changed: bool = False) -> dict[str, object]:
+    def doctor(self, *, operation: str = "doctor", changed: bool = False,
+               capability: str = "bulletin") -> dict[str, object]:
         """Inspect runtime state without writing files or installing software."""
+        if capability not in {"workspace", "bulletin"}:
+            raise ValueError(f"Unknown runtime capability: {capability}")
         bootstrap = self._resolved_bootstrap()
         bootstrap_version: Optional[list[int]] = None
         bootstrap_error: Optional[str] = None
@@ -304,17 +307,19 @@ class RuntimeManager:
             else:
                 message = "Handbuilt's private bulletin runtime has not been prepared yet."
             next_action = "The host agent should create the private runtime, then explicitly install its requirements."
-        elif missing_native_tools:
+        elif missing_native_tools and capability == "bulletin":
             status = "native-tool-missing"
-            message = "Handbuilt can build a PDF, but this computer cannot complete print verification yet."
+            message = "Handbuilt's PDF tools need preparation before PDF import or bulletin work."
             if native_install["available"]:
                 next_action = "Ask for approval, then the host agent should run the proposed native-tool setup."
             else:
                 next_action = "A supported automatic native-tool installer was not found; the host agent must provide a platform-specific setup path."
         else:
             status = "ready"
-            message = "Handbuilt is ready to build and verify a bulletin."
-            next_action = "Continue to bulletin setup."
+            message = ("Handbuilt's church workspace tools are available." if capability == "workspace"
+                       else "Handbuilt's bulletin dependencies are available.")
+            next_action = ("Continue setting up the church workspace; prepare any missing PDF tools when needed."
+                           if capability == "workspace" else "Run verify before PDF import or bulletin work.")
 
         assert status in STATUSES
         return {
@@ -323,6 +328,8 @@ class RuntimeManager:
             "status": status,
             "ready": status == "ready",
             "changed": changed,
+            "capability": capability,
+            "host": {"system": self.system, "architecture": platform.machine()},
             "message": message,
             "next_action": next_action,
             "runtime": {
@@ -356,6 +363,39 @@ class RuntimeManager:
             },
             "native_install": native_install,
         }
+
+    def verify(self) -> dict[str, object]:
+        """Exercise rendering and PDF tools in a temporary directory, without installing."""
+        report = self.doctor(operation="verify")
+        if report["status"] != "ready":
+            return report
+        completed = self._run(
+            (str(self.paths.python), "-I", "-B", str(self.repo_root / "tools/runtime_probe.py"),
+             *(report["native_tools"]["locations"][name] for name in NATIVE_TOOLS)),
+            timeout=60,
+        )
+        try:
+            probe = json.loads(completed.stdout) if completed is not None else {}
+        except (ValueError, TypeError):
+            probe = {}
+        expected = {"render", "pdfinfo", "pdffonts", "pdftoppm", "pdftotext"}
+        if (completed is None or completed.returncode != 0 or not isinstance(probe, dict)
+                or probe.get("checks") != sorted(expected) or probe.get("ok") is not True):
+            report.update({
+                "status": "install-failed", "ready": False,
+                "message": "Handbuilt's bulletin tools did not pass their working check.",
+                "next_action": "Use the check detail to repair the failing PDF component, then run verify again. Church workspace and sermon work can continue if their check is ready.",
+                "technical_detail": (str(probe.get("error"))[:800] if isinstance(probe, dict) and probe.get("error")
+                                     else _command_detail(completed)),
+                "verification": {"ok": False},
+            })
+        else:
+            report.update({
+                "message": "Handbuilt built and checked a sample PDF successfully.",
+                "next_action": "Continue to PDF import or bulletin work.",
+                "verification": probe,
+            })
+        return report
 
     def create_environment(self) -> dict[str, object]:
         """Create or repair the venv, but never install repository packages."""
@@ -555,6 +595,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="operation", required=True)
     for operation, help_text in (
         ("doctor", "Check runtime readiness without changing anything."),
+        ("verify", "Render and inspect a temporary sample PDF without installing anything."),
         ("setup", "Create and install the private runtime, then verify it."),
         ("native-install", "Install native PDF tools through a detected package manager."),
         ("create", "Create the private Python environment without installing packages."),
@@ -564,6 +605,8 @@ def build_parser() -> argparse.ArgumentParser:
         child.add_argument("--format", choices=("human", "json"), default="human")
         child.add_argument("--runtime-root", type=Path)
         child.add_argument("--bootstrap-python", default=os.environ.get("HANDBUILT_BOOTSTRAP_PYTHON", sys.executable))
+        if operation == "doctor":
+            child.add_argument("--capability", choices=("workspace", "bulletin"), default="bulletin")
     return parser
 
 
@@ -577,7 +620,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         bootstrap_python=args.bootstrap_python,
     )
     if args.operation == "doctor":
-        result = manager.doctor()
+        result = manager.doctor(capability=args.capability)
+    elif args.operation == "verify":
+        result = manager.verify()
     elif args.operation == "setup":
         result = manager.setup()
     elif args.operation == "native-install":
@@ -594,7 +639,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if result["status"] == "install-failed":
         return 20
-    if args.operation == "doctor" and result["status"] != "ready":
+    if args.operation in {"doctor", "verify"} and result["status"] != "ready":
         return 2
     return 0
 

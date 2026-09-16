@@ -159,10 +159,21 @@ def _ensure_alpha(pil_image: Image.Image, raw_xobject: dict[str, Any]) -> tuple[
 
 def _extract_page_assets(page: Any, page_number: int, assets_dir: Path) -> list[dict[str, Any]]:
     assets: list[dict[str, Any]] = []
-    for asset_index, image_file in enumerate(page.images, start=1):
+    try:
+        image_count = len(page.images)
+    except Exception as exc:  # pypdf can fail while enumerating a page's XObjects
+        return [{"error": f"Could not enumerate embedded images on this page: {exc}"}]
+    for asset_index in range(1, image_count + 1):
         asset_name = f"page-{page_number:04d}-image-{asset_index:02d}.png"
         asset_path = assets_dir / asset_name
         try:
+            # Indexing (rather than iterating) page.images decodes only this
+            # one image, so a decode failure here -- such as pypdf's
+            # LimitReachedError on an oversized embedded image -- cannot
+            # abort the images still to come. Iterating the sequence
+            # directly would decode the next image before this loop body,
+            # and its try/except, ever runs.
+            image_file = page.images[asset_index - 1]
             raw = image_file.indirect_reference.get_object() if image_file.indirect_reference else {}
             pil_image, has_alpha, alpha_expected = _ensure_alpha(image_file.image, raw)
             pil_image.save(asset_path, format="PNG")
@@ -316,6 +327,7 @@ def import_bulletin(
             "text_length": len(text_value.strip()),
             "images": [
                 {**asset, "asset_path": f"{IMPORT_ROOT}/{import_id}/assets/{asset['asset_path']}"}
+                if "asset_path" in asset else asset
                 for asset in assets
             ],
         })

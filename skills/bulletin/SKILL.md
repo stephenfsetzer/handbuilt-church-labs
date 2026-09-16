@@ -34,11 +34,12 @@ Before interviewing the pastor or staging a bulletin, verify the connected skill
 python3 "<church-folder>/handbuilt.py" start bulletin
 ```
 
-If it does not report `ready`, stop before production. The host agent may
-prepare the private runtime with the `setup` operation defined
-in `handbook/runtime-setup.md`, then must run the doctor again. Do not ask the
-pastor to install packages or use global Python. Do not present a bulletin as
-ready until both the Python packages and the computer-level PDF tools pass.
+The launcher renders and checks a temporary sample PDF. If it does not report
+`ready`, stop before production and follow the reported repair detail in
+`handbook/runtime-setup.md`. Use `setup` for missing managed packages; repair
+native tools or rendering libraries when those failed. Repeat `start bulletin`
+after repair. Do not ask the pastor to manage packages or use global Python.
+Passing this computer check does not replace the actual bulletin's checks.
 
 Read the exact skill path returned by `start`. The launcher selects the managed
 Python for production and records the installed workflow used. For supporting

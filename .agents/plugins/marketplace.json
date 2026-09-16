@@ -10,13 +10,13 @@
         "source": "local",
         "path": "./"
       },
-      "version": "0.4.4",
+      "version": "0.4.5",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity",
-      "description": "Church workflows for private onboarding, sermon research, and reviewable worship bulletins."
+      "description": "Church workspace setup, sermon research, and reviewable worship bulletins."
     }
   ]
 }

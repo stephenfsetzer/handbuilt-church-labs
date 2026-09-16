@@ -1,6 +1,6 @@
 # Quickstart
 
-## First setup
+## Set up my church workspace
 
 1. Choose your app:
 
@@ -17,7 +17,7 @@
      `https://github.com/stephenfsetzer/handbuilt-church-labs.git`, then choose
      the offered URL option. Leave **Sync automatically** off, then choose
      **Sync**. In **Discover**, choose **Add Handbuilt Church Labs**. Open
-     **Yours** and confirm version 0.4.4, three skills, and **Enable plugin** on.
+     **Yours** and confirm version 0.4.5, three skills, and **Enable plugin** on.
      Manual sync does not require a new GitHub App grant. See the [installation
      and support guide](../README.md#installation-and-support) for optional
      Codex CLI and Claude Code CLI routes.
@@ -27,7 +27,7 @@
    development project. Ask:
 
    ```text
-   Help me set up my church with Handbuilt Church Labs.
+   Set up my church workspace.
    ```
 
 3. Give the agent your church website when you have one. It proposes public
@@ -41,6 +41,15 @@
 The website supplies public identity facts. The bulletin supplies the detailed
 order of worship and recurring sections. Weekly assignments, announcements,
 and other dated material remain weekly input.
+
+The agent shows progress from plugin installed to computer prepared, church
+folder created, and the first useful result. If something needs installation,
+it explains the preparation together and gives one next action at a time.
+An already-working computer proceeds without extra setup. Missing PDF tools
+can wait while you set up the workspace or begin sermon research.
+If you stop, return to the same task or open the church folder and say
+“Continue setting up my church workspace.” The agent checks saved progress
+and resumes what remains.
 
 ## Your first result
 

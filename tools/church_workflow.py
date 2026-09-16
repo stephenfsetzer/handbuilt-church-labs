@@ -80,13 +80,17 @@ def connect(church_folder: str | Path) -> dict:
             "next_action": "Run python3 handbuilt.py start onboarding from the church folder."}
 
 
-def _doctor() -> dict:
+def _doctor(workflow: str = "bulletin") -> dict:
+    # Keep PDF dependencies and their working check on bulletin operations.
+    # Workspace and sermon tools still require the existing managed packages.
+    arguments = (["verify"] if workflow == "bulletin"
+                 else ["doctor", "--capability", "workspace"])
     result = subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
-                             "doctor", "--format", "json"], capture_output=True, text=True)
+                             *arguments, "--format", "json"], capture_output=True, text=True)
     report = json.loads(result.stdout)
     if report.get("status") != "ready":
         return {"status": "blocked", "code": "runtime_not_ready", "runtime_check": report,
-                "next_action": "Use python3 handbuilt.py runtime setup, then repeat the runtime check. For native tools, follow the doctor's host setup plan."}
+                "next_action": report.get("next_action", "Follow the runtime check's repair plan, then check again.")}
     return report
 
 
@@ -110,7 +114,7 @@ def execute(church: Path, workflow: str, operation: str, arguments: list[str]) -
         raise ValueError(f"Unsupported {workflow} operation: {operation}")
     if any(arg == "--church-folder" or arg.startswith("--church-folder=") for arg in arguments):
         raise ValueError("The church folder comes from this launcher and cannot be overridden")
-    doctor = _doctor()
+    doctor = _doctor(workflow)
     if doctor.get("status") != "ready":
         return doctor, 2
     script = ROOT / WORKFLOWS[workflow]
@@ -161,7 +165,8 @@ def main() -> int:
     start = sub.add_parser("start")
     start.add_argument("workflow", choices=("onboarding", "bulletin", "sermon-research"))
     runtime = sub.add_parser("runtime")
-    runtime.add_argument("operation", choices=("doctor", "setup", "native-install"))
+    runtime.add_argument("operation", choices=("doctor", "verify", "setup", "native-install"))
+    runtime.add_argument("--capability", choices=("workspace", "bulletin"))
     for name in WORKFLOWS:
         command = sub.add_parser(name)
         command.add_argument("operation", choices=sorted(OPERATIONS[name]))
@@ -172,10 +177,13 @@ def main() -> int:
         if args.command == "connect":
             result, code = connect(church), 0
         elif args.command == "runtime":
+            if args.capability and args.operation != "doctor":
+                raise ValueError("Choose a capability only for runtime doctor; verify always checks all PDF tools")
+            arguments = (["--capability", args.capability] if args.capability else [])
             return subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
-                                   args.operation, "--format", "json"]).returncode
+                                   args.operation, *arguments, "--format", "json"]).returncode
         elif args.command == "start":
-            doctor = _doctor()
+            doctor = _doctor(args.workflow)
             if doctor.get("status") != "ready":
                 result, code = doctor, 2
             else:

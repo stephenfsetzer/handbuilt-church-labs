@@ -1,0 +1,4 @@
+interface:
+  display_name: "Set up my church workspace"
+  short_description: "Create or resume my private church workspace"
+  default_prompt: "Use $onboarding to set up my church workspace."

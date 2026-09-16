@@ -3,13 +3,13 @@
   "owner": {
     "name": "Handbuilt"
   },
-  "description": "Church workflows for private onboarding, sermon research, and reviewable worship bulletins.",
+  "description": "Church workspace setup, sermon research, and reviewable worship bulletins.",
   "plugins": [
     {
       "name": "handbuilt-church-labs",
       "source": "./",
-      "description": "Church workflows for private onboarding, sermon research, and reviewable worship bulletins.",
-      "version": "0.4.4",
+      "description": "Church workspace setup, sermon research, and reviewable worship bulletins.",
+      "version": "0.4.5",
       "author": {
         "name": "Handbuilt",
         "url": "https://gethandbuilt.com"

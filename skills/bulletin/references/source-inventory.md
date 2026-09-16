@@ -15,6 +15,11 @@ page means is a separate, explicit step below.
 
 ## The short workflow
 
+Before PDF import, run `tools/handbuilt_runtime.py verify --format json` with
+the managed interpreter. Require a successful working check of the PDF tools;
+workspace readiness alone is insufficient. If preparation is pending, retain
+the supplied source and resume this import after repair.
+
 1. **Import.** `skills/onboarding/scripts/import_bulletin.py import
    --church-folder ... --source-pdf ...`. Returns an `import_id` and, per
    page, a rendered image, extracted text, and any extracted artwork.
