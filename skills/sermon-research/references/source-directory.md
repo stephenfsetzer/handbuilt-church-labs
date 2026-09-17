@@ -46,10 +46,14 @@ writers are often copied with the wrong work, section, or wording.
 - [Lectionary Greek](https://lectionarygreek.blogspot.com/)
 - [Theology of Work](https://www.theologyofwork.org/)
 
-Use major critical commentary series through the pastor's library when
-available. Read across traditions, especially when a vivid interpretation has
-become familiar. The strongest counterargument often reveals what that reading
-costs.
+These accessible sites are starting points. Pursue substantial commentary,
+scholarly articles and chapters, and academic lectures with accessible arguments.
+Search university repositories, journal archives, and author or publisher sites
+for lawful full text or meaningful excerpts. Use major critical commentary
+series through the pastor's library when available. A catalog record or book
+preview without the relevant argument establishes bibliographic existence only.
+Do not treat several short pieces from one outlet as the full scholarly inquiry.
+Read across traditions where a competing argument clarifies the passage.
 
 ## Language and background
 
@@ -70,8 +74,13 @@ credible objection before letting one carry the sermon.
 - [ScienceDirect](https://www.sciencedirect.com/)
 - [Nature](https://www.nature.com/)
 
-Cite the study when it is reachable. Judge scholarship by whether later work
-has superseded it. A fixed news-age rule does not apply to every field.
+Cite the primary study or a major review when it is reachable, at its
+locator. Judge scholarship by whether later work has superseded it. A fixed
+news-age rule does not apply to every field. Search by the passage's human
+difficulty (forgiveness and reconciliation, debt and shame, envy, grief), not
+its doctrine. A press release, news summary, podcast episode, or popular
+science book cannot carry a finding; a popularizer may be named after the
+study as an entry point, and only when the pastor asked for that medium.
 
 ## Contemporary context and the arts
 
@@ -82,9 +91,24 @@ pastor's subsequent work after the pastor supplies the local connection.
 Check dates closely when describing a current policy, condition, leader, or
 program.
 
-Literature, theater, film, music, and visual art belong only when a citable
-source or the pastor's real fluency deepens the text. Proximity and thematic
-resemblance do not create an interpretive connection.
+Follow the methodology's ranked discovery: television/film, popular music,
+fashion, then literature. Podcasts require an explicit request. Search by a
+human or theological difficulty, then examine concrete works and their public
+reception. Journalism and criticism provide evidence about those works.
+
+Prefer access to the work, official transcripts or excerpts, creator interviews,
+and substantive criticism. Verify cultural presence through accountable coverage
+or audience evidence. A promotional synopsis establishes only what it states;
+a specific scene requires direct access or a substantial attributed account.
+Search each medium through its own critics: music through album and song
+reviews and artist interviews, literature through trade reviews, literary
+journals, and prize lists, fashion through collection reviews and cultural
+criticism. Phrase the search as the passage's human difficulty, not its
+doctrine.
+Music and fashion deserve the same intellectual attention as literature: examine
+what a particular work expresses about identity, desire, belonging, status, or
+human limits, without inventing its creator's intention. Respect quotation and
+lyrics limits. The pastor's fluency shapes selection without replacing evidence.
 
 ## Source hygiene
 

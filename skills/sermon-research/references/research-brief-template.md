@@ -34,8 +34,9 @@ material that changes how the passage can be read.]
 
 [Bring relevant voices into conversation around this question. Show their
 arguments, grounds, gains, costs, and unresolved questions without assigning
-one summary paragraph to each source. Identify what cannot be combined and the
-choice the pastor will eventually need to make. Cite claims where they appear.]
+one summary paragraph to each source. Distinguish shared ground, differences
+in emphasis, and real conflict. Explain the choice a real conflict creates.
+Let paragraphs develop the inquiry in natural prose. Cite claims where they appear.]
 
 ### [A second live interpretive or theological question?]
 
@@ -44,9 +45,25 @@ question-shaped thematic subsections only when the passage warrants them.]
 
 ## Contemporary Convergence
 
-[Include current research, events, patterns, or another configured domain only
-when they materially illuminate the passage. Otherwise report what was tried
-and why nothing strong was included.]
+### Culture
+
+[When contemporary context is enabled, offer up to three substantive cultural
+encounters, each from a different medium: the strongest television or film
+work first, then one or two from popular music, fashion, or literature. Never
+two from the same medium. Explain why the work merits attention now and how it
+illuminates a live question from the passage. Include the date, a usable
+entry point, and the connection's limit. Follow the methodology's recency and
+evidence rules. Omit this subsection when the stream is disabled or nothing
+strong surfaces; never report what was searched.]
+
+### Human sciences
+
+[When human sciences are enabled, offer one research finding or review that
+changes how the passage's human difficulty is understood. Cite the primary
+study or review at its locator, state what it can and cannot tell a preacher,
+and give the connection's limit. A popularizer may be named only after the
+study, as an entry point. Omit this subsection when the stream is disabled
+or nothing strong surfaces.]
 
 ## Pastoral Applications
 
@@ -56,7 +73,7 @@ place.]
 
 ## Possible Preaching Centers
 
-[Offer several genuinely different centers. Give each one's textual anchor and
+[Offer several different centers. Give each one's textual anchor and
 the interpretive or pastoral choice it carries. Do not choose one.]
 
 ## References
@@ -66,6 +83,9 @@ citation.]
 
 ## Questions for reflection
 
-[End with a small set of questions only. Help the pastor decide what matters,
-what the congregation needs to hear, and what lived or local knowledge belongs
-in the sermon.]
+[End with three to five questions only, written for this passage and this
+brief. Name a verse or phrase and ask which reading the pastor hears in it.
+Set two of the brief's readings against each other and ask what makes the
+pastor lean one way. Ask which distinction a person in the congregation needs
+to hear first, without claiming to know them. Follow the methodology's
+reflection standard.]

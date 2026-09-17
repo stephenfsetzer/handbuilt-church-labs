@@ -21,8 +21,9 @@ supplied private church folder. The workflow governs two files under
 records the verified scope that supports it. Hidden `.receipts/` files govern
 state. Never ask the pastor to manage them.
 
-The workflow ends at `research_complete`. Reflection, outlining, drafting,
-editing, and sermon review are outside this Handbuilt research operation.
+The workflow ends at `research_complete`. Sermon reflection, outlining, manuscript drafting,
+manuscript editing, and sermon review are outside this research operation.
+Writing and editing the research brief are internal parts of this skill.
 Existing pastor files such as `reflections.md` or `sermon-draft.md` remain
 pastor-owned. Do not change them as a side effect of research or interpret them
 as workflow state. Edit them when the pastor requests that separate work.
@@ -135,15 +136,43 @@ is blank, ask the pastor and update the profile. A manual lectionary run may use
 a pastor-supplied override for that Sunday. A scheduled run may not guess or
 use an undeclared override.
 
-Research the passage across the relevant source families. Open every materially
-used source and verify its support before citing it.
+Run two passes before recording research:
 
-Produce a full `research-brief.md` with the required headings, meaningful
-interpretive disagreement, several possible preaching centers, and followable
+1. Research and write, in your own context. Follow
+   [research-pass.md](references/research-pass.md) to open sources and keep
+   compact working cards, judge sufficiency, then follow
+   [writing-pass.md](references/writing-pass.md) to write the brief directly
+   from those cards. Do not hand the cards to another agent; you already hold
+   the sources. Save the draft before editing.
+2. Edit, in a fresh agent context when available and authorized. Follow
+   [editing-pass.md](references/editing-pass.md): the editor rechecks
+   quotations and consequential claims against the sources with its fetches
+   batched in one turn, edits the draft in place, and returns a short record.
+   Record only after its concerns are resolved.
+
+These are internal responsibilities within `needs_research`, not new runtime
+states or pastor-facing tasks. Keep the cards, the saved draft, and the
+editorial record in a private working directory outside the dated sermon
+folder; use the host's existing run directory when available. Include their
+paths in the run notes so an interrupted run can resume. They do not replace
+the source ledger or receipts. Keep run notes to a tally rather than a narrative.
+Batch independent web fetches in one turn. Run the writing pass's preflight
+before the first `record` call, and add no source after it. An interactive
+run should reach `research_complete` in under ten minutes; a scheduled run
+may take longer when it goes deeper.
+
+The lead owns source sufficiency and final acceptance. Use a model suited to
+sustained synthesis for research and writing. Without delegation, perform the
+editing pass as a separate sequential pass and state the independence limit in
+run notes. Do not claim independent review from self-review.
+
+Produce a full `research-brief.md` with the required headings, substantive
+interpretive conversation, several possible preaching centers, and followable
 citations. Keep source coverage,
 retrieval evidence, and research gaps in the receipt ledger. Surface a research
 limitation in the brief only when it materially changes how a claim should be
-used. `Questions for reflection` is the final heading. Do not select the sermon
+used, and then through attribution and cited scope, never as a note about
+searches or access. `Questions for reflection` is the final heading. Do not select the sermon
 center or write the pastor's response.
 
 For a pastor-selected passage, keep the published text verification in
@@ -152,19 +181,20 @@ provenance but does not expose a technical `Text verification` field.
 
 Organize theological voices under question-shaped thematic subheadings in
 `Interpretive Conversations`. Within each question, put the strongest credible
-readings into conversation, identify what cannot be combined, and state the
-choice the pastor may need to make. Give each dispute one home. Do not produce a
+readings into conversation, distinguish agreement from differences in emphasis
+or genuine conflict, and state the choice the pastor may need to make. Use the
+methodology's research and writing standard even with a church-owned template.
+Give each dispute one home. Do not produce a
 roster of one summary paragraph per theologian or repeat a dispute in a second
 section.
 
-Record the research source ledger, any justified short-brief `scope_note`, and
+Record the research source ledger and
 a `research_target` containing the primary reading role and exact verified
 citation. In lectionary mode, set `selection_basis` to `church_profile` or
 `pastor_override`. In pastor-selected mode, set it to `pastor_selection`.
 
 Record with the same command shape and `--stage research`. For a complete,
-valid metadata example (`research_target`, the source ledger, and
-`scope_note` together), see
+valid metadata example (`research_target` and the source ledger together), see
 [source-verification.md](references/source-verification.md#complete-research-metadata-example).
 
 ## `research_complete`
