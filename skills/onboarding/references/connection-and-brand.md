@@ -5,15 +5,19 @@ folder owns local skills, instructions, church information, and results.
 Creating the folder also installs a small
 `handbuilt.py` launcher and records its plugin location privately.
 
-For every returning folder, compare `.handbuilt/installation.json` with the
-plugin root of the skill the app currently exposes. An old cached installation
-can still exist after an update; its presence does not make it current. If the
-roots differ or the connection is missing, use this installed skill's root and run:
+For a returning folder, run the app-loaded adapter once for the requested
+workflow. A different saved root can be the newer managed release or an
+intentional development connection. Do not reconnect merely because roots differ.
 
 ```bash
-python3 "<plugin-root>/tools/church_workflow.py" --church-folder "<church-folder>" connect
-python3 "<church-folder>/handbuilt.py" start onboarding
+python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+  --church-folder "<church-folder>" start onboarding
 ```
+
+If `pinned_connection` is returned, keep the saved connection and start through
+that church's `handbuilt.py`. Do not change a development or pinned connection
+unless the pastor requests it. For an intentional policy change, follow
+[managed workflow updates](../../../handbook/workflow-updates.md).
 
 Read the exact skill path returned by `start` for a Handbuilt operation. Never
 infer the plugin location from a previous conversation. If Handbuilt is absent,
@@ -24,12 +28,13 @@ It does not replace instruction files, copy over local skills, or restore
 deleted guidance. For a requested update to an existing folder's restrictive
 instructions, follow [Workspace customization](../../../handbook/workspace-customization.md).
 
-After creation, use the private launcher for supported operations:
+After `start`, use its exact returned `launcher` prefix for supported operations.
+Read the selected skill once and do not start again during the task:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" onboarding status
-python3 "<church-folder>/handbuilt.py" brand status
-python3 "<church-folder>/handbuilt.py" brand update --patch-file "<church-folder>/.brand-patch.json"
+<launcher-prefix> onboarding status
+<launcher-prefix> brand status
+<launcher-prefix> brand update --patch-file "<church-folder>/.brand-patch.json"
 ```
 
 The agent prepares the patch. The pastor does not edit JSON. Download or extract

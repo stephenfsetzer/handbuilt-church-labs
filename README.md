@@ -101,8 +101,10 @@ Use a different Eucharistic Prayer this Sunday only.
 
 A small local launcher connects your church folder to the installed Handbuilt
 workflows. It selects the required runtime and records which installation ran.
-The supplied skills remain in the plugin. If that connection breaks after an
-update or move, ask your agent to reconnect Handbuilt to your existing folder.
+When you ask for church work, Handbuilt checks for routine workflow updates
+automatically and keeps your church settings and content. If it cannot verify
+an update, it keeps the working release. Your agent handles this for you. See the
+[managed workflow update policy](handbook/workflow-updates.md).
 
 Your workspace is yours to change. Add local skills under `skills/`, edit
 `CLAUDE.md` and `AGENTS.md`, and use other tools when you need them. You can
@@ -164,6 +166,11 @@ it is offered. Start a new Cowork task after installing or updating. For a first
 create the private church work folder. Plain Chat is useful for conversation,
 but Cowork is the right place for persistent local church work.
 
+The Cowork marketplace update changes the app-loaded plugin and its displayed
+version. It is separate from the managed workflow release selected when a
+church workflow starts. The managed release cannot change Cowork's displayed
+version or organization manifest integrations.
+
 The graphical installation is verified in ChatGPT/Codex desktop, Claude Chat,
 and Cowork. The full onboarding and bulletin workflows have been rehearsed in
 Codex and Claude Code; the Cowork content workflow remains a pilot item. The
@@ -208,6 +215,10 @@ Start a new task and ask, “Set up my church workspace.”
 
 ### Update an installation
 
+Once this updater is installed, routine workflow updates happen when you start
+church work. Existing installations need the host update below once to receive
+it. These controls also remain available for changes to the app integration.
+
 For desktop Claude, use **Manage marketplaces** and **Check for updates** as
 described above. CLI users can refresh the marketplace first, then update the
 plugin:
@@ -224,14 +235,16 @@ claude plugin update handbuilt-church-labs@handbuilt-church-labs
 
 Restart the app when required, then start a new task. Confirm that Handbuilt
 is enabled in the app's plugin settings. If an update needs troubleshooting,
-return to the same private church folder and ask your agent to
-reconnect it. Advanced users can also inspect the installed version with
+return to the same private church folder and run the start check described in
+the [managed workflow update policy](handbook/workflow-updates.md). Advanced
+users can also inspect the host-installed version with
 `codex plugin list` or `claude plugin list`.
 
 ### Runtime and support
 
 The agent checks the required local Python and print tools during setup and
-guides you through any missing dependencies. See [runtime setup](handbook/runtime-setup.md).
+guides you through any missing dependencies. See [runtime setup](handbook/runtime-setup.md)
+and the [managed workflow update policy](handbook/workflow-updates.md).
 You need Python 3.10 or newer. Handbuilt installs its Python packages into its
 own managed environment.
 
@@ -239,8 +252,9 @@ Installation and workflow behavior depend on your app, model, account, and
 operating system. The plugin has isolated Codex and Claude Code rehearsals and
 automated regression tests; it does not claim every combination has been tested.
 A new task is required after installing or updating the plugin. If an existing
-church folder needs reconnecting after an update, ask your agent to
-reconnect it before starting weekly work.
+church folder needs reconnecting after a host update, run the app-loaded start
+check before starting weekly work. Do not expect that check to update the host
+app's displayed plugin version.
 
 Maintainers can find the canonical test commands in
 [repository verification](AGENTS.md#repository-verification).

@@ -62,15 +62,10 @@ confirmation of the bulletin template. Save a clear bulletin structure and
 choice as a working default; ask one bundled question only where it is
 ambiguous.
 
-Assume the pastor is new to a local agent. Before they have to ask, say what
-you are doing, why it matters, what will happen next, whether anything leaves
-their computer, and what has been saved. Announce the next defined action and
-take it. Do not wait for the pastor to ask "what's next?"
-
-Evidence ledgers, extracted text, configuration files, resolver output, and
-other internal artifacts support the workflow. Maintain them quietly. Do not
-present them as pastor decisions or list every edited file. Report the useful
-result and link the private church folder or progress record once.
+Assume the pastor is new to a local agent. Say what you are doing, why it
+matters, what happens next, whether anything leaves the computer, and what was
+saved. Announce and take the next defined action. Do not wait for the pastor to ask "what's next?"
+Evidence ledgers and internal artifacts support the work. Maintain them quietly. Report the useful result and link progress once.
 
 ## Required stage sequence
 
@@ -80,21 +75,15 @@ Do not ask a later-stage question while an earlier stage is incomplete:
 folder created -> worship source chosen -> worship setup -> first useful result
 -> optional setup when requested`
 
-At each transition:
+At each transition, inspect available sources, take defined safe actions,
+explain why the decision matters and what it enables, ask one focused question when needed, then
+read back the answer in plain language, then batch and verify the update.
+Report the pastor-facing result, not an internal
+file inventory.
 
-1. Inspect the available sources and take every defined, safe action.
-2. Explain why the decision matters and what it enables when a decision
-   remains.
-3. Ask one focused question, or no question when the evidence is sufficient.
-4. Read back the answer or proposed value in ordinary language.
-5. Batch the stage into one coherent update in the private church folder.
-6. Verify the update and report the pastor-facing result, not an internal file
-   inventory.
-
-Ask no more than three questions in one turn, and prefer none when the sources
-answer them. Use one question when the choice is unfamiliar or consequential.
-“Later,” “not sure,” “unknown,” and “not applicable” are valid answers. Do not
-require a magic confirmation phrase.
+Ask no more than three questions in one turn, and prefer none when sources
+answer them. Use one question for an unfamiliar or consequential choice.
+“Later,” “not sure,” “unknown,” and “not applicable” are valid; require no magic confirmation phrase.
 
 ## Runtime gate
 
@@ -112,10 +101,20 @@ skill, not the private church folder. Quote complete executable and file paths.
 Missing PDF tools remain pending until PDF import or bulletin work needs them.
 Before that work, run the separate `verify` check described in the reference.
 
-Verify onboarding with `church_setup.py status` and read back saved values and
-progress. Do not run developer tests after each stage or install `pytest`.
-For requested regression tests, use the plugin root's `AGENTS.md` commands
-with built-in `unittest`.
+After the private church folder exists, run the app-loaded adapter once:
+
+```bash
+python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+  --church-folder "<church-folder>" start onboarding
+```
+
+Read the returned skill path and use its exact `launcher` prefix for every
+onboarding operation in this task. Do not run `start` again after reading it.
+The normal `church-folder/handbuilt.py start onboarding` command remains valid
+for a person checking the connection manually.
+
+Run `onboarding status` through the returned launcher and read back saved values
+and progress. Use the plugin root's `AGENTS.md` commands for requested tests.
 
 ## Welcome
 Start with a short orientation before collecting details:
@@ -230,7 +229,8 @@ For a request that also prepares weekly clergy assignments or bulletin work,
 read the bulletin skill and use its orientation and weekly-input guidance.
 Finish the standing preference update, then continue that workflow from the
 saved church context.
-Before closeout, run `python3 "<church-folder>/handbuilt.py" onboarding status`.
+Before closeout, use the returned launcher prefix for `onboarding status`; do
+not switch to the mutable church-folder launcher during this task.
 Report each workflow from its readiness boolean. `needs_input` and
 `partially_ready` never mean both workflows are complete. Correct stored values
 from confirmed answers before asking again. Stop when the requested workflow

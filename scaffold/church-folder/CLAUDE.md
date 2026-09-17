@@ -26,12 +26,13 @@ how the agent works here. Handbuilt Church Labs supplies optional workflows.
 1. Load the app's installed `handbuilt-church-labs:onboarding`,
    `handbuilt-church-labs:bulletin`, or `handbuilt-church-labs:sermon-research`
    skill for the requested Handbuilt operation.
-2. Compare that skill's plugin root with `.handbuilt/installation.json`. If
-   they differ, use the installed onboarding connection reference to reconnect
-   this folder. An older cached copy may still exist after an update.
-3. Run `python3 handbuilt.py start onboarding`, `start bulletin`, or
-   `start sermon-research`. Follow the returned installed skill for that
-   Handbuilt operation.
+2. Run the app-loaded skill's `tools/church_workflow.py` with
+   `--church-folder "<this-folder>" start <workflow>` once. The saved connection
+   may use a newer managed release or an intentional pinned development copy;
+   do not reconnect just because its root differs from the app-loaded skill.
+3. Read the exact returned skill and use its returned `launcher` prefix for
+   every operation in this task. Do not start again or switch versions while
+   preparing, reviewing, or finalizing the same work.
 4. Read `church.yaml` and the workflow's saved state before asking questions.
    The launcher selects managed Python and records the installation used.
 5. If Handbuilt is unavailable, explain how to reconnect it for Handbuilt

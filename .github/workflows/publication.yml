@@ -3,6 +3,11 @@ name: Public publication checks
 on:
   pull_request:
   push:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
 
 jobs:
   checks:
@@ -22,3 +27,47 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Run public-tree hygiene check
         run: python tools/pii_check.py
+      - name: Build the verified workflow distribution
+        run: python tools/package_workflow.py --output-dir "$RUNNER_TEMP/handbuilt-release"
+      - name: Verify the packaged entrypoint
+        run: |
+          python - <<'PY'
+          import hashlib, os, subprocess, sys
+          from pathlib import Path
+          from tools.workflow_updates import unpack_verified, package_version, verify_installed
+          output = Path(os.environ['RUNNER_TEMP']) / 'handbuilt-release'
+          data = (output / 'handbuilt-workflow.zip').read_bytes()
+          target = output / 'unpacked'
+          target.mkdir()
+          number = package_version(Path.cwd())
+          unpack_verified(data, hashlib.sha256(data).hexdigest(), target, number)
+          verify_installed(target)
+          subprocess.run([sys.executable, str(target / 'tools/church_workflow.py'), '--help'], check=True)
+          if os.environ['GITHUB_EVENT_NAME'] == 'release' and os.environ['GITHUB_REF_NAME'] != 'v' + number:
+              raise SystemExit('Release tag must match both plugin manifest versions')
+          PY
+      - name: Save the checked distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: handbuilt-workflow
+          path: |
+            ${{ runner.temp }}/handbuilt-release/handbuilt-workflow.zip
+            ${{ runner.temp }}/handbuilt-release/handbuilt-workflow.sha256
+
+  release-assets:
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: handbuilt-workflow
+          path: distribution
+      - name: Attach verified assets to the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" distribution/handbuilt-workflow.zip distribution/handbuilt-workflow.sha256

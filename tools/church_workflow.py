@@ -12,10 +12,15 @@ from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import uuid
+
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = {
@@ -61,23 +66,144 @@ def installation() -> dict:
     }
 
 
-def connect(church_folder: str | Path) -> dict:
+def connect(church_folder: str | Path, *, update_policy: str | None = None,
+            _automatic: bool = False) -> dict:
+    from tools.workflow_updates import file_lock
+    church = _load_setup()._assert_private_root(church_folder)
+    lock = _private_file(church, ".handbuilt/connection.lock")
+    with file_lock(lock) as acquired:
+        if not acquired:
+            raise ValueError("Another task is connecting this church. Try starting again.")
+        return _connect(church, update_policy=update_policy,
+                        automatic=_automatic or update_policy is None)
+
+
+def _connect(church_folder: str | Path, *, update_policy: str | None, automatic: bool) -> dict:
     church = _load_setup()._assert_private_root(church_folder)
     metadata = _private_file(church, ".handbuilt/installation.json")
     launcher = _private_file(church, "handbuilt.py")
     source = ROOT / "scaffold/church-folder/handbuilt.py"
     expected = source.read_bytes()
+    old = json.loads(metadata.read_text()) if metadata.exists() else {}
+    if not isinstance(old, dict):
+        raise ValueError("The church connection is invalid; preserve it for review.")
+    if automatic and old.get("plugin_root") and Path(old["plugin_root"]).resolve() != ROOT.resolve():
+        from tools.workflow_updates import version
+        if old.get("update_policy") == "pinned" or (Path(old["plugin_root"]) / ".git").exists():
+            raise ValueError("Another task pinned this church's connection; preserve it.")
+        if version(old["plugin_version"]) > version(installation()["plugin_version"]):
+            return {"status": "preserved", "installation": old}
+    policy = update_policy or old.get("update_policy") or ("pinned" if (ROOT / ".git").exists() else "stable")
+    if policy not in {"pinned", "stable"}:
+        raise ValueError("Choose stable or pinned workflow updates.")
     if launcher.exists() and launcher.read_bytes() != expected:
         old = json.loads(metadata.read_text()) if metadata.exists() else {}
         if hashlib.sha256(launcher.read_bytes()).hexdigest() != old.get("launcher_sha256"):
             raise ValueError("The church's handbuilt.py was customized; preserve it and review before reconnecting")
     info = installation()
-    info.update({"schema_version": 1, "launcher_sha256": hashlib.sha256(expected).hexdigest()})
+    info.update({"schema_version": 1, "launcher_sha256": hashlib.sha256(expected).hexdigest(),
+                 "update_policy": policy})
     metadata.parent.mkdir(parents=True, exist_ok=True)
-    launcher.write_bytes(expected)
-    metadata.write_text(json.dumps(info, indent=2) + "\n")
+    originals = {path: path.read_bytes() if path.exists() else None for path in (launcher, metadata)}
+    try:
+        _atomic_bytes(launcher, expected)
+        _atomic_bytes(metadata, (json.dumps(info, indent=2) + "\n").encode())
+    except Exception:
+        for path, content in originals.items():
+            if content is None:
+                path.unlink(missing_ok=True)
+            else:
+                _atomic_bytes(path, content)
+        raise
     return {"status": "connected", "church_folder": str(church), "installation": info,
             "next_action": "Run python3 handbuilt.py start onboarding from the church folder."}
+
+
+def _atomic_bytes(path: Path, contents: bytes) -> None:
+    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=".handbuilt-")
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(contents)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:
+    from tools.plugin_identity import inspect_installation
+    from tools.handbuilt_runtime import default_runtime_root
+    from tools.workflow_updates import select_release, package_version, verify_installed, version
+    identity = inspect_installation(ROOT, church)
+    metadata = _private_file(church, ".handbuilt/installation.json")
+    saved = json.loads(metadata.read_text()) if metadata.exists() else {}
+    if not isinstance(saved, dict) or (saved.get("plugin_root") and not Path(saved["plugin_root"]).is_absolute()):
+        raise ValueError("The church connection is invalid; preserve it for review.")
+    saved_root = Path(saved.get("plugin_root", str(ROOT))).resolve()
+    pinned = saved.get("update_policy") == "pinned" or (saved_root / ".git").exists() or (ROOT / ".git").exists()
+    if pinned and saved_root != ROOT.resolve():
+        return {"status": "blocked", "code": "pinned_connection", "identity": identity,
+                "message": "This church has an intentional pinned workflow. Keep using that connection unless a change is requested."}, 2
+    selected = ROOT.resolve()
+    store = default_runtime_root().parent / "workflows"
+    def validate(candidate):
+        command = [sys.executable, str(candidate / "tools/handbuilt_runtime.py")]
+        command += (["verify"] if workflow == "bulletin" else ["doctor", "--capability", "workspace"])
+        try:
+            check = subprocess.run(command + ["--format", "json"], capture_output=True, text=True, timeout=90)
+            report = json.loads(check.stdout)
+        except (subprocess.SubprocessError, ValueError) as exc:
+            raise ValueError("The new workflow could not complete its runtime check.") from exc
+        if check.returncode or report.get("status") != "ready":
+            raise ValueError("The new workflow needs a runtime change; the current workflow was kept.")
+    if not pinned and saved_root != selected and saved_root.is_relative_to((store / "releases").resolve()):
+        saved_version = verify_installed(saved_root)
+        if version(saved_version) >= version(package_version(selected)):
+            selected = saved_root
+        else:
+            try:
+                validate(selected)
+            except (ValueError, OSError):
+                selected = saved_root
+    elif not pinned and saved_root != selected and saved_root.is_dir():
+        # An explicitly saved host installation can also be newer than this app.
+        saved_identity = inspect_installation(saved_root, church)
+        if (saved_identity["connection"]["connection_matches"]
+                and version(package_version(saved_root)) > version(package_version(selected))):
+            validate(saved_root)
+            selected = saved_root
+    updates = {"status": "pinned" if pinned else "not_checked", "host_plugin_updated": False}
+    if not pinned and not skip_update:
+        updates = select_release(selected, store, validate)
+        selected = Path(updates["selected_root"])
+    if selected != ROOT.resolve():
+        # The target verifies its runtime again before saving the connection.
+        process = subprocess.run([sys.executable, str(selected / "tools/church_workflow.py"),
+                                  "--church-folder", str(church), "start", workflow,
+                                  "--skip-update-check"], capture_output=True, text=True, timeout=120)
+        result = json.loads(process.stdout)
+        result["app_loaded_identity"] = identity["loaded"]
+        result["updates"] = updates
+        result["identity"] = inspect_installation(selected, church, updates.get("latest"))
+        return result, process.returncode
+    doctor = _doctor(workflow)
+    if doctor.get("status") != "ready":
+        return doctor, 2
+    skill = ROOT / "skills" / workflow / "SKILL.md"
+    if not skill.is_file():
+        raise ValueError("The requested Handbuilt skill is missing; repair the installation")
+    # All checks precede the small, rollback-protected connection write.
+    connection = connect(church, update_policy="pinned" if pinned else "stable", _automatic=True)
+    if connection["status"] == "preserved":
+        return {"status": "blocked", "code": "connection_changed",
+                "message": "A newer church connection was preserved. Start again using that saved connection."}, 2
+    identity = inspect_installation(ROOT, church, updates.get("latest"))
+    result = {"status": "ready", "installation": installation(), "identity": identity,
+              "updates": updates, "skill": str(skill), "runtime_python": doctor["runtime"]["python"],
+              "launcher": [doctor["runtime"]["python"], str(ROOT / "tools/church_workflow.py"),
+                           "--church-folder", str(church)],
+              "next_action": "Read this exact skill. Use the returned launcher prefix for every operation in this task; it keeps the workflow version fixed. Check workflow readiness before producing."}
+    result["handbuilt_run"] = str(_record(church, workflow, "start", result, doctor))
+    return result, 0
 
 
 def _doctor(workflow: str = "bulletin") -> dict:
@@ -161,9 +287,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Use the installed Handbuilt workflows for a private church")
     parser.add_argument("--church-folder", required=True)
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("connect")
+    connection = sub.add_parser("connect")
+    connection.add_argument("--update-policy", choices=("stable", "pinned"))
+    sub.add_parser("updates")
     start = sub.add_parser("start")
     start.add_argument("workflow", choices=("onboarding", "bulletin", "sermon-research"))
+    start.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
     runtime = sub.add_parser("runtime")
     runtime.add_argument("operation", choices=("doctor", "verify", "setup", "native-install"))
     runtime.add_argument("--capability", choices=("workspace", "bulletin"))
@@ -175,28 +304,21 @@ def main() -> int:
     try:
         church = _load_setup()._assert_private_root(args.church_folder)
         if args.command == "connect":
-            result, code = connect(church), 0
+            result, code = connect(church, update_policy=args.update_policy), 0
         elif args.command == "runtime":
             if args.capability and args.operation != "doctor":
                 raise ValueError("Choose a capability only for runtime doctor; verify always checks all PDF tools")
             arguments = (["--capability", args.capability] if args.capability else [])
             return subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
                                    args.operation, *arguments, "--format", "json"]).returncode
+        elif args.command == "updates":
+            from tools.plugin_identity import inspect_installation
+            result, code = inspect_installation(ROOT, church), 0
         elif args.command == "start":
-            doctor = _doctor(args.workflow)
-            if doctor.get("status") != "ready":
-                result, code = doctor, 2
-            else:
-                skill = ROOT / "skills" / args.workflow / "SKILL.md"
-                if not skill.is_file():
-                    raise ValueError("The requested Handbuilt skill is missing; repair the installation")
-                result, code = {"status": "ready", "installation": installation(),
-                                "skill": str(skill), "runtime_python": doctor["runtime"]["python"],
-                                "next_action": "Read this exact skill and use this church's handbuilt.py for its supported operations. Ready here means the tools are available; check workflow readiness before producing."}, 0
-                result["handbuilt_run"] = str(_record(church, args.workflow, "start", result, doctor))
+            result, code = _start(church, args.workflow, skip_update=args.skip_update_check)
         else:
             result, code = execute(church, args.command, args.operation, args.arguments)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
         result, code = {"status": "blocked", "code": "handbuilt_connection_error", "message": str(exc)}, 2
     print(json.dumps(result, indent=2))
     return code

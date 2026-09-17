@@ -102,16 +102,18 @@ If the folder is in a different location, use the app's open-folder control or
 give the agent its path. It should read the existing `ONBOARDING.md` before
 asking setup questions again.
 
-After an update, return to the same private church folder before asking
-onboarding to reconnect it.
+Return to the same private church folder for weekly work. Your agent checks for
+routine workflow updates automatically, while preserving your church settings,
+local skills, and saved content. You do not need to track version numbers.
 
 ## Update the plugin
 
-Follow the [update instructions](../README.md#update-an-installation) in the
-installation guide. They include the verified Claude desktop update controls
-and optional advanced terminal commands. Confirm Handbuilt is enabled in the
-app's plugin settings, then start a new task. Your private church folder stays
-in place.
+Existing installations need one app-level update to receive the automatic
+workflow updater. Follow the [host update instructions](../README.md#update-an-installation),
+confirm Handbuilt is enabled, and start a new task. Your private church folder
+stays in place. The app's plugin panel may display a different version from the
+working tools. See [managed workflow updates](workflow-updates.md) for advanced
+troubleshooting and intentional version pinning.
 
 ## Change a preference
 

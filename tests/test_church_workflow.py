@@ -93,6 +93,7 @@ class ChurchConnectionTests(unittest.TestCase):
             bridge.connect(self.church)
         self.assertEqual(launcher.read_text(), "custom content")
         launcher.unlink()
+        shutil.rmtree(self.church / ".handbuilt")
         (self.church / ".handbuilt").symlink_to(self.base, target_is_directory=True)
         with self.assertRaises(ValueError):
             bridge.connect(self.church)

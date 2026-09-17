@@ -29,22 +29,27 @@ as workflow state. Edit them when the pastor requests that separate work.
 
 ## Start or resume
 
-Compare the saved plugin root in `.handbuilt/installation.json` with this
-app-loaded skill's plugin root. If they differ, reconnect using the installed
-[onboarding connection reference](../onboarding/references/connection-and-brand.md)
-before running the launcher. An old cache may still exist after an update.
+Run the app-loaded adapter once:
 
-Run `python3 "<church-folder>/handbuilt.py" start sermon-research` first.
-Read the returned skill path to confirm this installed Handbuilt workflow.
-The launcher selects the managed runtime and records the installation used.
+```bash
+python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+  --church-folder "<church-folder>" start sermon-research
+```
+
+Read the returned skill path to confirm this selected Handbuilt workflow. Use
+the returned `launcher` prefix, including its selected plugin root and managed
+Python, for every `orient` and `record` operation in this task. Do not run
+`start` again after reading the returned skill. The normal
+`church-folder/handbuilt.py start sermon-research` command remains valid for a
+person checking the connection manually.
 If the connection is missing, follow the onboarding connection reference to
 repair it for Handbuilt commands. Continue with another workflow when the
 pastor chooses one, without claiming it completed Handbuilt's checks.
 
-Run:
+Run the operation with the exact prefix returned by `start`:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" sermon-research orient --date <YYYY-MM-DD>
+<launcher-prefix> sermon-research orient --date <YYYY-MM-DD>
 ```
 
 For a scheduled run, add `--mode scheduled` to `orient` and every `record`
@@ -84,7 +89,7 @@ date-bound pastor confirmation, and one source's observed text and translation.
 Record the stage:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" sermon-research record --date <YYYY-MM-DD> \
+<launcher-prefix> sermon-research record --date <YYYY-MM-DD> \
   --stage readings --content-file <readings.md> \
   --metadata-file <readings-metadata.json>
 ```

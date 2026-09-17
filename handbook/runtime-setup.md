@@ -89,6 +89,12 @@ python3 handbuilt.py runtime verify
 The sample verifies the computer tools, not a church's actual bulletin. All
 source, layout-review, and final approval checks still apply to that bulletin.
 
+For workflow version selection, use the app-loaded `church_workflow.py start`
+command once before the workflow operation. It can select a verified managed
+release outside the host plugin cache. See [managed workflow updates](workflow-updates.md)
+for the returned launcher prefix, stable and pinned policies, and offline
+fallback.
+
 Read `runtime.python` from the JSON result and use that exact executable for
 bulletin rendering and booklet imposition. Do not fall back to bare `python3`
 for production after the managed runtime is ready.

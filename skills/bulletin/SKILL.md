@@ -26,15 +26,12 @@ The public production interface has four operations: `orient`, `produce`,
 
 ## 0. Confirm the bulletin runtime
 
-Compare the saved plugin root in `.handbuilt/installation.json` with this
-app-loaded skill's plugin root. If they differ, reconnect using the installed
-[onboarding connection reference](../onboarding/references/connection-and-brand.md)
-before running the launcher. An old cache may still exist after an update.
-
-Before interviewing the pastor or staging a bulletin, verify the connected skill and runtime:
+Before interviewing the pastor or staging a bulletin, run the app-loaded
+adapter once to select and verify the workflow:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" start bulletin
+python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+  --church-folder "<church-folder>" start bulletin
 ```
 
 The launcher renders and checks a temporary sample PDF. If it does not report
@@ -44,18 +41,23 @@ native tools or rendering libraries when those failed. Repeat `start bulletin`
 after repair. Do not ask the pastor to manage packages or use global Python.
 Passing this computer check does not replace the actual bulletin's checks.
 
-Read the exact skill path returned by `start`. The launcher selects the managed
-Python for production and records the installed workflow used. For supporting
-tools invoked directly, use the returned `runtime_python` executable. If the
-connection is missing, repair it through onboarding to use Handbuilt commands.
-A missing connection does not prevent the pastor from choosing another tool.
+Read the exact skill path returned by `start`. Use the returned `launcher`
+prefix, including its selected plugin root and managed Python, for every
+`orient`, `produce`, `revise`, and `finalize` operation in this task. Run
+`start` once per task and do not repeat it after reading the returned skill.
+For a supporting script with no adapter operation, use the returned
+`runtime_python` and returned skill path, never an app-cache path.
+The normal `church-folder/handbuilt.py start bulletin` command remains valid
+for a person checking the connection manually. If the connection is missing,
+repair it through onboarding. A missing connection does not prevent the pastor
+from choosing another tool.
 
 ## 1. Orient
 
-Run:
+Run the operation with the exact prefix returned by `start`:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" bulletin orient --date <YYYY-MM-DD>
+<launcher-prefix> bulletin orient --date <YYYY-MM-DD>
 ```
 
 Use the result to propose defaults from approved bulletin history and available
@@ -230,7 +232,7 @@ on the corresponding outer booklet cover, including legibility and proportions.
 Save the resolved input to a temporary JSON file, then run:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" bulletin produce --input <resolved-bulletin.json>
+<launcher-prefix> bulletin produce --input <resolved-bulletin.json>
 ```
 
 Production renders the selected template, creates the 11x17 booklet, runs the
@@ -257,7 +259,7 @@ If review requests a change, keep the prior package explicit and revise it with
 the fourth public operation:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" bulletin revise \
+<launcher-prefix> bulletin revise \
   --prior-run <prior-bulletin-production-receipt.json> \
   --input <revision-input.json>
 ```
@@ -285,7 +287,7 @@ reviewed artifact hashes from the production receipt. An optional `note` and
 `approved_at` may be included. Then run:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" bulletin finalize \
+<launcher-prefix> bulletin finalize \
   --receipt <bulletin-production-receipt.json> --approval <approval.json>
 ```
 

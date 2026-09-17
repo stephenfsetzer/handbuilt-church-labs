@@ -20,6 +20,12 @@ deletions; do not recreate a progress file the pastor deliberately removed.
 Before the folder exists, use the current conversation and fresh computer
 checks to resume; do not create a second church folder just to save setup state.
 
+After the private church folder exists, the workflow start check can select a
+verified managed release outside the host plugin cache. Read
+the managed update guidance in the workflow start result for the app-loaded,
+latest stable, and saved working identities. A release check does not replace
+the runtime doctor or the supported setup action below.
+
 ## Inspect together, then repair what is missing
 
 Use the [runtime guide](../../../handbook/runtime-setup.md). Run the workspace
