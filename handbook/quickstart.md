@@ -17,7 +17,7 @@
      `https://github.com/stephenfsetzer/handbuilt-church-labs.git`, then choose
      the offered URL option, then choose **Sync**. In **Discover**, choose
      **Add Handbuilt Church Labs**. Open
-     **Yours** and confirm version 0.5.0, three skills, and **Enable plugin** on.
+     **Yours** and confirm version 0.6.0, three skills, and **Enable plugin** on.
      Automatic sync does not need to be disabled. If enabling it asks for
      GitHub permissions you do not have, use **Sync** to finish installing.
      See the [installation and support guide](../README.md#installation-and-support) for optional
