@@ -75,6 +75,29 @@ class ChurchConnectionTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["code"], "handbuilt_not_connected")
         self.assertIn("Other work", json.loads(result.stdout)["message"])
 
+    def test_reconnect_preserves_research_preferences_and_custom_template(self):
+        setup = bridge._load_setup()
+        setup.update_standing(self.church, {
+            "church": {"tradition": "Wesleyan"},
+            "sermon": {"research_preferences": {
+                "priority_voices": ["Wesleyan interpreters"],
+                "language_depth": "technical",
+                "contemporary_context": False,
+            }},
+        })
+        template = self.church / "sermons/research-brief-template.md"
+        template.parent.mkdir(exist_ok=True)
+        template.write_text(
+            (bridge.ROOT / "skills/sermon-research/references/research-brief-template.md")
+            .read_text().replace("# Research Brief Template", "# Our study template")
+        )
+        expected_config = (self.church / "church.yaml").read_bytes()
+        expected_template = template.read_bytes()
+        bridge.connect(self.church)
+        bridge.connect(self.church)
+        self.assertEqual((self.church / "church.yaml").read_bytes(), expected_config)
+        self.assertEqual(template.read_bytes(), expected_template)
+
     def test_missing_installation_blocks_and_does_not_search_personal_skills(self):
         bridge.connect(self.church)
         path = self.church / ".handbuilt/installation.json"

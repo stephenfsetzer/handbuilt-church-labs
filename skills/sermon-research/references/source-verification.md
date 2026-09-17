@@ -33,7 +33,7 @@ source records). A bare selection object at the top level is rejected with
 
 The complete, valid example below is self-consistent: every field in
 `readings.md` matches `selection`, and each source's `observed_selection` is
-the complete normalized selection, not a summary of it. Adapt the values;
+the complete normalized selection with every field present. Adapt the values;
 keep the shape.
 
 <!-- example:lectionary-readings-metadata -->
@@ -113,6 +113,16 @@ keep the shape.
 
 If the sources disagree, stop. Resolve the reason, choose the church's stated
 authority, and record the discrepancy. Never average or silently choose.
+
+Calendar agreement establishes the appointed citations. A calendar may print
+a different Bible edition from the church's configured translation. Keep
+`selection.translation` as the church's setting and describe the calendar's
+actual edition in `supports`; the normalized `observed_selection` does not
+claim the calendar prints that edition. Open the primary passage separately
+in the configured translation, link that text in readings.md, and include it
+in the research ledger when used. Do not label a calendar's NRSV or BCP text
+as NRSVue. Record the exact dated calendar page or date locator used, even if
+the host also provides a generic weekly text page.
 
 `readings.md` must show every field the module checks: the common labels
 (Service date, Occasion, Selection mode, Primary research text, Translation),
@@ -290,9 +300,9 @@ the materially used ledger.
 ### Complete research metadata example
 
 The `record --stage research` metadata file combines `research_target` (see
-above), the full source ledger (at least four entries), and, for a brief
-under 2,500 words, a `scope_note`. This combined shape, not any one field
-alone, is what is most often missed without reading the module directly.
+above) and the full source ledger (at least four entries). A `scope_note` is
+optional context and remains compatible with older records; a shorter brief
+does not require one. Keep both required fields in the same metadata object.
 
 <!-- example:research-metadata -->
 ```json
@@ -347,8 +357,7 @@ alone, is what is most often missed without reading the module directly.
       "claim_support": "Supports the contemporary convergence example on humility and status",
       "currency_note": "Current as of the preaching date; refresh before reuse"
     }
-  ],
-  "scope_note": "A brief under 2,500 words needs this note explaining the narrowed scope."
+  ]
 }
 ```
 
@@ -402,6 +411,21 @@ of scholarship do not expire on a news cycle. Reporting, policy, officeholders,
 prices, program rules, and descriptions of current conditions can age quickly.
 Use a source current enough for the preaching date and say when an older source
 is intentionally historical.
+
+For cultural material, use `currency_note` to record the original publication
+or release date and any separate current coverage or renewed-relevance date,
+relative to the research run's as-of date. Do not substitute a crawl date or
+`retrieved_at` for a publication date. If a date cannot be established, do not
+claim the item meets a recent discovery window. Recheck current claims before
+reuse.
+
+Use `claim_support` for the exact page, section, scene, or transcript locator,
+what was actually accessed, and the claims it supports. Distinguish the source's
+argument from the researcher's proposed connection. If only a review, interview,
+or recap was opened, that is the cited evidence; it does not establish direct
+access to the underlying work. Show any limitation that changes how the pastor
+can use the claim. These details fit the existing ledger; no additional fields
+or visible research artifact are needed.
 
 ## Failure behavior
 

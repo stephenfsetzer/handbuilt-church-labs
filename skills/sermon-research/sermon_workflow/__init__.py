@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 import yaml
 
 
-IMPLEMENTATION_VERSION = "0.7.2"
+IMPLEMENTATION_VERSION = "0.7.4"
 # Small tolerance for ordinary clock skew between an agent's tool and this
 # runtime's clock; not a general allowance for imprecise timestamps.
 RETRIEVED_AT_CLOCK_SKEW = timedelta(minutes=5)
@@ -92,6 +92,27 @@ LOCALIZATION = re.compile(
     r"\byour (?:neighborhood|people|pews)\b|"
     r"\bthe parish is\b|"
     r"\bin your context\b",
+    re.I,
+)
+# The research brief is finished copy for the pastor. Notes about searches,
+# access, tools, or what the researcher did belong in run notes and the
+# ledger, never in the brief. Limits are expressed through attribution.
+PROCESS_LANGUAGE = re.compile(
+    r"\bthis (?:dossier|research run|research pass)\b|"
+    r"\b(?:for|by|in) this brief\b|\bthis brief(?:'s own| relies| does not| did not| has not)\b|"
+    r"\bthe researcher\b|"
+    r"\b(?:was|were|is|are) not (?:independently )?(?:opened|accessed|retrieved|viewed|watched|verified)\b|"
+    r"\bnot independently (?:opened|verified|watched|viewed|accessed|read)\b|"
+    r"\bcould not be (?:opened|accessed|verified|retrieved|located|confirmed)\b|"
+    r"\bcould not find any\b|"
+    r"\b(?:searches?|queries|a search) (?:into|for|of|across|in|on) [^.]{0,80}?(?:turned up|yielded|surfaced|found|returned)\b|"
+    r"\b(?:turned up|yielded|surfaced) nothing\b|"
+    r"\bno (?:strong )?(?:candidates?|sources?|works?) (?:was|were) found\b|"
+    r"\bnothing strong (?:surfaced|was found|emerged)\b|"
+    r"\b(?:full )?(?:article|text|pdf) (?:was|were|wasn't|weren't) (?:un)?available\b|"
+    r"\b(?:abstract|preview|landing page) only\b|"
+    r"\bpaywall|\bblocked host|\btool calls?\b|\bwebfetch\b|"
+    r"\bI (?:have not|haven't|did not|didn't|could not|couldn't|opened|watched|searched|read the)\b",
     re.I,
 )
 
@@ -1277,6 +1298,14 @@ def _validate_research(
             "Research must not claim knowledge of the pastor's local context",
             field="content",
         )
+    process_hit = PROCESS_LANGUAGE.search(content)
+    if process_hit:
+        raise WorkflowFailure(
+            "research_process_language",
+            "Research brief must read as finished copy; remove notes about searches, access, or what the researcher did"
+            f" (found: {process_hit.group(0)!r}); express a limit through attribution",
+            field="content",
+        )
     local_hits = [term for term in _church_local_terms(root) if term.lower() in content.lower()]
     if local_hits:
         raise WorkflowFailure(
@@ -1308,20 +1337,7 @@ def _validate_research(
             f"Research brief has {words} words; 1,200 is the mechanical floor",
             field="content",
         )
-    warnings = []
-    if words < 2500:
-        scope_note = str(metadata.get("scope_note", "")).strip()
-        if len(scope_note.split()) < 5:
-            raise WorkflowFailure(
-                "research_scope_unexplained",
-                "A research brief below 2,500 words requires a specific scope_note",
-                field="metadata.scope_note",
-            )
-        warnings.append({
-            "code": "research_below_typical_range",
-            "message": f"Research brief has {words} words; the typical range starts at 2,500",
-        })
-    return warnings
+    return []
 
 
 def _validate_content(

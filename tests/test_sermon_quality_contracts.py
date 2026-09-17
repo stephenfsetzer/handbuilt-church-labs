@@ -86,6 +86,34 @@ class SermonQualityContractTest(unittest.TestCase):
             {"invalid_research_shape", "reflection_stop_violated", "insufficient_citations", "research_too_short"},
         )
 
+    def test_concise_research_needs_no_scope_note_and_resumes_complete(self) -> None:
+        self._record_readings()
+        content = research_brief()
+        self.assertGreaterEqual(len(content.split()), 1200)
+        self.assertLess(len(content.split()), 2500)
+        metadata = research_metadata()
+        metadata.pop("scope_note")
+        result = record(self.church, self.target_date, "research", content, metadata)
+        self.assertEqual(result["status"], "recorded", result)
+        self.assertEqual(result.get("warnings", []), [])
+        resumed = orient(self.church, self.target_date)
+        self.assertEqual(resumed["workflow_state"], "research_complete")
+        self.assertEqual(resumed["next_actions"], [])
+
+    def test_concise_policy_preserves_minimum_depth_with_valid_structure(self) -> None:
+        self._record_readings()
+        content = research_brief().replace(
+            "This synthetic analysis tests whether the workflow preserves a developed argument. ",
+            "",
+            3,
+        )
+        self.assertLess(len(content.split()), 1200)
+        metadata = research_metadata()
+        metadata.pop("scope_note")
+        result = record(self.church, self.target_date, "research", content, metadata)
+        self.assertEqual(result["errors"][0]["code"], "research_too_short")
+        self.assertEqual(orient(self.church, self.target_date)["workflow_state"], "needs_research")
+
     def test_interpretive_conversations_require_live_questions(self) -> None:
         self._record_readings()
         no_questions = research_brief().replace(
@@ -140,6 +168,27 @@ class SermonQualityContractTest(unittest.TestCase):
         )
         result = record(self.church, self.target_date, "research", brief, research_metadata())
         self.assertEqual(result["errors"][0]["code"], "research_localization")
+
+    def test_process_language_in_research_is_blocked(self) -> None:
+        self._record_readings()
+        for leak in (
+            "Searches into popular music and literature turned up nothing strong.",
+            "Neither de Boer nor Josephus was opened directly for this brief.",
+            "The article text was unavailable, so no broader claim is made.",
+            "I have not independently viewed the series.",
+        ):
+            brief = research_brief().replace(
+                "## Pastoral Applications",
+                f"## Pastoral Applications\n\n{leak}",
+            )
+            result = record(self.church, self.target_date, "research", brief, research_metadata())
+            self.assertEqual(result["errors"][0]["code"], "research_process_language", leak)
+        clean = research_brief().replace(
+            "## Pastoral Applications",
+            "## Pastoral Applications\n\nRamshaw reports de Boer's estimate; the abstract of Magda's article supports only a caution.",
+        )
+        result = record(self.church, self.target_date, "research", clean, research_metadata())
+        self.assertEqual(result["status"], "recorded", result)
 
     def test_first_canonical_readings_file_can_be_adopted(self) -> None:
         sermon_dir = self.church / "sermons" / self.target_date
