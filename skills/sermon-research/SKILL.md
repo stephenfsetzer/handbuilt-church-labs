@@ -28,6 +28,10 @@ Existing pastor files such as `reflections.md` or `sermon-draft.md` remain
 pastor-owned. Do not change them as a side effect of research or interpret them
 as workflow state. Edit them when the pastor requests that separate work.
 
+Before changing church-local `CLAUDE.md` or `AGENTS.md`, and when asked to
+recover their earlier text, follow [Instruction recovery](../../handbook/instruction-recovery.md).
+Plugin updates preserve these files; never replace them with a newer scaffold.
+
 ## Start or resume
 
 Run the app-loaded adapter once:
@@ -142,8 +146,8 @@ Run two passes before recording research:
    [research-pass.md](references/research-pass.md) to open sources and keep
    compact working cards, judge sufficiency, then follow
    [writing-pass.md](references/writing-pass.md) to write the brief directly
-   from those cards. Do not hand the cards to another agent; you already hold
-   the sources. Save the draft before editing.
+   from those cards in the same context; do not delegate a separate writing
+   pass. Save the draft and give the editor the compact cards and locators.
 2. Edit, in a fresh agent context when available and authorized. Follow
    [editing-pass.md](references/editing-pass.md): the editor rechecks
    quotations and consequential claims against the sources with its fetches
@@ -156,6 +160,9 @@ editorial record in a private working directory outside the dated sermon
 folder; use the host's existing run directory when available. Include their
 paths in the run notes so an interrupted run can resume. They do not replace
 the source ledger or receipts. Keep run notes to a tally rather than a narrative.
+Save that tally as `run-notes.md` in the same private working directory.
+After each blocked `record` attempt, add its error code and the repair to the
+tally before retrying or handing off; keep these process details out of the research brief.
 Batch independent web fetches in one turn. Run the writing pass's preflight
 before the first `record` call, and add no source after it. An interactive
 run should reach `research_complete` in under ten minutes; a scheduled run

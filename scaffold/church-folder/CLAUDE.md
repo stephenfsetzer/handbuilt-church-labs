@@ -48,6 +48,14 @@ how the agent works here. Handbuilt Church Labs supplies optional workflows.
 - `bulletins/YYYY/MM/<week>/`: bulletin inputs, PDFs, and receipts
 - `music/`: private music files
 
+## Instruction recovery
+
+Handbuilt keeps local versions of CLAUDE.md and AGENTS.md when connecting or
+starting a workflow. Before and after an authorized edit to these instructions,
+use its recovery snapshot command. Ask the selected Handbuilt workflow for
+recovery guidance when comparing or restoring a saved version. Keep intentional
+deletions; a plugin update is not permission to restore or replace instructions.
+
 ## Working care
 
 Verify liturgical sources and preserve private material. Never invent a

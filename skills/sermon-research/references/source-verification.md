@@ -293,9 +293,10 @@ Every materially used research source receives one ledger record:
 ```
 
 `access_result` is `opened` or `verified`. A source mentioned by another
-writer remains indirect until the original is opened. Label an inaccessible
-or paywalled source in the prose if its absence matters, but do not put it in
-the materially used ledger.
+writer remains indirect until the original is opened. Record an inaccessible
+or paywalled source in private run notes when its absence matters; do not put
+it in the materially used ledger. In the brief, express a consequential limit
+through accurate attribution and cited scope, not a report about access.
 
 ### Complete research metadata example
 
@@ -431,7 +432,8 @@ or visible research artifact are needed.
 
 - Broken link: find the canonical replacement or remove the claim.
 - Only a snippet available: do not cite the snippet as read evidence.
-- Source unavailable: name the gap if it matters.
+- Source unavailable: record the gap in private run notes if it matters;
+  remove unsupported claims and keep access reports out of the brief.
 - Conflicting authorities: stop and explain the conflict.
 - Attractive quote with uncertain provenance: omit it.
 - Current example with stale support: refresh it or remove it.

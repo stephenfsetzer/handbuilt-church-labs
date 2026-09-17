@@ -25,6 +25,8 @@ REQUIRED_FILES = (
     "tools/handbuilt_runtime.py",
     "tools/workflow_updates.py",
     "tools/plugin_identity.py",
+    "tools/instruction_recovery.py",
+    "handbook/instruction-recovery.md",
     "requirements.txt",
     "LICENSE",
     "scaffold/church-folder/handbuilt.py",

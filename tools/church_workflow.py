@@ -104,6 +104,8 @@ def _connect(church_folder: str | Path, *, update_policy: str | None, automatic:
     info = installation()
     info.update({"schema_version": 1, "launcher_sha256": hashlib.sha256(expected).hexdigest(),
                  "update_policy": policy})
+    from tools.instruction_recovery import snapshot
+    recovery = snapshot(church, reason="connection")
     metadata.parent.mkdir(parents=True, exist_ok=True)
     originals = {path: path.read_bytes() if path.exists() else None for path in (launcher, metadata)}
     try:
@@ -117,6 +119,7 @@ def _connect(church_folder: str | Path, *, update_policy: str | None, automatic:
                 _atomic_bytes(path, content)
         raise
     return {"status": "connected", "church_folder": str(church), "installation": info,
+            "instruction_recovery": recovery,
             "next_action": "Run python3 handbuilt.py start onboarding from the church folder."}
 
 
@@ -144,6 +147,8 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
     if pinned and saved_root != ROOT.resolve():
         return {"status": "blocked", "code": "pinned_connection", "identity": identity,
                 "message": "This church has an intentional pinned workflow. Keep using that connection unless a change is requested."}, 2
+    from tools.instruction_recovery import snapshot
+    recovery = snapshot(church, reason="workflow_start")
     selected = ROOT.resolve()
     store = default_runtime_root().parent / "workflows"
     def validate(candidate):
@@ -199,6 +204,7 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
                 "message": "A newer church connection was preserved. Start again using that saved connection."}, 2
     identity = inspect_installation(ROOT, church, updates.get("latest"))
     result = {"status": "ready", "installation": installation(), "identity": identity,
+              "instruction_recovery": recovery,
               "updates": updates, "skill": str(skill), "runtime_python": doctor["runtime"]["python"],
               "launcher": [doctor["runtime"]["python"], str(ROOT / "tools/church_workflow.py"),
                            "--church-folder", str(church)],
@@ -291,6 +297,17 @@ def main() -> int:
     connection = sub.add_parser("connect")
     connection.add_argument("--update-policy", choices=("stable", "pinned"))
     sub.add_parser("updates")
+    recovery = sub.add_parser("recovery", help="Review and recover church instruction files")
+    recovery_sub = recovery.add_subparsers(dest="recovery_operation", required=True)
+    recovery_snapshot = recovery_sub.add_parser("snapshot")
+    recovery_snapshot.add_argument("--reason", choices=("before_instruction_edit", "after_instruction_edit", "manual"), default="manual")
+    recovery_sub.add_parser("history")
+    for action in ("show", "restore"):
+        command = recovery_sub.add_parser(action)
+        command.add_argument("--snapshot", required=True)
+        command.add_argument("--file", required=True, choices=("CLAUDE.md", "AGENTS.md"))
+        if action == "restore":
+            command.add_argument("--expected-sha256", required=True)
     start = sub.add_parser("start")
     start.add_argument("workflow", choices=("onboarding", "bulletin", "sermon-research"))
     start.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
@@ -315,6 +332,17 @@ def main() -> int:
         elif args.command == "updates":
             from tools.plugin_identity import inspect_installation
             result, code = inspect_installation(ROOT, church), 0
+        elif args.command == "recovery":
+            from tools import instruction_recovery
+            if args.recovery_operation == "snapshot":
+                result = instruction_recovery.snapshot(church, args.reason)
+            elif args.recovery_operation == "history":
+                result = instruction_recovery.list_snapshots(church)
+            elif args.recovery_operation == "show":
+                result = instruction_recovery.show_snapshot(church, args.snapshot, args.file)
+            else:
+                result = instruction_recovery.restore(church, args.snapshot, args.file, args.expected_sha256)
+            code = 0
         elif args.command == "start":
             result, code = _start(church, args.workflow, skip_update=args.skip_update_check)
         else:

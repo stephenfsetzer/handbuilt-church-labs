@@ -11,8 +11,18 @@ from tests.helpers import make_church
 with tempfile.TemporaryDirectory(prefix='handbuilt-update-smoke-') as tmp:
     base = Path(tmp).resolve()
     church = make_church(base)
+    for relative, text in {
+        'CLAUDE.md': '# Local instructions\n\n## Sermon help\nAsk about my week first.\n',
+        'AGENTS.md': '# My church choices\nPreserve my preferences.\n',
+        'skills/local-newsletter/SKILL.md': '# Local newsletter\nUse our local template.\n',
+        'skills/local-newsletter/template.md': '# Parish news\n',
+    }.items():
+        path = church / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    (church / 'START-HERE.md').unlink()
     host = base / 'host'
-    for relative in ('tools', 'skills', 'scaffold', '.codex-plugin', '.claude-plugin'):
+    for relative in ('tools', 'skills', 'scaffold', 'handbook', '.codex-plugin', '.claude-plugin'):
         shutil.copytree(bridge.ROOT / relative, host / relative, ignore=shutil.ignore_patterns('__pycache__'))
     for name in ('requirements.txt', 'LICENSE'):
         shutil.copy(bridge.ROOT / name, host)
@@ -45,6 +55,10 @@ with tempfile.TemporaryDirectory(prefix='handbuilt-update-smoke-') as tmp:
     assert result['installation']['plugin_version'] == next_version, result
     assert result['app_loaded_identity']['version'] == host_version, result
     assert all((church / name).read_bytes() == data for name, data in before.items())
+    assert not (church / 'START-HERE.md').exists()
+    history = subprocess.run(result['launcher'] + ['recovery', 'history'], capture_output=True, text=True)
+    assert history.returncode == 0, history.stdout + history.stderr
+    assert json.loads(history.stdout)['snapshots'], history.stdout
     # Run a real workflow using the fixed returned prefix, outside the church cwd.
     process = subprocess.run(result['launcher'] + ['sermon-research', 'orient', '--date', '2026-09-13'], cwd=base, capture_output=True, text=True)
     assert process.returncode == 0, process.stdout + process.stderr

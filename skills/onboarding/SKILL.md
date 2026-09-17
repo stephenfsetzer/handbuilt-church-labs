@@ -8,10 +8,10 @@ description: "Set up my church workspace: create or resume a private church fold
 Create a private church folder, a useful church profile, and a visible progress
 record. Recover source facts before asking the pastor for configuration details.
 
-The pastor owns this workspace and may add, edit, replace, or remove its
-instructions, skills, and files. This skill governs requested Handbuilt setup.
-It does not restrict other work. Read [Workspace customization](../../handbook/workspace-customization.md)
-for local skills, custom editing, or updating an existing folder's instructions.
+The pastor owns this workspace and may change its instructions, skills, and files.
+This skill governs Handbuilt setup; it does not restrict other work. For local edits,
+read [Workspace customization](../../handbook/workspace-customization.md); before editing or restoring instructions,
+use [Instruction recovery](../../handbook/instruction-recovery.md).
 
 Read supporting references when their stage is reached:
 

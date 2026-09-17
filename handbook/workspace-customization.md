@@ -35,6 +35,11 @@ want it to work, or edit the files yourself. You can remove them and the
 welcome documents without changing readiness for Handbuilt workflows whose
 required configuration and sources still exist.
 
+Handbuilt keeps local recovery copies of those two files during connection and
+workflow startup. Before and after a requested instruction edit, the agent
+uses [instruction recovery](instruction-recovery.md) to save versions. You can
+ask to compare or restore an earlier version without managing backup paths.
+
 A request to update these instructions or use another workflow is sufficient
 direction. The agent must not demand plugin permission or ask you to uninstall
 Handbuilt first. A missing Handbuilt connection affects its own commands;
@@ -82,7 +87,7 @@ Update this workspace so I can use local skills and edit my own files.
 Keep my existing preferences and work.
 ```
 
-The agent should back up existing instruction files, then replace only the
+The agent should use the instruction recovery snapshot command, then replace only the
 Handbuilt clauses that claim exclusive control, forbid other skills, or forbid
 authorized custom edits. Preserve local additions and follow the pastor's
 chosen wording. Add local skill guidance if requested. Do not replace whole

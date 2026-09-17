@@ -5,7 +5,8 @@ execution, and Contemporary Convergence, plus the source-verification ledger
 schema and claim-support rules. This pass and the writing pass run in the
 same context: you open the sources, keep compact working cards, and then
 write the brief yourself. The cards are your notes and the seed of the
-source ledger; no other agent reads them as a document. Do not write a finished
+source ledger, and the editor uses them to locate evidence for independent
+rechecking. Do not delegate a separate writing pass. Do not write a finished
 brief until the sufficiency judgment is made.
 
 Start with two to four live questions raised by the passage. Find arguments

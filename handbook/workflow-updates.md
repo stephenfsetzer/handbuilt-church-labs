@@ -27,6 +27,14 @@ asset checksum and file manifest, checks the package identity and runtime, and
 only then saves the new connection. The release check sends no church content
 or credentials. A package that cannot pass validation is not selected.
 
+Updates preserve church-owned instructions, settings, local skills, and work.
+Startup can write the connection record, the supplied launcher if uncustomized, and
+local instruction snapshots under `.handbuilt/recovery/`; operations also write
+their run receipts. It never copies a newer scaffold into an existing church.
+See [Instruction recovery](instruction-recovery.md) for comparing and restoring
+the two instruction files. Configuration or content migrations are separate
+changes and must preserve local additions rather than reset files to defaults.
+
 The start result reports the app-loaded identity, the selected working release,
 and an exact `launcher` command prefix. Read the returned skill at the path it
 provides, then use that returned prefix for every operation in the task. This

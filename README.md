@@ -111,6 +111,10 @@ Your workspace is yours to change. Add local skills under `skills/`, edit
 adapt or remove local files without plugin permission. Reconnecting Handbuilt
 preserves your changes. See [Make your church workspace your own](handbook/workspace-customization.md).
 
+Handbuilt saves local recovery copies of your church's `CLAUDE.md` and
+`AGENTS.md` during setup and workflow startup. Ask your agent to compare earlier
+versions or restore one you choose. See [Instruction recovery](handbook/instruction-recovery.md).
+
 The agent reads the current setting, saves the confirmed change, and explains
 its scope. Existing approved work remains available. A change that affects an
 existing result may require that result to be regenerated. Directory and
@@ -119,7 +123,7 @@ readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 
-Install Handbuilt Church Labs version 0.6.1 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
+Install Handbuilt Church Labs version 0.6.2 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
 The point-and-click path below is the primary path for pastors. The repository
 is public, so manual installation does not require a GitHub access grant.
 
@@ -155,7 +159,7 @@ https://github.com/stephenfsetzer/handbuilt-church-labs.git
 
 Choose the offered **Use [pasted URL]** option, then choose **Sync**.
 In **Discover**, choose **Add Handbuilt Church Labs**.
-Open **Yours** and confirm that the detail view shows version 0.6.1, three
+Open **Yours** and confirm that the detail view shows version 0.6.2, three
 skills, and **Enable plugin** on. The success message is
 “Handbuilt Church Labs is installed and ready to use.”
 

@@ -116,5 +116,5 @@ lyrics limits. The pastor's fluency shapes selection without replacing evidence.
 2. Prefer primary sources for quotations and historical claims.
 3. Record publication and retrieval dates.
 4. Find the counterargument to a vivid detail.
-5. Name important material that was unavailable.
+5. Record important unavailable material in private run notes, not the brief.
 6. Use the source ledger and cite support where the claim appears.

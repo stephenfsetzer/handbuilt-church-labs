@@ -24,6 +24,10 @@ reusable part, or reviewing a scope or layout question.
 The public production interface has four operations: `orient`, `produce`,
 `revise`, and `finalize`.
 
+Before changing church-local `CLAUDE.md` or `AGENTS.md`, and when asked to
+recover their earlier text, follow [Instruction recovery](../../handbook/instruction-recovery.md).
+Plugin updates preserve these files; never replace them with a newer scaffold.
+
 ## 0. Confirm the bulletin runtime
 
 Before interviewing the pastor or staging a bulletin, run the app-loaded
