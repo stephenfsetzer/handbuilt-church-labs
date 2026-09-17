@@ -14,6 +14,7 @@ from skills.bulletin.renderer.render_bulletin import (
     build_css,
     build_full_content,
     closing_hymn_position,
+    configured_liturgy_file,
     footer_line,
     gospel_acclamation_choice,
     gospel_block,
@@ -25,12 +26,73 @@ from skills.bulletin.renderer.render_bulletin import (
     _qr_copy,
     qr_block,
     psalm_block,
+    resolved_service_display,
     service_variant_order,
 )
 import skills.bulletin.renderer.render_bulletin as renderer
 
 
 class BulletinRendererSemanticsTest(unittest.TestCase):
+    def test_variant_name_never_becomes_the_cover_title(self) -> None:
+        church = {"service_line": "Standing service"}
+        cfg = {"service": {}, "liturgy": {"service_plan": "episcopal-rite-ii",
+               "service_variant": {"id": "festival", "name": "Festival order"}}}
+        self.assertEqual(resolved_service_display(cfg, church), "Standing service")
+        cfg["liturgy"]["service_variant"]["display_name"] = "Festival Eucharist"
+        self.assertEqual(resolved_service_display(cfg, church), "Festival Eucharist")
+
+    def test_music_label_override_is_escaped(self) -> None:
+        html = hymn_block("Entrance Hymn", {"label": '<Sung & Shared>'}, Path("/tmp"))
+        self.assertIn("&lt;Sung &amp; Shared&gt;", html)
+        self.assertNotIn("<Sung & Shared>", html)
+
+    def test_configured_logical_file_and_unit_override_use_staged_source(self) -> None:
+        cfg = {"liturgy": {"prayers_of_the_people": "III",
+                            "files": {"prayers_of_the_people": "church-prayers"}}}
+        self.assertEqual(configured_liturgy_file(cfg, "prayers_of_the_people"), "church-prayers")
+        seen = []
+        liturgy_steps({"replace": {}, "insert": {}}, "prayers_of_the_people",
+                      {"liturgy_files": cfg["liturgy"]["files"]},
+                      renderer=lambda identifier, _ctx, **_kwargs: seen.append(identifier) or "ok",
+                      default_unit="prayers-of-the-people")
+        self.assertEqual(seen, ["prayers_of_the_people"])
+
+    def test_explicit_omitted_logical_unit_skips_replacement_and_insertions(self) -> None:
+        rendered = liturgy_steps(
+            {"replace": {"peace": ["local-peace"]}, "insert": {"peace": ["silence"]}},
+            "peace", {"omitted_units": ["peace"]},
+            renderer=lambda identifier, _ctx, **_kwargs: identifier,
+        )
+        self.assertEqual(rendered, "")
+
+    def test_empty_communion_welcome_does_not_inherit_brand_text(self) -> None:
+        cfg = bulletin_input()
+        cfg["liturgy"].update({
+            "eucharistic_prayer": "A", "lords_prayer": "traditional",
+            "prayers_of_the_people": "III", "blessing": "omit",
+            "communion_welcome": "",
+        })
+        brand = {"church": {"name": "Synthetic Church"}, "colors": {},
+                 "texts": {"communion_welcome": "Standing invitation."}}
+        html = build_full_content(cfg, brand, Path("/tmp"), Path("/tmp"), "classic")
+        self.assertNotIn("Standing invitation.", html)
+
+    def test_modern_creed_aligns_to_dialogue_text_and_can_flow(self) -> None:
+        css = (Path(__file__).parents[1] / "skills" / "bulletin" / "renderer"
+               / "themes" / "modern.css").read_text()
+        self.assertIn(".dialogue .speaker { width: 0.9in; }", css)
+        congregational = css.split(".congregational", 1)[1].split("}", 1)[0]
+        self.assertIn("margin-left: 1in;", congregational)
+        self.assertNotIn("break-inside:", congregational)
+        base_css = (Path(__file__).parents[1] / "skills" / "bulletin" / "renderer"
+                    / "themes" / "base.css").read_text()
+        base_congregational = base_css.split(".congregational", 1)[1].split("}", 1)[0]
+        self.assertIn("break-inside: avoid;", base_congregational)
+        self.assertIn(".cong-line", css)
+        creed = renderer.liturgy_section("nicene-creed", {})
+        self.assertGreaterEqual(creed.count('class="congregational"'), 3)
+        self.assertNotIn('class="section keep-together"', creed)
+
     def test_psalm_response_preserves_bold_markup(self) -> None:
         html = psalm_block({
             "number": "105:1",
@@ -117,6 +179,15 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
         self.assertNotIn("Taylor Kim", html)
         self.assertIn("Morgan Lee", html)
 
+    def test_serving_today_requires_an_explicit_true_option(self) -> None:
+        brand = {"church": {"name": "Synthetic"}, "leadership": {"print_in_bulletin": False}}
+        service = {"serving": [{"role": "Reader", "name": "Morgan Lee"}]}
+        for options in ({}, {"include_serving_today": None}, {"include_serving_today": False}):
+            with self.subTest(options=options):
+                html = announcements_block({"service": service, "options": options}, brand, Path("/tmp"))
+                self.assertNotIn("Serving Today", html)
+                self.assertNotIn("Morgan Lee", html)
+
     def test_variant_is_resolved_without_loading_plugin_order_files(self) -> None:
         cfg = {"liturgy": {"service_variant": {
             "id": "special",
@@ -190,7 +261,7 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
         brand = {"church": {"name": "Synthetic"}, "texts": {}}
         omitted = {"liturgy": {"blessing": "omit"}}
         self.assertEqual(blessing_block(omitted, brand, {}), "")
-        staged = {"liturgy": {"blessing": "local-blessing", "files": {"local-blessing": "dismissal"}}}
+        staged = {"liturgy": {"blessing": "local-blessing", "files": {"blessing": "dismissal"}}}
         self.assertIn("The Blessing", blessing_block(
             staged, brand, {"liturgy_files": staged["liturgy"]["files"]}))
         inline = {"liturgy": {"blessing": "A private blessing."}}

@@ -81,7 +81,9 @@ class BulletinPresentationTest(unittest.TestCase):
         self.assertEqual(resolved_service_display(cfg, {}), "Holy Communion")
         self.assertEqual(resolved_service_display(cfg, {"service_line": "Sunday Communion"}),
                          "Sunday Communion")
-        cfg["liturgy"]["service_variant"] = {"id": "baptism", "name": "Holy Baptism"}
+        cfg["liturgy"]["service_variant"] = {
+            "id": "baptism", "name": "Holy Baptism", "display_name": "Holy Baptism",
+        }
         self.assertEqual(resolved_service_display(cfg, {}), "Holy Baptism")
         cfg["service"] = {"display_name": "Parish Eucharist"}
         self.assertEqual(resolved_service_display(cfg, {}), "Parish Eucharist")

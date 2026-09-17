@@ -339,7 +339,7 @@ def liturgy_section(name, ctx, head=None):
     html = render_blocks(blocks, ctx)
     # Short sections (a few dialogue lines and rubrics) stay on one page
     n_content = sum(1 for k, _ in blocks if k != "title")
-    if n_content <= 6 and "<img" not in html:
+    if n_content <= 6 and "<img" not in html and 'class="congregational"' not in html:
         return f'<div class="section keep-together">{section_head(title) if title else ""}\n{html}</div>'
     return keep_or_flow(title, html)
 
@@ -347,6 +347,9 @@ def liturgy_section(name, ctx, head=None):
 def configured_liturgy_file(cfg, key, legacy_key=None, migration_default=None):
     """Resolve a liturgy identifier without selecting a worship variable."""
     liturgy = cfg.get("liturgy", {})
+    files = liturgy.get("files", {}) if isinstance(liturgy, dict) else {}
+    if isinstance(files, dict) and files.get(key):
+        return files[key]
     value = liturgy.get(key) if isinstance(liturgy, dict) else None
     if not str(value or "").strip() and legacy_key:
         value = cfg.get("options", {}).get(legacy_key)
@@ -482,7 +485,7 @@ def resolved_service_display(cfg, church):
     service = cfg.get("service", {}) or {}
     liturgy = cfg.get("liturgy", {}) or {}
     variant = liturgy.get("service_variant") if isinstance(liturgy, dict) else None
-    variant_name = (variant.get("name") if isinstance(variant, dict)
+    variant_name = (variant.get("display_name") if isinstance(variant, dict)
                     and variant.get("id") != "none" else None)
     plan_name = {"episcopal-rite-ii": "Holy Eucharist, Rite II",
                  "lutheran-holy-communion": "Holy Communion"}.get(
@@ -539,6 +542,7 @@ def sized_img(path, cls, content_w=7.3, max_h=8.2, max_upscale=1.25):
 def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=None, lead_in=""):
     if not hymn:
         return ""
+    label = esc(str(hymn.get("label", label) or ""))
     num = hymn.get("number")
     title = hymn.get("title", "")
     tune = hymn.get("tune")
@@ -1079,7 +1083,7 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
     lis = "\n".join(lis_parts)
     svc = cfg["service"]
     options = cfg.get("options", {}) or {}
-    serving_enabled = options.get("include_serving_today", True)
+    serving_enabled = options.get("include_serving_today") is True
     allowed_roles = options.get("serving_roles") or []
     if isinstance(allowed_roles, str):
         allowed_roles = [allowed_roles]
@@ -1123,13 +1127,13 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
     sections = []
     if items:
         sections.append(f'<div class="section">{section_head("Announcements")}{lis}</div>')
-    if ppl:
-        sections.append(f'<div class="section">{keep(section_head("Serving Today"), ppl)}</div>')
     if include_qr:
         sections.append(qr_block(brand, repo_root))
     after_service = parish_information_block(cfg, "after_service")
     if after_service:
         sections.append(after_service)
+    if ppl:
+        sections.append(f'<div class="section">{keep(section_head("Serving Today"), ppl)}</div>')
     directory = leadership_directory_block(brand)
     if directory:
         sections.append(directory)
@@ -1274,6 +1278,11 @@ def service_variant_order(cfg, service_plan=None):
 def liturgy_steps(order, unit, ctx, renderer=None, default_unit=None, **kwargs):
     """Render one stable logical unit plus variant replacements and inserts."""
     render = renderer or liturgy_section
+    omitted = ctx.get("omitted_units") or ()
+    if unit in omitted:
+        return ""
+    if (ctx.get("liturgy_files") or {}).get(unit):
+        default_unit = unit
     replacement = order.get("replace", {}).get(unit, [default_unit or unit])
     out = []
     for index, identifier in enumerate(replacement):
@@ -1313,8 +1322,8 @@ def blessing_block(cfg, brand, ctx):
         return ""
     files = liturgy.get("files") if isinstance(liturgy.get("files"), dict) else {}
     shipped = LITURGY_DIR / f"{value}.md" if value else None
-    if value and (value in files or (shipped is not None and shipped.is_file())):
-        return liturgy_section(value, ctx, head="The Blessing")
+    if value and (files.get("blessing") or value in files or (shipped is not None and shipped.is_file())):
+        return liturgy_section(files.get("blessing") or value, ctx, head="The Blessing")
     if not value:
         return ""
     return ('<div class="section">' + section_head("The Blessing")
@@ -1339,8 +1348,13 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
         liturgy = {}
     ctx = {
         "proper_preface": cfg.get("proper_preface"),
-        "communion_welcome": liturgy.get("communion_welcome") or brand.get("texts", {}).get("communion_welcome"),
+        # An explicitly empty weekly welcome turns the optional rubric off.
+        # Only an absent weekly field inherits the church's standing text.
+        "communion_welcome": (liturgy.get("communion_welcome")
+                              if "communion_welcome" in liturgy
+                              else brand.get("texts", {}).get("communion_welcome")),
         "liturgy_files": liturgy.get("files", {}),
+        "omitted_units": liturgy.get("omitted_units") or (),
         "prayer_presentation": liturgy.get("prayer_presentation", "continuous"),
         "rubric_style": liturgy.get("rubric_style", "concise"),
     }
@@ -1516,13 +1530,15 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
         "proper_preface": cfg.get("proper_preface"),
         "communion_welcome": liturgy.get("communion_welcome"),
         "liturgy_files": liturgy.get("files", {}),
+        "omitted_units": liturgy.get("omitted_units") or (),
         "prayer_presentation": liturgy.get("prayer_presentation", "continuous"),
         "rubric_style": liturgy.get("rubric_style", "concise"),
     }
 
     def section(identifier, label, logical=None):
         logical = logical or identifier
-        if (identifier not in ctx["liturgy_files"]
+        if (logical not in ctx["omitted_units"]
+                and identifier not in ctx["liturgy_files"]
                 and logical not in variant.get("replace", {})):
             raise ValueError(f"Lutheran service plan is missing liturgy.files.{identifier}")
         return liturgy_steps(variant, logical, ctx, default_unit=identifier, head=label)

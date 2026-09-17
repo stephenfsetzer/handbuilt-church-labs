@@ -39,6 +39,34 @@ The profile is intentionally not a Markdown posture document. The workflow
 can show a plain-language summary in conversation while keeping one canonical
 machine-readable record.
 
+## Recurring service catalog
+
+`catalog` is optional and uses schema version 1. It contains stable service
+ids, reusable private liturgy parts, and their selected use at church and
+service scope. A catalog entry has `services`, `parts`, optional
+`default_service`, and optional church-wide `part_selections`. A service may
+set `defaults`, `sources`, `files`, `part_selections`, `default_variant`,
+`time`, and `display_name`.
+
+For a church adopting a catalog after earlier bulletins exist, optional
+`legacy_service` names the one stable service id that owns the pre-catalog
+history. It records the association only. It does not rename, move, rewrite,
+or otherwise alter earlier artifacts or history records. The resolver marks
+only that service's `main` occurrence as inheriting legacy history.
+
+Part ids and service ids use lowercase letters, digits, and hyphens. A part
+names one supported service-plan unit and one verified church-relative source
+file. Selecting a part applies its file after church, service, and variant
+choices are settled. Missing selections inherit; `null` asks for a choice.
+Only the Nicene Creed, confession, doxology, blessing, and communion welcome
+may use `omit`. A recurring service selection is made in weekly input with
+`service.service_id`; its optional `service.occurrence_id` defaults to `main`.
+
+The resolver reports `service_context`, `choice_origins`, selected `parts`,
+and `liturgy.omitted_units`. It uses a compatibility ordinary service when a
+catalog is absent, without rewriting the church profile. A church with a
+catalog but no default service requires an explicit weekly service choice.
+
 ## Service variants
 
 `service_variants` is an optional mapping keyed by a church-chosen variant id.
@@ -53,3 +81,6 @@ merges the base before the child. The resulting service variant is placed at
 `liturgy.service_variant`, while its source map is merged into
 `liturgy.files` for the production staging interface. Weekly input must supply
 `service.variant`; it is never inferred from a denomination, date, or history.
+When a catalog service declares `default_variant`, that explicitly saved
+default may be used for the service. Variant entries may also declare
+`defaults`, `sources`, `part_selections`, and a `service_ids` allowlist.

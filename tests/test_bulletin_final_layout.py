@@ -60,6 +60,7 @@ class WeeklyServingCreditDedupTests(unittest.TestCase):
                 _set_leadership_with_overlap(church)
                 bulletin = bulletin_input()
                 bulletin["template"] = template
+                bulletin.setdefault("options", {})["include_serving_today"] = True
                 bulletin["service"]["serving"] = [
                     {"role": "Livestream Director", "name": "Synthetic Overlap A"},
                     {"role": "Altar Guild", "name": "Synthetic Overlap B"},
@@ -85,6 +86,7 @@ class WeeklyServingCreditDedupTests(unittest.TestCase):
                 church = make_church(Path(tmp))
                 bulletin = bulletin_input()
                 bulletin["template"] = template
+                bulletin.setdefault("options", {})["include_serving_today"] = True
                 # bulletin_input's default already names the same person as
                 # both celebrant and preacher.
                 self.assertEqual(bulletin["service"]["celebrant"], bulletin["service"]["preacher"])
@@ -102,6 +104,7 @@ class WeeklyServingCreditDedupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             bulletin = bulletin_input()
+            bulletin.setdefault("options", {})["include_serving_today"] = True
             bulletin["service"]["serving"] = [
                 {"role": "Reader", "name": "Synthetic Same Person"},
                 {"role": "Reader", "name": "Synthetic Same Person"},

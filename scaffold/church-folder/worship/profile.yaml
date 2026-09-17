@@ -46,6 +46,10 @@ sources:
   blessing: ""
   communion_welcome: ""
 
+# Standing local unit text, applied to ordinary services without a variant.
+# Map a unit such as peace to a verified church-relative source file.
+files: {}
+
 # Optional recurring orders. Keys are private, church-chosen variant ids.
 # Each entry must name a church-relative order file and a confirmation policy.
 service_variants: {}

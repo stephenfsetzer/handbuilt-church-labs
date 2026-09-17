@@ -62,7 +62,17 @@ body {
 .lyrics-speaker { width: 1.15in; }
 
 .rubric, .speaker-mark { color: $rubric; }
-.congregational { margin-left: 0.9in; }
+/* The body of dialogue begins after its speaker column. The table's cell
+   spacing makes that start 1in from the text rail, which keeps the Creed's
+   first word aligned with dialogue text. */
+.congregational {
+    margin-left: 1in;
+}
+.cong-line {
+    break-inside: avoid;
+    orphans: 2;
+    widows: 2;
+}
 .connect-give { padding-left: 1.55in; }
 .connect-give .section-head { top: 2pt; }
 .cg-grid { display: table; width: 100%; table-layout: fixed; }

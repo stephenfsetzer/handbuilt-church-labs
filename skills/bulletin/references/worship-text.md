@@ -44,6 +44,26 @@ rubrics, and a literal tab between a speaker and the words. For a congregation
 response, bold the complete speaker-and-text line. Blank lines separate
 paragraphs. Source notes belong in HTML comments and do not print.
 
+## Printed headings and source records
+
+Compare the supplied source's visible headings with the headings in the
+formatted text and the rendered bulletin. A source label, provenance field,
+import classification, or internal part name is metadata. Keep it in the
+source record, comments, or catalog data; never promote it to a printed
+heading by inference. A heading is part of the church's visible wording and
+must be checked as content.
+
+Preserve a supplied printed heading when the text is carried forward. If the
+pastor intentionally changes or adds a printed heading, save that as an
+authorized wording change and retain the source comparison separately. Do not
+silently rewrite a heading to match a catalog label, source classification,
+or provenance note. If the source and output headings differ without an
+explicit authorized change, stop the content check and ask for a resolution.
+
+The presence of a familiar heading does not prove that the body below it is
+complete. Compare the actual paragraphs, responses, and rubrics with the
+source before recording verification.
+
 Compare the formatted text with every paragraph of the relevant source pages
 before recording verification. Preserve general petitions, responses, and
 local wording even when adjacent paragraphs contain weekly names. A petition

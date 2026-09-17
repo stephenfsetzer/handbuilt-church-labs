@@ -22,6 +22,8 @@ Read supporting references when their stage is reached:
 - [Worship onboarding](references/worship-onboarding.md) after the private
   folder exists and the pastor can provide a bulletin or use the fallback
   questions.
+  when onboarding identifies more than one recurring service, a reusable part,
+  or a scoped change that must carry into later bulletins.
 
 ## Source roles
 
@@ -38,6 +40,9 @@ bulletin deliberately supplied for onboarding is the church's working template
 until the pastor changes it. Carry its observable structure forward without
 asking the pastor to approve each section separately. Keep date-specific
 readings, hymns, petitions, announcements, and names as weekly replacements.
+
+For recurring services and reusable parts, follow [Service design](../bulletin/references/service-design.md).
+Recover saved choices, recommend the closest order, verify scoped saves, and explain what carries forward.
 
 ## Proactive working-template contract
 
@@ -216,14 +221,11 @@ small named patch, and writes only standing settings the bulletin and sermon
 workflows already consume; it refuses paths inside the Labs repository,
 either plugin cache, or a symlink into those locations. `status` reports
 actual folder, bulletin, sermon, and first-result readiness from the files.
-Use `--scope standing` for reusable church practice, such as the service book,
-prayer forms, roster, footer, lectionary settings, translation, research
-preferences, and the Classic or Modern bulletin choice. Use the weekly
-bulletin or sermon workflow for a date-specific preacher, celebrant, reading,
-hymn, petition, announcement, or assignment. A weekly value must never be
-copied into the standing roster, and this helper never edits history or sermon
-files. A preference change stated in ordinary language follows the same
-validated standing update path.
+Use `--scope standing` for church defaults and `--scope service --service-id
+<id>` for a saved service's usual choices. See the service-design reference
+for previews, affected services, and stale-update protection. Keep dated
+assignments and exceptions in the weekly workflow. This helper never edits
+history or sermon files.
 For a request that also prepares weekly clergy assignments or bulletin work,
 read the bulletin skill and use its orientation and weekly-input guidance.
 Finish the standing preference update, then continue that workflow from the

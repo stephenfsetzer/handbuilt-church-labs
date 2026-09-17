@@ -66,13 +66,14 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 # the source of truth here. service_music slots are closed in the schema
 # itself (additionalProperties: false). A key outside either set is never a
 # supported destination or reference, no matter what a lookup would find.
-_HYMN_SLOTS = ("entrance", "gradual", "offertory", "communion", "closing")
+_HYMN_SLOTS = ("entrance", "gradual", "gospel_acclamation", "offertory", "communion", "closing")
 _SERVICE_MUSIC_SLOTS = (
     "prelude", "gloria", "psalm_antiphon", "offertory_anthem", "sursum_corda",
     "sanctus", "fraction_anthem", "doxology", "communion_anthem", "postlude",
 )
 _HYMN_BLOCK_FIELDS = (
-    "number", "title", "tune", "image", "images", "lyrics", "custom_text", "lyric_columns", "composer",
+    # label is the optional printed replacement for the slot's default heading.
+    "number", "title", "label", "tune", "image", "images", "lyrics", "custom_text", "lyric_columns", "composer",
 )
 _HYMN_DESTINATION_TEMPLATES = tuple(
     f"hymns.{slot}" + (f".{field}" if field else "")
@@ -90,7 +91,7 @@ _LITURGY_RESOLVED_DEFAULTS = (
     "divine_service_setting", "include_creed", "include_confession", "print_full_eucharistic_prayer",
     "include_first_reading", "include_second_reading", "blessing",
     "doxology", "psalm_format", "psalm_response_start", "prayer_presentation", "rubric_style",
-    "closing_hymn_position",
+    "closing_hymn_position", "communion_welcome",
 )
 
 # Destination paths a mapped section's config_path may target. "*" matches
@@ -136,6 +137,7 @@ _STANDING_DESTINATION_TEMPLATES = (
     "worship_profile.status", "worship_profile.tradition_pack", "worship_profile.tradition",
     "worship_profile.defaults", "worship_profile.defaults.*", "worship_profile.sources",
     "worship_profile.sources.*", "worship_profile.service_variants", "worship_profile.provenance",
+    "worship_profile.files", "worship_profile.files.*",
     # The logo and QR image paths live in the church's brand.json, not
     # church.yaml -- a mapped logo/QR section targets these, not a church.*
     # or worship_profile.* path. episcopal_shield is the supported built-in

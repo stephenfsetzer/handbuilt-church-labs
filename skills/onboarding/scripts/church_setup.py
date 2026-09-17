@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -41,14 +42,14 @@ _BULLETIN_FIELDS = {"include_serving_today", "serving_roles", "footer", "templat
 _FOOTER_FIELDS = {"contact_name", "address", "phone", "email", "website"}
 _PARISH_INFORMATION_SCOPES = {"before_service", "after_service"}
 _PARISH_INFORMATION_SECTION_FIELDS = {"title", "text", "source"}
-_MUSIC_FIELDS = {"number", "title", "tune", "image", "images", "lyrics", "custom_text", "lyric_columns"}
+_MUSIC_FIELDS = {"number", "title", "label", "tune", "image", "images", "lyrics", "custom_text", "lyric_columns"}
 _LYRIC_GROUP_FIELDS = {"speaker", "part", "lines", "bold", "people"}
 _SERMON_FIELDS = {"selection_mode", "primary_text", "research_preferences"}
 _RESEARCH_FIELDS = {
     "priority_voices", "preferred_resources", "voices_to_avoid", "language_depth",
     "human_sciences", "contemporary_context", "additional_domain",
 }
-_PROFILE_SECTIONS = {"status", "tradition_pack", "tradition", "defaults", "sources", "service_variants", "provenance", "source_overrides"}
+_PROFILE_SECTIONS = {"status", "tradition_pack", "tradition", "defaults", "sources", "files", "catalog", "service_variants", "provenance", "source_overrides"}
 # Fields the source-choice guard (skills/onboarding/source_choices.py) can
 # observe from a retained bulletin import and therefore accepts an override
 # record for. Keep in sync with source_choices.OBSERVERS.
@@ -217,16 +218,16 @@ def _validate_profile_values(profile_patch: dict[str, Any], current: dict[str, A
             raise SetupError(f"worship_profile.{key} must be text")
     if "status" in profile_patch and profile_patch["status"] not in ("needs_onboarding", "confirmed"):
         raise SetupError("worship_profile.status must be needs_onboarding or confirmed")
-    for key in ("tradition", "sources", "provenance"):
+    for key in ("tradition", "sources", "files", "provenance"):
         values = profile_patch.get(key)
         if values is not None:
             for child, value in values.items():
                 if not isinstance(value, str):
                     raise SetupError(f"worship_profile.{key}.{child} must be text")
-                if key == "sources" and child in _PROFILE_PATH_SOURCES and value:
+                if (key == "files" or (key == "sources" and child in _PROFILE_PATH_SOURCES)) and value:
                     source_path = Path(value)
                     if source_path.is_absolute() or ".." in source_path.parts:
-                        raise SetupError(f"worship_profile.sources.{child} must stay inside the church folder")
+                        raise SetupError(f"worship_profile.{key}.{child} must stay inside the church folder")
     overrides = profile_patch.get("source_overrides")
     if overrides is not None:
         for field, record in overrides.items():
@@ -399,7 +400,7 @@ def _validate_patch(patch: Any, *, profile: bool = False, prefix: str = "") -> N
             if child_allowed is not None:
                 if not isinstance(value, dict) or set(value) - child_allowed:
                     raise SetupError(f"Unsupported setting path under {path}")
-            elif key in {"service_variants", "source_overrides"}:
+            elif key in {"files", "catalog", "service_variants", "source_overrides"}:
                 if not isinstance(value, dict):
                     raise SetupError(f"{path} must be a mapping")
             elif key in {"status", "tradition_pack"} and not isinstance(value, (str, type(None))):
@@ -552,9 +553,64 @@ def resolve_person(church_folder: str | Path, role: str | None = None, name: str
     }
 
 
-def update_standing(church_folder: str | Path, patch: dict[str, Any]) -> dict[str, Any]:
-    """Apply a narrow standing-profile patch to church.yaml/profile.yaml."""
+def _settings_state(config: dict[str, Any], profile: dict[str, Any]) -> str:
+    value = json.dumps([config, profile], sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _catalog_affected(root: Path, before: dict, after: dict) -> list[str]:
+    """Compare resolved services, including their available variants."""
+    from skills.bulletin.worship_resolution import resolve_profile_data, WorshipResolutionError
+    ids = set((before.get("catalog") or {}).get("services", {})) | set((after.get("catalog") or {}).get("services", {}))
+    if not ids:
+        return ["ordinary"] if before != after else []
+
+    def effective(profile: dict, service_id: str) -> Any:
+        if service_id not in (profile.get("catalog") or {}).get("services", {}):
+            return None
+        pack = _registered_pack(str(profile.get("tradition_pack") or "")) if profile.get("tradition_pack") else {}
+        variants = profile.get("service_variants") or {}
+        choices = [None, "none"] + [key for key, value in variants.items()
+                               if not value.get("service_ids") or service_id in value["service_ids"]]
+        results = []
+        for choice in choices:
+            try:
+                result = resolve_profile_data(profile, pack, {"service": {"service_id": service_id, "variant": choice}},
+                                              church_root=root, standing_only=True)
+                results.append({key: result.get(key) for key in ("liturgy", "service_context", "parts", "choice_origins", "unresolved")})
+            except (WorshipResolutionError, ValueError):
+                # Incomplete setup still needs a conservative impact report.
+                return profile
+        return results
+
+    affected = {service_id for service_id in ids if effective(before, service_id) != effective(after, service_id)}
+    old_default = (before.get("catalog") or {}).get("default_service")
+    new_default = (after.get("catalog") or {}).get("default_service")
+    if old_default != new_default:
+        affected.update(service_id for service_id in (old_default, new_default) if service_id)
+    return sorted(affected)
+
+
+def update_standing(church_folder: str | Path, patch: dict[str, Any], *,
+                    preview: bool = False, expected_state: str | None = None) -> dict[str, Any]:
+    """Validate and verify a scoped settings write, or preview its effects."""
     root = _assert_private_root(church_folder)
+    lock_path = root / ".handbuilt-settings.lock"
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise SetupError("Another settings update is in progress. Check its result before retrying.") from exc
+    try:
+        os.close(lock_fd)
+        return _update_standing_locked(root, patch, preview=preview, expected_state=expected_state)
+    finally:
+        lock_path.unlink(missing_ok=True)
+
+
+def _update_standing_locked(root: Path, patch: dict[str, Any], *,
+                            preview: bool, expected_state: str | None) -> dict[str, Any]:
+    if str(_plugin_root()) not in sys.path:
+        sys.path.insert(0, str(_plugin_root()))
     patch = copy.deepcopy(patch)
     if isinstance(patch, dict) and isinstance(patch.get("lectionary"), dict):
         track = patch["lectionary"].get("track")
@@ -566,37 +622,88 @@ def update_standing(church_folder: str | Path, patch: dict[str, Any]) -> dict[st
     config = _load_yaml(config_path)
     profile_path, profile_pointer = _profile_pointer(root, config)
     profile_path = _owned_file(root, profile_path, "worship profile") if profile_path.exists() else profile_path
+    old_profile = _load_yaml(profile_path) if profile_path.is_file() else {}
+    old_config = copy.deepcopy(config)
+    before_state = _settings_state(config, old_profile)
+    if expected_state is not None and expected_state != before_state:
+        raise SetupError("Settings changed since this proposal. Read the current settings and update the proposal before saving.")
     config_patch = {key: value for key, value in patch.items() if key != "worship_profile"}
     profile_patch = patch.get("worship_profile")
-    # The profile has its own top-level file.  Require it explicitly so a
-    # typo cannot silently create a second settings database.
+    profile = copy.deepcopy(old_profile)
     if profile_patch is not None:
         _validate_patch(profile_patch, profile=True)
-        _validate_profile_values(profile_patch, _load_yaml(profile_path))
-        profile = _load_yaml(profile_path)
-    else:
-        profile = None
+        _validate_profile_values(profile_patch, old_profile)
     changed = _deep_merge(config, config_patch)
     lectionary = config.get("lectionary", {})
     if str(lectionary.get("system", "")).casefold() in {"rcl", "revised common lectionary"}:
         track = str(lectionary.get("track") or "").strip()
         if track and track.casefold() not in {"track 1", "track 2"}:
-            raise SetupError("Save the confirmed RCL track as Track 1 or Track 2; do not ask again when the pastor has already selected it")
-    if changed:
-        _dump_yaml(config_path, config)
+            raise SetupError("Save the confirmed lectionary.track as Track 1 or Track 2; do not ask again when the pastor has already selected it")
     if profile_patch is not None:
-        profile_changed = _deep_merge(profile, profile_patch)
-        if profile_changed:
+        changed.extend(f"worship_profile.{item}" for item in _deep_merge(profile, profile_patch))
+    if profile.get("catalog") is not None:
+        from skills.bulletin.service_catalog import validate_catalog
+        from skills.bulletin.liturgy_sources import require_verified_source, LiturgySourceError
+        try:
+            validate_catalog(profile, church_root=root)
+            for entry in profile["catalog"].get("services", {}).values():
+                _validate_profile_values({"defaults": entry.get("defaults", {})}, profile)
+            for part in profile["catalog"].get("parts", {}).values():
+                require_verified_source(root, part["file"])
+        except (ValueError, LiturgySourceError) as exc:
+            raise SetupError(str(exc)) from exc
+    affected = _catalog_affected(root, old_profile, profile) if old_profile != profile else []
+    if old_config != config:
+        affected = sorted(set(affected) | set((profile.get("catalog") or {}).get("services", {}))) or ["ordinary"]
+    result = {"status": "preview" if preview else "updated", "scope": "standing", "changed": changed,
+              "affected_services": affected, "worship_profile": profile_pointer,
+              "before_state": before_state, "state": _settings_state(config, profile), "verified": False}
+    if preview:
+        return result
+    originals = {path: path.read_text(encoding="utf-8") if path.is_file() else None
+                 for path in (config_path, profile_path)}
+    try:
+        if config != old_config:
+            _dump_yaml(config_path, config)
+        if profile != old_profile:
             _dump_yaml(profile_path, profile)
-        changed.extend([f"worship_profile.{item}" for item in profile_changed])
-    return {"status": "updated", "scope": "standing", "changed": changed, "worship_profile": profile_pointer, "readiness": status(root)}
+        actual_profile = _load_yaml(profile_path) if profile_path.is_file() else {}
+        if _settings_state(_load_yaml(config_path), actual_profile) != result["state"]:
+            raise SetupError("Saved settings did not match the requested update.")
+    except Exception:
+        for path, original in originals.items():
+            if original is None:
+                path.unlink(missing_ok=True)
+            else:
+                _atomic_write(path, original)
+        raise
+    result["verified"] = True
+    result["readiness"] = status(root)
+    return result
 
 
-def update(church_folder: str | Path, patch: dict[str, Any], *, scope: str) -> dict[str, Any]:
-    """Route an explicit scope without allowing weekly data into config."""
+def update(church_folder: str | Path, patch: dict[str, Any], *, scope: str,
+           service_id: str | None = None, preview: bool = False,
+           expected_state: str | None = None) -> dict[str, Any]:
+    """Route recurring-service edits through the same verified settings writer."""
+    if scope == "service":
+        root = _assert_private_root(church_folder)
+        config = _load_yaml(_owned_file(root, root / "church.yaml", "church.yaml"))
+        profile_path, _ = _profile_pointer(root, config)
+        services = (_load_yaml(profile_path).get("catalog") or {}).get("services", {})
+        if service_id not in services:
+            raise SetupError("Choose an existing saved service before changing its usual settings.")
+        if not isinstance(patch, dict) or not patch:
+            raise SetupError("A service update must be a non-empty object.")
+        wrapped = {"worship_profile": {"catalog": {"services": {service_id: patch}}}}
+        result = update_standing(root, wrapped, preview=preview, expected_state=expected_state)
+        result.update(scope="service", service_id=service_id)
+        return result
     if scope != "standing":
         raise SetupError("One-week changes belong in the dated bulletin or sermon input; they are never saved as standing settings")
-    return update_standing(church_folder, patch)
+    if service_id is not None:
+        raise SetupError("Use service scope when selecting a service to update.")
+    return update_standing(church_folder, patch, preview=preview, expected_state=expected_state)
 
 
 def status(church_folder: str | Path) -> dict[str, Any]:
@@ -912,8 +1019,11 @@ def _cli() -> int:
     status_parser.add_argument("--church-folder", required=True)
     update_parser = sub.add_parser("update")
     update_parser.add_argument("--church-folder", required=True)
-    update_parser.add_argument("--scope", choices=("standing", "weekly"), required=True)
+    update_parser.add_argument("--scope", choices=("standing", "service", "weekly"), required=True)
     update_parser.add_argument("--patch-file", required=True)
+    update_parser.add_argument("--service-id")
+    update_parser.add_argument("--preview", action="store_true")
+    update_parser.add_argument("--expected-state")
     resolve_parser = sub.add_parser("resolve-person")
     resolve_parser.add_argument("--church-folder", required=True)
     resolve_parser.add_argument("--role")
@@ -927,10 +1037,9 @@ def _cli() -> int:
         elif args.command == "resolve-person":
             result = resolve_person(args.church_folder, args.role, args.name)
         else:
-            if args.scope != "standing":
-                raise SetupError("One-week changes belong in the dated bulletin or sermon input; they are never saved as standing settings")
             patch = json.loads(Path(args.patch_file).read_text(encoding="utf-8"))
-            result = update(args.church_folder, patch, scope=args.scope)
+            result = update(args.church_folder, patch, scope=args.scope, service_id=args.service_id,
+                            preview=args.preview, expected_state=args.expected_state)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (SetupError, OSError, json.JSONDecodeError) as exc:

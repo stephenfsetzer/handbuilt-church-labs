@@ -66,3 +66,25 @@ image staged under `bulletins/2026/09/2026-09-06/source-assets/page10-000.png`
 must be entered as that church-root-relative path, even when the weekly JSON
 lives inside the dated bulletin folder. Paths are copied into the review
 package after the normal church-folder safety and source checks.
+
+## Named services and reusable parts
+
+Use `service.service_id` for a catalog service. Add `service.occurrence_id`
+only when the same service happens more than once on that date; its default
+is `main`. Run orientation for that exact service and occurrence so assignments
+and unfinished packages come from the right history.
+
+Select reusable text through `liturgy.part_selections`, mapping a supported
+unit to its part ID, such as `{"communion_welcome": "short-welcome"}`. Put a
+one-date selection in the weekly input. A recurring selection belongs in that
+service's catalog settings. Keep part selections separate from direct source
+files for the same unit in the same input. The resolver returns selected part
+provenance separately from the resolved source files.
+
+When the pastor pauses before all weekly material is available, save the
+partial input inside the private church folder and record its path and next
+unresolved decision in the existing progress notes. For a new catalog service,
+use `bulletins/drafts/<date>/<service-id>/<occurrence-id>/input.json`; the agent
+maintains this file. Recover it on return before asking questions. Do not call
+an incomplete draft a produced or approved bulletin, and use the exact review
+receipt for revisions once a review package exists.

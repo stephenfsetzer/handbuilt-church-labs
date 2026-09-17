@@ -148,8 +148,9 @@ class BulletinProductionPromotionTest(unittest.TestCase):
             stage.mkdir()
             staged = _copy_liturgy_sources(bulletin, church, stage)
             self.assertIsNotNone(staged)
-            self.assertEqual(bulletin["liturgy"]["files"]["blessing"], "local-blessing")
-            self.assertEqual((staged / "local-blessing.md").read_text(encoding="utf-8").splitlines()[2], "May this synthetic community go in peace.")
+            staged_blessing = bulletin["liturgy"]["files"]["blessing"]
+            self.assertTrue(staged_blessing.startswith("church-blessing-"))
+            self.assertEqual((staged / f"{staged_blessing}.md").read_text(encoding="utf-8").splitlines()[2], "May this synthetic community go in peace.")
 
             ep_source = church / "worship" / "liturgy" / "thanksgiving.md"
             ep_source.write_text("# Local Thanksgiving\n\nSynthetic thanksgiving.\n", encoding="utf-8")
@@ -161,7 +162,10 @@ class BulletinProductionPromotionTest(unittest.TestCase):
             ep_stage = church / "ep-stage"
             ep_stage.mkdir()
             _copy_liturgy_sources(ep_bulletin, church, ep_stage)
-            self.assertEqual(ep_bulletin["liturgy"]["files"]["eucharistic-prayer-a"], "A")
+            staged_prayer = ep_bulletin["liturgy"]["files"]["eucharistic_prayer"]
+            self.assertEqual(ep_bulletin["liturgy"]["files"]["eucharistic-prayer-a"], staged_prayer)
+            self.assertIn("Synthetic thanksgiving.", (ep_stage / "liturgy" / f"{staged_prayer}.md").read_text())
+            self.assertNotIn("Synthetic thanksgiving.", (ep_stage / "liturgy" / "eucharistic-prayer-a.md").read_text())
 
     def test_standing_preferences_fill_only_missing_weekly_options(self) -> None:
         config = {"bulletin": {"defaults": {"include_serving_today": False, "serving_roles": ["Reader"]}}}

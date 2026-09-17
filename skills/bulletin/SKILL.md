@@ -17,6 +17,9 @@ private or locally formatted prayer or reading text is needed. Read
 [Source import and inventory](references/source-inventory.md) when this
 week's input draws on a bulletin imported during onboarding; check
 `validate_for_production` before relying on that import.
+Read [Service design and scoped bulletin decisions](references/service-design.md)
+when resuming saved service work, adding a recurring service, changing a
+reusable part, or reviewing a scope or layout question.
 
 The public production interface has four operations: `orient`, `produce`,
 `revise`, and `finalize`.
@@ -62,12 +65,41 @@ claim it was sung, read, or announced during the service.
 Verify the lectionary day and selected citations against a published calendar.
 Record each reading source with `label`, `location`, and `verified_on`.
 
+## 1a. Guide ongoing service design
+
+When the request concerns a saved service or reusable worship practice, follow
+the service-design reference before resolving weekly input. Inspect the
+installed workflow's returned capabilities and state, including any selected
+`service.service_id`, `service.occurrence_id`, and catalog data it actually
+supports. Use `--service-id <id>` with `orient` for a named service and
+`--occurrence-id <id>` when that service happens twice on one date. Recover the saved service, usual parts, pending dated work, and
+unresolved decisions before asking the pastor to repeat an answer.
+
+Recommend the closest existing service or reusable part first. Keep the
+requested edit at the scope the pastor named: this occurrence, the recurring
+service, or church defaults. If the request is ambiguous, ask one scope
+question before a shared write. Read the saved state back after an authorized
+change and state what future services inherit. Use the scoped settings
+commands in the service-design reference for recurring changes; keep dated
+exceptions in the bulletin input.
+
+During review, connect wording and layout recommendations to participation,
+including finding a response, following a direction, reading music, and
+handling page turns. Use the rendered proof and source comparison. A passing
+render does not establish readable music or complete content.
+
 ## 2. Resolve the service
 
 Recover the service date, standing settings, known people, and existing weekly
 material before asking for more. Use the saved layout without reopening that
 choice unless the pastor requests a change. Present a short summary that the
 returning pastor can correct.
+
+An incomplete partial draft is not proof that a weekly choice is unknown.
+Inspect existing packages for the same date, service, and occurrence before
+asking again. Describe which dated choices you recovered and let the pastor
+correct them. Do not silently carry another week's assignments, music, or
+announcements into a new date.
 
 The agent retrieves the appointed readings, collect, and proper preface from
 verified sources using the saved lectionary and worship practice. The pastor
@@ -100,8 +132,10 @@ missing public worship text when a reliable source is available, then save its
 private source copy and provenance. Ask the pastor for unresolved choices,
 conflicts, or local and licensed material that the agent cannot obtain.
 Rerun resolution before producing.
-The weekly caller must supply `service.variant` as the configured variant id
-when a profile declares service variants. Read back its exact name and
+Use a recurring service's saved `default_variant` when present. Otherwise,
+the weekly caller supplies `service.variant` as the configured variant id
+when a profile declares service variants. Carry forward an already confirmed
+choice without asking again. Read back its exact name and
 confirmation policy, then resolve the private order file. An unknown,
 unsafe, missing, cyclic, or service-plan-mismatched variant is `needs_input`
 with an actionable reason. Never infer a variant from a date, denomination,

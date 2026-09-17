@@ -11,8 +11,10 @@
       "required": ["date", "occasion"],
       "properties": {
         "date": {"type": "string", "format": "date"},
+        "service_id": {"type": "string", "description": "Stable selected service identifier from the catalog."},
+        "occurrence_id": {"type": "string", "description": "Stable selected occurrence identifier from the catalog."},
         "occasion": {"type": "string"},
-        "display_name": {"type": "string"},
+        "display_name": {"type": "string", "description": "Optional cover service title. The variant name is never used as a cover title."},
         "proper": {"type": "string"},
         "celebrant": {"type": "string"},
         "preacher": {"type": "string"},
@@ -28,6 +30,17 @@
       "required": ["service_plan", "blessing"],
       "properties": {
         "service_plan": {"type": "string"},
+        "part_selections": {
+          "type": "object",
+          "description": "Resolved catalog selections by logical liturgy part. The production resolver validates their allowed values.",
+          "additionalProperties": true
+        },
+        "omitted_units": {
+          "type": "array",
+          "description": "Explicit optional logical units omitted for this service. The production resolver permits only optional units.",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
         "include_first_reading": {"type": "boolean", "default": true},
         "include_second_reading": {"type": "boolean", "default": true},
         "service_variant": {"$ref": "#/$defs/serviceVariant"},
@@ -35,7 +48,7 @@
         "closing_hymn_position": {"type": "string", "enum": ["before_dismissal", "after_dismissal"]},
         "gospel_acclamation": {"type": "string", "enum": ["lord", "savior"]},
         "blessing": {"type": "string"},
-        "files": {"type": "object", "additionalProperties": {"type": "string"}}
+        "files": {"type": "object", "description": "Staged church-owned source identifiers keyed by their logical liturgy part.", "additionalProperties": {"type": "string"}}
       },
       "additionalProperties": true
     },
@@ -63,7 +76,7 @@
     "options": {
       "type": "object",
       "properties": {
-        "include_serving_today": {"type": "boolean", "default": true},
+        "include_serving_today": {"type": "boolean", "default": false},
         "merge_back_page": {"type": "boolean", "default": false},
         "serving_roles": {"type": "array", "items": {"type": "string"}}
       },
@@ -99,6 +112,7 @@
       "properties": {
         "id": {"type": "string"},
         "name": {"type": "string"},
+        "display_name": {"type": "string", "description": "Optional cover service title for this selected variant."},
         "base_service_plan": {"type": "string"},
         "replace": {
           "type": "array",
@@ -135,6 +149,7 @@
     "hymn": {
       "type": "object",
       "properties": {
+        "label": {"type": "string", "description": "Optional printed heading that replaces the slot's default music label."},
         "number": {"type": ["string", "number"]},
         "title": {"type": "string"},
         "tune": {"type": "string"},

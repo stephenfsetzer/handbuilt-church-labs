@@ -24,7 +24,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 
-IMPLEMENTATION_VERSION = "0.6.1"
+IMPLEMENTATION_VERSION = "0.7.0"
 SUPPORTED_TEMPLATES = {"classic", "modern"}
 REQUIRED_READING_SLOTS = ("first", "psalm", "second", "gospel")
 PLACEHOLDER_PATTERNS = (
@@ -206,7 +206,8 @@ def _dependency_checks() -> list[dict[str, Any]]:
     return checks
 
 
-def orient(church_folder: str | Path, service_date: str | date) -> dict[str, Any]:
+def orient(church_folder: str | Path, service_date: str | date, *, service_id: str | None = None,
+           occurrence_id: str | None = None) -> dict[str, Any]:
     """Return read-only context for a bulletin conversation."""
 
     try:
@@ -236,13 +237,53 @@ def orient(church_folder: str | Path, service_date: str | date) -> dict[str, Any
             and isinstance(person.get("name"), str) and person["name"].strip()
             and isinstance(person.get("role"), str) and person["role"].strip()
         ] if isinstance(roster, list) else []
+        profile_data = _load_yaml_mapping(profile_path, stage="orientation") if profile_path.is_file() else {}
+        selection = {"service": {"date": date_text}}
+        if service_id is not None:
+            selection["service"]["service_id"] = service_id
+        if occurrence_id is not None:
+            selection["service"]["occurrence_id"] = occurrence_id
+        from ..worship_resolution import WorshipResolutionError, resolve_worship_profile, as_error
+        try:
+            worship = resolve_worship_profile(root, selection)
+        except WorshipResolutionError as exc:
+            worship = as_error(exc)
+        service_context = worship.get("service_context") or {}
+        catalog = profile_data.get("catalog")
+        catalog = catalog if isinstance(catalog, dict) else {}
+        selected_id = service_context.get("service_id") if not service_context.get("legacy", True) else service_id
+        if selected_id:
+            history = {key: entry for key, entry in history.items()
+                       if isinstance(entry, dict) and (
+                           (entry.get("service_id") == selected_id
+                            and entry.get("occurrence_id", "main") == service_context.get("occurrence_id", occurrence_id or "main"))
+                           or (service_context.get("inherits_legacy_history")
+                               and not entry.get("service_id") and "::" not in key))}
+        elif catalog:
+            # A catalog with no resolved service must not borrow another
+            # service's assignments or approved template.
+            history = {}
         approved_dates = sorted(history)
         last = history[approved_dates[-1]] if approved_dates else None
-        existing_work = sorted(
-            str(path.relative_to(root))
-            for path in bulletins.glob(f"**/{date_text}-*")
-            if path.is_dir()
-        ) if bulletins.is_dir() else []
+        existing_work = []
+        for receipt_path in bulletins.glob("**/bulletin-production-receipt.json") if bulletins.is_dir() else []:
+            if ".revisions" in receipt_path.parts or ".staging" in receipt_path.parts:
+                continue
+            try:
+                saved = json.loads(receipt_path.read_text())
+                context = saved.get("service_context") or {}
+                if saved.get("service_date") == date_text or receipt_path.parent.name.startswith(date_text + "-"):
+                    inherited_legacy = (service_context.get("inherits_legacy_history")
+                                        and (not context or context.get("legacy")))
+                    if selected_id and context.get("service_id") != selected_id and not inherited_legacy:
+                        continue
+                    selected_occurrence = service_context.get("occurrence_id", occurrence_id or "main")
+                    if (selected_id or occurrence_id) and context.get("occurrence_id", "main") != selected_occurrence:
+                        continue
+                    existing_work.append(str(receipt_path.parent.relative_to(root)))
+            except (OSError, ValueError, TypeError):
+                continue
+        existing_work.sort()
         templates = (last or {}).get("templates", {})
         saved_bulletin = church_config.get("bulletin")
         saved_template = saved_bulletin.get("template") if isinstance(saved_bulletin, dict) else None
@@ -254,10 +295,19 @@ def orient(church_folder: str | Path, service_date: str | date) -> dict[str, Any
             "initialization_state": "returning" if approved_dates else "first_run",
             "service_date": date_text,
             "existing_work": existing_work,
+            "draft_inputs": sorted(str(path.relative_to(root)) for path in
+                                   (bulletins / "drafts" / date_text).glob("*/*/input.json")
+                                   if _inside(path.resolve(), root)
+                                   and (not selected_id or path.parent.parent.name == selected_id)
+                                   and path.parent.name == service_context.get("occurrence_id", occurrence_id or "main")),
             "last_approved_bulletin": last,
             "default_template": default_template,
             "church_context": church_context,
             "known_people": known_people,
+            "service_context": service_context,
+            "worship_resolution": worship,
+            "saved_services": copy.deepcopy(catalog.get("services", {})),
+            "saved_parts": copy.deepcopy(catalog.get("parts", {})),
             "requires_weekly_confirmation": ["preacher", "celebrant", "announcements", "service_time"],
             "carry_forward_candidates": {
                 "preacher": (last or {}).get("preacher"),
@@ -266,11 +316,11 @@ def orient(church_folder: str | Path, service_date: str | date) -> dict[str, Any
                 "announcements": (last or {}).get("announcements", []),
             },
             "music_appearance_history": [
-                {"date": approved_date, "hymns": entry.get("hymns", [])}
+                {"date": entry.get("date", approved_date), "hymns": entry.get("hymns", [])}
                 for approved_date, entry in sorted(history.items(), reverse=True)
             ],
             "reading_appearance_history": [
-                {"date": approved_date, "readings": entry.get("readings", {})}
+                {"date": entry.get("date", approved_date), "readings": entry.get("readings", {})}
                 for approved_date, entry in sorted(history.items(), reverse=True)
             ],
             "worship_profile": {
@@ -407,6 +457,8 @@ def _resolve_standing_preferences(bulletin: dict[str, Any], church_config: dict[
     for key, value in standing.items():
         if key not in options or options[key] is None:
             options[key] = copy.deepcopy(value)
+    if options.get("include_serving_today") is None:
+        options["include_serving_today"] = False
 
 
 PARISH_INFORMATION_SCOPES = ("before_service", "after_service")
@@ -1609,6 +1661,7 @@ def _copy_liturgy_sources(
         files = {}
     if not sources and not files:
         return None
+    explicit_files = copy.deepcopy(files)
 
     destination = stage / "liturgy"
     shutil.copytree(_renderer_dir() / "liturgy", destination)
@@ -1636,10 +1689,12 @@ def _copy_liturgy_sources(
             )
         _private_liturgy_source(str(resolved), root, field)
         safe_id = re.sub(r"[^a-zA-Z0-9_-]+", "-", identifier).strip("-")
-        if safe_id == "doxology":
-            safe_id = "church-doxology"
         if not safe_id:
             raise StageFailure("invalid_request", "asset_resolution", "Liturgy source has no usable identifier", field=field)
+        # The logical field owns the staged name. Selected values such as
+        # "custom" can occur several times, and sanitized keys can collide.
+        suffix = hashlib.sha256(field.encode("utf-8")).hexdigest()[:16]
+        safe_id = f"church-{safe_id}-{suffix}"
         shutil.copy2(resolved, destination / f"{safe_id}.md")
         return safe_id
 
@@ -1647,19 +1702,14 @@ def _copy_liturgy_sources(
         identifier = _liturgy_identifier(key, selected, liturgy)
         return (identifier,) if identifier != selected else ()
 
-    generated_file_keys: set[str] = set()
     for key, raw_path in sources.items():
         selected = str(liturgy.get(key, "")).strip()
         if selected:
-            identifier = copy_source(selected, raw_path, f"liturgy.sources.{key}")
+            identifier = copy_source(str(key), raw_path, f"liturgy.sources.{key}")
             files[key] = identifier
-            generated_file_keys.add(key)
             for alias in alias_keys(key, selected):
                 files[alias] = identifier
-                generated_file_keys.add(alias)
-    for section, raw_path in files.items():
-        if section in generated_file_keys:
-            continue
+    for section, raw_path in explicit_files.items():
         if not str(raw_path).strip():
             continue
         identifier = copy_source(str(section), raw_path, f"liturgy.files.{section}")
@@ -2013,6 +2063,10 @@ def _consume_saved_worship_resolution(root: Path, bulletin: dict[str, Any]) -> N
         resolution = resolve_worship_profile(root, weekly)
     except WorshipResolutionError as exc:
         if exc.code == "tradition_pack_unresolved":
+            if service.get("service_id") or service.get("occurrence_id"):
+                raise StageFailure("worship_resolution_needs_input", "worship_resolution",
+                                   "Finish the saved service setup before selecting a service occurrence.",
+                                   field="service.service_id") from exc
             return
         if exc.code == "profile_missing":
             raise StageFailure(
@@ -2032,6 +2086,50 @@ def _consume_saved_worship_resolution(root: Path, bulletin: dict[str, Any]) -> N
             field=reason["field"],
         )
     bulletin["liturgy"] = resolution["liturgy"]
+    # Saved production input is a resolved source snapshot. Keep part identity
+    # as provenance rather than a second selector competing with its files.
+    bulletin["liturgy"].pop("part_selections", None)
+    prior_parts = bulletin.get("selected_parts") or {}
+    selected_parts = copy.deepcopy(resolution.get("parts", {}))
+    for unit, part in prior_parts.items() if isinstance(prior_parts, dict) else []:
+        if isinstance(part, dict) and (bulletin["liturgy"].get("files") or {}).get(unit) == part.get("file"):
+            selected_parts.setdefault(unit, copy.deepcopy(part))
+    bulletin["selected_parts"] = selected_parts
+    context = resolution.get("service_context") or {}
+    bulletin["service_context"] = copy.deepcopy(context)
+    bulletin["choice_origins"] = copy.deepcopy(resolution.get("choice_origins", {}))
+    if context and not context.get("legacy", True):
+        service["service_id"] = context["service_id"]
+        service["occurrence_id"] = context.get("occurrence_id", "main")
+        for key in ("time", "display_name"):
+            if not service.get(key) and context.get(key):
+                service[key] = context[key]
+        bulletin["service"] = service
+
+
+def _occurrence_key(service: dict[str, Any]) -> str:
+    """Keep old date keys readable; named services have independent keys."""
+    date_text = str(service["date"])
+    date.fromisoformat(date_text)
+    service_id = service.get("service_id")
+    occurrence = service.get("occurrence_id", "main")
+    if service_id is None:
+        if service.get("occurrence_id"):
+            raise StageFailure("invalid_occurrence", "validation", "Choose the saved service for this occurrence.", field="service.service_id")
+        return date_text
+    for key, value in (("service_id", service_id), ("occurrence_id", occurrence)):
+        if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", value):
+            raise StageFailure("invalid_occurrence", "validation", "Service and occurrence identifiers must be short lowercase names.", field=f"service.{key}")
+    return f"{date_text}::{service_id}::{occurrence}"
+
+
+def _occurrence_folder(root: Path, service: dict[str, Any]) -> Path:
+    _occurrence_key(service)
+    date_text = str(service["date"])
+    month = root / "bulletins" / date_text[:4] / date_text[5:7]
+    if service.get("service_id"):
+        return month / date_text / service["service_id"] / service.get("occurrence_id", "main")
+    return month / f"{date_text}-{_slug(service['occasion'])}"
 
 
 def _validate_service_time_choice(church_config: dict[str, Any], bulletin: dict[str, Any]) -> None:
@@ -2064,11 +2162,10 @@ def _history_has_run(root: Path, service_date: str, run_id: str) -> bool:
         history = json.loads(history_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
-    entry = history.get(service_date) if isinstance(history, dict) else None
-    if not isinstance(entry, dict):
-        return False
     return any(
         isinstance(value, dict) and value.get("production_run_id") == run_id
+        for entry in (history.values() if isinstance(history, dict) else [])
+        if isinstance(entry, dict)
         for value in (entry.get("templates", {}) or {}).values()
     )
 
@@ -2096,8 +2193,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         root = _require_church_folder(Path(church_folder))
         church_config, brand = _load_church_configuration(root)
         source_resolved = copy.deepcopy(bulletin)
-        _validate_service_time_choice(church_config, source_resolved)
         _consume_saved_worship_resolution(root, source_resolved)
+        _validate_service_time_choice(church_config, source_resolved)
         _normalize_liturgy(source_resolved)
         _resolve_standing_preferences(source_resolved, church_config)
         _resolve_parish_information(source_resolved, church_config)
@@ -2147,8 +2244,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "template": template,
             "bulletin": source_resolved,
         })
-        week_name = f"{service['date']}-{_slug(service['occasion'])}"
-        final_dir = root / "bulletins" / service["date"][:4] / service["date"][5:7] / week_name
+        final_dir = _occurrence_folder(root, service)
+        week_name = final_dir.name
         revision_digest = _json_digest({
             "prior_run_id": (_revision or {}).get("receipt", {}).get("run_id"),
             "resolved_bulletin_digest": digest,
@@ -2277,6 +2374,11 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "resolved_bulletin_digest": digest,
             "church_folder": ".",
             "week_folder": str(final_dir.relative_to(root)),
+            "service_date": service["date"],
+            "occurrence_key": _occurrence_key(service),
+            "service_context": source_resolved.get("service_context", {}),
+            "choice_origins": source_resolved.get("choice_origins", {}),
+            "selected_parts": source_resolved.get("selected_parts", {}),
             "revision_of": (
                 {
                     "run_id": (_revision.get("receipt") or {}).get("run_id"),
@@ -2346,6 +2448,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "warnings": warnings,
             "booklet_signature": signature,
             "idempotent": False,
+            "service_context": receipt["service_context"],
+            "choice_origins": receipt["choice_origins"],
         }
     except StageFailure as exc:
         return _failure(exc, status="blocked")
@@ -2365,6 +2469,25 @@ def revise(church_folder: str | Path, prior_run: str | Path, bulletin: dict[str,
         source = prior["source"]
         if not isinstance(bulletin, dict):
             raise StageFailure("invalid_request", "revision", "Revision input must be an object")
+        source = copy.deepcopy(source)
+        liturgy_patch = bulletin.get("liturgy") or {}
+        if isinstance(liturgy_patch, dict):
+            from ..service_catalog import SOURCE_UNIT_ALIASES
+            changed_units = set()
+            for group in ("part_selections", "sources", "files"):
+                values = liturgy_patch.get(group)
+                if isinstance(values, dict):
+                    changed_units.update(SOURCE_UNIT_ALIASES.get(key, key) for key in values)
+            prior_liturgy = source.get("liturgy") or {}
+            for group in ("part_selections", "sources", "files"):
+                values = prior_liturgy.get(group)
+                if isinstance(values, dict):
+                    for key in list(values):
+                        if SOURCE_UNIT_ALIASES.get(key, key) in changed_units:
+                            del values[key]
+            if changed_units:
+                prior_liturgy["omitted_units"] = [unit for unit in prior_liturgy.get("omitted_units", [])
+                                                 if unit not in changed_units]
         merged = _deep_merge(source, bulletin)
         service = merged.get("service") if isinstance(merged, dict) else None
         prior_service = source.get("service") if isinstance(source, dict) else None
@@ -2372,10 +2495,12 @@ def revise(church_folder: str | Path, prior_run: str | Path, bulletin: dict[str,
             raise StageFailure("revision_source_unrecoverable", "revision", "The prior package has no usable service data")
         if str(service.get("date", "")) != str(prior_service.get("date", "")):
             raise StageFailure("revision_date_mismatch", "revision", "A revision must keep the prior service date")
+        if _occurrence_key(service) != _occurrence_key(prior_service):
+            raise StageFailure("revision_occurrence_mismatch", "revision", "A revision must keep the same service occurrence.", field="service")
         occasion = str(service.get("occasion", "")).strip()
         if not occasion:
             raise StageFailure("invalid_request", "revision", "A revision requires a service occasion", field="service.occasion")
-        expected_dir = root / "bulletins" / str(service["date"])[:4] / str(service["date"])[5:7] / f"{service['date']}-{_slug(occasion)}"
+        expected_dir = _occurrence_folder(root, service)
         prior_week = prior["receipt"].get("week_folder")
         if prior_week and (root / str(prior_week)).resolve() != expected_dir.resolve():
             raise StageFailure("revision_target_conflict", "revision", "A revision must keep the prior service folder and occasion")
@@ -2429,6 +2554,9 @@ def _history_entry(config: dict[str, Any], receipt: dict[str, Any], approval_id:
     )).stem.rsplit("-", 1)[-1]
     return {
         "date": service["date"],
+        "service_id": service.get("service_id"),
+        "occurrence_id": service.get("occurrence_id"),
+        "occurrence_key": _occurrence_key(service),
         "occasion": service.get("occasion"),
         "proper": service.get("proper"),
         "lectionary_track": service.get("lectionary_track"),
@@ -2554,7 +2682,12 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
         if history_path.is_file():
             history = json.loads(history_path.read_text(encoding="utf-8"))
         entry = _history_entry(config, receipt, approval_id)
-        existing = history.get(entry["date"]) if isinstance(history, dict) else None
+        history_key = entry["occurrence_key"]
+        existing = history.get(history_key) if isinstance(history, dict) else None
+        if existing is None and isinstance(history, dict) and (config.get("service_context") or {}).get("inherits_legacy_history"):
+            legacy = history.get(entry["date"])
+            if isinstance(legacy, dict) and not legacy.get("service_id"):
+                existing = legacy
         legacy_history_snapshot: dict[str, Any] | None = None
         if isinstance(existing, dict):
             existing_templates = existing.get("templates", {}) or {}
@@ -2569,7 +2702,7 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
                     raise StageFailure(
                         "approved_history_conflict",
                         "finalization",
-                        f"Approved or ambiguous bulletin history already contains service date {entry['date']}; it will not be overwritten",
+                        f"Approved or ambiguous bulletin history already contains this service occurrence {history_key}; it will not be overwritten",
                     )
         if legacy_history_snapshot is not None:
             approval_receipt["history_update"] = "migrated_legacy_render_history"
@@ -2577,7 +2710,7 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
                 "date": entry["date"],
                 "entry": legacy_history_snapshot,
             }
-        history[entry["date"]] = entry
+        history[history_key] = entry
         ordered = {key: history[key] for key in sorted(history)}
 
         approval_tmp = approval_path.with_suffix(".json.tmp")

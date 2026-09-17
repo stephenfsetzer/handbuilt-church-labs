@@ -13,6 +13,8 @@ import importlib.util
 from pathlib import Path
 from typing import Any
 
+from .service_catalog import OPTIONAL_UNITS, ServiceCatalogError, resolve_catalog
+
 
 REQUIRED_CHOICES = ("eucharistic_prayer", "lords_prayer")
 PROFILE_NAME = "worship/profile.yaml"
@@ -48,6 +50,13 @@ SERVICE_PLAN_ANCHORS = {
         "sending",
     }),
 }
+CATALOG_UNITS = frozenset().union(*SERVICE_PLAN_ANCHORS.values(), OPTIONAL_UNITS, {"great-thanksgiving"})
+PART_SOURCE_KEYS = {
+    "eucharistic-prayer": "eucharistic_prayer",
+    "lords-prayer": "lords_prayer",
+    "prayers-of-the-people": "prayers_of_the_people",
+}
+SOURCE_PART_UNITS = {value: key for key, value in PART_SOURCE_KEYS.items()}
 
 
 class WorshipResolutionError(ValueError):
@@ -261,6 +270,19 @@ def _source_readiness(
         if key == "eucharistic_prayer" and choice in ("A", "B", "C", "D") and liturgy.get("print_full_eucharistic_prayer"):
             shipped_choice = f"{choice}_full"
         shipped_id = _shipped_source(pack, key, shipped_choice)
+        files = liturgy.get("files", {})
+        files = files if isinstance(files, dict) else {}
+        direct_unit = SOURCE_PART_UNITS.get(key, key)
+        direct_file = next((value for file_unit, value in files.items()
+                            if SOURCE_PART_UNITS.get(str(file_unit), str(file_unit)) == direct_unit), None)
+        if direct_file is not None:
+            ok, reason = _private_source_status(
+                direct_file, choice=choice, church_root=church_root, field=f"liturgy.files.{direct_unit}"
+            )
+            if ok:
+                continue
+            unresolved.append({"field": f"liturgy.files.{direct_unit}", "reason": reason or "Provide a verified private worship text."})
+            continue
         raw = weekly_sources.get(key) if key in weekly_sources else profile_sources.get(key)
         if isinstance(raw, str) and not raw.strip():
             raw = None
@@ -434,6 +456,7 @@ def _resolve_variant(
     variant_id: str,
     church_root: Path,
     service_plan: str,
+    service_id: str | None = None,
 ) -> dict[str, Any]:
     variants = profile.get("service_variants", {})
     if not isinstance(variants, dict):
@@ -452,6 +475,12 @@ def _resolve_variant(
             raise WorshipResolutionError(
                 "variant_unknown", f"Unknown service variant {current_id!r}. Choose a configured variant.", field=VARIANT_FIELD
             )
+        allowed_services = entry.get("service_ids")
+        if allowed_services is not None:
+            if not isinstance(allowed_services, list) or not all(isinstance(item, str) for item in allowed_services):
+                raise WorshipResolutionError("variant_invalid", f"Service variant {current_id!r} service_ids must be a list", field=VARIANT_FIELD)
+            if service_id is None or service_id not in allowed_services:
+                raise WorshipResolutionError("variant_service_not_allowed", f"Service variant {current_id!r} is not available for this recurring service", field=VARIANT_FIELD)
         required = {"name", "base_service_plan", "order_file"}
         missing = [key for key in required if not str(entry.get(key, "")).strip()]
         if missing:
@@ -519,13 +548,29 @@ def _resolve_variant(
     return {
         "id": variant_id,
         "name": str(entry["name"]).strip(),
+        "display_name": str(entry.get("display_name") or "").strip(),
         "base_service_plan": str(entry["base_service_plan"]).strip(),
         "replace": operations["replace"],
         "insert": operations["insert"],
         "files": operations["files"],
         "confirmation_policy": _variant_confirmation(entry),
         "order_file_chain": [item["order_file"] for item in chain],
+        "defaults": _merge_value_maps([item["entry"].get("defaults") for item in chain]),
+        "sources": _merge_value_maps([item["entry"].get("sources") for item in chain]),
+        "part_selections": _merge_value_maps([item["entry"].get("part_selections") for item in chain]),
     }
+
+
+def _merge_value_maps(values: list[Any]) -> dict[str, Any]:
+    """Merge declarative mappings in precedence order."""
+    merged: dict[str, Any] = {}
+    for value in values:
+        if value is None:
+            continue
+        if not isinstance(value, dict):
+            raise WorshipResolutionError("profile_invalid", "Worship configuration layers must be mappings")
+        merged.update(copy.deepcopy(value))
+    return merged
 
 
 def resolve_profile_data(
@@ -551,13 +596,73 @@ def resolve_profile_data(
     configured.
     """
     weekly = weekly or {}
-    profile_defaults = profile.get("defaults", {})
+    if not isinstance(weekly, dict):
+        raise WorshipResolutionError("profile_invalid", "Weekly worship input must be a mapping")
     weekly_liturgy = weekly.get("liturgy", {})
-    if not isinstance(profile_defaults, dict) or not isinstance(weekly_liturgy, dict):
+    if not isinstance(weekly_liturgy, dict):
         raise WorshipResolutionError("profile_invalid", "Profile defaults and weekly liturgy must be mappings")
+    resolved_church_root = Path(church_root).expanduser().resolve() if church_root is not None else None
+    resolved_plugin_root = Path(plugin_root).expanduser().resolve() if plugin_root is not None else None
+    try:
+        catalog_choice = resolve_catalog(profile, weekly, allowed_units=set(CATALOG_UNITS), church_root=resolved_church_root)
+    except ServiceCatalogError as exc:
+        raise WorshipResolutionError(exc.code, exc.message, field=exc.field) from exc
+    service = catalog_choice["service"]
+    catalog_unresolved = catalog_choice.get("unresolved")
+    weekly_part_selections = weekly_liturgy.get("part_selections", {})
+    if weekly_part_selections is None:
+        weekly_part_selections = {}
+    if not isinstance(weekly_part_selections, dict):
+        raise WorshipResolutionError("catalog_invalid", "Weekly part selections must be a mapping", field="liturgy.part_selections")
+    if catalog_choice["legacy"] and weekly_part_selections:
+        for raw_unit in weekly_part_selections:
+            unit = str(raw_unit)
+            if unit not in CATALOG_UNITS:
+                raise WorshipResolutionError("catalog_unknown_unit", f"Unknown service-plan unit: {unit}", field=f"liturgy.part_selections.{unit}")
+        raise WorshipResolutionError("catalog_unavailable", "A recurring service catalog is required to select a reusable part", field="liturgy.part_selections")
+    profile_defaults = profile.get("defaults", {})
+    profile_sources = profile.get("sources", {})
+    profile_files = profile.get("files", {})
+    if not all(isinstance(value, dict) for value in (profile_defaults, profile_sources, profile_files)):
+        raise WorshipResolutionError("profile_invalid", "Profile defaults, sources, and files must be mappings")
+    service_plan = (weekly.get("service_plan") or service.get("service_plan") or
+                    pack.get("service_plan", "episcopal-rite-ii"))
+    service_plan = str(service_plan).strip()
+    if service_plan not in SERVICE_PLAN_ANCHORS:
+        raise WorshipResolutionError("unsupported_service_plan", f"Unsupported service plan: {service_plan}", field="liturgy.service_plan")
 
-    liturgy = copy.deepcopy(profile_defaults)
-    liturgy.update(copy.deepcopy(weekly_liturgy))
+    # A catalog may provide one explicitly saved service default.  Legacy
+    # variants continue to demand a weekly choice unless a catalog service
+    # opts into its own default_variant.
+    service_input = weekly.get("service", {}) if isinstance(weekly.get("service", {}), dict) else {}
+    variant_id = service_input.get("variant")
+    if variant_id is None and not catalog_choice["legacy"]:
+        variant_id = service.get("default_variant")
+    variants = profile.get("service_variants", {})
+    if variants not in ({}, None) and not isinstance(variants, dict):
+        raise WorshipResolutionError("variant_invalid", "worship.profile.yaml service_variants must be a mapping", field=VARIANT_FIELD)
+    resolved_variant: dict[str, Any] | None = None
+    variant_unresolved: list[dict[str, str]] = []
+    service_variant_pending = False
+    if isinstance(variants, dict) and variants:
+        if not str(variant_id or "").strip():
+            service_variant_pending = True
+            if not standing_only:
+                variant_unresolved.append({"field": VARIANT_FIELD, "reason": "Confirm the service variant for this week. Configured choices: " + ", ".join(sorted(str(key) for key in variants))})
+        elif str(variant_id).strip().lower() != "none":
+            if resolved_church_root is None:
+                variant_unresolved.append({"field": VARIANT_FIELD, "reason": "A church folder is required to load the private service order file"})
+            else:
+                try:
+                    resolved_variant = _resolve_variant(profile, str(variant_id).strip(), resolved_church_root,
+                                                        service_plan, catalog_choice["service_id"])
+                except WorshipResolutionError as exc:
+                    variant_unresolved.append({"field": VARIANT_FIELD, "reason": exc.message})
+
+    variant_defaults = resolved_variant.get("defaults", {}) if resolved_variant else {}
+    variant_sources = resolved_variant.get("sources", {}) if resolved_variant else {}
+    variant_files = resolved_variant.get("files", {}) if resolved_variant else {}
+    liturgy = _merge_value_maps([profile_defaults, service.get("defaults"), variant_defaults, weekly_liturgy])
     # These defaults preserve the two-lesson practice for existing profiles.
     # Keep the resolved values explicit so production never infers an omission
     # from missing reading data.
@@ -599,60 +704,165 @@ def resolve_profile_data(
     tradition = profile.get("tradition", {})
     if not isinstance(tradition, dict):
         tradition = {}
-    service_plan = weekly.get("service_plan") or pack.get("service_plan", "episcopal-rite-ii")
     liturgy["service_plan"] = service_plan
     liturgy["worship_profile_ref"] = profile_ref
-    profile_sources = profile.get("sources", {})
     weekly_sources = weekly_liturgy.get("sources", {})
-    if not isinstance(profile_sources, dict) or not isinstance(weekly_sources, dict):
+    if not isinstance(weekly_sources, dict):
         raise WorshipResolutionError("profile_invalid", "Profile and weekly worship sources must be mappings")
-    sources = {
-        str(key): copy.deepcopy(value)
-        for key, value in profile_sources.items()
-        if str(value or "").strip()
-    }
-    sources.update({
-        str(key): copy.deepcopy(value)
-        for key, value in weekly_sources.items()
-        if str(value or "").strip()
-    })
+    sources: dict[str, Any] = {}
+    for source_layer in (profile_sources, service.get("sources") or {}, variant_sources or {}, weekly_sources):
+        if not isinstance(source_layer, dict):
+            raise WorshipResolutionError("profile_invalid", "Worship source layers must be mappings")
+        sources.update({str(key): copy.deepcopy(value) for key, value in source_layer.items()
+                        if str(value or "").strip()})
     if liturgy.get("doxology", "traditional") != "custom":
         sources.pop("doxology", None)
     liturgy["sources"] = sources
+    if sources.get("communion_welcome") and "communion_welcome" not in liturgy:
+        liturgy["communion_welcome"] = "church-communion-welcome"
+    weekly_files = weekly_liturgy.get("files", {})
+    if not isinstance(weekly_files, dict):
+        raise WorshipResolutionError("profile_invalid", "Standing and weekly liturgy files must be mappings")
+    local_files = _merge_value_maps([profile_files, service.get("files"), variant_files, weekly_files])
     if service_plan == "lutheran-holy-communion":
-        local_files = {key: copy.deepcopy(sources[key]) for key in
+        local_files = {**{key: copy.deepcopy(sources[key]) for key in
                        ("gathering", "prayers", "great-thanksgiving", "lords-prayer", "communion", "sending")
-                       if key in sources}
-        weekly_files = weekly_liturgy.get("files", {})
-        if not isinstance(weekly_files, dict):
-            raise WorshipResolutionError("profile_invalid", "Weekly liturgy files must be a mapping")
-        local_files.update(copy.deepcopy(weekly_files))
+                       if key in sources}, **local_files}
+    # Resolve parts only after all direct layers are known.  A null selection
+    # intentionally stops inheritance and becomes a focused pastor question.
+    catalog = catalog_choice.get("catalog")
+    selected_parts: dict[str, dict[str, Any]] = {}
+    omitted_units: list[str] = []
+    part_unresolved_by_unit: dict[str, dict[str, str]] = {}
+    unit_winners: dict[str, str] = {}
+    if catalog is not None:
+        saved_omissions = weekly_liturgy.get("omitted_units", [])
+        if not isinstance(saved_omissions, list) or any(unit not in OPTIONAL_UNITS for unit in saved_omissions):
+            raise WorshipResolutionError("catalog_required_unit", "Only optional units may be omitted", field="liturgy.omitted_units")
+        weekly_selections = weekly_liturgy.get("part_selections", {})
+        if not isinstance(weekly_selections, dict):
+            raise WorshipResolutionError("catalog_invalid", "Weekly part selections must be a mapping", field="liturgy.part_selections")
+        weekly_selections = {**dict.fromkeys(saved_omissions, "omit"), **weekly_selections}
+        part_layers = [
+            ("church", catalog.get("part_selections", {}), profile_files,
+             {key: value for key, value in profile_sources.items() if str(value or "").strip()}),
+            ("service", service.get("part_selections", {}), service.get("files", {}), service.get("sources", {})),
+            ("variant", (resolved_variant or {}).get("part_selections", {}), variant_files, (resolved_variant or {}).get("sources", {})),
+            ("weekly", weekly_selections, weekly_files, weekly_sources),
+        ]
+        for scope, selections, direct_files, direct_sources in part_layers:
+            if selections is None:
+                selections = {}
+            if not isinstance(selections, dict):
+                raise WorshipResolutionError("catalog_invalid", f"{scope} part selections must be a mapping", field="liturgy.part_selections")
+            # A higher direct source or file replaces a lower selected part.
+            # Canonicalize source keys because choices use underscores while
+            # service-plan units use hyphens.
+            direct_units = {
+                SOURCE_PART_UNITS.get(str(raw_unit), str(raw_unit))
+                for raw_unit in (direct_files or {})
+            } | {
+                SOURCE_PART_UNITS.get(str(raw_unit), str(raw_unit))
+                for raw_unit in (direct_sources or {})
+            }
+            for raw_unit in (direct_files or {}):
+                unit = SOURCE_PART_UNITS.get(str(raw_unit), str(raw_unit))
+                selected_parts.pop(unit, None)
+                part_unresolved_by_unit.pop(unit, None)
+                if unit in omitted_units:
+                    omitted_units.remove(unit)
+                unit_winners[unit] = "file"
+            for raw_unit in (direct_sources or {}):
+                unit = SOURCE_PART_UNITS.get(str(raw_unit), str(raw_unit))
+                selected_parts.pop(unit, None)
+                part_unresolved_by_unit.pop(unit, None)
+                if unit in omitted_units:
+                    omitted_units.remove(unit)
+                unit_winners[unit] = "source"
+            for unit, selected in selections.items():
+                unit = str(unit)
+                if unit not in CATALOG_UNITS:
+                    raise WorshipResolutionError("catalog_unknown_unit", f"Unknown service-plan unit: {unit}", field=f"liturgy.part_selections.{unit}")
+                if unit in direct_units:
+                    raise WorshipResolutionError("catalog_layer_conflict", f"{scope} scope names both a direct source and a selected part for {unit}", field=f"liturgy.part_selections.{unit}")
+                if selected is None:
+                    selected_parts.pop(unit, None)
+                    if unit in omitted_units:
+                        omitted_units.remove(unit)
+                    unit_winners[unit] = "null"
+                    part_unresolved_by_unit[unit] = {"field": f"liturgy.part_selections.{unit}", "reason": "Choose a reusable part or omit this optional unit."}
+                    continue
+                if selected == "omit":
+                    if unit not in OPTIONAL_UNITS:
+                        raise WorshipResolutionError("catalog_required_unit", f"{unit} is required and cannot be omitted", field=f"liturgy.part_selections.{unit}")
+                    selected_parts.pop(unit, None)
+                    part_unresolved_by_unit.pop(unit, None)
+                    unit_winners[unit] = "omit"
+                    if unit not in omitted_units:
+                        omitted_units.append(unit)
+                    continue
+                part = catalog["parts"].get(str(selected))
+                if part is None or part["unit"] != unit:
+                    raise WorshipResolutionError("catalog_part_unit_mismatch", f"Part selection for {unit} does not name a matching configured part", field=f"liturgy.part_selections.{unit}")
+                selected_parts[unit] = {"id": str(selected), "name": part["name"], "unit": unit,
+                                        "file": part["file"], "origin": scope}
+                part_unresolved_by_unit.pop(unit, None)
+                unit_winners[unit] = "part"
+                if unit in omitted_units:
+                    omitted_units.remove(unit)
+        for unit, winner in unit_winners.items():
+            source_keys = [key for key in sources if SOURCE_PART_UNITS.get(key, key) == unit]
+            if winner == "part":
+                detail = selected_parts[unit]
+                for file_key in [key for key in local_files if SOURCE_PART_UNITS.get(str(key), str(key)) == unit]:
+                    local_files.pop(file_key, None)
+                local_files[unit] = detail["file"]
+                for key in source_keys:
+                    sources.pop(key, None)
+                choice_key = PART_SOURCE_KEYS.get(unit)
+                if choice_key:
+                    sources[choice_key] = detail["file"]
+                if unit == "doxology":
+                    liturgy["doxology"] = "custom"
+                elif unit == "communion_welcome":
+                    liturgy["communion_welcome"] = "church-communion-welcome"
+            elif winner == "source":
+                for file_key in [key for key in local_files if SOURCE_PART_UNITS.get(str(key), str(key)) == unit]:
+                    local_files.pop(file_key, None)
+            elif winner == "file":
+                for key in source_keys:
+                    sources.pop(key, None)
+            else:
+                for file_key in [key for key in local_files if SOURCE_PART_UNITS.get(str(key), str(key)) == unit]:
+                    local_files.pop(file_key, None)
+                for key in source_keys:
+                    sources.pop(key, None)
+        for unit in omitted_units:
+            if unit == "communion_welcome":
+                liturgy["communion_welcome"] = ""
+            elif unit == "blessing":
+                liturgy["blessing"] = "omit"
+            elif unit == "doxology":
+                liturgy["doxology"] = "omit"
+        if omitted_units:
+            liturgy["omitted_units"] = sorted(omitted_units)
+        else:
+            liturgy.pop("omitted_units", None)
+    # Part selection is resolver input, while result.parts is its durable,
+    # scoped explanation. Keeping both in a saved resolved liturgy creates a
+    # same-layer conflict when that record is resolved again.
+    liturgy.pop("part_selections", None)
+    if local_files:
         liturgy["files"] = local_files
+    else:
+        liturgy.pop("files", None)
     for key in EXPLICIT_PRINT_CHOICES if service_plan == "episcopal-rite-ii" else ():
         if key in liturgy and liturgy[key] is None:
             unresolved.append({
                 "field": f"liturgy.{key}",
                 "reason": "Confirm whether this part of the service should be printed",
             })
-    resolved_church_root = Path(church_root).expanduser().resolve() if church_root is not None else None
-    resolved_plugin_root = Path(plugin_root).expanduser().resolve() if plugin_root is not None else None
-    variant_unresolved: list[dict[str, str]] = []
-    service_variant_pending = False
-    service = weekly.get("service", {})
-    variant_id = service.get("variant") if isinstance(service, dict) else None
-    variants = profile.get("service_variants", {})
-    if variants not in ({}, None) and not isinstance(variants, dict):
-        variant_unresolved.append({"field": VARIANT_FIELD, "reason": "service_variants must be a mapping"})
-    elif isinstance(variants, dict) and variants:
-        if not str(variant_id or "").strip():
-            service_variant_pending = True
-            if not standing_only:
-                configured = ", ".join(sorted(str(key) for key in variants))
-                variant_unresolved.append({
-                    "field": VARIANT_FIELD,
-                    "reason": f"Confirm the service variant for this week. Configured choices: {configured}",
-                })
-        elif str(variant_id).strip().lower() == "none":
+    if str(variant_id or "").strip().lower() == "none":
             liturgy["service_variant"] = {
                 "id": "none",
                 "name": "Ordinary service",
@@ -665,40 +875,14 @@ def resolve_profile_data(
                 "order_file_chain": [],
                 "confirmation_policy": "explicit_none",
             }
-        elif church_root is None:
-            variant_unresolved.append({
-                "field": VARIANT_FIELD,
-                "reason": "A church folder is required to load the private service order file",
-            })
-        else:
-            try:
-                resolved_variant = _resolve_variant(
-                    profile, str(variant_id).strip(), Path(church_root).expanduser().resolve(), str(service_plan)
-                )
-                liturgy["service_variant"] = {
-                    key: value
-                    for key, value in resolved_variant.items()
-                    if key not in {"files", "confirmation_policy", "order_file_chain"}
-                }
-                liturgy["service_variant_provenance"] = {
-                    "variant_id": resolved_variant["id"],
-                    "order_file_chain": resolved_variant["order_file_chain"],
-                    "confirmation_policy": resolved_variant["confirmation_policy"],
-                }
-                variant_files = resolved_variant.get("files", {})
-                if variant_files:
-                    existing_files = liturgy.get("files", {})
-                    if not isinstance(existing_files, dict):
-                        existing_files = {}
-                    existing_files = copy.deepcopy(existing_files)
-                    existing_files.update(copy.deepcopy(variant_files))
-                    liturgy["files"] = existing_files
-            except WorshipResolutionError as exc:
-                # Keep the pastor-facing question stable even when the detail
-                # names an order-file or source-file subfield.
-                variant_unresolved.append({"field": VARIANT_FIELD, "reason": exc.message})
+    elif resolved_variant is not None:
+        liturgy["service_variant"] = {key: value for key, value in resolved_variant.items()
+                                      if key not in {"files", "confirmation_policy", "order_file_chain", "defaults", "sources", "part_selections"}}
+        liturgy["service_variant_provenance"] = {"variant_id": resolved_variant["id"],
+                                                  "order_file_chain": resolved_variant["order_file_chain"],
+                                                  "confirmation_policy": resolved_variant["confirmation_policy"]}
     unresolved.extend(_source_readiness(
-        profile,
+        {**profile, "sources": copy.deepcopy(sources)},
         pack,
         liturgy,
         church_root=resolved_church_root,
@@ -720,6 +904,18 @@ def resolve_profile_data(
                 ok, reason = _private_source_status(raw, choice=key, church_root=resolved_church_root, field=field)
                 if not ok:
                     unresolved.append({"field": field, "reason": reason or "Provide a verified private worship text."})
+    choice_origins: dict[str, str] = {}
+    for scope, layer in (("church", profile_defaults), ("service", service.get("defaults", {})),
+                         ("variant", variant_defaults), ("weekly", weekly_liturgy)):
+        for key in layer:
+            if key not in {"sources", "files", "part_selections"}:
+                choice_origins[f"liturgy.{key}"] = scope
+    for scope, layer in (("church", profile_sources), ("service", service.get("sources", {})),
+                         ("variant", variant_sources), ("weekly", weekly_sources)):
+        for key in layer:
+            choice_origins[f"liturgy.sources.{key}"] = scope
+    for unit, detail in selected_parts.items():
+        choice_origins[f"liturgy.part_selections.{unit}"] = detail["origin"]
     result = {
         "schema_version": 1,
         "worship_profile_ref": profile_ref,
@@ -732,6 +928,9 @@ def resolve_profile_data(
             "rite_or_setting": tradition.get("rite", pack.get("rite", "")),
         },
         "service_plan": service_plan,
+        "service_context": catalog_choice["service_context"],
+        "choice_origins": choice_origins,
+        "parts": selected_parts,
         "liturgy": liturgy,
         "source_references": copy.deepcopy(profile.get("sources", {})),
         "provenance": {
@@ -739,7 +938,8 @@ def resolve_profile_data(
             "weekly_override_supplied": bool(weekly_liturgy),
         },
         "service_variant_pending": service_variant_pending,
-        "unresolved": [*unresolved, *variant_unresolved],
+        "unresolved": [*unresolved, *part_unresolved_by_unit.values(),
+                       *([catalog_unresolved] if catalog_unresolved and not standing_only else []), *variant_unresolved],
     }
     result["status"] = "needs_input" if result["unresolved"] else "resolved"
     return result

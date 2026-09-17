@@ -17,7 +17,7 @@
      `https://github.com/stephenfsetzer/handbuilt-church-labs.git`, then choose
      the offered URL option. Leave **Sync automatically** off, then choose
      **Sync**. In **Discover**, choose **Add Handbuilt Church Labs**. Open
-     **Yours** and confirm version 0.4.5, three skills, and **Enable plugin** on.
+     **Yours** and confirm version 0.5.0, three skills, and **Enable plugin** on.
      Manual sync does not require a new GitHub App grant. See the [installation
      and support guide](../README.md#installation-and-support) for optional
      Codex CLI and Claude Code CLI routes.

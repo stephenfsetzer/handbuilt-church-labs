@@ -21,6 +21,8 @@ def main() -> int:
     orient_parser = commands.add_parser("orient")
     orient_parser.add_argument("--church-folder", required=True)
     orient_parser.add_argument("--date", required=True)
+    orient_parser.add_argument("--service-id")
+    orient_parser.add_argument("--occurrence-id")
 
     produce_parser = commands.add_parser("produce")
     produce_parser.add_argument("--church-folder", required=True)
@@ -37,7 +39,7 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.command == "orient":
-        result = orient(args.church_folder, args.date)
+        result = orient(args.church_folder, args.date, service_id=args.service_id, occurrence_id=args.occurrence_id)
     elif args.command == "produce":
         bulletin = json.loads(Path(args.input).read_text(encoding="utf-8"))
         result = produce(args.church_folder, bulletin)
