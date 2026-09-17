@@ -153,13 +153,16 @@ marketplace**, and **Add from a repository**. Enter:
 https://github.com/stephenfsetzer/handbuilt-church-labs.git
 ```
 
-Choose the offered **Use [pasted URL]** option. Leave **Sync automatically**
-off, then choose **Sync**. In **Discover**, choose **Add Handbuilt Church Labs**.
+Choose the offered **Use [pasted URL]** option, then choose **Sync**.
+In **Discover**, choose **Add Handbuilt Church Labs**.
 Open **Yours** and confirm that the detail view shows version 0.5.0, three
 skills, and **Enable plugin** on. The success message is
 “Handbuilt Church Labs is installed and ready to use.”
 
-Manual sync works without a new GitHub App grant. To update later, open
+Automatic sync does not need to be disabled to install Handbuilt. If enabling
+it asks for GitHub permissions you do not have, use **Sync** to complete the
+installation. The managed workflow updater does not depend on that setting.
+For a manual host update, open
 **Manage marketplaces**, find `handbuilt-church-labs`, open its More actions
 menu, and choose **Check for updates**. Use the plugin's **Update** button if
 it is offered. Start a new Cowork task after installing or updating. For a first setup, choose where to
@@ -218,6 +221,17 @@ Start a new task and ask, “Set up my church workspace.”
 Once this updater is installed, routine workflow updates happen when you start
 church work. Existing installations need the host update below once to receive
 it. These controls also remain available for changes to the app integration.
+
+For **Claude Code**, enable automatic plugin updates: open `/plugin`, choose
+**Marketplaces**, select `handbuilt-church-labs`, and choose **Enable auto-update**.
+Third-party marketplaces default to off. Follow any reload notification so the
+running session uses the updated plugin. See [Claude Code auto-updates](https://code.claude.com/docs/en/discover-plugins#configure-auto-updates).
+
+Cowork's **Sync automatically** is a separate GitHub marketplace control.
+For organization marketplaces, enabling it requires repository admin access
+and GitHub App permissions; this is not required to install Handbuilt's public
+marketplace. Keep a working automatic-sync setup enabled. See
+[Claude's organization sync requirements](https://support.claude.com/en/articles/13837433-manage-plugins-for-your-organization).
 
 For desktop Claude, use **Manage marketplaces** and **Check for updates** as
 described above. CLI users can refresh the marketplace first, then update the

@@ -15,11 +15,12 @@
      Cowork** mode, then choose **Customize** in the sidebar, **Plugins**, **Add
      plugin**, **Add marketplace**, and **Add from a repository**. Enter
      `https://github.com/stephenfsetzer/handbuilt-church-labs.git`, then choose
-     the offered URL option. Leave **Sync automatically** off, then choose
-     **Sync**. In **Discover**, choose **Add Handbuilt Church Labs**. Open
+     the offered URL option, then choose **Sync**. In **Discover**, choose
+     **Add Handbuilt Church Labs**. Open
      **Yours** and confirm version 0.5.0, three skills, and **Enable plugin** on.
-     Manual sync does not require a new GitHub App grant. See the [installation
-     and support guide](../README.md#installation-and-support) for optional
+     Automatic sync does not need to be disabled. If enabling it asks for
+     GitHub permissions you do not have, use **Sync** to finish installing.
+     See the [installation and support guide](../README.md#installation-and-support) for optional
      Codex CLI and Claude Code CLI routes.
 2. Start a fresh task in your chosen host. In Claude, start a Claude Cowork task
    with local folder access. For a first setup, choose where to create the

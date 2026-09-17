@@ -66,12 +66,19 @@ Cowork, update a host manifest integration, or promise that the app's plugin
 controls need no manual action. Host marketplace controls remain the source of
 truth for those identities.
 
-Claude Code users may enable that host's automatic plugin update setting when
-they want the app-loaded plugin to follow its marketplace. Claude Cowork's
-**Sync automatically** setting is a separate marketplace or organization
-control. Keep the documented manual sync choice unless the organization has
-chosen another policy. Neither setting changes the managed stable or pinned
-selection described here.
+For Claude Code, enable automatic plugin updates through `/plugin` >
+**Marketplaces** > `handbuilt-church-labs` > **Enable auto-update**. Third-party
+marketplaces default to off; follow any reload notification after an update.
+See [Claude Code's documented behavior](https://code.claude.com/docs/en/discover-plugins#configure-auto-updates).
+
+Cowork's **Sync automatically** setting controls GitHub marketplace sync.
+Do not disable a working automatic-sync setup. For organization marketplaces,
+enabling it requires repository admin access and approved GitHub App
+permissions. Those permissions are not required to install this public
+marketplace. If enabling sync requests permissions the user lacks, finish the
+installation through **Sync** and use Handbuilt's managed workflow updates.
+See [Claude's organization sync requirements](https://support.claude.com/en/articles/13837433-manage-plugins-for-your-organization).
+Neither setting changes the managed stable or pinned selection described here.
 
 Missing runtime packages during initial onboarding remain a guided setup issue.
 Run the workspace doctor, follow its supported setup action, and check the
