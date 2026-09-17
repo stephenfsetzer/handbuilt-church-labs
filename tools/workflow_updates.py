@@ -16,6 +16,8 @@ import urllib.request
 import urllib.parse
 import zipfile
 
+from tools.plugin_identity import is_development_root
+
 REPOSITORY = 'stephenfsetzer/handbuilt-church-labs'
 LATEST_URL = f'https://api.github.com/repos/{REPOSITORY}/releases/latest'
 CHECK_INTERVAL = 86400
@@ -223,7 +225,7 @@ def select_release(current_root, store, validate, *, download=fetch, now=time.ti
     result = {'status': 'current', 'selected_root': str(current_root),
               'selected_version': current_version, 'latest': None, 'freshness': 'unknown',
               'host_plugin_updated': False}
-    if (current_root / '.git').exists():
+    if is_development_root(current_root):
         return dict(result, status='pinned', reason='development_connection')
     try:
         with update_lock(store) as acquired:

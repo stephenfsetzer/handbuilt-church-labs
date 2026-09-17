@@ -127,6 +127,24 @@ class WorkflowStartTests(unittest.TestCase):
         self.assertEqual((code, result['code']), (2, 'connection_changed'))
         self.assertNotIn('launcher', result)
 
+    def test_git_backed_codex_cache_defaults_to_stable_and_checks_updates(self):
+        cached = self.base / '.codex/plugins/cache/handbuilt/0.5.0'
+        shutil.copytree(self.host, cached)
+        (cached / '.git').mkdir()
+        with mock.patch.object(bridge, 'ROOT', cached):
+            bridge.connect(self.church)
+            self.assertEqual(self.connection()['update_policy'], 'stable')
+            with mock.patch.object(updates, 'select_release', return_value={'selected_root': str(cached), 'status': 'current'}) as select:
+                result, code = bridge._start(self.church, 'bulletin')
+            select.assert_called_once()
+            self.assertEqual(code, 0)
+            self.assertEqual(result['identity']['loaded']['origin'], 'codex')
+            bridge.connect(self.church, update_policy='pinned')
+            with mock.patch.object(updates, 'select_release') as select:
+                result, code = bridge._start(self.church, 'bulletin')
+            select.assert_not_called()
+            self.assertEqual(result['updates']['status'], 'pinned')
+
     def test_pinned_development_connection_survives_old_app_start(self):
         (self.new / '.git').write_text('gitdir: fixture')
         with mock.patch.object(bridge, 'ROOT', self.new):

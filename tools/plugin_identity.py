@@ -202,8 +202,6 @@ def _inspect_latest(latest: Optional[dict]) -> dict:
 
 
 def _classify_origin(root: Path) -> str:
-    if (root / ".git").exists():
-        return "development"
     parts = root.parts
     if _contains_parts(parts, (".codex", "plugins", "cache")):
         return "codex"
@@ -211,7 +209,14 @@ def _classify_origin(root: Path) -> str:
         return "claude-code"
     if _contains_parts(parts, ("Claude", "local-agent-mode-sessions")) and "rpm" in parts:
         return "claude-desktop"
+    # Host-installed caches can retain Git metadata from their source clone.
+    if (root / ".git").exists():
+        return "development"
     return "unknown"
+
+
+def is_development_root(root: Path) -> bool:
+    return _classify_origin(Path(root).expanduser().resolve()) == "development"
 
 
 def _contains_parts(parts: Tuple[str, ...], sequence: Tuple[str, ...]) -> bool:

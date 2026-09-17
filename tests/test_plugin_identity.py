@@ -52,6 +52,20 @@ class PluginIdentityTests(unittest.TestCase):
         self.assertEqual(new["loaded"]["origin"], "codex")
         self.assertEqual(new["loaded"]["version"], "0.5.0")
 
+    def test_host_cache_git_metadata_does_not_make_it_a_development_checkout(self):
+        for relative, expected in (
+            ('.codex/plugins/cache/handbuilt/0.6.1', 'codex'),
+            ('.claude/plugins/cache/handbuilt/0.6.1', 'claude-code'),
+            ('Claude/local-agent-mode-sessions/session/rpm/plugin', 'claude-desktop'),
+        ):
+            with self.subTest(origin=expected):
+                root = self._plugin(relative, '0.6.1')
+                (root / '.git').mkdir()
+                self._connection(root)
+                report = inspect_installation(root, self.church)
+                self.assertEqual(report['loaded']['origin'], expected)
+                self.assertFalse(report['connection']['development_connection'])
+
     def test_development_connection_is_flagged_without_replacement_claim(self):
         loaded = self._plugin(".codex/plugins/cache/handbuilt/0.5.0", "0.5.0")
         development = self._plugin("working-copy", "0.5.0")

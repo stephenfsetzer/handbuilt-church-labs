@@ -79,6 +79,7 @@ def connect(church_folder: str | Path, *, update_policy: str | None = None,
 
 
 def _connect(church_folder: str | Path, *, update_policy: str | None, automatic: bool) -> dict:
+    from tools.plugin_identity import is_development_root
     church = _load_setup()._assert_private_root(church_folder)
     metadata = _private_file(church, ".handbuilt/installation.json")
     launcher = _private_file(church, "handbuilt.py")
@@ -89,11 +90,11 @@ def _connect(church_folder: str | Path, *, update_policy: str | None, automatic:
         raise ValueError("The church connection is invalid; preserve it for review.")
     if automatic and old.get("plugin_root") and Path(old["plugin_root"]).resolve() != ROOT.resolve():
         from tools.workflow_updates import version
-        if old.get("update_policy") == "pinned" or (Path(old["plugin_root"]) / ".git").exists():
+        if old.get("update_policy") == "pinned" or is_development_root(Path(old["plugin_root"])):
             raise ValueError("Another task pinned this church's connection; preserve it.")
         if version(old["plugin_version"]) > version(installation()["plugin_version"]):
             return {"status": "preserved", "installation": old}
-    policy = update_policy or old.get("update_policy") or ("pinned" if (ROOT / ".git").exists() else "stable")
+    policy = update_policy or old.get("update_policy") or ("pinned" if is_development_root(ROOT) else "stable")
     if policy not in {"pinned", "stable"}:
         raise ValueError("Choose stable or pinned workflow updates.")
     if launcher.exists() and launcher.read_bytes() != expected:
@@ -130,7 +131,7 @@ def _atomic_bytes(path: Path, contents: bytes) -> None:
 
 
 def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:
-    from tools.plugin_identity import inspect_installation
+    from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
     from tools.workflow_updates import select_release, package_version, verify_installed, version
     identity = inspect_installation(ROOT, church)
@@ -139,7 +140,7 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
     if not isinstance(saved, dict) or (saved.get("plugin_root") and not Path(saved["plugin_root"]).is_absolute()):
         raise ValueError("The church connection is invalid; preserve it for review.")
     saved_root = Path(saved.get("plugin_root", str(ROOT))).resolve()
-    pinned = saved.get("update_policy") == "pinned" or (saved_root / ".git").exists() or (ROOT / ".git").exists()
+    pinned = saved.get("update_policy") == "pinned" or is_development_root(saved_root) or is_development_root(ROOT)
     if pinned and saved_root != ROOT.resolve():
         return {"status": "blocked", "code": "pinned_connection", "identity": identity,
                 "message": "This church has an intentional pinned workflow. Keep using that connection unless a change is requested."}, 2

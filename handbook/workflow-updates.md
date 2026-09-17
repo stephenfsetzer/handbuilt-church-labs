@@ -35,9 +35,10 @@ per workflow task. Do not call it again after reading the returned skill or
 switch to the mutable `church-folder/handbuilt.py` launcher for that task.
 
 If the release check is offline or unavailable, the last verified saved working
-release remains available. A development plugin directory containing `.git`
-and a church connection explicitly saved as `pinned` remain pinned and skip the
-stable release check. A stable connection can be selected again with the
+release remains available. A development plugin directory outside the app caches containing `.git`,
+and a church connection explicitly saved as `pinned`, remain pinned and skip the
+stable release check. Host caches may contain Git metadata and still receive
+automatic updates. A stable connection can be selected again with the
 app-loaded launcher when the pastor requests it:
 
 ```bash

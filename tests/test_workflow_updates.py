@@ -101,6 +101,14 @@ class WorkflowUpdateTests(unittest.TestCase):
         self.assertEqual(result['status'], 'pinned')
         self.assertEqual(self.calls, [])
 
+    def test_host_cache_with_git_metadata_still_selects_updates(self):
+        self.current = install_fixture(self.base / '.codex/plugins/cache/handbuilt/0.5.0')
+        (self.current / '.git').mkdir()
+        result = self.select()
+        self.assertEqual(result['status'], 'updated')
+        self.assertEqual(result['selected_version'], '0.6.0')
+        self.assertIn(updates.LATEST_URL, self.calls)
+
     def test_checksum_failure_preserves_working_version(self):
         self.digest = '0' * 64
         result = self.select()
