@@ -156,6 +156,46 @@ class WorkflowStartTests(unittest.TestCase):
         self.assertEqual((code, result['code']), (2, 'pinned_connection'))
         self.assertEqual(before, (self.church / '.handbuilt/installation.json').read_bytes())
 
+    def test_ensure_latest_forces_release_check_and_restores_stable_policy(self):
+        bridge.connect(self.church, update_policy='pinned')
+        result = {'status': 'current', 'selected_root': str(self.host),
+                  'selected_version': '0.5.0', 'latest': None,
+                  'host_plugin_updated': False}
+        with mock.patch.object(updates, 'select_release', return_value=result) as select:
+            ensured, code = bridge._ensure_latest(self.church)
+        self.assertEqual(code, 0)
+        self.assertEqual(ensured['status'], 'current')
+        self.assertTrue(select.call_args.kwargs['force'])
+        self.assertEqual(self.connection()['update_policy'], 'stable')
+
+    def test_ensure_latest_saves_new_verified_release(self):
+        result = {'status': 'updated', 'selected_root': str(self.new),
+                  'selected_version': '0.6.0', 'latest': {'version': '0.6.0'},
+                  'host_plugin_updated': False}
+
+        def connect_selected(command, **kwargs):
+            with mock.patch.object(bridge, 'ROOT', self.new):
+                connection = bridge.connect(self.church, update_policy='stable')
+            return subprocess.CompletedProcess(command, 0, json.dumps(connection), '')
+
+        with mock.patch.object(updates, 'select_release', return_value=result), \
+                mock.patch.object(bridge.subprocess, 'run', side_effect=connect_selected):
+            ensured, code = bridge._ensure_latest(self.church)
+        self.assertEqual(code, 0)
+        self.assertEqual(ensured['status'], 'updated')
+        self.assertEqual(self.connection()['plugin_version'], '0.6.0')
+        self.assertEqual(self.connection()['update_policy'], 'stable')
+
+    def test_ensure_latest_refuses_to_replace_development_checkout(self):
+        (self.host / '.git').mkdir()
+        bridge.connect(self.church, update_policy='pinned')
+        before = (self.church / '.handbuilt/installation.json').read_bytes()
+        with mock.patch.object(updates, 'select_release') as select:
+            result, code = bridge._ensure_latest(self.church)
+        self.assertEqual((code, result['code']), (2, 'development_connection'))
+        select.assert_not_called()
+        self.assertEqual(before, (self.church / '.handbuilt/installation.json').read_bytes())
+
     def test_connection_write_failure_rolls_back_both_files(self):
         old = {p: p.read_bytes() for p in (self.church / 'handbuilt.py', self.church / '.handbuilt/installation.json')}
         original = bridge._atomic_bytes

@@ -54,6 +54,20 @@ python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" connect --update-policy stable
 ```
 
+To ask Handbuilt to check immediately and keep this church on the stable
+channel, use:
+
+```bash
+python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+  --church-folder "<church-folder>" ensure-latest
+```
+
+This bypasses the daily check interval, verifies the release and runtime, and
+saves the stable policy. It never replaces a development checkout. If the
+command reports a development connection, reconnect from a stable app
+installation before running it again. Start a new workflow task after a
+successful update so the task loads the selected release.
+
 To keep the current app-loaded workflow fixed, use:
 
 ```bash

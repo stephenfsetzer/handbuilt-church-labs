@@ -38,6 +38,12 @@ how the agent works here. Handbuilt Church Labs supplies optional workflows.
 5. If Handbuilt is unavailable, explain how to reconnect it for Handbuilt
    operations. Continue other requested work with the tools available.
 
+If the pastor asks to use the latest Handbuilt version or keep it updated,
+run the app-loaded launcher with `ensure-latest` before starting the requested
+workflow. Report the selected version and tell the pastor to start a new task
+after an update. Never replace a development checkout silently; explain the
+stable reconnect path if the command reports a development connection.
+
 ## Where work lives
 
 - `skills/`: the church's own reusable skills and supporting files

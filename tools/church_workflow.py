@@ -213,6 +213,77 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
     return result, 0
 
 
+def _ensure_latest(church: Path) -> tuple[dict, int]:
+    """Force a stable release check without replacing a development checkout."""
+    from tools.plugin_identity import inspect_installation, is_development_root
+    from tools.handbuilt_runtime import default_runtime_root
+    from tools.workflow_updates import select_release, package_version, verify_installed, version
+
+    identity = inspect_installation(ROOT, church)
+    metadata = _private_file(church, ".handbuilt/installation.json")
+    saved = json.loads(metadata.read_text()) if metadata.exists() else {}
+    if not isinstance(saved, dict) or (saved.get("plugin_root") and not Path(saved["plugin_root"]).is_absolute()):
+        raise ValueError("The church connection is invalid; preserve it for review.")
+
+    saved_root = Path(saved.get("plugin_root", str(ROOT))).resolve()
+    if is_development_root(ROOT) or is_development_root(saved_root):
+        return {
+            "status": "blocked",
+            "code": "development_connection",
+            "identity": identity,
+            "message": "This church is connected to a development checkout. Keep it local unless you explicitly reconnect the church to a stable release.",
+            "next_action": "Use connect --update-policy stable from a stable app installation, then run ensure-latest again.",
+        }, 2
+
+    store = default_runtime_root().parent / "workflows"
+    selected = ROOT.resolve()
+    releases = (store / "releases").resolve()
+    if saved_root != selected and saved_root.is_relative_to(releases):
+        saved_version = verify_installed(saved_root)
+        if version(saved_version) >= version(package_version(selected)):
+            selected = saved_root
+
+    def validate(candidate):
+        command = [sys.executable, str(candidate / "tools/handbuilt_runtime.py"),
+                   "doctor", "--capability", "workspace", "--format", "json"]
+        try:
+            check = subprocess.run(command, capture_output=True, text=True, timeout=90)
+            report = json.loads(check.stdout)
+        except (subprocess.SubprocessError, ValueError) as exc:
+            raise ValueError("The new workflow could not complete its runtime check.") from exc
+        if check.returncode or report.get("status") != "ready":
+            raise ValueError("The new workflow needs a runtime change; the current workflow was kept.")
+
+    updates = select_release(selected, store, validate, force=True)
+    selected = Path(updates["selected_root"])
+    if selected != ROOT.resolve():
+        process = subprocess.run(
+            [sys.executable, str(selected / "tools/church_workflow.py"),
+             "--church-folder", str(church), "connect", "--update-policy", "stable"],
+            capture_output=True, text=True, timeout=120,
+        )
+        try:
+            connection = json.loads(process.stdout)
+        except ValueError:
+            connection = {"status": "blocked", "code": "connection_failed",
+                          "message": process.stderr[-2000:] or process.stdout[-2000:]}
+        if process.returncode:
+            return {"status": "blocked", "code": "connection_failed",
+                    "updates": updates, "connection": connection}, 2
+    else:
+        connection = connect(church, update_policy="stable")
+
+    result = {
+        "status": updates["status"],
+        "installation": connection.get("installation"),
+        "updates": updates,
+        "app_loaded_identity": identity["loaded"],
+        "identity": inspect_installation(selected, church, updates.get("latest")),
+        "next_action": "Start a new Handbuilt workflow task so it loads this verified release.",
+    }
+    return result, 0 if updates["status"] in {"current", "updated"} else 1
+
+
 def _doctor(workflow: str = "bulletin") -> dict:
     # Keep PDF dependencies and their working check on bulletin operations.
     # Workspace and sermon tools still require the existing managed packages.
@@ -311,6 +382,7 @@ def main() -> int:
     start = sub.add_parser("start")
     start.add_argument("workflow", choices=("onboarding", "bulletin", "sermon-research"))
     start.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
+    sub.add_parser("ensure-latest", help="Force a verified stable release check for this church")
     runtime = sub.add_parser("runtime")
     runtime.add_argument("operation", choices=("doctor", "verify", "setup", "native-install"))
     runtime.add_argument("--capability", choices=("workspace", "bulletin"))
@@ -345,6 +417,8 @@ def main() -> int:
             code = 0
         elif args.command == "start":
             result, code = _start(church, args.workflow, skip_update=args.skip_update_check)
+        elif args.command == "ensure-latest":
+            result, code = _ensure_latest(church)
         else:
             result, code = execute(church, args.command, args.operation, args.arguments)
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:

@@ -106,6 +106,11 @@ automatically and keeps your church settings and content. If it cannot verify
 an update, it keeps the working release. Your agent handles this for you. See the
 [managed workflow update policy](handbook/workflow-updates.md).
 
+You can also ask, “Make sure I am using the latest Handbuilt version and keep
+me updated automatically.” The agent runs an immediate verified stable check
+and starts a new task on the selected release. Development checkouts remain
+local and are never replaced silently.
+
 Your workspace is yours to change. Add local skills under `skills/`, edit
 `CLAUDE.md` and `AGENTS.md`, and use other tools when you need them. You can
 adapt or remove local files without plugin permission. Reconnecting Handbuilt
