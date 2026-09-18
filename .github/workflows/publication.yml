@@ -67,6 +67,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name }}
+      - name: Require release commit reachable from main
+        run: git merge-base --is-ancestor HEAD refs/remotes/origin/main
       - uses: actions/download-artifact@v4
         with:
           name: handbuilt-workflow
