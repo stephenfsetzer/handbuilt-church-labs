@@ -747,7 +747,7 @@ this year, from {money(sp_total)} in all. {money(tm['went_out'])} went out durin
 <div class="oblig"><div style="flex:1.3;border:none;padding:4pt 0"><b>Obligations</b><span class="muted">Treasurer confirms each is current.</span></div>{''.join(f'<div><b>{esc(o["name"])}</b>{chip(t, o["status"])}</div>' for o in report.get('obligations', []))}</div>{ready_row}
 </div>"""
 
-    short = bool(report.get("short_history")) or not report.get("full_years") or not report.get("pressure")
+    short_history = bool(report.get("short_history")) or not report.get("full_years") or not report.get("pressure")
     def longer_view():
         hist = report["cash_history"]
         first_label = MONTHS_LONG[int(hist[0][0][5:7]) - 1] + " " + hist[0][0][:4]
@@ -793,7 +793,7 @@ this year, from {money(sp_total)} in all. {money(tm['went_out'])} went out durin
 
         return f"""{q5}<div class="row"><div>{q6}</div><div>{q7}</div></div>"""
 
-    longer = "" if short else longer_view()
+    longer = "" if short_history else longer_view()
     sources = "; ".join(f"{esc(s['name'])} ({esc(s['method'])}, {esc(s['pulled'])})" for s in report["sources"])
     recon = ""
     if meta.get("reconstructed"):
@@ -806,8 +806,8 @@ this year, from {money(sp_total)} in all. {money(tm['went_out'])} went out durin
 Bank cash counts our everyday bank accounts, not the endowment. {caveats} <b>Sources:</b> {sources}.</div>"""
 
     footer_txt = f"{church.get('name', '')} · {meta['report']} through {meta['through']} · {vocab['body']}, {meta['meeting_date']}"
-    short = f'<div class="short">{esc(report["short_answer"])}</div>'
-    page1 = f"""{header(t, church, brand, meta, vocab, 'Four' if short else 'Seven')}{short}
+    short_answer = f'<div class="short">{esc(report["short_answer"])}</div>'
+    page1 = f"""{header(t, church, brand, meta, vocab, 'Four' if short_history else 'Seven')}{short_answer}
 {tiles}<div class="row"><div>{q1}</div><div>{q2}</div></div>{q3}{q4}"""
     page2 = f"""<div class="page2"><div class="band"><div class="title">Watch list and the longer view</div>
 <div class="eyebrow">What to follow from month to month</div></div>{watch}{longer}{how}</div>"""

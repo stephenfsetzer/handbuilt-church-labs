@@ -91,6 +91,7 @@ class FinanceReportTests(unittest.TestCase):
         self.assertTrue(any("fallback" in line for line in receipt["brand_resolution"]))
         self.assertTrue(all("bundled" in line for line in receipt["fonts"]), receipt["fonts"])
         text = page_text(self.church, "2026-08")
+        self.assertIn("Seven questions", text)
         self.assertIn("Church Council", text)
         self.assertIn("Riverbend Lutheran Church", text)
         self.assertNotIn("Vestry", text)
