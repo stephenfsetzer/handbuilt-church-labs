@@ -5,8 +5,9 @@ operations workflows. Sessions here behave by these rules.
 
 ## What this repository is
 
-- `skills/` holds the three workflows (`onboarding`, `bulletin`,
-  `sermon-research`). Each SKILL.md is the operating procedure;
+- `skills/` holds the workflows (`onboarding`, `bulletin`,
+  `sermon-research`, `finance-onboarding`, `finance-report`). Each
+  SKILL.md is the operating procedure;
   follow it exactly.
 - `skills/bulletin/renderer/` holds private bulletin rendering details,
   templates, and liturgy texts. Public callers use the bulletin skill's

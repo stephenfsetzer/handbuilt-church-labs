@@ -74,6 +74,27 @@ welcome and accessibility information can appear before or after the service.
 Supplied event posters and QR artwork can accompany announcements without
 being reduced to a text summary.
 
+## A monthly workflow
+
+### Finance report for the vestry or council
+
+```text
+Set up our finances.
+Build this month's finance report.
+```
+
+Finance onboarding comes first. It looks at your books in QuickBooks
+(reading only; it never changes them), writes a plain-language overview for
+the pastor, builds a sample report, and works through a short readiness
+checklist with your treasurer before the monthly report is locked in. Each
+month after that, the workflow produces a two-page report for the board in
+your church's brand: whether you can pay your bills, how the year compares
+with the plan and with last year, where money comes from and goes, a watch
+list carried from month to month, and the longer view. Anything the books
+cannot yet show, such as months that are not closed, is stated plainly on the
+report. The treasurer approves each report before it goes to the board.
+See the [finance report guide](handbook/finance-report.md).
+
 ## Come back to your work
 
 Your private church folder is the home for church details, preferences,
@@ -128,7 +149,7 @@ readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 
-Install Handbuilt Church Labs version 0.6.3 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
+Install Handbuilt Church Labs version 0.7.0 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
 The point-and-click path below is the primary path for pastors. The repository
 is public, so manual installation does not require a GitHub access grant.
 
@@ -164,7 +185,7 @@ https://github.com/stephenfsetzer/handbuilt-church-labs.git
 
 Choose the offered **Use [pasted URL]** option, then choose **Sync**.
 In **Discover**, choose **Add Handbuilt Church Labs**.
-Open **Yours** and confirm that the detail view shows version 0.6.3, three
+Open **Yours** and confirm that the detail view shows version 0.7.0, five
 skills, and **Enable plugin** on. The success message is
 “Handbuilt Church Labs is installed and ready to use.”
 
