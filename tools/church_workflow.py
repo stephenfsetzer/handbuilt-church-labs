@@ -28,13 +28,19 @@ WORKFLOWS = {
     "brand": "skills/onboarding/scripts/brand_setup.py",
     "bulletin": "skills/bulletin/scripts/bulletin_production.py",
     "sermon-research": "skills/sermon-research/scripts/sermon_workflow.py",
+    "finance-onboarding": "skills/finance-onboarding/scripts/finance_onboarding.py",
+    "finance-report": "skills/finance-report/scripts/finance_report.py",
 }
 OPERATIONS = {
     "onboarding": {"status", "update", "resolve-person"},
     "brand": {"status", "update"},
     "bulletin": {"orient", "produce", "revise", "finalize"},
     "sermon-research": {"orient", "record"},
+    "finance-onboarding": {"orient", "look", "readiness", "calendar", "stage"},
+    "finance-report": {"status", "setup", "build", "render"},
 }
+# Workflows that make PDFs check the full PDF runtime before they start.
+PDF_WORKFLOWS = {"bulletin", "finance-report"}
 
 
 def _load_setup():
@@ -153,7 +159,7 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
     store = default_runtime_root().parent / "workflows"
     def validate(candidate):
         command = [sys.executable, str(candidate / "tools/handbuilt_runtime.py")]
-        command += (["verify"] if workflow == "bulletin" else ["doctor", "--capability", "workspace"])
+        command += (["verify"] if workflow in PDF_WORKFLOWS else ["doctor", "--capability", "workspace"])
         try:
             check = subprocess.run(command + ["--format", "json"], capture_output=True, text=True, timeout=90)
             report = json.loads(check.stdout)
@@ -285,9 +291,9 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
 
 
 def _doctor(workflow: str = "bulletin") -> dict:
-    # Keep PDF dependencies and their working check on bulletin operations.
+    # Keep PDF dependencies and their working check on the workflows that make PDFs.
     # Workspace and sermon tools still require the existing managed packages.
-    arguments = (["verify"] if workflow == "bulletin"
+    arguments = (["verify"] if workflow in PDF_WORKFLOWS
                  else ["doctor", "--capability", "workspace"])
     result = subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
                              *arguments, "--format", "json"], capture_output=True, text=True)
@@ -380,7 +386,8 @@ def main() -> int:
         if action == "restore":
             command.add_argument("--expected-sha256", required=True)
     start = sub.add_parser("start")
-    start.add_argument("workflow", choices=("onboarding", "bulletin", "sermon-research"))
+    start.add_argument("workflow", choices=("onboarding", "bulletin", "sermon-research",
+                                            "finance-onboarding", "finance-report"))
     start.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
     sub.add_parser("ensure-latest", help="Force a verified stable release check for this church")
     runtime = sub.add_parser("runtime")
