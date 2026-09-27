@@ -28,6 +28,7 @@ WORKFLOWS = {
     "brand": "skills/onboarding/scripts/brand_setup.py",
     "bulletin": "skills/bulletin/scripts/bulletin_production.py",
     "sermon-research": "skills/sermon-research/scripts/sermon_workflow.py",
+    "sermon-reflection": "skills/sermon-reflection/scripts/sermon_reflection.py",
     "finance-onboarding": "skills/finance-onboarding/scripts/finance_onboarding.py",
     "finance-report": "skills/finance-report/scripts/finance_report.py",
 }
@@ -36,6 +37,7 @@ OPERATIONS = {
     "brand": {"status", "update"},
     "bulletin": {"orient", "produce", "revise", "finalize"},
     "sermon-research": {"orient", "record"},
+    "sermon-reflection": {"orient", "open", "done", "record", "speaker-copy"},
     "finance-onboarding": {"orient", "look", "readiness", "calendar", "stage"},
     "finance-report": {"status", "setup", "build", "render"},
 }
@@ -387,7 +389,8 @@ def main() -> int:
             command.add_argument("--expected-sha256", required=True)
     start = sub.add_parser("start")
     start.add_argument("workflow", choices=("onboarding", "bulletin", "sermon-research",
-                                            "finance-onboarding", "finance-report"))
+                                            "sermon-reflection", "finance-onboarding",
+                                            "finance-report"))
     start.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
     sub.add_parser("ensure-latest", help="Force a verified stable release check for this church")
     runtime = sub.add_parser("runtime")

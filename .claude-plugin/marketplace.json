@@ -3,13 +3,13 @@
   "owner": {
     "name": "Handbuilt"
   },
-  "description": "Church workspace setup, sermon research, reviewable worship bulletins, and monthly finance reports.",
+  "description": "Church workspace setup, sermon research and reflection, reviewable worship bulletins, and monthly finance reports.",
   "plugins": [
     {
       "name": "handbuilt-church-labs",
       "source": "./",
-      "description": "Church workspace setup, sermon research, reviewable worship bulletins, and monthly finance reports.",
-      "version": "0.7.1",
+      "description": "Church workspace setup, sermon research and reflection, reviewable worship bulletins, and monthly finance reports.",
+      "version": "0.8.0",
       "author": {
         "name": "Handbuilt",
         "url": "https://gethandbuilt.com"

@@ -24,8 +24,9 @@ how the agent works here. Handbuilt Church Labs supplies optional workflows.
 ## When using Handbuilt
 
 1. Load the app's installed `handbuilt-church-labs:onboarding`,
-   `handbuilt-church-labs:bulletin`, or `handbuilt-church-labs:sermon-research`
-   skill for the requested Handbuilt operation.
+   `handbuilt-church-labs:bulletin`, `handbuilt-church-labs:sermon-research`,
+   or `handbuilt-church-labs:sermon-reflection` skill for the requested
+   Handbuilt operation.
 2. Run the app-loaded skill's `tools/church_workflow.py` with
    `--church-folder "<this-folder>" start <workflow>` once. The saved connection
    may use a newer managed release or an intentional pinned development copy;

@@ -99,7 +99,9 @@ continuing. Pastors do not need to open or edit receipts.
 No. When activated, it verifies readings and prepares the cited research brief,
 then stops at the same `research_complete` state as a manual run. A
 pastor-selected passage must first be confirmed for that service. Reflection,
-outlining, drafting, and review are outside the Labs research workflow.
+outlining, drafting, and review are outside the Labs research workflow. Sermon
+reflection is a separate workflow that you start yourself, and even there you
+write the sermon; the agent only edits it lightly.
 
 **How do I change the sermon research preferences?**
 

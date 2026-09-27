@@ -6,7 +6,7 @@ Claude use the same canonical workflows under `skills/`.
 ## Repository map
 
 - `skills/` contains the canonical onboarding, bulletin, sermon research,
-  finance onboarding, and finance report workflows.
+  sermon reflection, finance onboarding, and finance report workflows.
 - `scaffold/church-folder/` is the template onboarding uses to create a
   church's private operating folder.
 - `skills/bulletin/renderer/` contains private rendering details. Public
