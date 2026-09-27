@@ -10,13 +10,13 @@
         "source": "local",
         "path": "./"
       },
-      "version": "0.7.1",
+      "version": "0.8.0",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity",
-      "description": "Church workspace setup, sermon research, reviewable worship bulletins, and monthly finance reports."
+      "description": "Church workspace setup, sermon research and reflection, reviewable worship bulletins, and monthly finance reports."
     }
   ]
 }

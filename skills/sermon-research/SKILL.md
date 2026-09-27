@@ -23,6 +23,8 @@ state. Never ask the pastor to manage them.
 
 The workflow ends at `research_complete`. Sermon reflection, outlining, manuscript drafting,
 manuscript editing, and sermon review are outside this research operation.
+The separate [Sermon Reflection](../sermon-reflection/SKILL.md) workflow helps
+the pastor write and lightly edits their sermon when they ask for it.
 Writing and editing the research brief are internal parts of this skill.
 Existing pastor files such as `reflections.md` or `sermon-draft.md` remain
 pastor-owned. Do not change them as a side effect of research or interpret them
@@ -209,7 +211,8 @@ valid metadata example (`research_target` and the source ledger together), see
 Present `research-brief.md` as ready for the pastor's study and discernment.
 Also identify `readings.md` as its verification record. Do not request
 reflections, offer to draft automatically, or imply that another workflow stage
-is pending. `next_actions` must be empty.
+is pending. `next_actions` must be empty. You may mention once that when the
+pastor is ready to write, they can say "Start my sermon reflection."
 
 ## Replacement and failure rules
 

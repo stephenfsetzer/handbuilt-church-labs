@@ -43,7 +43,7 @@ For the pilot, follow this short sequence: set up your church, run sermon
 research, then build a bulletin. Review the research sources and bulletin PDF
 before using the result in worship.
 
-## Two weekly workflows
+## Weekly workflows
 
 ### Sermon research
 
@@ -56,6 +56,23 @@ published calendars, or records a passage you selected and checks it against a
 published text. It produces a cited research brief with historical context,
 interpretive possibilities, and questions for reflection. It ends at research.
 You decide what to preach and how to draft it.
+
+### Sermon reflection
+
+```text
+Start my sermon reflection.
+```
+
+You write the sermon; the agent helps. It walks through the research with you
+and asks one question at a time about what grabbed you and what you hope people
+feel and do. You can answer out loud with the app's voice button. Then it opens
+a page for your reflections, here in the app or wherever you prefer to write,
+and waits as long as you need. When you say you are done, it edits your writing
+lightly: it keeps your sentences and your voice, fixes facts, scripture and
+liturgy wording, and safety concerns, and marks everything else as a
+suggestion. It can also make a large-type speaker's copy to print. The
+[sermon reflection guide](handbook/sermon-reflection.md) shows every step as a
+flowchart.
 
 ### Worship bulletins
 
@@ -149,7 +166,7 @@ readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 
-Install Handbuilt Church Labs version 0.7.1 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
+Install Handbuilt Church Labs version 0.8.0 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
 The point-and-click path below is the primary path for pastors. The repository
 is public, so manual installation does not require a GitHub access grant.
 
@@ -185,7 +202,7 @@ https://github.com/stephenfsetzer/handbuilt-church-labs.git
 
 Choose the offered **Use [pasted URL]** option, then choose **Sync**.
 In **Discover**, choose **Add Handbuilt Church Labs**.
-Open **Yours** and confirm that the detail view shows version 0.7.1, five
+Open **Yours** and confirm that the detail view shows version 0.8.0, six
 skills, and **Enable plugin** on. The success message is
 “Handbuilt Church Labs is installed and ready to use.”
 
