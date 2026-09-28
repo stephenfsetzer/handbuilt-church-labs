@@ -312,12 +312,21 @@ def chart_cash(d, cash, prev_bank=None):
             o.append(d.rect(x, top, bw * fill, h, t["positive"]))
         if fill == 1 and bw >= 70:
             o.append(d.text(x + bw / 2, top + 24, f"Month {i + 1}", 12, 700, "#ffffff", "middle"))
-    if prev_bank:
-        px = xpos(prev_bank / cash["monthly_spending"])
+    if prev_bank is not None:
+        previous_months = prev_bank / cash["monthly_spending"]
+        px = min(HALF - 1, max(1, xpos(previous_months)))
+        label = "last month"
+        if previous_months > boxes:
+            label += f" (>{boxes} months)"
+        elif previous_months < 0:
+            label += " (<0 months)"
+        # Keep edge labels inside the chart without moving the cash marker.
+        half_label = len(label) * 2.7
+        label_x = min(HALF - half_label - 2, max(half_label + 2, px))
         o.append(d.line(px, top - 4, px, top + h + 4, t["ink"], 1.6, "3 2"))
-        o.append(d.text(px, top - 5, "last month", 9.5, 600, t["muted"], "middle"))
+        o.append(d.text(label_x, top - 5, label, 9.5, 600, t["muted"], "middle"))
     o.append(d.text(0, top + h + 17, f"Each box is one month of spending, about "
-                    f"{money(round(cash['monthly_spending'], -3))}.", 10.5, 400, t["muted"]))
+                    f"{money(cash['monthly_spending'])}.", 10.5, 400, t["muted"]))
     return d.svg(HALF, top + h + 22, o)
 
 
@@ -341,7 +350,7 @@ def chart_running(d, run, pending):
 
     o = []
     o.append(d.line(left, y(0), left + usable, y(0), t["ink"], 1.1))
-    o.append(d.text(left + usable + 4, y(0) + 3.5, "break even", 9.5, 600, t["muted"]))
+    end_labels = [(y(0) + 3.5, "break even", 9.5, 600)]
 
     def path(vals, color, width, dash=None):
         pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(vals))
@@ -353,16 +362,19 @@ def chart_running(d, run, pending):
     if has_last:
         o.append(path(run["last_year"], t["positive_soft"], 2.2))
     o.append(path(run["this_year"], t["positive"], 3))
-    # end labels
-    yl = y(run["last_year"][-1]) + 3.5 if has_last else -99
-    yp = y(run["plan"][-1]) + 3.5 if has_plan else yl + 99
-    if has_plan and has_last and abs(yp - yl) < 11:
-        mid = (yp + yl) / 2
-        yp, yl = (mid - 5.5, mid + 5.5) if yp <= yl else (mid + 5.5, mid - 5.5)
     if has_plan:
-        o.append(d.text(x(11) + 5, yp, "plan", 10, 600, t["muted"]))
+        end_labels.append((y(run["plan"][-1]) + 3.5, "plan", 10, 600))
     if has_last:
-        o.append(d.text(x(11) + 5, yl, f"{run['last_year_label']}", 10, 700, t["muted"]))
+        end_labels.append((y(run["last_year"][-1]) + 3.5, str(run["last_year_label"]), 10, 700))
+    # Separate nearby end labels, including break even, within the plot height.
+    end_labels.sort(key=lambda item: item[0])
+    baselines = []
+    for index, (target, *_) in enumerate(end_labels):
+        ceiling = bottom + 3.5 - 12 * (len(end_labels) - index - 1)
+        floor = baselines[-1] + 12 if baselines else top + 7
+        baselines.append(max(floor, min(target, ceiling)))
+    for baseline, (_, label, size, weight) in zip(baselines, end_labels):
+        o.append(d.text(x(11) + 5, baseline, label, size, weight, t["muted"]))
     i = len(run["this_year"]) - 1
     v = run["this_year"][-1]
     o.append(f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="4" fill="{d.sign_color(v)}" stroke="#ffffff" stroke-width="1.5"/>')
@@ -372,9 +384,10 @@ def chart_running(d, run, pending):
     sign = "+" if v >= 0 else "−"
     label = f"{run['this_year_label']}: {sign}{kfmt(v)}"
     lw = len(label) * 6.3 + 6
-    ly_ = min(y(v) + 18, bottom - 2)
-    o.append(f'<rect x="{x(i) - 8 - lw:.1f}" y="{ly_ - 11:.1f}" width="{lw:.1f}" height="15" rx="2" fill="#ffffff" opacity="0.92"/>')
-    o.append(d.text(x(i) - 11, ly_, label, 11, 700, None, "end"))
+    ly_ = y(v) + 18 if y(v) <= bottom - 18 else y(v) - 10
+    label_left = min(W - lw - 2, max(2, x(i) - 8 - lw))
+    o.append(f'<rect x="{label_left:.1f}" y="{ly_ - 11:.1f}" width="{lw:.1f}" height="15" rx="2" fill="#ffffff" opacity="0.92"/>')
+    o.append(d.text(label_left + lw - 3, ly_, label, 11, 700, None, "end"))
     for k in range(12):
         o.append(d.text(x(k), H - 8, MONTH_ABBR[k], 9.5, 600 if k <= i else 400,
                         t["ink"] if k <= i else t["muted"], "middle"))

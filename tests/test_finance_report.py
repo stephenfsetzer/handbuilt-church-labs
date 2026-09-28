@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from xml.etree import ElementTree as ET
 from unittest import mock
 
 from tools import church_workflow as bridge
@@ -244,6 +245,68 @@ class FinanceReportTests(unittest.TestCase):
         self.assertTrue(Path(result["handbuilt_run"]).is_file())
         with self.assertRaises(ValueError):
             bridge.execute(church, "finance-report", "status", ["--church-folder=/tmp/another"])
+
+
+class FinanceChartLayoutTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("report_renderer", ENTRY.with_name("report_renderer.py"))
+        cls.renderer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.renderer)
+        theme, _ = cls.renderer.resolve_theme({}, {})
+        cls.draw = cls.renderer.Draw(theme)
+
+    def test_running_label_stays_inside_chart_without_moving_data(self):
+        for month in (1, 3, 8, 12):
+            for value, pending in ((50, 0), (-5000, 0), (-5000, 6000), (1234567, 0)):
+                with self.subTest(month=month, value=value, pending=pending):
+                    run = {"this_year": [value] * month, "this_year_label": "2026",
+                           "plan": [0] * 12, "last_year": [100] * 12, "last_year_label": "2025"}
+                    root = ET.fromstring(self.renderer.chart_running(self.draw, run, pending))
+                    box = root.find("{*}rect")
+                    label = next(t for t in root.findall("{*}text") if (t.text or "").startswith("2026:"))
+                    left, width = float(box.attrib["x"]), float(box.attrib["width"])
+                    self.assertGreaterEqual(left, 0)
+                    self.assertLessEqual(left + width, self.renderer.HALF)
+                    self.assertGreater(float(label.attrib["x"]), left)
+                    self.assertLess(float(label.attrib["x"]), left + width)
+                    circles = root.findall("{*}circle")
+                    self.assertEqual(len(circles), 2 if pending else 1)
+                    expected_x = 4 + (self.renderer.HALF - 4 - 58) * (month - 1) / 11
+                    for circle in circles:
+                        self.assertAlmostEqual(float(circle.attrib["cx"]), expected_x, places=1)
+                    self.assertIn("+" if value >= 0 else "−", label.text)
+                    point_y = float(circles[0].attrib["cy"])
+                    box_top = float(box.attrib["y"])
+                    self.assertTrue(box_top > point_y + 4 or box_top + 15 < point_y - 4)
+                    end_labels = [t for t in root.findall("{*}text") if t.text in ("plan", "2025", "break even")]
+                    baselines = sorted(float(t.attrib["y"]) for t in end_labels)
+                    self.assertTrue(all(b - a >= 11.9 for a, b in zip(baselines, baselines[1:])))
+                    self.assertGreaterEqual(baselines[0], 10)
+                    self.assertLessEqual(baselines[-1], 123.5)
+
+    def test_cash_marker_and_label_fit_at_both_edges_and_beyond_scale(self):
+        for previous, expected in ((0, "last month"), (1, "last month"), (300, "last month"),
+                                   (600, "last month"), (1000, "last month (>6 months)"),
+                                   (-100, "last month (<0 months)")):
+            with self.subTest(previous=previous):
+                root = ET.fromstring(self.renderer.chart_cash(self.draw, {"bank": 300, "monthly_spending": 100}, previous))
+                marker = root.find("{*}line")
+                self.assertGreaterEqual(float(marker.attrib["x1"]), 1)
+                self.assertLessEqual(float(marker.attrib["x1"]), self.renderer.HALF - 1)
+                label = next(t for t in root.findall("{*}text") if (t.text or "").startswith("last month"))
+                self.assertEqual(label.text, expected)
+                half_width = len(label.text) * 2.7
+                self.assertGreaterEqual(float(label.attrib["x"]) - half_width, 1.9)
+                self.assertLessEqual(float(label.attrib["x"]) + half_width, self.renderer.HALF - 1.9)
+        root = ET.fromstring(self.renderer.chart_cash(self.draw, {"bank": 300, "monthly_spending": 100}))
+        self.assertIsNone(root.find("{*}line"))
+
+    def test_cash_caption_preserves_small_monthly_spending(self):
+        for spending, caption in ((50, "$50"), (499.6, "$500"), (12345, "$12,345")):
+            with self.subTest(spending=spending):
+                root = ET.fromstring(self.renderer.chart_cash(self.draw, {"bank": 300, "monthly_spending": spending}))
+                self.assertIn(f"about {caption}.", " ".join(root.itertext()))
 
 
 if __name__ == "__main__":
