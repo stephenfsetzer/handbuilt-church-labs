@@ -30,6 +30,7 @@ confirmation does.
 
 ## Primary theological and historical texts
 
+- [Catena Aurea at CCEL](https://www.ccel.org/ccel/aquinas/catena1.html)
 - [New Advent Fathers](https://www.newadvent.org/fathers/)
 - [Christian Classics Ethereal Library](https://ccel.org/)
 - [Early Christian Commentary](https://www.earlychristiancommentary.com/)
@@ -38,6 +39,33 @@ confirmation does.
 
 Open the primary text when available. Secondary attributions to ancient
 writers are often copied with the wrong work, section, or wording.
+
+### Historical-interpretation retrieval ladder
+
+Use this sequence when `orient` requires ancient interpreters or when an
+ancient reading materially belongs in the inquiry:
+
+1. Start with a verse-indexed catena or commentary index for the exact passage.
+   Use it to identify at least three candidate interpreters and works. A catena
+   is a discovery map, not automatic proof that a quotation is accurate.
+2. Search the candidate's name, work, and passage together in New Advent,
+   CCEL, Early Christian Commentary, Perseus, or another accountable primary
+   text host.
+3. Open the relevant section. Confirm that it addresses the passage and locate
+   the argument in its surrounding context. Record the work, section or homily,
+   translator when named, and direct URL or precise citation.
+4. Keep searching until the required number of distinct interpreters supplies
+   materially useful arguments. Two works by one author count as one
+   interpreter. A modern author quoting an ancient writer remains secondary
+   until the ancient text is opened.
+5. Give the source a clear ledger type containing `patristic`, `ancient church`,
+   `early Christian`, or `church father`, and set `access_result` to `opened`.
+   Do this only when the opened source and its author actually qualify.
+
+When an original work survives only as a named fragment in a responsible
+catena, cite the catena's exact location and state that textual status in the
+evidence card. Do not silently present the compilation as a directly opened
+standalone work.
 
 ## Commentary and scholarship
 

@@ -64,6 +64,12 @@ call. Manual and scheduled runs use the same stages and both end at
 `research_complete`. The mode changes only which passage-selection actions are
 permitted.
 
+When an external publication workflow explicitly requests the `public`
+quality profile, add `--quality-profile public` to `orient` and every `record`
+call. Do not infer this profile for ordinary pastor research. Read the returned
+`research_requirements` before retrieval. A public run cannot reach
+`research_complete` unless its receipt was recorded under that profile.
+
 Follow `workflow_state` and `next_actions`. A present file may be modified,
 unverified, or stale. Do not infer state from conversation history or file
 presence. `research_focus` reports the church's configured primary text.
@@ -170,6 +176,13 @@ before the first `record` call, and add no source after it. An interactive
 run should reach `research_complete` in under ten minutes; a scheduled run
 may take longer when it goes deeper.
 
+For the `public` quality profile, source sufficiency has three mechanical
+minimums in addition to the semantic review: 2,500 words, seven materially
+used sources, and two distinct opened ancient Christian interpreters. Follow
+the historical-interpretation retrieval ladder in `source-directory.md` before
+drafting. Do not stop after the first easy patristic result, and do not treat
+two works by one author as two interpreters.
+
 The lead owns source sufficiency and final acceptance. Use a model suited to
 sustained synthesis for research and writing. Without delegation, perform the
 editing pass as a separate sequential pass and state the independence limit in
@@ -202,7 +215,8 @@ a `research_target` containing the primary reading role and exact verified
 citation. In lectionary mode, set `selection_basis` to `church_profile` or
 `pastor_override`. In pastor-selected mode, set it to `pastor_selection`.
 
-Record with the same command shape and `--stage research`. For a complete,
+Record with the same command shape and `--stage research`, preserving any
+explicit `--quality-profile public` argument from `orient`. For a complete,
 valid metadata example (`research_target` and the source ledger together), see
 [source-verification.md](references/source-verification.md#complete-research-metadata-example).
 

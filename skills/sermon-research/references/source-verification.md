@@ -298,6 +298,13 @@ or paywalled source in private run notes when its absence matters; do not put
 it in the materially used ledger. In the brief, express a consequential limit
 through accurate attribution and cited scope, not a report about access.
 
+The public quality profile counts ancient interpreters only when
+`access_result` is `opened`, the ledger has a named author, and `source_type`
+contains `patristic`, `ancient church`, `early Christian`, or `church father`.
+Two works by the same author count as one interpreter. Do not label a modern
+commentary, historical background source, or denominational document as an
+ancient interpreter to satisfy the profile.
+
 ### Complete research metadata example
 
 The `record --stage research` metadata file combines `research_target` (see

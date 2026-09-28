@@ -88,6 +88,17 @@ independent edit. The lead judges sufficiency before writing and accepts the
 edited brief before recording. Verification requires support in the opened argument;
 a plausible URL, author, or bibliography entry is insufficient.
 
+### Publication quality profile
+
+Ordinary pastor research uses the standard quality profile. An external
+publisher may explicitly request the public profile. The public profile adds
+mechanical floors of 2,500 words, seven materially used sources, and two
+distinct opened ancient Christian interpreters. These requirements exist so a
+publication run cannot finalize a thin receipt and discover the stronger
+contract only during promotion. They do not replace relevance or source
+judgment. Each ancient interpreter still needs a developed argument that
+changes one of the passage's live questions.
+
 ## Required shape
 
 This shape applies to the final research brief. The internal working cards

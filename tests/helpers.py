@@ -212,6 +212,34 @@ def research_sources() -> list[dict[str, str]]:
     ]
 
 
+def public_research_sources() -> list[dict[str, str]]:
+    sources = research_sources()
+    for index in range(5, 8):
+        sources.append({
+            "source_id": f"source-{index}",
+            "title": f"Synthetic Research Source {index}",
+            "author": f"Fixture Author {index}",
+            "publisher": f"Fixture Publisher {index}",
+            "url_or_citation": f"https://research-{index}.invalid/source",
+            "source_type": "synthetic scholarly fixture",
+            "retrieved_at": f"2026-08-26T12:0{index}:00+00:00",
+            "access_result": "opened",
+            "claim_support": f"supports synthetic claim family {index}",
+            "currency_note": "timeless synthetic fixture",
+        })
+    sources[0].update({
+        "author": "Ancient Interpreter One",
+        "source_type": "patristic primary source",
+        "access_result": "opened",
+    })
+    sources[1].update({
+        "author": "Ancient Interpreter Two",
+        "source_type": "ancient church primary source",
+        "access_result": "opened",
+    })
+    return sources
+
+
 def readings_content(revision: str = "one", selection: dict | None = None) -> str:
     selection = selection or reading_selection()
     service_date = datetime.fromisoformat(selection["service_date"]).strftime("%B %d, %Y")
@@ -350,6 +378,33 @@ def research_brief(
     return "\n".join(body)
 
 
+def public_research_brief() -> str:
+    content = research_brief()
+    deepening = (
+        "The public profile tests a developed interpretive argument whose claims remain tied "
+        "to opened sources. Each paragraph advances the passage's central question, compares "
+        "the grounds offered by distinct interpreters, and preserves the cost of choosing one "
+        "reading over another. The repeated fixture language is intentionally synthetic, but "
+        "it supplies enough body text to exercise the publication floor without importing any "
+        "church, pastor, or copyrighted material. It also keeps the test focused on the quality "
+        "profile rather than unrelated content validation. "
+    )
+    content = content.replace(
+        "## References",
+        "\n\n".join(deepening for _ in range(18)) + "\n\n## References",
+        1,
+    )
+    content = content.replace(
+        "## Questions for reflection",
+        "- [Synthetic source 5](https://research-5.invalid/source)\n"
+        "- [Synthetic source 6](https://research-6.invalid/source)\n"
+        "- [Synthetic source 7](https://research-7.invalid/source)\n\n"
+        "## Questions for reflection",
+        1,
+    )
+    return content
+
+
 def research_metadata() -> dict:
     return {
         "research_target": {
@@ -360,6 +415,12 @@ def research_metadata() -> dict:
         "sources": research_sources(),
         "scope_note": "The synthetic passage is narrow and the fixture tests contract depth only.",
     }
+
+
+def public_research_metadata() -> dict:
+    metadata = research_metadata()
+    metadata["sources"] = public_research_sources()
+    return metadata
 
 
 def pastor_selected_research_metadata() -> dict:

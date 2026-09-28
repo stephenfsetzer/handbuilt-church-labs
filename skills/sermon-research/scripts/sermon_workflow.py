@@ -23,6 +23,7 @@ def _parser() -> argparse.ArgumentParser:
     inspect_parser.add_argument("--church-folder", required=True)
     inspect_parser.add_argument("--date", required=True)
     inspect_parser.add_argument("--mode", choices=("manual", "scheduled"), default="manual")
+    inspect_parser.add_argument("--quality-profile", choices=("standard", "public"), default="standard")
 
     record_parser = subparsers.add_parser("record")
     record_parser.add_argument("--church-folder", required=True)
@@ -36,6 +37,7 @@ def _parser() -> argparse.ArgumentParser:
     record_parser.add_argument("--metadata-file")
     record_parser.add_argument("--replace", action="store_true")
     record_parser.add_argument("--mode", choices=("manual", "scheduled"), default="manual")
+    record_parser.add_argument("--quality-profile", choices=("standard", "public"), default="standard")
 
     return parser
 
@@ -43,7 +45,12 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = _parser().parse_args()
     if args.command == "orient":
-        result = orient(args.church_folder, args.date, mode=args.mode)
+        result = orient(
+            args.church_folder,
+            args.date,
+            mode=args.mode,
+            quality_profile=args.quality_profile,
+        )
     elif args.command == "record":
         content = Path(args.content_file).read_text(encoding="utf-8")
         metadata = {}
@@ -57,6 +64,7 @@ def main() -> int:
             metadata,
             replace=args.replace,
             mode=args.mode,
+            quality_profile=args.quality_profile,
         )
     print(json.dumps(result, indent=2))
     return 0 if result.get("status") not in {"blocked", "failed"} else 1

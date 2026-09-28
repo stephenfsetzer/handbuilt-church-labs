@@ -61,3 +61,7 @@ real record attempt:
   for reflection is the last heading and every line ends with a question
   mark.
 - Body length is 1,600 to 2,200 words before References.
+- When `orient` reports the public quality profile, the complete brief must
+  contain at least 2,500 words, seven materially used source links, and two
+  distinct ancient interpreters already present in the research cards. Do not
+  add a source during this preflight merely to satisfy the count.
