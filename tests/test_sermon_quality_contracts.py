@@ -17,6 +17,8 @@ from tests.helpers import (
     reading_selection,
     reading_sources,
     readings_content,
+    public_research_brief,
+    public_research_metadata,
     research_brief,
     research_metadata,
 )
@@ -113,6 +115,81 @@ class SermonQualityContractTest(unittest.TestCase):
         result = record(self.church, self.target_date, "research", content, metadata)
         self.assertEqual(result["errors"][0]["code"], "research_too_short")
         self.assertEqual(orient(self.church, self.target_date)["workflow_state"], "needs_research")
+
+    def test_public_profile_requires_two_distinct_opened_ancient_interpreters(self) -> None:
+        self._record_readings()
+        content = public_research_brief()
+        metadata = public_research_metadata()
+        metadata["sources"][1]["source_type"] = "synthetic scholarly fixture"
+        result = record(
+            self.church,
+            self.target_date,
+            "research",
+            content,
+            metadata,
+            quality_profile="public",
+        )
+        self.assertEqual(result["errors"][0]["code"], "insufficient_ancient_interpreters")
+
+        metadata = public_research_metadata()
+        metadata["sources"][1]["author"] = metadata["sources"][0]["author"]
+        result = record(
+            self.church,
+            self.target_date,
+            "research",
+            content,
+            metadata,
+            quality_profile="public",
+        )
+        self.assertEqual(result["errors"][0]["code"], "insufficient_ancient_interpreters")
+
+        metadata = public_research_metadata()
+        metadata["sources"][1]["access_result"] = "verified"
+        result = record(
+            self.church,
+            self.target_date,
+            "research",
+            content,
+            metadata,
+            quality_profile="public",
+        )
+        self.assertEqual(result["errors"][0]["code"], "insufficient_ancient_interpreters")
+
+    def test_public_profile_records_only_after_full_contract_passes(self) -> None:
+        self._record_readings()
+        content = public_research_brief()
+        self.assertGreaterEqual(len(content.split()), 2500)
+        result = record(
+            self.church,
+            self.target_date,
+            "research",
+            content,
+            public_research_metadata(),
+            quality_profile="public",
+        )
+        self.assertEqual(result["status"], "recorded", result)
+        self.assertEqual(result["quality_profile"], "public")
+        receipt = json.loads(Path(result["receipt"]).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["quality_profile"], "public")
+        state = orient(self.church, self.target_date, quality_profile="public")
+        self.assertEqual(state["workflow_state"], "research_complete")
+        self.assertEqual(state["research_requirements"]["minimum_ancient_interpreters"], 2)
+
+    def test_standard_receipt_does_not_satisfy_public_profile(self) -> None:
+        self._record_readings()
+        recorded = record(
+            self.church,
+            self.target_date,
+            "research",
+            research_brief(),
+            research_metadata(),
+        )
+        self.assertEqual(recorded["status"], "recorded", recorded)
+        self.assertEqual(orient(self.church, self.target_date)["workflow_state"], "research_complete")
+        public_state = orient(self.church, self.target_date, quality_profile="public")
+        self.assertEqual(public_state["workflow_state"], "needs_research")
+        self.assertEqual(public_state["stage_files"]["research"]["status"], "stale")
+        self.assertIn("public quality profile", public_state["stage_files"]["research"]["reason"])
 
     def test_interpretive_conversations_require_live_questions(self) -> None:
         self._record_readings()

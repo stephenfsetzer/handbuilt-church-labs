@@ -14,6 +14,14 @@ that change how those questions can be answered. Examine the relevant context
 of substantial scholarship and historical Christian interpretation. Honor
 church preferences without using them to predetermine the conclusion.
 
+Read `research_requirements` from `orient` before searching. When the quality
+profile requires ancient interpreters, complete the historical-interpretation
+retrieval ladder in `source-directory.md` as a distinct source-family pass.
+Identify at least three candidates for the exact passage, then open original
+texts until the required number of distinct interpreters supplies materially
+useful arguments. A single successful patristic search does not complete this
+pass.
+
 For each materially useful source, make a compact evidence card:
 
 - Source ID, author, work, date, direct URL or citation, and exact section,
@@ -52,6 +60,11 @@ Which consequential gap still needs retrieval? A priority theologian's thin
 outline can be omitted if it contributes no developed argument. No quota of
 names substitutes for depth. A gap requiring evidence returns to research
 before drafting. Tell the lead what is missing, rather than padding the cards.
+
+For the public quality profile, the sufficiency judgment must name the two
+distinct ancient interpreters and the live question each one changes. If only
+one contributes a usable argument, return to retrieval before drafting. The
+minimum is a floor, not permission to include a thin or irrelevant voice.
 
 Before writing, judge sufficiency honestly; a thin card set sends you back to
 retrieval before any prose. Preserve source IDs for the final source ledger.

@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 import yaml
 
 
-IMPLEMENTATION_VERSION = "0.7.4"
+IMPLEMENTATION_VERSION = "0.7.5"
 # Small tolerance for ordinary clock skew between an agent's tool and this
 # runtime's clock; not a general allowance for imprecise timestamps.
 RETRIEVED_AT_CLOCK_SKEW = timedelta(minutes=5)
@@ -66,6 +66,22 @@ REQUIRED_CHECKS = {
 }
 READING_ROLES = ("first", "psalm", "second", "gospel", "selected")
 SELECTION_MODES = ("lectionary", "pastor_selected")
+QUALITY_PROFILES = {
+    "standard": {
+        "minimum_sources": 4,
+        "minimum_words": 1200,
+        "minimum_ancient_interpreters": 0,
+    },
+    "public": {
+        "minimum_sources": 7,
+        "minimum_words": 2500,
+        "minimum_ancient_interpreters": 2,
+    },
+}
+ANCIENT_INTERPRETER_SOURCE = re.compile(
+    r"\b(?:patristic|ancient church|early christian|church father)\b",
+    re.I,
+)
 SELECTION_MODE_DISPLAY = {
     "lectionary": "Lectionary",
     "pastor_selected": "Pastor-selected passage",
@@ -161,6 +177,20 @@ def _mode_text(mode: str) -> str:
     if mode not in {"manual", "scheduled"}:
         raise WorkflowFailure("invalid_mode", f"Unknown workflow mode: {mode}", field="mode")
     return mode
+
+
+def _quality_profile_text(quality_profile: str) -> str:
+    if quality_profile not in QUALITY_PROFILES:
+        raise WorkflowFailure(
+            "invalid_quality_profile",
+            f"Unknown research quality profile: {quality_profile}",
+            field="quality_profile",
+        )
+    return quality_profile
+
+
+def _quality_requirements(quality_profile: str) -> dict[str, int]:
+    return dict(QUALITY_PROFILES[_quality_profile_text(quality_profile)])
 
 
 def _failure(exc: WorkflowFailure | Exception) -> dict[str, Any]:
@@ -299,6 +329,7 @@ def _artifact_states(
     root: Path,
     sermon_dir: Path,
     receipts: list[tuple[Path, dict[str, Any]]],
+    quality_profile: str,
 ) -> dict[str, dict[str, Any]]:
     states: dict[str, dict[str, Any]] = {}
     current_hashes: dict[str, str] = {}
@@ -334,6 +365,10 @@ def _artifact_states(
         ]
         stale_reason = None
         for receipt_path, receipt in reversed(matching):
+            receipt_quality_profile = str(receipt.get("quality_profile") or "standard")
+            if stage == "research" and quality_profile == "public" and receipt_quality_profile != "public":
+                stale_reason = "research was not recorded with the public quality profile"
+                continue
             if not _checks_pass(receipt, stage):
                 stale_reason = "required validation is missing or did not pass"
                 continue
@@ -394,6 +429,7 @@ def orient(
     service_date: str | date,
     *,
     mode: str = "manual",
+    quality_profile: str = "standard",
 ) -> dict[str, Any]:
     """Inspect a sermon workflow without writing anything."""
 
@@ -401,9 +437,10 @@ def orient(
         root = _church_root(church_folder)
         date_value = _date_text(service_date)
         mode = _mode_text(mode)
+        quality_profile = _quality_profile_text(quality_profile)
         sermon_dir = root / "sermons" / date_value
         receipts = _receipt_records(sermon_dir)
-        states = _artifact_states(root, sermon_dir, receipts)
+        states = _artifact_states(root, sermon_dir, receipts, quality_profile)
         state, next_actions = _workflow_state(states)
         selection_mode = _sermon_selection_mode(root)
         if (
@@ -442,6 +479,8 @@ def orient(
             "status": "ok",
             "service_date": date_value,
             "mode": mode,
+            "quality_profile": quality_profile,
+            "research_requirements": _quality_requirements(quality_profile),
             "stop_after": "research",
             "workflow_state": state,
             "next_actions": next_actions,
@@ -886,12 +925,14 @@ def _validate_reading_sources(
         )
 
 
-def _validate_research_sources(metadata: dict[str, Any]) -> None:
+def _validate_research_sources(metadata: dict[str, Any], quality_profile: str) -> None:
     sources = metadata.get("sources")
-    if not isinstance(sources, list) or len(sources) < 4:
+    requirements = _quality_requirements(quality_profile)
+    minimum_sources = requirements["minimum_sources"]
+    if not isinstance(sources, list) or len(sources) < minimum_sources:
         raise WorkflowFailure(
             "unverified_sources",
-            "Research requires at least four materially used sources",
+            f"Research quality profile {quality_profile} requires at least {minimum_sources} materially used sources",
             field="metadata.sources",
         )
     required = (
@@ -950,6 +991,21 @@ def _validate_research_sources(metadata: dict[str, Any]) -> None:
                 "missing_currency_note",
                 "Research source currency_note must explain its date fitness",
                 field=f"{prefix}.currency_note",
+            )
+    minimum_ancient = requirements["minimum_ancient_interpreters"]
+    if minimum_ancient:
+        ancient_authors = {
+            str(source.get("author") or "").strip().casefold()
+            for source in sources
+            if source.get("access_result") == "opened"
+            and ANCIENT_INTERPRETER_SOURCE.search(str(source.get("source_type") or ""))
+            and str(source.get("author") or "").strip()
+        }
+        if len(ancient_authors) < minimum_ancient:
+            raise WorkflowFailure(
+                "insufficient_ancient_interpreters",
+                "Public research requires at least two distinct opened ancient Christian interpreters",
+                field="metadata.sources",
             )
 
 
@@ -1198,6 +1254,7 @@ def _validate_research(
     content: str,
     metadata: dict[str, Any],
     root: Path,
+    quality_profile: str,
 ) -> list[dict[str, str]]:
     headings = _headings(content)
     missing = [
@@ -1331,10 +1388,11 @@ def _validate_research(
                 field=f"metadata.sources[{index}].url_or_citation",
             )
     words = len(content.split())
-    if words < 1200:
+    minimum_words = _quality_requirements(quality_profile)["minimum_words"]
+    if words < minimum_words:
         raise WorkflowFailure(
             "research_too_short",
-            f"Research brief has {words} words; 1,200 is the mechanical floor",
+            f"Research brief has {words} words; quality profile {quality_profile} requires at least {minimum_words:,}",
             field="content",
         )
     return []
@@ -1345,6 +1403,7 @@ def _validate_content(
     content: str,
     metadata: dict[str, Any],
     root: Path,
+    quality_profile: str,
 ) -> list[dict[str, str]]:
     if not content.strip():
         raise WorkflowFailure("empty_content", f"{stage} content is empty", field="content")
@@ -1393,7 +1452,7 @@ def _validate_content(
             raise WorkflowFailure("prohibited_dash", "Readings contain an em dash or en dash")
         return []
     if stage == "research":
-        return _validate_research(content, metadata, root)
+        return _validate_research(content, metadata, root, quality_profile)
     raise WorkflowFailure("unknown_stage", f"Unknown sermon research stage: {stage}")
 
 
@@ -1478,6 +1537,7 @@ def record(
     *,
     replace: bool = False,
     mode: str = "manual",
+    quality_profile: str = "standard",
 ) -> dict[str, Any]:
     """Validate and record one visible artifact with an immutable receipt."""
 
@@ -1485,6 +1545,7 @@ def record(
         root = _church_root(church_folder)
         date_value = _date_text(service_date)
         mode = _mode_text(mode)
+        quality_profile = _quality_profile_text(quality_profile)
         if stage not in STAGE_FILES:
             raise WorkflowFailure("unknown_stage", f"Unknown sermon stage: {stage}", field="stage")
         metadata = metadata or {}
@@ -1500,14 +1561,14 @@ def record(
         if not _inside(sermon_dir, root):
             raise WorkflowFailure("unsafe_path", "Sermon path escapes the church folder")
         receipts = _receipt_records(sermon_dir)
-        states = _artifact_states(root, sermon_dir, receipts)
+        states = _artifact_states(root, sermon_dir, receipts, quality_profile)
         _check_order(states, root, stage)
 
-        warnings = _validate_content(stage, content, metadata, root)
+        warnings = _validate_content(stage, content, metadata, root, quality_profile)
         if stage == "readings":
             _validate_reading_sources(metadata, content, root, date_value)
         elif stage == "research":
-            _validate_research_sources(metadata)
+            _validate_research_sources(metadata, quality_profile)
             _validate_research_target(
                 content,
                 metadata,
@@ -1541,6 +1602,7 @@ def record(
             "receipt_id": str(uuid.uuid4()),
             "created_at": _now(),
             "implementation_version": IMPLEMENTATION_VERSION,
+            "quality_profile": quality_profile,
             "service_date": date_value,
             "stage": stage,
             "artifact": {
@@ -1553,10 +1615,11 @@ def record(
             "metadata": metadata,
         }
         receipt_path = _write_receipt_and_artifact(sermon_dir, target, content_bytes, receipt)
-        state = orient(root, date_value, mode=mode)
+        state = orient(root, date_value, mode=mode, quality_profile=quality_profile)
         return {
             "status": "recorded",
             "stage": stage,
+            "quality_profile": quality_profile,
             "artifact": receipt["artifact"],
             "receipt": str(receipt_path),
             "workflow_state": state.get("workflow_state"),

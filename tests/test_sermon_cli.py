@@ -14,6 +14,8 @@ from tests.helpers import (
     pastor_selected_reading_metadata,
     pastor_selected_readings_content,
     pastor_selected_research_metadata,
+    public_research_brief,
+    public_research_metadata,
     reading_metadata,
     readings_content,
     research_brief,
@@ -124,6 +126,39 @@ class SermonCliTest(unittest.TestCase):
             "scheduled",
         )
         self.assertEqual(research["workflow_state"], "research_complete")
+
+    def test_cli_enforces_public_quality_profile(self) -> None:
+        self._record("readings", readings_content(), reading_metadata())
+        content_path = self._write_text("public-research.md", public_research_brief())
+        metadata_path = self._write_json("public-research.json", public_research_metadata())
+        research = self._run(
+            "record",
+            "--church-folder",
+            str(self.church),
+            "--date",
+            self.date,
+            "--stage",
+            "research",
+            "--content-file",
+            str(content_path),
+            "--metadata-file",
+            str(metadata_path),
+            "--quality-profile",
+            "public",
+        )
+        self.assertEqual(research["workflow_state"], "research_complete")
+        self.assertEqual(research["quality_profile"], "public")
+        oriented = self._run(
+            "orient",
+            "--church-folder",
+            str(self.church),
+            "--date",
+            self.date,
+            "--quality-profile",
+            "public",
+        )
+        self.assertEqual(oriented["workflow_state"], "research_complete")
+        self.assertEqual(oriented["research_requirements"]["minimum_ancient_interpreters"], 2)
 
 
 if __name__ == "__main__":
