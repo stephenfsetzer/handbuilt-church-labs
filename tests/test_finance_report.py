@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from xml.etree import ElementTree as ET
 from unittest import mock
 
 from tools import church_workflow as bridge
@@ -117,6 +118,23 @@ class FinanceReportTests(unittest.TestCase):
                            "--pl-ytd", str(pulls / "pl-ytd.json"), "--pl-prior", str(pulls / "pl-ytd.json"))
         self.assertNotEqual(code, 0)
         self.assertIn("must run January 1 to the end of 2026-07", err)
+
+    def test_partial_prior_rows_cannot_inflate_the_current_month(self):
+        pulls = self.board / "2026-08/pulls/pl-prior.json"
+        original = json.loads(pulls.read_text())
+        data = json.loads(json.dumps(original))
+        data["reportData"]["data"]["rows"] = [r for r in data["reportData"]["data"]["rows"] if r["cells"][0]["value"] != "6520 Repairs"]
+        pulls.write_text(json.dumps(data))
+        _, code, err = self.build("2026-08")
+        self.assertNotEqual(code, 0)
+        self.assertIn("prior spending groups", err)
+        for row in original["reportData"]["data"]["rows"]:
+            if row["cells"][0]["value"] in ("6520 Repairs", "Expenses"):
+                row["cells"][1]["value"] += 500
+        pulls.write_text(json.dumps(original))
+        _, code, err = self.build("2026-08")
+        self.assertNotEqual(code, 0)
+        self.assertIn("prior profit and loss net", err)
 
     def test_last_years_line_must_match_last_years_recorded_result(self):
         config = self.board / "config.json"
@@ -225,6 +243,94 @@ class FinanceReportTests(unittest.TestCase):
         self.assertNotIn("Question 5", text)
         self.assertIn("Watch list", text)
 
+    def test_nonpositive_spending_builds_and_renders_with_reconciled_sources(self):
+        original = fixture.month_values
+        for mode in ("zero", "empty", "credits", "reversal"):
+            with self.subTest(mode=mode):
+                def amounts(year, month):
+                    income, expense = original(year, month)
+                    if year != 2026:
+                        return income, expense
+                    if mode == "reversal":
+                        if month < 8:
+                            return income, expense
+                        earlier = [original(year, m) for m in range(1, 8)]
+                        return ({k: -sum(pair[0][k] for pair in earlier) for k in income},
+                                {k: -sum(pair[1][k] for pair in earlier) for k in expense})
+                    if mode in ("zero", "empty"):
+                        return {k: 0 for k in income}, {k: 0 for k in expense}
+                    return income, {k: -v for k, v in expense.items()}
+                with mock.patch.object(fixture, "month_values", amounts), mock.patch.object(fixture, "HEADING_OWN", ("7500 OFFICE", 0)):
+                    church = fixture.main(Path(self.temp.name) / mode)
+                board = church / "finance/board"
+                config_path = board / "config.json"
+                config = json.loads(config_path.read_text())
+                # Removing the fixture's monthly heading expense also changes 2025.
+                config["long_view"]["full_years"][0]["reported"] += 5400
+                config["long_view"]["full_years"][0]["result"] += 5400
+                config_path.write_text(json.dumps(config))
+                pulls = board / "2026-08/pulls"
+                if mode in ("empty", "reversal"):
+                    files = (pulls / "pl-ytd.json", pulls / "pl-prior.json") if mode == "empty" else (pulls / "pl-ytd.json",)
+                    for file in files:
+                        data = json.loads(file.read_text())
+                        data["reportData"]["data"]["rows"] = [r for r in data["reportData"]["data"]["rows"] if "." not in r["metadata"]["id"]]
+                        file.write_text(json.dumps(data))
+                result, code, err = run(church, "build", "--month", "2026-08", "--prepared", "2026-09-10",
+                    "--balance-sheet", str(pulls / "balance-sheet.json"), "--pl-ytd", str(pulls / "pl-ytd.json"),
+                    "--pl-prior", str(pulls / "pl-prior.json"))
+                self.assertEqual(code, 0, err)
+                report = json.loads((board / "2026-08/report.json").read_text())
+                self.assertLessEqual(report["cash"]["monthly_spending"], 0)
+                self.assertIn("Cash coverage cannot be estimated", report["short_answer"])
+                result, code, err = run(church, "render", str(board / "2026-08/report.json"))
+                self.assertEqual(code, 0, err)
+                self.assertEqual(result["checks"]["pages"], 2)
+                self.assertTrue(result["checks"]["figures_verified"])
+                text = page_text(church, "2026-08")
+                self.assertIn("Coverage unavailable", text)
+                self.assertNotIn("Two months of spending", text)
+                self.assertNotIn("months of spending.", report["short_answer"])
+                if mode == "credits":
+                    self.assertIn("percentages would be misleading", text)
+                    self.assertIn("−$", text)
+                    self.assertNotIn("including", report["short_answer"])
+                    self.assertEqual(report["this_month"]["top_out"]["label"], "Pastor Compensation")
+                    self.assertLess(report["this_month"]["top_out"]["amount"], 0)
+                elif mode == "reversal":
+                    self.assertIn("Net total is zero", text)
+                    self.assertLess(report["this_month"]["top_out"]["amount"], 0)
+                    self.assertEqual(report["this_month"]["top_out"]["label"], "Pastor Compensation")
+                else:
+                    self.assertIn("Net total is zero", text)
+                    self.assertNotIn("good month", report["short_answer"])
+                    self.assertEqual(report["this_month"]["top_out"], {"label": "No net change", "amount": 0})
+
+    def test_zero_and_negative_bank_cash_keep_their_meaning_in_built_reports(self):
+        for bank in (0, -300):
+            with self.subTest(bank=bank):
+                bs = self.board / "2026-08/pulls/balance-sheet.json"
+                data = json.loads(bs.read_text())
+                for row in data["reportData"]["rows"]:
+                    name = row["cells"][0]["value"]
+                    if name in ("Checking - First Bank 1111", "Savings - First Bank 2222", "1010 Checking - First Bank 1111", "1020 Savings - First Bank 2222"):
+                        for cell in row["cells"][1:]:
+                            cell["value"] = bank if name == "1010 Checking - First Bank 1111" else 0
+                bs.write_text(json.dumps(data))
+                result, code, err = self.build("2026-08")
+                self.assertEqual(code, 0, err)
+                report = json.loads((self.board / "2026-08/report.json").read_text())
+                self.assertEqual(report["cash"]["bank"], bank)
+                self.assertNotIn("We can pay our bills", report["short_answer"])
+                self.assertIn("below zero" if bank < 0 else "no bank cash", report["short_answer"])
+                result, code, err = self.render("2026-08")
+                self.assertEqual(code, 0, err)
+                self.assertEqual(result["checks"]["pages"], 2)
+                text = page_text(self.church, "2026-08")
+                self.assertIn("Bank cash −$300" if bank < 0 else "Bank cash $0", text)
+                self.assertNotIn("Only just", text)
+                self.assertNotIn("-3.0 months", text)
+
     # --- the launcher ---------------------------------------------------------------
 
     def test_launcher_runs_the_finance_report_for_a_connected_church(self):
@@ -244,6 +350,98 @@ class FinanceReportTests(unittest.TestCase):
         self.assertTrue(Path(result["handbuilt_run"]).is_file())
         with self.assertRaises(ValueError):
             bridge.execute(church, "finance-report", "status", ["--church-folder=/tmp/another"])
+
+
+class FinanceChartLayoutTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("report_renderer", ENTRY.with_name("report_renderer.py"))
+        cls.renderer = importlib.util.module_from_spec(spec)
+        with mock.patch.object(sys, "path", [str(ENTRY.parent), *sys.path]):
+            spec.loader.exec_module(cls.renderer)
+        theme, _ = cls.renderer.resolve_theme({}, {})
+        cls.draw = cls.renderer.Draw(theme)
+
+    def test_running_label_stays_inside_chart_without_moving_data(self):
+        for month in (1, 3, 8, 12):
+            for value, pending in ((50, 0), (-5000, 0), (-5000, 6000), (1234567, 0)):
+                with self.subTest(month=month, value=value, pending=pending):
+                    run = {"this_year": [value] * month, "this_year_label": "2026",
+                           "plan": [0] * 12, "last_year": [100] * 12, "last_year_label": "2025"}
+                    root = ET.fromstring(self.renderer.chart_running(self.draw, run, pending))
+                    box = root.find("{*}rect")
+                    label = next(t for t in root.findall("{*}text") if (t.text or "").startswith("2026:"))
+                    left, width = float(box.attrib["x"]), float(box.attrib["width"])
+                    self.assertGreaterEqual(left, 0)
+                    self.assertLessEqual(left + width, self.renderer.HALF)
+                    self.assertGreater(float(label.attrib["x"]), left)
+                    self.assertLess(float(label.attrib["x"]), left + width)
+                    circles = root.findall("{*}circle")
+                    self.assertEqual(len(circles), 2 if pending else 1)
+                    expected_x = 4 + (self.renderer.HALF - 4 - 58) * (month - 1) / 11
+                    for circle in circles:
+                        self.assertAlmostEqual(float(circle.attrib["cx"]), expected_x, places=1)
+                    self.assertIn("+" if value >= 0 else "−", label.text)
+                    point_y = float(circles[0].attrib["cy"])
+                    box_top = float(box.attrib["y"])
+                    self.assertTrue(box_top > point_y + 4 or box_top + 15 < point_y - 4)
+                    end_labels = [t for t in root.findall("{*}text") if t.text in ("plan", "2025", "break even")]
+                    baselines = sorted(float(t.attrib["y"]) for t in end_labels)
+                    self.assertTrue(all(b - a >= 11.9 for a, b in zip(baselines, baselines[1:])))
+                    self.assertGreaterEqual(baselines[0], 10)
+                    self.assertLessEqual(baselines[-1], 123.5)
+
+    def test_cash_marker_and_label_fit_at_both_edges_and_beyond_scale(self):
+        for previous, expected in ((0, "last month"), (1, "last month"), (300, "last month"),
+                                   (600, "last month"), (1000, "last month (>6 months)"),
+                                   (-100, "last month (<0 months)")):
+            with self.subTest(previous=previous):
+                root = ET.fromstring(self.renderer.chart_cash(self.draw, {"bank": 300, "monthly_spending": 100}, previous))
+                marker = root.find("{*}line")
+                self.assertGreaterEqual(float(marker.attrib["x1"]), 1)
+                self.assertLessEqual(float(marker.attrib["x1"]), self.renderer.HALF - 1)
+                label = next(t for t in root.findall("{*}text") if (t.text or "").startswith("last month"))
+                self.assertEqual(label.text, expected)
+                half_width = len(label.text) * 2.7
+                self.assertGreaterEqual(float(label.attrib["x"]) - half_width, 1.9)
+                self.assertLessEqual(float(label.attrib["x"]) + half_width, self.renderer.HALF - 1.9)
+        root = ET.fromstring(self.renderer.chart_cash(self.draw, {"bank": 300, "monthly_spending": 100}))
+        self.assertIsNone(root.find("{*}line"))
+
+    def test_cash_caption_preserves_small_monthly_spending(self):
+        for spending, caption in ((50, "$50"), (499.6, "$500"), (12345, "$12,345")):
+            with self.subTest(spending=spending):
+                root = ET.fromstring(self.renderer.chart_cash(self.draw, {"bank": 300, "monthly_spending": spending}))
+                self.assertIn(f"about {caption}.", " ".join(root.itertext()))
+
+    def test_cash_history_handles_negative_zero_and_single_point_series(self):
+        for values in ([0, 0, 0], [-300, -1000, -500], [-100, 0, 300], [0], [100, 200]):
+            for monthly in (0, -50, 10000):
+                with self.subTest(values=values, monthly=monthly):
+                    history = [[f"2026-{i + 1:02d}", v] for i, v in enumerate(values)]
+                    root = ET.fromstring(self.renderer.chart_cash_line(self.draw, history, monthly))
+                    for circle in root.findall("{*}circle"):
+                        self.assertGreaterEqual(float(circle.attrib["cy"]), 16)
+                        self.assertLessEqual(float(circle.attrib["cy"]), 104)
+                    for line in root.findall("{*}line"):
+                        self.assertGreaterEqual(float(line.attrib["y1"]), 0)
+                        self.assertLessEqual(float(line.attrib["y1"]), 126)
+                    if all(v < 0 for v in values):
+                        self.assertTrue(all((t.text or "").startswith("−$") for t in root.findall("{*}text") if "$" in (t.text or "")))
+                    references = [line for line in root.findall("{*}line") if "stroke-dasharray" in line.attrib]
+                    self.assertEqual(len(references), 1 if monthly > 0 else 0)
+
+    def test_nonproportional_groups_keep_signed_amounts_without_percentages(self):
+        for amounts in ([], [0, 0], [-100, 100], [-100, -200], [-100, 300]):
+            with self.subTest(amounts=amounts):
+                parts = [{"name": f"Group {i}", "amount": v, "this_month": v, "note": ""} for i, v in enumerate(amounts)]
+                svg, total = self.renderer.chart_share(self.draw, parts)
+                legend = self.renderer.share_legend(self.draw.t, parts, total, "August")
+                self.assertNotIn("%", svg + legend)
+                self.assertEqual(total, sum(amounts))
+                self.assertNotIn("<rect", svg)
+                if any(v < 0 for v in amounts):
+                    self.assertIn("−$100", legend)
 
 
 if __name__ == "__main__":

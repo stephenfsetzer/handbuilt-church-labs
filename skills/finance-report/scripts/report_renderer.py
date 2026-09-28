@@ -24,6 +24,8 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
+from cash_position import cash_summary, signed_money
+
 HERE = Path(__file__).resolve().parent
 SHAPE_VERSION = "1.0"  # the report shape in references/shape.md, fixed on 2026-09-26
 CHURCH_ROOT = Path.cwd()  # set from --church-folder in main()
@@ -292,6 +294,8 @@ MONTH_ABBR = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 def chart_cash(d, cash, prev_bank=None):
     """Months-of-spending boxes; last month's level as a dashed marker."""
     t = d.t
+    if cash["monthly_spending"] <= 0:
+        return d.svg(HALF, 72, [d.text(0, 32, "Coverage unavailable: average spending is not positive.", 10.5, 400, t["muted"])])
     n = cash["bank"] / cash["monthly_spending"]
     boxes = min(6, max(3, math.ceil(max(n, (prev_bank or 0) / cash["monthly_spending"]))))
     gap = 10
@@ -312,12 +316,21 @@ def chart_cash(d, cash, prev_bank=None):
             o.append(d.rect(x, top, bw * fill, h, t["positive"]))
         if fill == 1 and bw >= 70:
             o.append(d.text(x + bw / 2, top + 24, f"Month {i + 1}", 12, 700, "#ffffff", "middle"))
-    if prev_bank:
-        px = xpos(prev_bank / cash["monthly_spending"])
+    if prev_bank is not None:
+        previous_months = prev_bank / cash["monthly_spending"]
+        px = min(HALF - 1, max(1, xpos(previous_months)))
+        label = "last month"
+        if previous_months > boxes:
+            label += f" (>{boxes} months)"
+        elif previous_months < 0:
+            label += " (<0 months)"
+        # Keep edge labels inside the chart without moving the cash marker.
+        half_label = len(label) * 2.7
+        label_x = min(HALF - half_label - 2, max(half_label + 2, px))
         o.append(d.line(px, top - 4, px, top + h + 4, t["ink"], 1.6, "3 2"))
-        o.append(d.text(px, top - 5, "last month", 9.5, 600, t["muted"], "middle"))
+        o.append(d.text(label_x, top - 5, label, 9.5, 600, t["muted"], "middle"))
     o.append(d.text(0, top + h + 17, f"Each box is one month of spending, about "
-                    f"{money(round(cash['monthly_spending'], -3))}.", 10.5, 400, t["muted"]))
+                    f"{money(cash['monthly_spending'])}.", 10.5, 400, t["muted"]))
     return d.svg(HALF, top + h + 22, o)
 
 
@@ -341,7 +354,7 @@ def chart_running(d, run, pending):
 
     o = []
     o.append(d.line(left, y(0), left + usable, y(0), t["ink"], 1.1))
-    o.append(d.text(left + usable + 4, y(0) + 3.5, "break even", 9.5, 600, t["muted"]))
+    end_labels = [(y(0) + 3.5, "break even", 9.5, 600)]
 
     def path(vals, color, width, dash=None):
         pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(vals))
@@ -353,16 +366,19 @@ def chart_running(d, run, pending):
     if has_last:
         o.append(path(run["last_year"], t["positive_soft"], 2.2))
     o.append(path(run["this_year"], t["positive"], 3))
-    # end labels
-    yl = y(run["last_year"][-1]) + 3.5 if has_last else -99
-    yp = y(run["plan"][-1]) + 3.5 if has_plan else yl + 99
-    if has_plan and has_last and abs(yp - yl) < 11:
-        mid = (yp + yl) / 2
-        yp, yl = (mid - 5.5, mid + 5.5) if yp <= yl else (mid + 5.5, mid - 5.5)
     if has_plan:
-        o.append(d.text(x(11) + 5, yp, "plan", 10, 600, t["muted"]))
+        end_labels.append((y(run["plan"][-1]) + 3.5, "plan", 10, 600))
     if has_last:
-        o.append(d.text(x(11) + 5, yl, f"{run['last_year_label']}", 10, 700, t["muted"]))
+        end_labels.append((y(run["last_year"][-1]) + 3.5, str(run["last_year_label"]), 10, 700))
+    # Separate nearby end labels, including break even, within the plot height.
+    end_labels.sort(key=lambda item: item[0])
+    baselines = []
+    for index, (target, *_) in enumerate(end_labels):
+        ceiling = bottom + 3.5 - 12 * (len(end_labels) - index - 1)
+        floor = baselines[-1] + 12 if baselines else top + 7
+        baselines.append(max(floor, min(target, ceiling)))
+    for baseline, (_, label, size, weight) in zip(baselines, end_labels):
+        o.append(d.text(x(11) + 5, baseline, label, size, weight, t["muted"]))
     i = len(run["this_year"]) - 1
     v = run["this_year"][-1]
     o.append(f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="4" fill="{d.sign_color(v)}" stroke="#ffffff" stroke-width="1.5"/>')
@@ -372,19 +388,27 @@ def chart_running(d, run, pending):
     sign = "+" if v >= 0 else "−"
     label = f"{run['this_year_label']}: {sign}{kfmt(v)}"
     lw = len(label) * 6.3 + 6
-    ly_ = min(y(v) + 18, bottom - 2)
-    o.append(f'<rect x="{x(i) - 8 - lw:.1f}" y="{ly_ - 11:.1f}" width="{lw:.1f}" height="15" rx="2" fill="#ffffff" opacity="0.92"/>')
-    o.append(d.text(x(i) - 11, ly_, label, 11, 700, None, "end"))
+    ly_ = y(v) + 18 if y(v) <= bottom - 18 else y(v) - 10
+    label_left = min(W - lw - 2, max(2, x(i) - 8 - lw))
+    o.append(f'<rect x="{label_left:.1f}" y="{ly_ - 11:.1f}" width="{lw:.1f}" height="15" rx="2" fill="#ffffff" opacity="0.92"/>')
+    o.append(d.text(label_left + lw - 3, ly_, label, 11, 700, None, "end"))
     for k in range(12):
         o.append(d.text(x(k), H - 8, MONTH_ABBR[k], 9.5, 600 if k <= i else 400,
                         t["ink"] if k <= i else t["muted"], "middle"))
     return d.svg(W, H, o)
 
 
+def share_is_proportional(parts):
+    return sum(p["amount"] for p in parts) > 0 and all(p["amount"] >= 0 for p in parts)
+
+
 def chart_share(d, parts):
     t = d.t
     total = sum(p["amount"] for p in parts)
     h, gap = 30, 2
+    if not share_is_proportional(parts):
+        label = "Net total is zero." if not any(p["amount"] for p in parts) else "Credits included; see net amounts below. Percentages are unavailable."
+        return d.svg(FULL, h, [d.text(0, 20, label, 11, 400, t["muted"])]), total
     usable = FULL - gap * (len(parts) - 1)
     x, o = 0.0, []
     for i, p in enumerate(parts):
@@ -401,15 +425,17 @@ def chart_share(d, parts):
 
 def share_legend(t, parts, total, month_name):
     cells = []
+    proportional = share_is_proportional(parts)
     for i, p in enumerate(parts):
         fill = t["ramp"][min(i, len(t["ramp"]) - 1)]
         border = f"border:0.75pt solid {t['rule']};" if luminance(fill) > 0.75 else ""
         tm = p.get("this_month")
-        tm_html = f' <span class="tm">&middot; {money(tm)} in {esc(month_name[:3])}</span>' if tm is not None else ""
+        tm_html = f' <span class="tm">&middot; {signed_money(tm)} in {esc(month_name[:3])}</span>' if tm is not None else ""
+        percent = f' <span class="muted">&middot; {p["amount"] / total:.0%}</span>' if proportional else ""
         cells.append(
             f'<div class="lg"><span class="sw" style="background:{fill};{border}"></span><div>'
-            f'<b>{esc(p["name"])}</b><br>{money(p["amount"])} <span class="muted">&middot; '
-            f'{p["amount"] / total:.0%}</span>{tm_html}<div class="lgnote">{esc(p["note"])}</div></div></div>')
+            f'<b>{esc(p["name"])}</b><br>{signed_money(p["amount"])}{percent}'
+            f'{tm_html}<div class="lgnote">{esc(p["note"])}</div></div></div>')
     return f'<div class="legend">{"".join(cells)}</div>'
 
 
@@ -446,33 +472,39 @@ def chart_cash_line(d, hist, monthly):
     t = d.t
     W, top, bottom = FULL, 16, 104
     vals = [v for _, v in hist]
-    hi = max(vals) * 1.08
+    ref = monthly * 2 if monthly > 0 else None
+    lo = min([0, *vals])
+    hi = max([0, *vals, *([ref] if ref is not None else [])])
+    span = (hi - lo) or 1
+    hi += span * 0.12
+    if lo < 0:
+        lo -= span * 0.12
     n = len(hist)
     usable = W - 8
 
     def x(i):
-        return 4 + usable * i / (n - 1)
+        return 4 + usable * i / max(1, n - 1)
 
     def y(v):
-        return bottom - v / hi * (bottom - top)
+        return top + (hi - v) / (hi - lo) * (bottom - top)
 
     o = []
-    ref = monthly * 2
-    o.append(d.line(0, y(ref), W, y(ref), t["muted"], 1.2, "5 3"))
+    if ref is not None:
+        o.append(d.line(0, y(ref), W, y(ref), t["muted"], 1.2, "5 3"))
     pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(vals))
-    o.append(f'<polygon points="{x(0):.1f},{bottom} {pts} {x(n - 1):.1f},{bottom}" fill="{t["positive_soft"]}" opacity="0.55"/>')
+    o.append(f'<polygon points="{x(0):.1f},{y(0):.1f} {pts} {x(n - 1):.1f},{y(0):.1f}" fill="{t["positive_soft"]}" opacity="0.55"/>')
     o.append(f'<polyline points="{pts}" fill="none" stroke="{t["positive"]}" stroke-width="2.2" stroke-linejoin="round"/>')
     lo_i = vals.index(min(vals))
     for i in {0, lo_i, n - 1}:
         o.append(f'<circle cx="{x(i):.1f}" cy="{y(vals[i]):.1f}" r="3.6" fill="{t["positive"]}" stroke="#ffffff" stroke-width="1.4"/>')
         anchor = "start" if i == 0 else ("end" if i == n - 1 else "middle")
         dy = -8 if i != lo_i or i in (0, n - 1) else 16
-        o.append(d.text(x(i), y(vals[i]) + dy, kfmt(vals[i]), 11, 700, None, anchor))
+        o.append(d.text(x(i), y(vals[i]) + dy, ("−" if vals[i] < 0 else "") + kfmt(vals[i]), 11, 700, None, anchor))
     for i, (when, _) in enumerate(hist):
         if when.endswith("-01"):
             o.append(d.line(x(i), bottom, x(i), bottom + 4, t["muted"], 1))
             o.append(d.text(x(i), bottom + 16, when[:4], 11, 700, None, "middle"))
-    o.append(d.line(0, bottom, W, bottom, t["ink"], 1.1))
+    o.append(d.line(0, y(0), W, y(0), t["ink"], 1.1))
     return d.svg(W, bottom + 22, o)
 
 
@@ -672,7 +704,6 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
         vocab["body"] = gb["label"]
     mname = meta["month_name"]
     cash, plan, tm = report["cash"], report["plan"], report["this_month"]
-    months = cash["bank"] / cash["monthly_spending"]
     pending = sum(u["amount"] for u in plan.get("unrecorded", []))
 
     # since last month strip
@@ -681,17 +712,15 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     ytd_chg = f"{delta_text(plan['actual'] - prev['ytd'])} in {mname}" if prev else "&nbsp;"
     ytd_word = "ahead" if plan["actual"] >= 0 else "short"
     tiles = f"""<div class="eyebrow" style="margin-bottom:3pt">Since last month</div><div class="tiles">
-<div class="tile"><div class="lab">Bank cash</div><div class="val">{money(cash['bank'])}</div><div class="chg">{bank_chg}</div></div>
+<div class="tile"><div class="lab">Bank cash</div><div class="val">{signed_money(cash['bank'])}</div><div class="chg">{bank_chg}</div></div>
 <div class="tile"><div class="lab">Year so far</div><div class="val">{money(plan['actual'])} {ytd_word}</div><div class="chg">{ytd_chg}</div></div>
-<div class="tile"><div class="lab">Money in, {esc(mname)}</div><div class="val">{money(tm['came_in'])}</div>
-<div class="chg">Most: {esc(tm['top_in']['label'])}, {money(tm['top_in']['amount'])}</div></div>
-<div class="tile"><div class="lab">Money out, {esc(mname)}</div><div class="val">{money(tm['went_out'])}</div>
-<div class="chg">Largest: {esc(tm['top_out']['label'])}, {money(tm['top_out']['amount'])}</div></div></div>"""
+<div class="tile"><div class="lab">Money in, {esc(mname)}</div><div class="val">{signed_money(tm['came_in'])}</div>
+<div class="chg">Most: {esc(tm['top_in']['label'])}, {signed_money(tm['top_in']['amount'])}</div></div>
+<div class="tile"><div class="lab">Money out, {esc(mname)}</div><div class="val">{signed_money(tm['went_out'])}</div>
+<div class="chg">Largest: {esc(tm['top_out']['label'])}, {signed_money(tm['top_out']['amount'])}</div></div></div>"""
 
-    bills_word = "Yes." if months >= 6 else ("Yes, for now." if months >= 1.5 else "Only just.")
     q1 = f"""<div class="q"><div class="num">Question 1</div><h2>Can we pay our bills?</h2>
-<p class="answer">{bills_word} <b>{money(cash['bank'])}</b> in the bank covers about
-<b>{months:.1f} months</b> of spending.</p>{chart_cash(d, cash, prev['bank'] if prev else None)}
+<p class="answer">{esc(cash_summary(cash['bank'], cash['monthly_spending']))}</p>{chart_cash(d, cash, prev['bank'] if prev else None)}
 <p class="note">{esc(cash.get('note', ''))}</p></div>"""
 
     run = plan["running"]
@@ -719,14 +748,19 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
 
     inc_svg, inc_total = chart_share(d, report["income"]["parts"])
     sp_svg, sp_total = chart_share(d, report["spending"]["parts"])
-    inc_top, sp_top = report["income"]["parts"][0], report["spending"]["parts"][0]
+    def share_answer(section, total, monthly, noun):
+        parts = section["parts"]
+        if share_is_proportional(parts):
+            lead = f"{esc(section['headline'])}: <b>{parts[0]['amount'] / total:.0%}</b> of {noun} this year."
+        else:
+            lead = "The net total for this year is zero." if not any(p["amount"] for p in parts) else "Credits are included; percentages would be misleading."
+        return f"{lead} Total {noun}: {signed_money(total)} this year; {signed_money(monthly)} in {esc(mname)}."
+
     q3 = f"""<div class="q"><div class="num">Question 3</div><h2>Where does our money come from?</h2>
-<p class="answer">{esc(report['income']['headline'])}: <b>{inc_top['amount'] / inc_total:.0%} of every dollar</b>
-this year, from {money(inc_total)} in all. {money(tm['came_in'])} came in during {esc(mname)}.</p>
+<p class="answer">{share_answer(report['income'], inc_total, tm['came_in'], 'income')}</p>
 {inc_svg}{share_legend(t, report['income']['parts'], inc_total, mname)}</div>"""
     q4 = f"""<div class="q last"><div class="num">Question 4</div><h2>Where does it go?</h2>
-<p class="answer">{esc(report['spending']['headline'])}: <b>{sp_top['amount'] / sp_total:.0%} of spending</b>
-this year, from {money(sp_total)} in all. {money(tm['went_out'])} went out during {esc(mname)}.</p>
+<p class="answer">{share_answer(report['spending'], sp_total, tm['went_out'], 'spending')}</p>
 {sp_svg}{share_legend(t, report['spending']['parts'], sp_total, mname)}</div>"""
 
     # page 2
@@ -754,14 +788,15 @@ this year, from {money(sp_total)} in all. {money(tm['went_out'])} went out durin
         lo = min(hist, key=lambda h: h[1])
         lo_label = MONTHS_LONG[int(lo[0][5:7]) - 1] + " " + lo[0][:4]
         change = hist[-1][1] - hist[0][1]
-        trend_word = ("Down" if change < 0 else "Up") if abs(change) > 0.05 * hist[0][1] else "About level"
-        low_note = (f" The low point was {money(lo[1])} in {lo_label}." if lo[0] not in (hist[0][0], hist[-1][0]) else "")
+        trend_word = ("Down" if change < 0 else "Up") if abs(change) > 0.05 * abs(hist[0][1]) else "About level"
+        low_note = (f" The low point was {signed_money(lo[1])} in {lo_label}." if lo[0] not in (hist[0][0], hist[-1][0]) else "")
+        spending_key = (f'<span><svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" '
+                        f'stroke="{t["muted"]}" stroke-width="1.2" stroke-dasharray="5 3"/></svg> Two months of spending</span>') if cash['monthly_spending'] > 0 else ""
         q5 = f"""<div class="q"><div class="num">Question 5</div><h2>Is our cash growing or shrinking?</h2>
-    <p class="answer">{trend_word} since {first_label}: from <b>{money(hist[0][1])}</b> to
-    <b>{money(hist[-1][1])}</b> at the end of {esc(mname)}.{low_note}</p>
+    <p class="answer">{trend_word} since {first_label}: from <b>{signed_money(hist[0][1])}</b> to
+    <b>{signed_money(hist[-1][1])}</b> at the end of {esc(mname)}.{low_note}</p>
     {chart_cash_line(d, hist, cash['monthly_spending'])}
-    <div class="keyline"><span>{swatch(t['positive'])}Bank cash at each month end</span><span><svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4"
-    stroke="{t['muted']}" stroke-width="1.2" stroke-dasharray="5 3"/></svg> Two months of spending</span></div>
+    <div class="keyline"><span>{swatch(t['positive'])}Bank cash at each month end</span><span><svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="{t['ink']}" stroke-width="1.1"/></svg> Zero cash</span>{spending_key}</div>
     <p class="note">{esc(report.get('cash_history_note', ''))}</p></div>"""
 
         fy = report["full_years"]

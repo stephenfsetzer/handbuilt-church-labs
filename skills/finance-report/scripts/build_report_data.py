@@ -22,6 +22,8 @@ import re
 import sys
 from pathlib import Path
 
+from cash_position import cash_summary, signed_money
+
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
           "September", "October", "November", "December"]
 ABBR = {m[:3]: i + 1 for i, m in enumerate(MONTHS)}
@@ -195,9 +197,9 @@ def main(argv=None):
     _, end, ytd_items, ytd_sec = load_pl(args.pl_ytd)
     if not end.startswith(args.month):
         fail(f"--pl-ytd ends {end}, expected {args.month}")
-    prior_items = []
+    prior_items, prior_sec = [], {}
     if args.pl_prior:
-        p_start, p_end, prior_items, _ = load_pl(args.pl_prior)
+        p_start, p_end, prior_items, prior_sec = load_pl(args.pl_prior)
         want = f"{year}-{mon - 1:02d}"
         if mon == 1 or not p_end.startswith(want) or not p_start.startswith(f"{year}-01"):
             fail(f"--pl-prior covers {p_start} to {p_end}; it must run January 1 to the end of {want}")
@@ -214,6 +216,15 @@ def main(argv=None):
         fail(f"income groups {sum(inc_ytd.values()):,.2f} != QuickBooks income {total_inc:,.2f}")
     if abs(sum(sp_ytd.values()) - total_sp) > 1:
         fail(f"spending groups {sum(sp_ytd.values()):,.2f} != QuickBooks expenses {total_sp:,.2f}")
+    if args.pl_prior:
+        prior_inc = sum(prior_sec.get(s, 0) for s in INCOME)
+        prior_sp = sum(prior_sec.get(s, 0) for s in EXPENSE)
+        if abs(sum(inc_prior.values()) - prior_inc) > 1:
+            fail("prior income groups do not match QuickBooks income; refresh the prior-period pull")
+        if abs(sum(sp_prior.values()) - prior_sp) > 1:
+            fail("prior spending groups do not match QuickBooks expenses; refresh the prior-period pull")
+        if abs(prior_inc - prior_sp - this_year[-2]) > 1:
+            fail("prior profit and loss net does not match the prior balance sheet change; refresh both pulls")
     ytd_net = total_inc - total_sp
     if abs(ytd_net - this_year[-1]) > 1:
         fail(f"profit and loss net {ytd_net:,.2f} != balance sheet change {this_year[-1]:,.2f}; "
@@ -231,8 +242,10 @@ def main(argv=None):
 
     def top(sections):
         now, before = item_values(ytd_items, sections), item_values(prior_items, sections)
-        diffs = {k: v - before.get(k, 0) for k, v in now.items()}
-        k = max(diffs, key=diffs.get)
+        diffs = {k: now.get(k, 0) - before.get(k, 0) for k in dict.fromkeys([*now, *before])}
+        if not any(diffs.values()):
+            return {"label": "No net change", "amount": 0}
+        k = max(diffs, key=lambda key: abs(diffs[key]))
         return {"label": labels.get(code(k), re.sub(r"^\d+\s+", "", k)), "amount": round(diffs[k])}
 
     came_in = round(sum(inc_ytd.values()) - sum(inc_prior.values()))
@@ -325,16 +338,18 @@ def main(argv=None):
     in_catch_all = catch_all(cfg["income_groups"], INCOME) + catch_all(cfg["spending_groups"], EXPENSE)
     new_in_catch_all = sorted(set(in_catch_all) - set((prev or {}).get("catch_all_accounts", in_catch_all)))
 
-    months_cash = bank[idx] / (total_sp / mon)
+    average_spending = round(total_sp / mon, 2)
     ly_now, ly_end = (last_year[mon - 1], last_year[-1]) if last_year else (None, None)
-    month_net = this_year[-1] - (this_year[-2] if mon > 1 else 0)
     t_out = top(EXPENSE)
     # Name the month's largest bill only when it is unusual for that account
     ytd_out = item_values(ytd_items, EXPENSE)
-    t_key = max(ytd_out, key=lambda k: ytd_out[k] - item_values(prior_items, EXPENSE).get(k, 0))
-    unusual = t_out["amount"] > 1.25 * (ytd_out[t_key] / mon)
-    s1 = (f"{mname} was a {'good' if month_net >= 0 else 'light'} month: {money(came_in)} came in and "
-          f"{money(went_out)} went out"
+    prior_out = item_values(prior_items, EXPENSE)
+    expense_keys = dict.fromkeys([*ytd_out, *prior_out])
+    t_key = max(expense_keys, key=lambda k: abs(ytd_out.get(k, 0) - prior_out.get(k, 0))) if expense_keys else None
+    account_ytd = ytd_out.get(t_key, 0)
+    unusual = t_key is not None and t_out["amount"] > 0 and account_ytd > 0 and t_out["amount"] > 1.25 * (account_ytd / mon)
+    s1 = (f"{mname}: {signed_money(came_in)} recorded income and "
+          f"{signed_money(went_out)} recorded spending"
           + (f", including {money(t_out['amount'])} for {t_out['label'].lower()}." if unusual else "."))
     word = "ahead" if this_year[-1] >= 0 else "short"
     cmp = ("better" if this_year[-1] >= ly_now else "worse") if last_year else ""
@@ -344,9 +359,7 @@ def main(argv=None):
               f"{money(ly_end)} {'ahead' if ly_end >= 0 else 'short'}.")
     else:
         s2 = f"That leaves us {money(this_year[-1])} {word} for the year."
-    s3 = (f"We can pay our bills: about {months_cash:.1f} months of spending is in the bank."
-          if months_cash >= 1.5 else
-          f"Cash is tight: about {months_cash:.1f} months of spending is in the bank.")
+    s3 = cash_summary(round(bank[idx]), average_spending)
 
     hist = [[months[i], round(bank[i])] for i in range(n)
             if cfg["history_start"] <= months[i] <= args.month]
@@ -364,7 +377,7 @@ def main(argv=None):
         "short_answer": " ".join([s1, s2, s3]),
         "short_answer_status": "draft: the treasurer approves or edits",
         "cash": {"bank": round(bank[idx]), "as_of": "",
-                 "monthly_spending": round(total_sp / mon), "status": "settled", "note": cfg.get("cash_note", "")},
+                 "monthly_spending": average_spending, "status": "settled", "note": cfg.get("cash_note", "")},
         "this_month": {"came_in": came_in, "went_out": went_out, "top_in": top(INCOME), "top_out": t_out},
         "plan": {"budget": plan_cum[mon - 1] if plan_cum else None, "actual": round(ytd_net), "status": "settling",
                  "unrecorded": unrecorded,
