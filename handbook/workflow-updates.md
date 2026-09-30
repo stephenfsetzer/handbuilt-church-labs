@@ -103,10 +103,20 @@ installation through **Sync** and use Handbuilt's managed workflow updates.
 See [Claude's organization sync requirements](https://support.claude.com/en/articles/13837433-manage-plugins-for-your-organization).
 Neither setting changes the managed stable or pinned selection described here.
 
-Missing runtime packages during initial onboarding remain a guided setup issue.
-Run the workspace doctor, follow its supported setup action, and check the
-result again. A release check does not replace runtime preparation, and pending
-PDF tools do not block workspace setup or sermon research.
+Workflow startup prepares missing private Python packages automatically, including
+new dependencies required by a candidate release. Each pinned dependency list,
+Python version, and platform has its own runtime generations. A generation stays
+at its original path and is selected atomically only after checks pass. Existing
+tasks use the returned launcher prefix to retain both their workflow and runtime;
+old generations are retained for rollback. There is no background daemon: the
+existing daily freshness check runs when a workflow starts.
+
+An interrupted or failed preparation leaves the working release and runtime
+unchanged. Missing Python, native PDF tools, installer permissions, and network
+failures still require an actionable repair. Pending PDF tools do not block
+workspace setup or sermon research. Do not ask the pastor to check versions or
+manage package commands; explain a concrete repair only when startup cannot
+continue.
 
 ## Release-owner procedure
 

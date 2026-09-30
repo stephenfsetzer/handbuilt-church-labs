@@ -75,6 +75,7 @@ def installation() -> dict:
 
 
 def connect(church_folder: str | Path, *, update_policy: str | None = None,
+            runtime_root: str | None = None,
             _automatic: bool = False) -> dict:
     from tools.workflow_updates import file_lock
     church = _load_setup()._assert_private_root(church_folder)
@@ -83,10 +84,10 @@ def connect(church_folder: str | Path, *, update_policy: str | None = None,
         if not acquired:
             raise ValueError("Another task is connecting this church. Try starting again.")
         return _connect(church, update_policy=update_policy,
-                        automatic=_automatic or update_policy is None)
+                        automatic=_automatic or update_policy is None, runtime_root=runtime_root)
 
 
-def _connect(church_folder: str | Path, *, update_policy: str | None, automatic: bool) -> dict:
+def _connect(church_folder: str | Path, *, update_policy: str | None, automatic: bool, runtime_root: str | None = None) -> dict:
     from tools.plugin_identity import is_development_root
     church = _load_setup()._assert_private_root(church_folder)
     metadata = _private_file(church, ".handbuilt/installation.json")
@@ -112,6 +113,8 @@ def _connect(church_folder: str | Path, *, update_policy: str | None, automatic:
     info = installation()
     info.update({"schema_version": 1, "launcher_sha256": hashlib.sha256(expected).hexdigest(),
                  "update_policy": policy})
+    if runtime_root:
+        info["runtime_root"] = runtime_root
     from tools.instruction_recovery import snapshot
     recovery = snapshot(church, reason="connection")
     metadata.parent.mkdir(parents=True, exist_ok=True)
@@ -161,9 +164,10 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
     store = default_runtime_root().parent / "workflows"
     def validate(candidate):
         command = [sys.executable, str(candidate / "tools/handbuilt_runtime.py")]
-        command += (["verify"] if workflow in PDF_WORKFLOWS else ["doctor", "--capability", "workspace"])
+        command += ["ensure", "--capability", "bulletin" if workflow in PDF_WORKFLOWS else "workspace",
+                    "--runtime-root", str(default_runtime_root())]
         try:
-            check = subprocess.run(command + ["--format", "json"], capture_output=True, text=True, timeout=90)
+            check = subprocess.run(command + ["--format", "json"], capture_output=True, text=True, timeout=1200)
             report = json.loads(check.stdout)
         except (subprocess.SubprocessError, ValueError) as exc:
             raise ValueError("The new workflow could not complete its runtime check.") from exc
@@ -193,20 +197,22 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
         # The target verifies its runtime again before saving the connection.
         process = subprocess.run([sys.executable, str(selected / "tools/church_workflow.py"),
                                   "--church-folder", str(church), "start", workflow,
-                                  "--skip-update-check"], capture_output=True, text=True, timeout=120)
+                                  "--skip-update-check"], capture_output=True, text=True, timeout=1200,
+                                  env=dict(os.environ, HANDBUILT_RUNTIME_HOME=str(default_runtime_root())))
         result = json.loads(process.stdout)
         result["app_loaded_identity"] = identity["loaded"]
         result["updates"] = updates
         result["identity"] = inspect_installation(selected, church, updates.get("latest"))
         return result, process.returncode
-    doctor = _doctor(workflow)
+    doctor = _doctor(workflow, prepare=True)
     if doctor.get("status") != "ready":
         return doctor, 2
     skill = ROOT / "skills" / workflow / "SKILL.md"
     if not skill.is_file():
         raise ValueError("The requested Handbuilt skill is missing; repair the installation")
     # All checks precede the small, rollback-protected connection write.
-    connection = connect(church, update_policy="pinned" if pinned else "stable", _automatic=True)
+    connection = connect(church, update_policy="pinned" if pinned else "stable", _automatic=True,
+                         runtime_root=doctor["runtime"]["root"])
     if connection["status"] == "preserved":
         return {"status": "blocked", "code": "connection_changed",
                 "message": "A newer church connection was preserved. Start again using that saved connection."}, 2
@@ -215,7 +221,7 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
               "instruction_recovery": recovery,
               "updates": updates, "skill": str(skill), "runtime_python": doctor["runtime"]["python"],
               "launcher": [doctor["runtime"]["python"], str(ROOT / "tools/church_workflow.py"),
-                           "--church-folder", str(church)],
+                           "--church-folder", str(church), "--runtime-root", doctor["runtime"]["root"]],
               "next_action": "Read this exact skill. Use the returned launcher prefix for every operation in this task; it keeps the workflow version fixed. Check workflow readiness before producing."}
     result["handbuilt_run"] = str(_record(church, workflow, "start", result, doctor))
     return result, 0
@@ -253,9 +259,9 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
 
     def validate(candidate):
         command = [sys.executable, str(candidate / "tools/handbuilt_runtime.py"),
-                   "doctor", "--capability", "workspace", "--format", "json"]
+                   "ensure", "--capability", "workspace", "--runtime-root", str(default_runtime_root()), "--format", "json"]
         try:
-            check = subprocess.run(command, capture_output=True, text=True, timeout=90)
+            check = subprocess.run(command, capture_output=True, text=True, timeout=1200)
             report = json.loads(check.stdout)
         except (subprocess.SubprocessError, ValueError) as exc:
             raise ValueError("The new workflow could not complete its runtime check.") from exc
@@ -292,11 +298,17 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
     return result, 0 if updates["status"] in {"current", "updated"} else 1
 
 
-def _doctor(workflow: str = "bulletin") -> dict:
+def _doctor(workflow: str = "bulletin", *, prepare: bool = False, runtime_root: str | None = None) -> dict:
     # Keep PDF dependencies and their working check on the workflows that make PDFs.
     # Workspace and sermon tools still require the existing managed packages.
     arguments = (["verify"] if workflow in PDF_WORKFLOWS
                  else ["doctor", "--capability", "workspace"])
+    if prepare:
+        from tools.handbuilt_runtime import default_runtime_root
+        arguments = ["ensure", "--capability", "bulletin" if workflow in PDF_WORKFLOWS else "workspace",
+                     "--runtime-root", str(default_runtime_root())]
+    elif runtime_root:
+        arguments += ["--runtime-root", runtime_root]
     result = subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
                              *arguments, "--format", "json"], capture_output=True, text=True)
     report = json.loads(result.stdout)
@@ -320,13 +332,13 @@ def _record(church: Path, workflow: str, operation: str, result: dict, runtime: 
     return path
 
 
-def execute(church: Path, workflow: str, operation: str, arguments: list[str]) -> tuple[dict, int]:
+def execute(church: Path, workflow: str, operation: str, arguments: list[str], *, runtime_root: str | None = None) -> tuple[dict, int]:
     church = _load_setup()._assert_private_root(church)
     if operation not in OPERATIONS[workflow]:
         raise ValueError(f"Unsupported {workflow} operation: {operation}")
     if any(arg == "--church-folder" or arg.startswith("--church-folder=") for arg in arguments):
         raise ValueError("The church folder comes from this launcher and cannot be overridden")
-    doctor = _doctor(workflow)
+    doctor = _doctor(workflow, runtime_root=runtime_root)
     if doctor.get("status") != "ready":
         return doctor, 2
     script = ROOT / WORKFLOWS[workflow]
@@ -372,6 +384,7 @@ def execute(church: Path, workflow: str, operation: str, arguments: list[str]) -
 def main() -> int:
     parser = argparse.ArgumentParser(description="Use the installed Handbuilt workflows for a private church")
     parser.add_argument("--church-folder", required=True)
+    parser.add_argument("--runtime-root", help=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest="command", required=True)
     connection = sub.add_parser("connect")
     connection.add_argument("--update-policy", choices=("stable", "pinned"))
@@ -430,7 +443,7 @@ def main() -> int:
         elif args.command == "ensure-latest":
             result, code = _ensure_latest(church)
         else:
-            result, code = execute(church, args.command, args.operation, args.arguments)
+            result, code = execute(church, args.command, args.operation, args.arguments, runtime_root=args.runtime_root)
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
         result, code = {"status": "blocked", "code": "handbuilt_connection_error", "message": str(exc)}, 2
     print(json.dumps(result, indent=2))

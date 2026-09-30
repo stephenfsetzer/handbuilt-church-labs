@@ -23,13 +23,14 @@ checks to resume; do not create a second church folder just to save setup state.
 After the private church folder exists, the workflow start check can select a
 verified managed release outside the host plugin cache. Read
 the managed update guidance in the workflow start result for the app-loaded,
-latest stable, and saved working identities. A release check does not replace
-the runtime doctor or the supported setup action below.
+latest stable, and saved working identities. The workflow start check also
+prepares the selected release's private packages.
 
 ## Inspect together, then repair what is missing
 
-Use the [runtime guide](../../../handbook/runtime-setup.md). Run the workspace
-doctor and inspect its complete report: host OS/architecture, usable Python,
+Use the [runtime guide](../../../handbook/runtime-setup.md). Run workspace
+`ensure` to prepare private packages automatically, then inspect its complete
+report: host OS/architecture, usable Python,
 managed packages, all missing PDF tools, and the available native installer.
 The host is where the agent executes commands; do not infer it solely from the
 pastor's laptop or app name. Present one short preparation plan, including any
@@ -63,14 +64,14 @@ because a download finished. Verify it from the host afterward.
 
 ## Check only the tools needed now
 
-Workspace readiness retains the existing managed Python/package checks. It
+Workspace readiness prepares and checks the managed Python packages. It
 does not require Poppler, and covers church settings, brand settings, and
 sermon research. It does not certify PDF import, rendering, or printing.
 
 Before PDF import or bulletin work, run:
 
 ```bash
-"<runtime.python>" "<plugin-root>/tools/handbuilt_runtime.py" verify --format json
+"<runtime.python>" "<plugin-root>/tools/handbuilt_runtime.py" verify --runtime-root "<runtime.root>" --format json
 ```
 
 This renders and checks a small temporary PDF, including native rendering

@@ -145,3 +145,25 @@ the host's installer and permission surface. There is no graphical bootstrap
 when Python is absent; the host must inspect the computer and guide that
 preparation before this Python helper can run. Nothing in this update replaces
 the existing installer or changes the church's customizable workspace.
+
+## Automatic private package preparation
+
+Workflow startup runs `ensure` automatically. Before a church folder exists,
+onboarding runs `ensure --capability workspace`. It installs pinned Python
+packages in Handbuilt's per-user support directory, never global Python or the
+church folder. The executing host's network and filesystem approval rules still
+apply. This does not install Python, Poppler, or native rendering libraries.
+
+`ensure` uses an OS-released lock per dependency fingerprint. It builds a new
+runtime generation at its permanent path, verifies it, then atomically publishes
+a small selection record. It never upgrades packages in an already selected
+generation. Failed or interrupted generations are ignored on retry; old ones
+are retained for running tasks and rollback. Existing legacy runtime tools stay
+available, but startup does not upgrade that legacy environment in place. If
+preparation is blocked, a legacy runtime that still passes this release's checks
+can be used read-only; a mismatched legacy runtime is never a fallback.
+
+The returned task launcher pins the selected runtime root along with the workflow
+root. Use it unchanged throughout that task. Successful preparation needs no
+version reminder or package decision from the pastor. Missing OS prerequisites
+or blocked downloads still need the host's normal repair/approval flow.
