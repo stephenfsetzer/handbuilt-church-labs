@@ -38,3 +38,24 @@ items; the obligations; the pressure question's two series.
 The questions, their wording and order, the chart forms, the one color
 meaning, two pages at most, and the rule that every figure names its source.
 A change to any of these is a new shape version, not a per-church setting.
+
+## Optional config keys (added in 0.8.1)
+
+Both keys are absent by default, and a report built without them is unchanged.
+
+- `"approval": "none"` is for a report with no approval step, such as one
+  built by the hosted Handbuilt app. `report.json` records
+  `meta.approval = "none"`, and the header prints "Books through <date>" in
+  place of "Draft for review" or "Final". No other text calls the report a
+  draft in that mode.
+- `"set_aside_accounts"` lists money the church holds that is not everyday
+  cash: `[{"account": "<balance sheet account>", "name": "Memorial Fund",
+  "kind": "restricted"}]`, where `account` is written the way `bank_accounts`
+  entries are, and `kind` is `restricted`, `designated`, `investment`, or
+  `in_transit`. `report.json` gets `cash.set_aside`, a list of
+  `{name, kind, amount}` at the report month end, and `cash.set_aside_total`.
+  Question 1 lists it by name, grouped by kind, as money not counted in bank
+  cash. It is never added to or taken from the bank figure, and months of
+  spending stay based on everyday money only. An account may not be in both
+  `bank_accounts` and `set_aside_accounts`, and an account missing from the
+  balance sheet stops the build.

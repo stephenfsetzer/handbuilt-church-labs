@@ -185,6 +185,126 @@ class FinanceReportTests(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("missing 'obligations'", err)
 
+    # --- the status marker and set-aside money ---------------------------------------
+
+    def configure(self, **keys):
+        config = self.board / "config.json"
+        settings = json.loads(config.read_text())
+        settings.update(keys)
+        config.write_text(json.dumps(settings))
+
+    def add_balance_sheet_rows(self, month: str, rows: dict[str, float]):
+        path = self.board / month / "pulls/balance-sheet.json"
+        data = json.loads(path.read_text())
+        columns = len(data["displayColumns"]) - 1
+        for name, value in rows.items():
+            data["reportData"]["rows"].append(
+                {"cells": [{"id": "1", "name": "ACCOUNT_NAME", "value": name}] +
+                 [{"name": "x", "value": value, "localizedValue": f"{value:,.2f}"}] * columns, "depth": 3})
+        path.write_text(json.dumps(data))
+
+    def rendered_words(self, month: str) -> str:
+        pdf = next((self.board / month).glob("*.pdf"))
+        words = page_text(self.church, month)
+        if shutil.which("pdftotext"):
+            words += " " + subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True).stdout
+        return words
+
+    def test_default_marker_is_unchanged_and_report_json_has_no_new_keys(self):
+        self.assertEqual(self.build("2026-08")[1], 0)
+        report = json.loads((self.board / "2026-08/report.json").read_text())
+        self.assertNotIn("approval", report["meta"])
+        self.assertNotIn("set_aside", report["cash"])
+        self.assertNotIn("set_aside_total", report["cash"])
+        self.assertEqual(self.render("2026-08")[1], 0)
+        self.assertIn("Draft for review", page_text(self.church, "2026-08"))
+        self.assertNotIn("Books through", page_text(self.church, "2026-08"))
+        report["meta"]["status"] = "final"
+        (self.board / "2026-08/report.json").write_text(json.dumps(report))
+        self.assertEqual(self.render("2026-08")[1], 0)
+        text = page_text(self.church, "2026-08")
+        self.assertIn("Final", text)
+        self.assertNotIn("Draft for review", text)
+
+    def test_approval_none_prints_what_the_report_is_and_never_says_draft(self):
+        self.configure(approval="none")
+        self.assertEqual(self.build("2026-08")[1], 0)
+        report = json.loads((self.board / "2026-08/report.json").read_text())
+        self.assertEqual(report["meta"]["approval"], "none")
+        self.assertEqual(report["meta"]["status"], "draft")
+        result, code, err = self.render("2026-08")
+        self.assertEqual(code, 0, err)
+        words = self.rendered_words("2026-08")
+        self.assertIn("Books through August 31, 2026", page_text(self.church, "2026-08"))
+        self.assertNotRegex(words, r"(?i)draft")
+        self.assertNotIn("Final", page_text(self.church, "2026-08").split("Where we stand")[0])
+
+    def test_an_unknown_approval_value_stops_the_build(self):
+        self.configure(approval="treasurer")
+        _, code, err = self.build("2026-08")
+        self.assertNotEqual(code, 0)
+        self.assertIn("approval", err)
+
+    def test_set_aside_money_is_listed_by_name_and_never_counted_as_bank_cash(self):
+        plain = self.build("2026-08")
+        self.assertEqual(plain[1], 0)
+        before = json.loads((self.board / "2026-08/report.json").read_text())
+        self.add_balance_sheet_rows("2026-08", {"Memorial Fund": 12000.0, "Building Reserve": 4500.4})
+        self.configure(set_aside_accounts=[
+            {"account": "Memorial Fund", "name": "Memorial Fund", "kind": "restricted"},
+            {"account": "Building Reserve", "name": "Roof Reserve", "kind": "designated"},
+            {"account": "ELCA Endowment Fund", "name": "Endowment", "kind": "investment"},
+            {"account": "Stripe", "name": "Online gifts", "kind": "in_transit"}])
+        self.assertEqual(self.build("2026-08")[1], 0)
+        report = json.loads((self.board / "2026-08/report.json").read_text())
+        self.assertEqual(report["cash"]["set_aside"], [
+            {"name": "Memorial Fund", "kind": "restricted", "amount": 12000},
+            {"name": "Roof Reserve", "kind": "designated", "amount": 4500},
+            {"name": "Endowment", "kind": "investment", "amount": 92400},
+            {"name": "Online gifts", "kind": "in_transit", "amount": 1250}])
+        self.assertEqual(report["cash"]["set_aside_total"], 110150)
+        self.assertEqual(report["cash"]["bank"], before["cash"]["bank"])
+        self.assertEqual(report["cash"]["monthly_spending"], before["cash"]["monthly_spending"])
+        self.assertEqual(report["short_answer"], before["short_answer"])
+        self.assertEqual(self.render("2026-08")[1], 0)
+        text = page_text(self.church, "2026-08")
+        page_one = text.split("Watch list and the longer view")[0]
+        for line in ("Set-aside money, not counted above", "Restricted: Memorial Fund $12,000",
+                     "Designated: Roof Reserve $4,500", "Long-term investments: Endowment $92,400",
+                     "On its way to the bank: Online gifts $1,250"):
+            self.assertIn(line, page_one)
+        pdf = next((self.board / "2026-08").glob("*.pdf"))
+        if shutil.which("pdftotext"):
+            first = subprocess.run(["pdftotext", "-f", "1", "-l", "1", str(pdf), "-"], capture_output=True, text=True).stdout
+            self.assertIn("Memorial Fund", first)
+            self.assertIn("Roof Reserve", first)
+
+    def test_dropping_the_new_keys_leaves_the_report_exactly_as_before(self):
+        self.assertEqual(self.build("2026-08")[1], 0)
+        path = self.board / "2026-08/report.json"
+        default_text = path.read_text()
+        self.configure(approval="none", set_aside_accounts=[
+            {"account": "ELCA Endowment Fund", "name": "Endowment", "kind": "investment"}])
+        self.assertEqual(self.build("2026-08")[1], 0)
+        report = json.loads(path.read_text())
+        del report["meta"]["approval"]
+        del report["cash"]["set_aside"]
+        del report["cash"]["set_aside_total"]
+        self.assertEqual(json.dumps(report, indent=2), default_text)
+
+    def test_set_aside_entries_are_checked(self):
+        bad = [
+            ([{"account": "Checking - First Bank 1111", "name": "Checking", "kind": "restricted"}], "also in bank_accounts"),
+            ([{"account": "No Such Account", "name": "Missing", "kind": "restricted"}], "no 'No Such Account' row"),
+            ([{"account": "Stripe", "name": "Online gifts", "kind": "someday"}], "kind must be one of"),
+            ([{"account": "Stripe", "name": " ", "kind": "in_transit"}], "needs an account and a name")]
+        for entries, message in bad:
+            with self.subTest(message=message):
+                self.configure(set_aside_accounts=entries)
+                _, code, err = self.build("2026-08")
+                self.assertNotEqual(code, 0)
+                self.assertIn(message, err)
+
     # --- first-time setup and the shape's variants ------------------------------------
 
     def setup_church(self, budget: list[str]):

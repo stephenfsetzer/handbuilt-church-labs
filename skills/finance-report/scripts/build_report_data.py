@@ -66,6 +66,38 @@ def account_total(rows, names, n):
     return total
 
 
+def account_present(rows, name):
+    return any(re.sub(r"^\d+\s+", "", n) == name for n, _ in rows)
+
+
+SET_ASIDE_KINDS = ("restricted", "designated", "investment", "in_transit")
+
+
+def set_aside_money(cfg, bs, n, idx):
+    """Money the church holds that is not everyday cash, by name, at the report month end.
+
+    Read from the same balance sheet and with the same account_total helper as
+    the bank figure. It is shown beside the bank figure and never added to or
+    taken from it."""
+    entries = cfg.get("set_aside_accounts")
+    if not entries:
+        return None
+    bank_accounts = set(cfg["bank_accounts"])
+    items = []
+    for e in entries:
+        account, name, kind = e.get("account"), (e.get("name") or "").strip(), e.get("kind")
+        if not account or not name:
+            fail("each set_aside_accounts entry needs an account and a name")
+        if kind not in SET_ASIDE_KINDS:
+            fail(f"set_aside_accounts '{name}': kind must be one of {', '.join(SET_ASIDE_KINDS)}")
+        if account in bank_accounts:
+            fail(f"set_aside_accounts '{name}' is also in bank_accounts; an account is either everyday cash or set aside")
+        if not account_present(bs, account):
+            fail(f"balance sheet has no '{account}' row for set-aside money '{name}'")
+        items.append({"name": name, "kind": kind, "amount": round(account_total(bs, {account}, n)[idx])})
+    return items
+
+
 def row(rows, name):
     for n, vals in rows:
         if n == name:
@@ -361,6 +393,11 @@ def main(argv=None):
         s2 = f"That leaves us {money(this_year[-1])} {word} for the year."
     s3 = cash_summary(round(bank[idx]), average_spending)
 
+    approval = cfg.get("approval")
+    if approval not in (None, "none"):
+        fail("config approval must be \"none\" or left out")
+    set_aside = set_aside_money(cfg, bs, n, idx)
+
     hist = [[months[i], round(bank[i])] for i in range(n)
             if cfg["history_start"] <= months[i] <= args.month]
     report = {
@@ -404,6 +441,11 @@ def main(argv=None):
         report["previous"] = {"as_of": f"{MONTHS[(mon - 2) % 12]} end", "bank": round(bank[before]),
                               "ytd": this_year[-2] if mon > 1 else 0}
     report["cash"]["as_of"] = report["meta"]["through"]
+    if approval:
+        report["meta"]["approval"] = approval
+    if set_aside is not None:
+        report["cash"]["set_aside"] = set_aside
+        report["cash"]["set_aside_total"] = sum(i["amount"] for i in set_aside)
     out = folder / args.month
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.json").write_text(json.dumps(report, indent=2))

@@ -666,8 +666,28 @@ table.watch td.st {{ width: 11%; }}
 .how {{ margin-top: 6pt; font-size: 8pt; color: {t['muted']}; line-height: 1.35;
         border-top: 0.75pt solid {t['rule']}; padding-top: 5pt; }}
 .how b {{ color: {t['ink']}; }}
+.setaside {{ font-size: 8.5pt; line-height: 1.35; margin-top: 5pt; border-top: 0.75pt solid {t['rule']}; padding-top: 4pt; }}
+.setaside > b {{ display: block; margin-bottom: 1pt; }}
 .recon {{ font-size: 8pt; color: {t['attention']}; font-weight: 700; }}
 """, scale)
+
+
+SET_ASIDE_LABELS = (("restricted", "Restricted"), ("designated", "Designated"),
+                    ("investment", "Long-term investments"), ("in_transit", "On its way to the bank"))
+
+
+def set_aside_block(cash):
+    """Set-aside money by name, under question 1. Never part of the bank figure."""
+    items = cash.get("set_aside")
+    if not items:
+        return ""
+    lines = []
+    for kind, label in SET_ASIDE_LABELS:
+        mine = [i for i in items if i["kind"] == kind]
+        if mine:
+            lines.append(f'<div><b>{label}:</b> ' +
+                         "; ".join(f"{esc(i['name'])} {signed_money(i['amount'])}" for i in mine) + "</div>")
+    return ('<div class="setaside"><b>Set-aside money, not counted above</b>' + "".join(lines) + "</div>")
 
 
 def header(t, church, brand, meta, vocab, nq):
@@ -685,6 +705,8 @@ def header(t, church, brand, meta, vocab, nq):
         arc = (f'<svg class="arc" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">'
                f'<circle cx="200" cy="0" r="95" fill="none" stroke="{t["positive"]}" stroke-width="34"/></svg>')
     status = "Draft for review" if meta["status"] != "final" else "Final"
+    if meta.get("approval") == "none":  # no approval step: say what the report is
+        status = f"Books through {meta['through']}"
     return f"""<div class="hero">{arc}{brandline}
 <div class="eyebrow">{esc(meta['report'])} &middot; {esc(vocab['body'])}, {esc(meta['meeting_date'])} &middot; {status}</div>
 <div class="title">Where we stand: {esc(meta['month_name'])}</div>
@@ -721,7 +743,7 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
 
     q1 = f"""<div class="q"><div class="num">Question 1</div><h2>Can we pay our bills?</h2>
 <p class="answer">{esc(cash_summary(cash['bank'], cash['monthly_spending']))}</p>{chart_cash(d, cash, prev['bank'] if prev else None)}
-<p class="note">{esc(cash.get('note', ''))}</p></div>"""
+<p class="note">{esc(cash.get('note', ''))}</p>{set_aside_block(cash)}</div>"""
 
     run = plan["running"]
     m = len(run["this_year"])
