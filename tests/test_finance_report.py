@@ -160,6 +160,44 @@ class FinanceReportTests(unittest.TestCase):
         self.render("2026-08")
         self.assertIn("Earlier months changed", page_text(self.church, "2026-08"))
 
+    def test_a_month_with_no_income_recorded_is_said_so_and_the_year_reads_through_the_month_before(self):
+        # Plugin bug 022: pulled two days after month end, before the bookkeeper posted the month's
+        # income, the builder called it a bad month and the year a month further short.
+        real = fixture.month_values
+
+        def unposted_august(y, m):
+            inc, exp = real(y, m)
+            if (y, m) == (2026, 8):
+                return {k: 0.0 for k in inc}, {k: round(v * 0.4, 2) for k, v in exp.items()}
+            return inc, exp
+
+        pulls = self.board / "2026-08/pulls"
+        with mock.patch.object(fixture, "month_values", unposted_august):
+            (pulls / "balance-sheet.json").write_text(json.dumps(fixture.balance_sheet((2026, 8))))
+            (pulls / "pl-ytd.json").write_text(json.dumps(fixture.pl(2026, 8)))
+        result, code, err = self.build("2026-08")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(result["came_in"], 0)
+        self.assertTrue(any("August looks unrecorded" in item for item in result["needs_a_person"]))
+        report = json.loads((self.board / "2026-08/report.json").read_text())
+        self.assertIs(report["this_month"]["unrecorded"], True)
+        answer = report["short_answer"]
+        self.assertTrue(answer.startswith("August is not yet recorded: no income has been entered and only some bills, "
+                                          "so read the year through July."), answer)
+        through_july = report["plan"]["running"]["this_year"][6]
+        self.assertIn(f"The year through July is ${abs(through_july):,} {'ahead' if through_july >= 0 else 'short'}", answer)
+        self.assertNotIn("August:", answer)
+        self.assertNotIn("That leaves us", answer)
+        self.assertIn("August not yet recorded", [r["title"] for r in report["readiness"]])
+        self.assertEqual(self.render("2026-08")[1], 0)
+        self.assertIn("August not yet recorded", page_text(self.church, "2026-08"))
+        # A recorded month is unchanged: no flag, no caveat, and the month's own sentence.
+        self.assertEqual(self.build("2026-07")[1], 0)
+        july = json.loads((self.board / "2026-07/report.json").read_text())
+        self.assertNotIn("unrecorded", july["this_month"])
+        self.assertNotIn("month_unrecorded", [r["id"] for r in july["readiness"] or []])
+        self.assertTrue(july["short_answer"].startswith("July:"), july["short_answer"])
+
     def test_an_unmatched_figure_warns_on_a_draft_and_blocks_a_final_report(self):
         self.two_editions()
         path = self.board / "2026-08/report.json"

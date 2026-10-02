@@ -84,7 +84,11 @@ month folder before asking anything.
    Raise each item in the result's `needs_a_person` list: watch items that
    need this month's facts, new accounts that fell into "Everything else"
    (confirm or change the grouping in the settings), and earlier months that
-   changed since last month's report (also flagged on the report itself).
+   changed since last month's report (also flagged on the report itself),
+   and a month that looks unrecorded: no income entered at all, which means
+   the bookkeeper has not posted it yet, not that nothing came in. The draft
+   then says so and reads the year through the month before. Offer to pause
+   and rebuild once the books catch up, or to go on with the draft marked.
 
 5. **Update the watch list with the person.** Items carried from last month
    with a template update themselves; the rest need this month's latest fact
