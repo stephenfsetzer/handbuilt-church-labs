@@ -507,15 +507,23 @@ def _cap(text: str) -> str:
 
 
 def _turn_ok(unit: Unit) -> bool:
+    """One page, or starting on a left-hand (even) page.
+
+    Two pages that start on an even page face each other. A unit longer
+    than two pages cannot avoid a turn; starting it on a left-hand page
+    shows a full spread before the first turn, which is the best a reader
+    can get.
+    """
     if unit.first_page == unit.last_page:
         return True
-    return unit.last_page == unit.first_page + 1 and unit.first_page % 2 == 0
+    return unit.first_page % 2 == 0
 
 
 def _span_clause(name: str, unit: Unit) -> str:
     if unit.last_page == unit.first_page + 1:
         return f"{name} continues from page {unit.first_page} onto page {unit.last_page}"
-    return f"{name} runs from page {unit.first_page} to page {unit.last_page}"
+    return (f"{name} runs from page {unit.first_page} to page {unit.last_page} but starts "
+            "on a right-hand page, so its first turn comes before a full spread")
 
 
 def _exempt_pages(report: LayoutReport) -> set[int]:
@@ -575,14 +583,22 @@ def check(report: LayoutReport, *, print_mode: str = "booklet",
                                 "There is no designed back page to check.", []))
     else:
         back = backs[-1]
-        if back.first_page == back.last_page == pages:
+        if print_mode != "booklet" and back.last_page == pages:
+            # Unfolded pages have no back cover: back matter may run onto a
+            # second page as long as it ends the bulletin.
+            where = (f"on page {pages}" if back.first_page == pages
+                     else f"on pages {back.first_page} to {pages}")
+            findings.append(Finding("back_cover_last", True, True,
+                                    f"The back page prints last, {where}.",
+                                    list(range(back.first_page, pages + 1))))
+        elif back.first_page == back.last_page == pages:
             findings.append(Finding("back_cover_last", True, True,
                                     f"The back page prints last, on page {pages}.", [pages]))
         elif back.last_page == pages:
             findings.append(Finding(
                 "back_cover_last", False, True,
                 f"The back page runs from page {back.first_page} onto page {back.last_page}, "
-                "but it must fit on the last page.",
+                "but in a folded booklet it must fit on the back cover.",
                 list(range(back.first_page, back.last_page + 1))))
         else:
             findings.append(Finding(

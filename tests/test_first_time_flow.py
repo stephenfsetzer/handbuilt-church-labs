@@ -84,7 +84,7 @@ class FirstTimeFlowTest(unittest.TestCase):
                 EPISCOPAL_PACK,
             )
             bulletin = bulletin_input()
-            bulletin["options"] = {}
+            bulletin["options"] = {"print_mode": "duplex"}
             bulletin["liturgy"] = resolved["liturgy"]
             result = produce(church, bulletin)
             self.assertEqual(result["status"], "ready_for_review")
@@ -116,7 +116,7 @@ class FirstTimeFlowTest(unittest.TestCase):
                 },
             )
             bulletin = bulletin_input()
-            bulletin["options"] = {}
+            bulletin["options"] = {"print_mode": "duplex"}
             bulletin["liturgy"] = resolved["liturgy"]
             bulletin["service"]["occasion"] = "A Lutheran Sunday in September"
             bulletin["service"]["liturgical_color"] = "green"
@@ -151,7 +151,7 @@ class FirstTimeFlowTest(unittest.TestCase):
             episcopal = make_church(root / "episcopal-yaml")
             (episcopal / "worship" / "profile.yaml").write_text(episcopal_profile, encoding="utf-8")
             ep = resolve_worship_profile(episcopal)
-            bulletin = bulletin_input(); bulletin["options"] = {}; bulletin["liturgy"] = ep["liturgy"]
+            bulletin = bulletin_input(); bulletin["options"] = {"print_mode": "duplex"}; bulletin["liturgy"] = ep["liturgy"]
             self.assertEqual(produce(episcopal, bulletin)["status"], "ready_for_review")
 
             lutheran = make_church(root / "lutheran-yaml")
@@ -160,7 +160,7 @@ class FirstTimeFlowTest(unittest.TestCase):
             lu = resolve_worship_profile(lutheran, {"liturgy": {
                 "eucharistic_prayer": "local", "lords_prayer": "custom", "files": files,
             }})
-            bulletin = bulletin_input(); bulletin["options"] = {}; bulletin["liturgy"] = lu["liturgy"]
+            bulletin = bulletin_input(); bulletin["options"] = {"print_mode": "duplex"}; bulletin["liturgy"] = lu["liturgy"]
             bulletin["service"]["occasion"] = "A Lutheran Sunday in September"
             bulletin["service"]["lectionary_track"] = "Local lectionary"
             self.assertEqual(produce(lutheran, bulletin)["status"], "ready_for_review")

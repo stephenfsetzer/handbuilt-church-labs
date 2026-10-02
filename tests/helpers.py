@@ -487,6 +487,10 @@ def bulletin_input() -> dict:
             "include_confession": True,
             "eucharistic_prayer": "A",
             "lords_prayer": "traditional",
+            # This shared fixture renders 9 or 10 pages, which cannot fold into
+            # a booklet. Tests whose subject is not printing use duplex; the
+            # booklet print gate has its own production tests.
+            "print_mode": "duplex",
         },
         "liturgy": {
             "service_plan": "episcopal-rite-ii",
@@ -500,3 +504,23 @@ def verify_liturgy_source(church: Path, path: Path) -> None:
     from skills.bulletin.liturgy_sources import record_source
     record_source(church, path, source_file=path, label="Synthetic supplied worship text",
                   location="synthetic fixture", verified_on="2026-09-08", method="church_supplied")
+
+
+def without_print_gate():
+    """Patch out the booklet print gate for one production call.
+
+    Use only where the test's subject is not printing and its fixture is
+    deliberately larger than any print layout allows (music or posters
+    several pages tall). The gate would rightly block those fixtures; its own
+    behavior is covered in tests/test_print_layout.py and
+    tests/test_bulletin_print_gate.py.
+    """
+    from unittest.mock import patch
+
+    from skills.bulletin.bulletin_production import interface
+
+    def unchanged(*args, **kwargs):
+        return {"status": "unchanged", "checks": [], "warnings": [], "adjustments": [],
+                "summary": "", "pages": None}
+
+    return patch.object(interface, "_print_gate", unchanged)

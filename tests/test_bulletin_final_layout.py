@@ -7,7 +7,7 @@ from PIL import Image
 from pypdf import PdfReader
 
 from skills.bulletin.bulletin_production.interface import produce
-from tests.helpers import bulletin_input, make_church
+from tests.helpers import bulletin_input, make_church, without_print_gate
 from tests.test_bulletin_music_slots import _painted_image_colors
 
 
@@ -134,7 +134,8 @@ class AnnouncementPosterLayoutTests(unittest.TestCase):
                     {"title": "Synthetic Poster Event",
                      "images": [f"music/poster{i}.png" for i in range(len(colors))]},
                 ]
-                result = produce(church, bulletin)
+                with without_print_gate():
+                    result = produce(church, bulletin)
                 self.assertEqual(result["status"], "ready_for_review", result)
                 folder = Path(result["week_folder"])
                 pdf = next(folder.glob(f"*{template}.pdf"))
@@ -219,7 +220,8 @@ class AnnouncementPosterLayoutTests(unittest.TestCase):
                      "text": f"Opening marker. {long_text} Closing marker.",
                      "images": ["music/flyer.png"]},
                 ]
-                result = produce(church, bulletin)
+                with without_print_gate():
+                    result = produce(church, bulletin)
                 self.assertEqual(result["status"], "ready_for_review", result)
                 folder = Path(result["week_folder"])
 

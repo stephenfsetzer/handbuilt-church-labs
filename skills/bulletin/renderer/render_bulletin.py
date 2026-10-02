@@ -1755,6 +1755,105 @@ def build_css(template, brand):
 
 
 # ---------------------------------------------------------------------------
+# Print units
+# ---------------------------------------------------------------------------
+
+# The booklet print gate (print_layout.py) reads these data attributes. When
+# any element carries one, it reads attributes only, so every unit kind is
+# marked here from the same class names the gate falls back to.
+_DIV_START = re.compile(r"<div\b([^>]*)>", re.IGNORECASE)
+_CLASS_VALUE = re.compile(r'\bclass\s*=\s*"([^"]*)"', re.IGNORECASE)
+_TAG = re.compile(r"<(/?)([a-zA-Z][a-zA-Z0-9]*)\b([^>]*?)(/?)>")
+
+
+def _print_unit_kind(classes):
+    if "hymn-page" in classes or "hymn-inline" in classes:
+        return "music"
+    if "inside-cover" in classes:
+        return "inside-cover"
+    if "backpage" in classes:
+        return "back-cover"
+    if "dialogue" in classes:
+        return "prayer"
+    if "section" in classes:
+        return "section"
+    return None
+
+
+def _element_end(content, start):
+    """Index just past the end tag closing the element that starts at ``start``."""
+    depth = 0
+    name = None
+    for match in _TAG.finditer(content, start):
+        closing, tag, _, self_closing = match.groups()
+        if name is None:
+            name = tag.lower()
+        if tag.lower() != name or self_closing:
+            continue
+        depth += -1 if closing else 1
+        if depth == 0:
+            return match.end()
+    return len(content)
+
+
+def _first_with_class(content, start, end, cls):
+    for match in _TAG.finditer(content, start, end):
+        if match.group(1):
+            continue
+        value = _CLASS_VALUE.search(match.group(3) or "")
+        if value and cls in value.group(1).split():
+            return match.start()
+    return None
+
+
+def _plain_text(fragment):
+    import html as html_module
+
+    return " ".join(html_module.unescape(re.sub(r"<[^>]+>", "", fragment)).split())
+
+
+def _section_label(content, start, end):
+    """The section's heading label, read the way the print gate reads it."""
+    head = _first_with_class(content, start, end, "section-head")
+    if head is None:
+        return None
+    head_end = _element_end(content, head)
+    label = _first_with_class(content, head + 1, head_end, "sh-label")
+    if label is not None:
+        return _plain_text(content[label:_element_end(content, label)]) or None
+    return _plain_text(content[head:head_end]) or None
+
+
+def mark_print_units(content):
+    """Add data-print-unit attributes to every music, prayer, section, and back page."""
+    import html as html_module
+
+    out = []
+    position = 0
+    opening_marked = False
+    for match in _DIV_START.finditer(content):
+        attrs = match.group(1)
+        if "data-print-unit" in attrs:
+            continue
+        value = _CLASS_VALUE.search(attrs)
+        kind = _print_unit_kind(value.group(1).split()) if value else None
+        if kind is None:
+            continue
+        extra = f' data-print-unit="{kind}"'
+        if kind == "music" and not opening_marked:
+            extra += ' data-print-role="opening"'
+            opening_marked = True
+        if kind == "section":
+            label = _section_label(content, match.start(), _element_end(content, match.start()))
+            if label:
+                extra += f' data-print-id="{html_module.escape(label, quote=True)}"'
+        out.append(content[position:match.end() - 1] + extra + ">")
+        position = match.end()
+    out.append(content[position:])
+    return "".join(out)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1895,6 +1994,7 @@ def main():
         content = build_full_content(cfg, brand, repo_root, config_dir,
                                      args.template)
 
+    content = mark_print_units(content)
     css = build_css(args.template, brand)
     html = f"""<!DOCTYPE html>
 <html lang="en">

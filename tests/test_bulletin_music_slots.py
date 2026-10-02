@@ -9,7 +9,7 @@ from pypdf.generic import ContentStream
 from skills.bulletin.bulletin_production import interface
 from skills.bulletin.bulletin_production.interface import produce
 from skills.bulletin.renderer import render_bulletin
-from tests.helpers import bulletin_input, make_church
+from tests.helpers import bulletin_input, make_church, without_print_gate
 
 
 def _painted_image_colors(page):
@@ -191,7 +191,8 @@ class ServiceMusicRenderingTests(unittest.TestCase):
                     "title": "Long Sanctus Setting",
                     "images": [f"music/sanctus{i}.png" for i in range(len(colors))],
                 }
-                result = produce(church, bulletin)
+                with without_print_gate():
+                    result = produce(church, bulletin)
                 self.assertEqual(result["status"], "ready_for_review", result)
                 folder = Path(result["week_folder"])
                 html = next(folder.glob("*.html")).read_text(encoding="utf-8")

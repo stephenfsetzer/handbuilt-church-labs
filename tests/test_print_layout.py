@@ -163,8 +163,22 @@ class CheckRuleTests(unittest.TestCase):
                          "The Gradual Hymn continues from page 5 onto page 6, "
                          "across a page turn.")
         self.assertEqual(turn["music_page_turn"].pages, [5, 6])
+        # Longer than two pages: a turn is unavoidable, so it must start on a
+        # left-hand page and show a full spread first.
         three = by_check(pl.check(report(16, [unit("music", 6, 8, uid="Long Anthem")])))
-        self.assertFalse(three["music_page_turn"].passed)
+        self.assertTrue(three["music_page_turn"].passed)
+        odd = by_check(pl.check(report(16, [unit("music", 5, 7, uid="Long Anthem")])))
+        self.assertFalse(odd["music_page_turn"].passed)
+        self.assertIn("starts on a right-hand page", odd["music_page_turn"].message)
+        self.assertTrue(one_sentence(odd["music_page_turn"].message))
+
+    def test_back_matter_may_run_long_only_when_unfolded(self):
+        long_back = report(16, [unit("back-cover", 15, 16)])
+        booklet = by_check(pl.check(long_back))["back_cover_last"]
+        self.assertFalse(booklet.passed)
+        self.assertIn("back cover", booklet.message)
+        for mode in ("duplex", "single"):
+            self.assertTrue(by_check(pl.check(long_back, print_mode=mode))["back_cover_last"].passed)
 
     def test_opening_music_must_be_whole(self):
         split = unit("music", 3, 4, role="opening", uid="Entrance Hymn · Hymn 1")
