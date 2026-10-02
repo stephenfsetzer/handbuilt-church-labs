@@ -380,18 +380,45 @@ def main(argv=None):
     t_key = max(expense_keys, key=lambda k: abs(ytd_out.get(k, 0) - prior_out.get(k, 0))) if expense_keys else None
     account_ytd = ytd_out.get(t_key, 0)
     unusual = t_key is not None and t_out["amount"] > 0 and account_ytd > 0 and t_out["amount"] > 1.25 * (account_ytd / mon)
-    s1 = (f"{mname}: {signed_money(came_in)} recorded income and "
-          f"{signed_money(went_out)} recorded spending"
-          + (f", including {money(t_out['amount'])} for {t_out['label'].lower()}." if unusual else "."))
-    word = "ahead" if this_year[-1] >= 0 else "short"
-    cmp = ("better" if this_year[-1] >= ly_now else "worse") if last_year else ""
-    if last_year:
-        s2 = (f"That leaves us {money(this_year[-1])} {word} for the year, {cmp} than this point last year "
-              f"({money(ly_now)} {'ahead' if ly_now >= 0 else 'short'}), and last year ended "
-              f"{money(ly_end)} {'ahead' if ly_end >= 0 else 'short'}.")
+    # A month with no income recorded at all is not a bad month: the bookkeeper has not posted
+    # it yet. Say so, and anchor the year on the month before, where the books are complete.
+    unrecorded_month = came_in <= 0
+    if unrecorded_month:
+        before_name = MONTHS[mon - 2] if mon > 1 else None
+        s1 = (f"{mname} is not yet recorded: no income has been entered and "
+              + ("only some bills" if went_out > 0 else "no bills")
+              + (f", so read the year through {before_name}." if before_name else "."))
+        if before_name:
+            through = this_year[-2]
+            word = "ahead" if through >= 0 else "short"
+            if last_year:
+                ly_then = last_year[mon - 2]
+                cmp = "better" if through >= ly_then else "worse"
+                s2 = (f"The year through {before_name} is {money(through)} {word}, {cmp} than this point last "
+                      f"year ({money(ly_then)} {'ahead' if ly_then >= 0 else 'short'}), and last year ended "
+                      f"{money(ly_end)} {'ahead' if ly_end >= 0 else 'short'}.")
+            else:
+                s2 = f"The year through {before_name} is {money(through)} {word}."
+        else:
+            s2 = f"Last year ended {money(ly_end)} {'ahead' if ly_end >= 0 else 'short'}." if last_year else ""
     else:
-        s2 = f"That leaves us {money(this_year[-1])} {word} for the year."
+        s1 = (f"{mname}: {signed_money(came_in)} recorded income and "
+              f"{signed_money(went_out)} recorded spending"
+              + (f", including {money(t_out['amount'])} for {t_out['label'].lower()}." if unusual else "."))
+        word = "ahead" if this_year[-1] >= 0 else "short"
+        cmp = ("better" if this_year[-1] >= ly_now else "worse") if last_year else ""
+        if last_year:
+            s2 = (f"That leaves us {money(this_year[-1])} {word} for the year, {cmp} than this point last year "
+                  f"({money(ly_now)} {'ahead' if ly_now >= 0 else 'short'}), and last year ended "
+                  f"{money(ly_end)} {'ahead' if ly_end >= 0 else 'short'}.")
+        else:
+            s2 = f"That leaves us {money(this_year[-1])} {word} for the year."
     s3 = cash_summary(round(bank[idx]), average_spending)
+    if unrecorded_month:
+        readiness = (readiness or []) + [{
+            "id": "month_unrecorded", "title": f"{mname} not yet recorded", "status": "open",
+            "caveat": f"No income has been entered for {mname} yet, so this month's figures and the year so far "
+                      f"are incomplete until the books catch up.", "reason": None}]
 
     approval = cfg.get("approval")
     if approval not in (None, "none"):
@@ -411,7 +438,7 @@ def main(argv=None):
                  "previous_report": f"../{prev_path.parent.name}/report.json"},
         "sources": [{"name": "QuickBooks Online", "pulled": args.prepared,
                      "method": "monthly balance sheet and profit and loss line rows; read-only"}],
-        "short_answer": " ".join([s1, s2, s3]),
+        "short_answer": " ".join(part for part in (s1, s2, s3) if part),
         "short_answer_status": "draft: the treasurer approves or edits",
         "cash": {"bank": round(bank[idx]), "as_of": "",
                  "monthly_spending": average_spending, "status": "settled", "note": cfg.get("cash_note", "")},
@@ -441,6 +468,8 @@ def main(argv=None):
         report["previous"] = {"as_of": f"{MONTHS[(mon - 2) % 12]} end", "bank": round(bank[before]),
                               "ytd": this_year[-2] if mon > 1 else 0}
     report["cash"]["as_of"] = report["meta"]["through"]
+    if unrecorded_month:
+        report["this_month"]["unrecorded"] = True
     if approval:
         report["meta"]["approval"] = approval
     if set_aside is not None:
@@ -454,6 +483,8 @@ def main(argv=None):
         todo.append("New accounts in 'Everything else' since last report (confirm the grouping): " + ", ".join(new_in_catch_all))
     if history_change:
         todo.append(history_change["caveat"])
+    if unrecorded_month:
+        todo.append(f"{mname} looks unrecorded (no income entered); rebuild once the bookkeeper has posted it")
     print(json.dumps({"status": "ok", "written": str(out / "report.json"), "ytd_net": round(ytd_net),
                       "bank": round(bank[idx]), "came_in": came_in, "went_out": went_out,
                       "metrics": metrics, "needs_a_person": todo,
