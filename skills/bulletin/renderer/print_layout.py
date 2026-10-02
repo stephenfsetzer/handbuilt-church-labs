@@ -82,6 +82,7 @@ class Unit:
     id: str | None
     first_page: int
     last_page: int
+    module: str | None = None  # enclosing data-hb-module id, when the host marks modules
 
 
 @dataclass
@@ -243,6 +244,9 @@ def _ratio_line_height(style) -> float:
     value = style["line_height"]
     if isinstance(value, (int, float)):
         return float(value)
+    # WeasyPrint 68 reports a unitless line height as ("NUMBER", 1.5).
+    if isinstance(value, tuple) and len(value) == 2 and value[0] == "NUMBER":
+        return float(value[1])
     unit = getattr(value, "unit", None)
     number = getattr(value, "value", None)
     if number is not None:
@@ -393,8 +397,15 @@ def _layout(html: str, base_url: str | None) -> _Layout:
             continue
         if kind == "inside-cover":
             has_inside_cover = True
+        module = None
+        node = el
+        while node is not None:
+            if isinstance(node.tag, str) and node.get("data-hb-module"):
+                module = node.get("data-hb-module")
+                break
+            node = parents.get(node)
         units.append(Unit(kind=kind, role=role, id=uid,
-                          first_page=min(span), last_page=max(span)))
+                          first_page=min(span), last_page=max(span), module=module))
         unit_refs.append(el.get(_REF_ATTR))
 
     cover_ref = None
@@ -1016,7 +1027,8 @@ class _Fitter:
         for page in low_pages:
             options = [(unit, ref) for unit, ref in zip(report.units, layout.unit_refs)
                        if unit.kind == "section" and unit.first_page == page - 1 and ref
-                       and ref not in params.sections and unit.id not in self.pinned]
+                       and ref not in params.sections and unit.id not in self.pinned
+                       and unit.module not in self.pinned]
             if not options:
                 continue
             unit, ref = options[-1]

@@ -438,6 +438,20 @@ class RenderedTests(unittest.TestCase):
         self.assertEqual(pinned.status, "failed")
         self.assertFalse([a for a in pinned.adjustments if a["step"] == "section_start"])
 
+        # A host that names its modules (data-hb-module) pins by module id.
+        wrapped = html.replace(block(300, "The Peace"),
+                               '<div class="hb-module" data-hb-module="peace">' + block(300, "The Peace") + '</div>')
+        self.assertNotEqual(wrapped, html)
+        by_module = pl.fit(wrapped, base_url=self.base_url, print_mode="duplex",
+                           pinned_section_ids=("peace",))
+        self.assertFalse([a for a in by_module.adjustments if a["step"] == "section_start"
+                          and a["detail"]["id"] == "The Peace"])
+
+    def test_unitless_line_height_is_read_in_either_weasyprint_form(self):
+        # WeasyPrint 70 gives a number; WeasyPrint 68 gives ("NUMBER", 1.5).
+        self.assertEqual(pl._ratio_line_height({"line_height": 1.5, "font_size": 16}), 1.5)
+        self.assertEqual(pl._ratio_line_height({"line_height": ("NUMBER", 1.5), "font_size": 16}), 1.5)
+
     def test_unfixable_bulletin_fails_with_a_plain_sentence(self):
         # Already at the largest type and line spacing, in duplex mode, with an
         # opening hymn far taller than a page: nothing in the ladder can fix it.
