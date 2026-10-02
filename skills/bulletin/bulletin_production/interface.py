@@ -416,7 +416,8 @@ def _standing_bulletin_preferences(church_config: dict[str, Any]) -> dict[str, A
     leadership = church_config.get("leadership")
     leadership = leadership if isinstance(leadership, dict) else {}
     values: dict[str, Any] = {}
-    for key in ("include_serving_today", "serving_roles", "serving_today_roles", "serving_role_policy"):
+    for key in ("include_serving_today", "serving_roles", "serving_today_roles", "serving_role_policy",
+                "print_mode", "allow_blank_inside_cover"):
         value = bulletin.get(key)
         if value is None:
             value = defaults.get(key)
@@ -1110,6 +1111,37 @@ def _validate_liturgy_sources(bulletin: dict[str, Any], church_root: Path) -> No
         )
 
 
+PRINT_MODES = ("booklet", "duplex", "single")
+
+
+def _print_options(bulletin: dict[str, Any]) -> tuple[str, bool]:
+    """Return the validated print mode and inside-cover preference.
+
+    Booklet is the default because every run makes an 11x17 booklet file and
+    booklet printing has the strictest page rules.
+    """
+    options = bulletin.get("options") or {}
+    mode = options.get("print_mode")
+    mode = "booklet" if mode is None else mode
+    if mode not in PRINT_MODES:
+        raise StageFailure(
+            "invalid_request",
+            "validation",
+            "Choose booklet, duplex, or single for the print mode.",
+            field="options.print_mode",
+        )
+    allowed = options.get("allow_blank_inside_cover")
+    allowed = True if allowed is None else allowed
+    if not isinstance(allowed, bool):
+        raise StageFailure(
+            "invalid_request",
+            "validation",
+            "Say yes or no (true or false) to a blank inside front cover.",
+            field="options.allow_blank_inside_cover",
+        )
+    return mode, allowed
+
+
 def _validate_back_page_merge(bulletin: dict[str, Any]) -> None:
     options = bulletin.get("options") or {}
     if not isinstance(options, dict) or options.get("merge_back_page") is not True:
@@ -1796,6 +1828,191 @@ def _quality_gate(
     return checks
 
 
+def _print_layout_module():
+    """Load the self-contained booklet print gate without importing WeasyPrint."""
+    from ..renderer import print_layout
+
+    return print_layout
+
+
+# The renderer's own WeasyPrint call, reused to re-render a fitted bulletin.
+_RENDER_PDF = (
+    "import sys, weasyprint; "
+    "weasyprint.HTML(filename=sys.argv[1]).write_pdf(sys.argv[2])"
+)
+
+
+def _print_gate(
+    stage_dir: Path,
+    html_path: Path,
+    sequential_pdf: Path,
+    env: dict[str, str],
+    print_mode: str,
+    inside_cover_allowed: bool,
+) -> dict[str, Any]:
+    """Check the rendered layout for its print mode and fit it when needed.
+
+    The gate runs in a child process of the managed runtime so WeasyPrint's
+    font cache stays inside the stage folder, as the render step's does. A
+    fitted bulletin replaces the staged HTML and sequential PDF. A bulletin
+    that cannot fit blocks with one plain sentence; nothing pads blank pages.
+    """
+    layout = _print_layout_module()
+    html = html_path.read_text(encoding="utf-8")
+    base_url = str(stage_dir) + "/"
+    missing = layout.missing_assets(html, base_url)
+    if missing:
+        # A missing font or picture prints with a substitute in every mode.
+        report = layout.LayoutReport(pages=1, fill=[1.0], blank=[False], units=[], text="",
+                                     missing_assets=missing)
+        finding = next(f for f in layout.check(report, print_mode="single")
+                       if f.check == "assets_resolved")
+        raise StageFailure("quality_gate_failed", "print_layout", finding.message,
+                           diagnostics={"missing_assets": [Path(item).name for item in missing]})
+    fitted_path = stage_dir / ".print-fit.html"
+    command = [sys.executable, str(_renderer_dir() / "print_layout.py"), "fit",
+               str(html_path), str(fitted_path), "--print-mode", print_mode,
+               "--base-url", base_url]
+    if not inside_cover_allowed:
+        command.append("--no-inside-cover")
+    completed = subprocess.run(command, capture_output=True, text=True, env=env)
+    try:
+        result = json.loads(completed.stdout)
+        findings = result["findings"]
+        status = result["status"]
+    except (ValueError, KeyError, TypeError):
+        detail = (completed.stderr or completed.stdout).strip()[-2000:]
+        raise StageFailure("print_layout_failed", "print_layout",
+                           detail or "The print layout check could not run.")
+    blocking = [f for f in findings if not f["passed"] and f["blocking"]]
+    assets = next((f for f in blocking if f["check"] == "assets_resolved"), None)
+    if assets is not None:
+        raise StageFailure("quality_gate_failed", "print_layout", assets["message"])
+    if status == "failed" or blocking:
+        fitted_path.unlink(missing_ok=True)
+        raise StageFailure(
+            "booklet_fit_failed",
+            "print_layout",
+            blocking[0]["message"] if blocking else "The bulletin could not be fitted for printing.",
+            diagnostics={"failing_checks": [f["check"] for f in blocking],
+                         "print_mode": print_mode, "renders": result.get("renders")},
+        )
+    adjustments: list[dict[str, Any]] = []
+    if status == "fit":
+        adjustments = list(result.get("adjustments") or [])
+        os.replace(fitted_path, html_path)
+        _run([sys.executable, "-c", _RENDER_PDF, str(html_path), str(sequential_pdf)],
+             stage="print_fit", env=env, reject_warnings=True)
+        from pypdf import PdfReader
+
+        rendered = len(PdfReader(str(sequential_pdf)).pages)
+        if rendered != result.get("pages"):
+            raise StageFailure(
+                "quality_gate_failed",
+                "print_layout",
+                f"The fitted bulletin printed {rendered} pages, but the print check measured "
+                f"{result.get('pages')}.",
+            )
+    else:
+        fitted_path.unlink(missing_ok=True)
+    checks = [
+        {"name": f["check"], "passed": f["passed"], "blocking": f["blocking"],
+         "message": f["message"], "pages": list(f.get("pages") or [])}
+        for f in findings
+    ]
+    warnings = [
+        {"code": "page_fill_warning", "field": "layout", "message": f["message"],
+         "pages": list(f.get("pages") or [])}
+        for f in findings
+        if f["check"] == "page_fill" and not f["passed"] and not f["blocking"]
+    ]
+    return {
+        "status": status,
+        "checks": checks,
+        "warnings": warnings,
+        "adjustments": adjustments,
+        "summary": layout.describe_adjustments(adjustments) if adjustments else "",
+        "pages": result.get("pages"),
+    }
+
+
+_SUBSET_PREFIX = re.compile(r"^[A-Z]{6}\+")
+
+
+def _font_key(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.casefold())
+
+
+def _body_font_family(html: str) -> tuple[str, list[Path]] | None:
+    """Return the body text's declared @font-face family and its font files."""
+    from urllib.parse import unquote, urlparse
+
+    css = "\n".join(re.findall(r"<style\b[^>]*>(.*?)</style>", html, re.I | re.S))
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    faces: dict[str, list[Path]] = {}
+    for face in re.findall(r"@font-face\s*\{([^}]*)\}", css, re.I):
+        family = re.search(r"font-family\s*:\s*([^;]+)", face, re.I)
+        source = re.search(r"""url\(\s*["']?([^"')]+)""", face, re.I)
+        if not family:
+            continue
+        name = family.group(1).strip().strip("\"'")
+        files = faces.setdefault(_font_key(name), [])
+        if source and source.group(1).startswith("file://"):
+            files.append(Path(unquote(urlparse(source.group(1)).path)))
+    rules = re.sub(r"@font-face\s*\{[^}]*\}", "", css, flags=re.I)
+    body = None
+    for declarations in re.findall(r"(?:^|\})\s*body\s*\{([^}]*)\}", rules, re.I):
+        found = re.search(r"font-family\s*:\s*([^;]+)", declarations, re.I)
+        if found:
+            body = found.group(1).split(",")[0].strip().strip("\"'")
+    if not body or _font_key(body) not in faces:
+        return None
+    return body, faces[_font_key(body)]
+
+
+def _font_fidelity_check(html_path: Path, sequential_pdf: Path) -> dict[str, Any] | None:
+    """Fail when WeasyPrint printed the body text in a substitute font.
+
+    WeasyPrint does not fail when a declared font cannot be used; it quietly
+    prints Georgia, Helvetica, or another fallback, and the page count and
+    look change. The embedded fonts must include the body's declared family.
+    """
+    declared = _body_font_family(html_path.read_text(encoding="utf-8"))
+    pdffonts = shutil.which("pdffonts")
+    if declared is None or not pdffonts:
+        return None
+    family, files = declared
+    listing = _run([pdffonts, str(sequential_pdf)], stage="quality_gate")
+    embedded = [_SUBSET_PREFIX.sub("", line.split()[0])
+                for line in listing.splitlines()[2:] if line.strip()]
+    if not embedded:
+        return None
+    wanted = {_font_key(family)}
+    try:
+        from io import BytesIO
+
+        from fontTools.ttLib import TTFont
+
+        for path in files:
+            if path.is_file():
+                with TTFont(BytesIO(path.read_bytes()), lazy=True) as font:
+                    for record in font["name"].names:
+                        if record.nameID in (1, 6):
+                            wanted.add(_font_key(record.toUnicode()))
+    except Exception:  # the family name alone still identifies the shipped fonts
+        pass
+    wanted.discard("")
+    if not any(key in _font_key(name) for name in embedded for key in wanted):
+        substitutes = sorted({name.split("-")[0] for name in embedded})
+        raise StageFailure(
+            "quality_gate_failed",
+            "quality_gate",
+            f"The bulletin is designed to print in {family}, but the PDF uses "
+            f"{', '.join(substitutes)} instead, so it would not look as designed.",
+        )
+    return {"name": "body_font_embedded", "passed": True, "family": family}
+
+
 def _artifact(path: Path, role: str, root: Path, pages: int | None = None) -> dict[str, Any]:
     item: dict[str, Any] = {
         "role": role,
@@ -2206,6 +2423,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         _validate_service_music(source_resolved)
         _validate_service_variant(source_resolved, root)
         _validate_back_page_merge(source_resolved)
+        print_mode, inside_cover_allowed = _print_options(source_resolved)
         if (source_resolved.get("options") or {}).get("merge_back_page") is True:
             warnings.append({
                 "code": "back_page_merge_visual_review_required",
@@ -2262,6 +2480,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
                         "week_folder": str(final_dir),
                         "warnings": prior.get("warnings", []),
                         "booklet_signature": prior.get("booklet_signature", {}),
+                        "print_mode": prior.get("print_mode", "booklet"),
+                        "fit_summary": prior.get("fit_summary", ""),
                         "idempotent": True,
                     }
                 if prior.get("resolved_bulletin_digest") == digest:
@@ -2271,6 +2491,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
                         "week_folder": str(final_dir),
                         "warnings": prior.get("warnings", []),
                         "booklet_signature": prior.get("booklet_signature", {}),
+                        "print_mode": prior.get("print_mode", "booklet"),
+                        "fit_summary": prior.get("fit_summary", ""),
                         "idempotent": True,
                     }
                 if _revision and prior.get("run_id") != (_revision.get("receipt") or {}).get("run_id"):
@@ -2334,6 +2556,11 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         html_path = stage_dir / f"{stem}.html"
         sequential_pdf = stage_dir / f"{stem}.pdf"
         booklet_pdf = stage_dir / f"{stem}-booklet-11x17.pdf"
+        # Check, and fit when needed, before imposition so a booklet never
+        # reaches the imposer with a page count that needs padding blanks.
+        print_gate = _print_gate(stage_dir, html_path, sequential_pdf, env,
+                                 print_mode, inside_cover_allowed)
+        warnings.extend(print_gate["warnings"])
         _run([sys.executable, str(impose_script), str(sequential_pdf), str(booklet_pdf)], stage="imposition")
 
         (stage_dir / "bulletin-log.json").unlink(missing_ok=True)
@@ -2341,7 +2568,19 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         for render_cache in stage_dir.glob("**/.render-cache"):
             shutil.rmtree(render_cache, ignore_errors=True)
         checks = _quality_gate(stage_dir, sequential_pdf, booklet_pdf, service["occasion"])
+        font_check = _font_fidelity_check(html_path, sequential_pdf)
+        if font_check is not None:
+            checks.append(font_check)
+        checks.extend(print_gate["checks"])
         signature = _booklet_signature(sequential_pdf, booklet_pdf)
+        if print_mode == "booklet" and signature["blank_pages"] != 0:
+            # The print gate already blocks this; keep a guard at the PDF itself.
+            raise StageFailure(
+                "quality_gate_failed",
+                "quality_gate",
+                f"The page-by-page PDF has {signature['sequential_pages']} pages, so the "
+                "booklet would need padding blanks.",
+            )
         checks.append({"name": "booklet_signature", "passed": True, **signature})
         staged_brand.unlink(missing_ok=True)
         if staged_liturgy is not None:
@@ -2397,6 +2636,9 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "artifacts": artifacts,
             "quality_checks": checks,
             "booklet_signature": signature,
+            "print_mode": print_mode,
+            "fit_adjustments": print_gate["adjustments"],
+            "fit_summary": print_gate["summary"],
             "service_variant": (source_resolved.get("liturgy") or {}).get("service_variant"),
             "service_variant_provenance": (source_resolved.get("liturgy") or {}).get("service_variant_provenance"),
             "resolved_provenance": {
@@ -2447,6 +2689,9 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "artifacts": receipt["artifacts"],
             "warnings": warnings,
             "booklet_signature": signature,
+            "print_mode": print_mode,
+            "fit_adjustments": print_gate["adjustments"],
+            "fit_summary": print_gate["summary"],
             "idempotent": False,
             "service_context": receipt["service_context"],
             "choice_origins": receipt["choice_origins"],

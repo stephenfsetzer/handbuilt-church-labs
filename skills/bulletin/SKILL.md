@@ -253,9 +253,36 @@ missing-image fallback. Explain any unsupported content and obtain the
 pastor's choice before deliberately omitting it; a receipt does not establish
 content completeness. Broad layout changes do not authorize removing words.
 
-Show the user the sequential PDF, booklet PDF, warnings, and receipt. Human
-review is required before finalization. Printing or sending requires separate
-explicit authorization.
+Production also runs the booklet print gate before imposition. The print mode
+comes from `options.print_mode` (`booklet`, `duplex`, or `single`; `booklet`
+when unset), and `options.allow_blank_inside_cover` says whether page 2 may be
+left blank on purpose. Both may be saved once as standing preferences under
+`bulletin` in `church.yaml`; a weekly option overrides them. In booklet mode
+the page-by-page PDF must already be a multiple of 4 pages, with no padding
+blank and the back page last. No hymn or prayer may continue across a page
+turn, and the opening hymn prints whole. A missing font or picture blocks in
+every print mode.
+When a rule fails, production fits the bulletin with small, bounded changes: a
+blank inside cover, looser line spacing, slightly larger type, music at 95% to
+100%, or one section starting a new page. It never changes wording or order.
+
+Show the user the sequential PDF, booklet PDF, warnings, and receipt. Before
+asking for approval, state these in plain words:
+
+- `fit_summary`, when it is not empty. It names every layout adjustment, for
+  example "To fold into 16 pages, page 2 is left blank and line spacing is a
+  little looser." The receipt lists the same steps in `fit_adjustments`.
+- Each `page_fill_warning`: which pages are only partly full. These are
+  allowed but are worth a look.
+
+When production returns `blocked` with `booklet_fit_failed`, tell the pastor
+the error's one sentence. The bulletin needs a change the pastor chooses, such
+as fewer words, a different hymn, or a shorter announcement. Do not hand-edit
+the rendered HTML, force page breaks, or add blank pages to reach a page
+count; a re-render erases hand edits, and blanks print in the wrong place.
+
+Human review is required before finalization. Printing or sending requires
+separate explicit authorization.
 
 ## 4. Revise a review package
 

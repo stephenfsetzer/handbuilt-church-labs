@@ -14,7 +14,7 @@ from skills.bulletin.bulletin_production import produce
 from skills.bulletin.bulletin_production.interface import finalize
 from skills.bulletin.source_inventory import add_section, mark_review_complete
 from skills.onboarding.bulletin_import import import_bulletin
-from tests.helpers import bulletin_input, make_church
+from tests.helpers import bulletin_input, make_church, without_print_gate
 from tests.test_bulletin_music_slots import _painted_image_colors
 
 
@@ -403,7 +403,7 @@ class ParishInformationTest(unittest.TestCase):
                 # Distinct from dated announcements: each parish-information
                 # section is its own section (one per entry), never folded
                 # into the dated Announcements block.
-                self.assertEqual(html.count('<div class="section parish-info">'), 4)
+                self.assertEqual(html.count('<div class="section parish-info" data-print-unit="section"'), 4)
                 # The welcome (before_service) prints ahead of the actual
                 # service content; the logo/service content are not omitted.
                 self.assertLess(html.index("Welcome to All Saints"), html.index("Entrance Hymn"))
@@ -541,7 +541,8 @@ class AnnouncementImageTest(unittest.TestCase):
                     {"title": "Fall Festival", "image": "music/poster.png", "caption": "See you there"},
                     {"title": "Sign Up", "text": "Scan to register.", "image": "music/second/poster.png"},
                 ]
-                result = produce(church, bulletin)
+                with without_print_gate():
+                    result = produce(church, bulletin)
                 self.assertEqual(result["status"], "ready_for_review", result)
                 folder = Path(result["week_folder"])
                 html = next(folder.glob("*.html")).read_text(encoding="utf-8")

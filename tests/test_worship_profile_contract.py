@@ -52,7 +52,7 @@ class WorshipProfileContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             bulletin = bulletin_input()
-            bulletin["options"] = {}
+            bulletin["options"] = {"print_mode": "duplex"}
             result = produce(church, bulletin)
             self.assertEqual(result["status"], "blocked")
             self.assertEqual(result["errors"][0]["code"], "unresolved_liturgy")
@@ -62,7 +62,7 @@ class WorshipProfileContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             bulletin = bulletin_input()
-            bulletin["options"] = {}
+            bulletin["options"] = {"print_mode": "duplex"}
             bulletin["liturgy"] = {
                 "service_plan": "episcopal-rite-ii",
                 "eucharistic_prayer": "A",
@@ -95,7 +95,7 @@ class WorshipProfileContractTest(unittest.TestCase):
             )
             verify_liturgy_source(church, local_dir / "thanksgiving.md")
             bulletin = bulletin_input()
-            bulletin["options"] = {}
+            bulletin["options"] = {"print_mode": "duplex"}
             bulletin["liturgy"] = {
                 "service_plan": "episcopal-rite-ii",
                 "eucharistic_prayer": "local-thanksgiving",

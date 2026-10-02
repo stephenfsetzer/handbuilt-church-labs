@@ -14,6 +14,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -369,6 +370,194 @@ def execute(church: Path, workflow: str, operation: str, arguments: list[str]) -
     return result, process.returncode or (2 if result.get("status") in {"blocked", "failed", "error"} else 0)
 
 
+PRINT_REGRESSIONS = "bulletins/print-regressions.json"
+_ASSET_REFERENCE = re.compile(r"""(?:\bsrc\s*=\s*["']|url\(\s*["']?)([^"')\s]+)""", re.I)
+
+
+def _print_layout():
+    """Load the installed booklet print gate from this plugin."""
+    path = ROOT / "skills/bulletin/renderer/print_layout.py"
+    spec = importlib.util.spec_from_file_location("handbuilt_print_layout", path)
+    module = importlib.util.module_from_spec(spec)
+    # Dataclasses look their module up while the module is still loading.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _week_folder(html_path: Path) -> Path:
+    """The dated week folder, also for an archived copy under .revisions/<v>/."""
+    parts = html_path.parent.parts
+    if ".revisions" in parts:
+        return Path(*parts[:parts.index(".revisions")])
+    return html_path.parent
+
+
+def _resolve_moved_assets(html: str, html_path: Path) -> tuple[str, list[dict], list[str]]:
+    """Point fonts and pictures that moved at their current copies, in memory only.
+
+    A saved bulletin names its fonts and pictures by absolute path, and those
+    folders move: staging folders are renamed, revisions are archived, and
+    the plugin is updated. Look each missing file up by name in the week's
+    folder (and its hymn-images/), then in the plugin's bundled fonts.
+    """
+    from urllib.parse import unquote, urlparse
+
+    week = _week_folder(html_path)
+    fonts = ROOT / "skills/bulletin/renderer/fonts"
+    resolved: list[dict] = []
+    missing: list[str] = []
+    replacements: dict[str, str] = {}
+    for raw in dict.fromkeys(_ASSET_REFERENCE.findall(html)):
+        if raw.startswith(("data:", "http:", "https:", "#")):
+            continue
+        if raw.startswith("file://"):
+            path = Path(unquote(urlparse(raw).path))
+        else:
+            path = html_path.parent / unquote(raw)
+        if path.exists():
+            continue
+        name = path.name
+        candidates = [week / name]
+        images = week / "hymn-images"
+        if images.is_dir():
+            candidates += sorted(images.rglob(name))
+        candidates.append(fonts / name)
+        found = next((item for item in candidates if item.is_file()), None)
+        if found is None:
+            missing.append(name)
+            continue
+        replacements[raw] = found.resolve().as_uri()
+        where = ("the plugin's fonts" if found.resolve().is_relative_to(fonts.resolve())
+                 else "the week's folder")
+        resolved.append({"name": name, "found_in": where, "path": str(found.resolve())})
+    for raw, uri in replacements.items():
+        html = html.replace(raw, uri)
+    return html, resolved, missing
+
+
+def _load_print_regressions(church: Path) -> dict:
+    path = _private_file(church, PRINT_REGRESSIONS)
+    if not path.is_file():
+        raise ValueError(f"This church has no print check list yet. Add {PRINT_REGRESSIONS} to use check-print.")
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise ValueError(f"{PRINT_REGRESSIONS} is not valid JSON: {exc}") from exc
+    if not isinstance(manifest, dict) or manifest.get("version") != 1:
+        raise ValueError(f"{PRINT_REGRESSIONS} must be an object with version 1.")
+    if not isinstance(manifest.get("cases"), list) or not manifest["cases"]:
+        raise ValueError(f"{PRINT_REGRESSIONS} must list at least one case.")
+    return manifest
+
+
+def check_print(church: Path) -> tuple[dict, int]:
+    """Run the booklet print gate over the church's saved print check cases."""
+    church = Path(church).resolve()
+    manifest = _load_print_regressions(church)
+    layout = _print_layout()
+    default_mode = manifest.get("print_mode", "booklet")
+    default_inside = manifest.get("allow_blank_inside_cover", True)
+    results = []
+    for index, case in enumerate(manifest["cases"], start=1):
+        if not isinstance(case, dict) or not case.get("name") or not case.get("html"):
+            raise ValueError(f"Print check case {index} needs a name and an html path.")
+        expect = case.get("expect")
+        if expect not in ("pass", "fail"):
+            raise ValueError(f"Print check case {case['name']!r} must expect pass or fail.")
+        listed = case.get("checks") or []
+        if not isinstance(listed, list):
+            raise ValueError(f"Print check case {case['name']!r} must list its checks.")
+        unknown = [str(name) for name in listed if name not in layout.CHECK_NAMES]
+        if unknown:
+            raise ValueError(f"Print check case {case['name']!r} names unknown checks: {', '.join(unknown)}.")
+        mode = case.get("print_mode", default_mode)
+        inside = case.get("allow_blank_inside_cover", default_inside)
+        if mode not in layout.PRINT_MODES or not isinstance(inside, bool):
+            raise ValueError(f"Print check case {case['name']!r} has an invalid print mode or inside-cover setting.")
+        html_path = (church / case["html"]).resolve()
+        if not html_path.is_relative_to(church):
+            raise ValueError(f"Print check case {case['name']!r} must point inside the church folder.")
+        entry = {"name": case["name"], "html": case["html"], "expect": expect,
+                 "checks": listed, "print_mode": mode, "resolved_assets": []}
+        if not html_path.is_file():
+            entry.update({"met": False, "pages": None, "failed_checks": [], "warnings": [],
+                          "message": "The bulletin file was not found."})
+            results.append(entry)
+            continue
+        html = html_path.read_text(encoding="utf-8")
+        if case.get("resolve_assets", True) is not False:
+            html, entry["resolved_assets"], _ = _resolve_moved_assets(html, html_path)
+        report = layout.measure(html, base_url=str(html_path.parent) + "/")
+        findings = layout.check(report, print_mode=mode, inside_cover_allowed=inside)
+        failed = [f.check for f in findings if not f.passed and f.blocking]
+        warned = [f.check for f in findings if not f.passed and not f.blocking]
+        if expect == "pass":
+            met = not failed
+        else:
+            met = all(name in failed for name in listed) if listed else bool(failed)
+        first = next((f.message for f in findings if not f.passed and f.blocking), "")
+        entry.update({"met": met, "pages": report.pages, "failed_checks": failed,
+                      "warnings": warned, "message": first})
+        results.append(entry)
+    met = sum(1 for item in results if item["met"])
+    status = "passed" if met == len(results) else "failed"
+    return ({"status": status, "met": met, "total": len(results), "cases": results},
+            0 if status == "passed" else 1)
+
+
+def _print_check_table(result: dict) -> str:
+    lines = [f"Print check: {result['met']} of {result['total']} cases met their expectation.", ""]
+    for item in result["cases"]:
+        mark = "ok     " if item["met"] else "NOT MET"
+        expected = "pass" if item["expect"] == "pass" else "fail " + (", ".join(item["checks"]) or "any check")
+        if item["pages"] is None:
+            found = item["message"]
+        elif item["failed_checks"]:
+            found = f"{item['pages']} pages, fails " + ", ".join(item["failed_checks"])
+        else:
+            found = f"{item['pages']} pages, passes"
+        lines.append(f"  {mark}  {item['name']}")
+        lines.append(f"           expected {expected}; found {found}")
+        if item["warnings"]:
+            lines.append(f"           warnings: {', '.join(item['warnings'])}")
+        places: dict[str, list[str]] = {}
+        for asset in item["resolved_assets"]:
+            places.setdefault(asset["found_in"], []).append(asset["name"])
+        for place, names in places.items():
+            shown = names[0] if len(names) == 1 else f"{len(names)} moved files"
+            lines.append(f"           found {shown} in {place}")
+        if not item["met"] and item["message"] and item["pages"] is not None:
+            lines.append(f"           {item['message']}")
+    return "\n".join(lines)
+
+
+def _check_print_command(church: Path, output: str) -> int:
+    if importlib.util.find_spec("weasyprint") is None and not os.environ.get("HANDBUILT_CHECK_PRINT_CHILD"):
+        # The church launcher runs under any Python; the print gate needs the
+        # managed runtime, so run this same command there.
+        doctor = _doctor("bulletin")
+        if doctor.get("status") != "ready":
+            print(json.dumps(doctor, indent=2))
+            return 2
+        env = dict(os.environ, HANDBUILT_CHECK_PRINT_CHILD="1")
+        return subprocess.run([doctor["runtime"]["python"], str(Path(__file__).resolve()),
+                               "--church-folder", str(church), "check-print", "--format", output],
+                              env=env).returncode
+    try:
+        result, code = check_print(church)
+    except (OSError, ValueError, ImportError) as exc:
+        if output == "json":
+            print(json.dumps({"status": "blocked", "code": "print_check_unavailable",
+                              "message": str(exc)}, indent=2))
+        else:
+            print(str(exc))
+        return 2
+    print(json.dumps(result, indent=2, ensure_ascii=False) if output == "json"
+          else _print_check_table(result))
+    return code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Use the installed Handbuilt workflows for a private church")
     parser.add_argument("--church-folder", required=True)
@@ -393,6 +582,8 @@ def main() -> int:
                                             "finance-report"))
     start.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
     sub.add_parser("ensure-latest", help="Force a verified stable release check for this church")
+    print_check = sub.add_parser("check-print", help="Check saved bulletins against the church's print check list")
+    print_check.add_argument("--format", choices=("table", "json"), default="table")
     runtime = sub.add_parser("runtime")
     runtime.add_argument("operation", choices=("doctor", "verify", "setup", "native-install"))
     runtime.add_argument("--capability", choices=("workspace", "bulletin"))
@@ -429,6 +620,8 @@ def main() -> int:
             result, code = _start(church, args.workflow, skip_update=args.skip_update_check)
         elif args.command == "ensure-latest":
             result, code = _ensure_latest(church)
+        elif args.command == "check-print":
+            return _check_print_command(church, args.format)
         else:
             result, code = execute(church, args.command, args.operation, args.arguments)
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:

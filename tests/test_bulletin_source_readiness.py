@@ -49,7 +49,7 @@ class BulletinSourceReadinessTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             bulletin = bulletin_input()
-            bulletin["options"] = {}
+            bulletin["options"] = {"print_mode": "duplex"}
             bulletin["liturgy"] = {
                 "service_plan": "episcopal-rite-ii",
                 "worship_profile_ref": "worship/profile.yaml",
@@ -68,7 +68,7 @@ class BulletinSourceReadinessTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             bulletin = bulletin_input()
-            bulletin["options"] = {}
+            bulletin["options"] = {"print_mode": "duplex"}
             bulletin["liturgy"] = {
                 "service_plan": "episcopal-rite-ii",
                 "worship_profile_ref": "worship/profile.yaml",
@@ -93,7 +93,7 @@ class BulletinSourceReadinessTest(unittest.TestCase):
             )
             verify_liturgy_source(church, source)
             bulletin = bulletin_input()
-            bulletin["options"] = {}
+            bulletin["options"] = {"print_mode": "duplex"}
             bulletin["liturgy"] = {
                 "service_plan": "episcopal-rite-ii",
                 "worship_profile_ref": "worship/profile.yaml",
@@ -158,7 +158,7 @@ class BulletinSourceReadinessTest(unittest.TestCase):
             self.assertEqual(result["status"], "resolved", result)
             self.assertEqual(result["liturgy"]["files"], files)
             weekly = bulletin_input()
-            weekly["options"] = {}
+            weekly["options"] = {"print_mode": "duplex"}
             weekly["liturgy"] = result["liturgy"]
             self.assertEqual(produce(church, weekly)["status"], "ready_for_review")
 

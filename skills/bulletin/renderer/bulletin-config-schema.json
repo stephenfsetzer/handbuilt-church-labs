@@ -78,7 +78,18 @@
       "properties": {
         "include_serving_today": {"type": "boolean", "default": false},
         "merge_back_page": {"type": "boolean", "default": false},
-        "serving_roles": {"type": "array", "items": {"type": "string"}}
+        "serving_roles": {"type": "array", "items": {"type": "string"}},
+        "print_mode": {
+          "type": "string",
+          "enum": ["booklet", "duplex", "single"],
+          "default": "booklet",
+          "description": "How the bulletin is printed: a folded booklet, double-sided sheets, or one-sided sheets. Booklet requires a page count that is a multiple of 4."
+        },
+        "allow_blank_inside_cover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether page 2 (the inside front cover) may be left blank on purpose so a booklet folds evenly."
+        }
       },
       "additionalProperties": true
     },
