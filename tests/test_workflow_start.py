@@ -37,7 +37,7 @@ class WorkflowStartTests(unittest.TestCase):
         self.runtime_patch = mock.patch('tools.handbuilt_runtime.default_runtime_root', return_value=self.store.parent / 'runtime')
         self.runtime_patch.start()
         self.addCleanup(self.runtime_patch.stop)
-        self.doctor_patch = mock.patch.object(bridge, '_doctor', return_value={'status': 'ready', 'runtime': {'python': sys.executable}})
+        self.doctor_patch = mock.patch.object(bridge, '_doctor', return_value={'status': 'ready', 'runtime': {'python': sys.executable, 'root': str(self.store.parent / 'runtime')}})
         self.doctor_patch.start()
         self.addCleanup(self.doctor_patch.stop)
         bridge.connect(self.church)
@@ -210,6 +210,22 @@ class WorkflowStartTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 bridge.connect(self.church)
         self.assertEqual(old, {p: p.read_bytes() for p in old})
+
+    def test_two_tasks_keep_their_runtime_roots_after_connection_update(self):
+        old_runtime = {'status': 'ready', 'runtime': {'python': '/synthetic/old/python', 'root': '/synthetic/old'}}
+        new_runtime = {'status': 'ready', 'runtime': {'python': '/synthetic/new/python', 'root': '/synthetic/new'}}
+        with mock.patch.object(updates, 'select_release', return_value={'selected_root': str(self.host)}), mock.patch.object(bridge, '_doctor', return_value=old_runtime):
+            old, code = bridge._start(self.church, 'sermon-research')
+        self.assertEqual(code, 0)
+        with mock.patch.object(bridge, 'ROOT', self.new), mock.patch.object(updates, 'select_release', return_value={'selected_root': str(self.new)}), mock.patch.object(bridge, '_doctor', return_value=new_runtime):
+            new, code = bridge._start(self.church, 'sermon-research')
+        self.assertEqual(code, 0)
+        self.assertIn('/synthetic/old', old['launcher'])
+        self.assertIn('/synthetic/new', new['launcher'])
+        self.assertEqual(self.connection()['runtime_root'], '/synthetic/new')
+        with mock.patch.object(bridge, '_doctor', return_value=old_runtime) as check, mock.patch.object(bridge, '_record', return_value=self.church / 'receipt.json'), mock.patch.object(bridge.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '{}', '')):
+            bridge.execute(self.church, 'sermon-research', 'orient', [], runtime_root='/synthetic/old')
+        check.assert_called_once_with('sermon-research', runtime_root='/synthetic/old')
 
     def test_fixed_command_prefix_survives_another_tasks_connection_change(self):
         with mock.patch.object(updates, 'select_release', return_value={'selected_root': str(self.host)}):
