@@ -334,14 +334,18 @@ def chart_cash(d, cash, prev_bank=None):
     return d.svg(HALF, top + h + 22, o)
 
 
-def chart_running(d, run, pending):
-    """Running total through the year: plan, last year, this year."""
+def chart_running(d, run, pending, at=None):
+    """Running total through the year: plan, last year, this year.
+
+    `at` is the last month the answer reads (the month before, when this month has nothing
+    recorded yet). The line and its label stop there, so the chart says what the answer says."""
     t = d.t
     W, H, left, top, bottom = HALF, 146, 4, 10, 120
     has_plan = bool(run.get("plan"))
     has_last = bool(run.get("last_year"))
-    series = ([run["plan"]] if has_plan else []) + ([run["last_year"]] if has_last else []) + [run["this_year"]]
-    vals = [v for s in series for v in s] + [0, run["this_year"][-1] + pending]
+    shown = run["this_year"] if at is None else run["this_year"][:at + 1]
+    series = ([run["plan"]] if has_plan else []) + ([run["last_year"]] if has_last else []) + [shown]
+    vals = [v for s in series for v in s] + [0, shown[-1] + pending]
     hi, lo = max(vals), min(vals)
     span = (hi - lo) or 1
     usable = W - left - 58
@@ -371,7 +375,7 @@ def chart_running(d, run, pending):
         o.append(path(run["plan"], t["muted"], 1.8, "5 3"))
     if has_last:
         o.append(path(run["last_year"], t["positive_soft"], 2.2))
-    o.append(path(run["this_year"], t["positive"], 3))
+    o.append(path(shown, t["positive"], 3))
     if has_plan:
         end_labels.append((y(run["plan"][-1]) + 3.5, "plan", 10, 600))
     if has_last:
@@ -385,8 +389,8 @@ def chart_running(d, run, pending):
         baselines.append(max(floor, min(target, ceiling)))
     for baseline, (_, label, size, weight) in zip(baselines, end_labels):
         o.append(d.text(x(11) + 5, baseline, label, size, weight, t["muted"]))
-    i = len(run["this_year"]) - 1
-    v = run["this_year"][-1]
+    i = len(shown) - 1
+    v = shown[-1]
     o.append(f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="4" fill="{d.sign_color(v)}" stroke="#ffffff" stroke-width="1.5"/>')
     if pending:
         o.append(f'<circle cx="{x(i):.1f}" cy="{y(v + pending):.1f}" r="3.6" fill="#ffffff" '
@@ -780,7 +784,7 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
 <p class="answer">{(mname + " is not yet recorded, so this reads the year through " + before_name + ". ") if unrecorded else ""}{(on_plan + ". The plan was <b>" + money(budget) + " ahead</b> by now; we are") if has_budget
  else "There is no budget to compare with. We are"}
 <b>{money(year)} {ytd_word}</b>.{last_sentence}</p>
-{chart_running(d, run, pending)}
+{chart_running(d, run, pending, at)}
 <div class="keyline"><span>{swatch(t['positive'])}{run['this_year_label']}</span>{last_key}
 {plan_key}{pend_line}</div></div>"""
 

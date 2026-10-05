@@ -145,6 +145,18 @@ class FinanceReportTests(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("books for 2025 have changed", err)
 
+    def test_each_watch_item_carries_its_status_against_last_month(self):
+        self.two_editions()
+        july = json.loads((self.board / "2026-07/report.json").read_text())["watch"][0]["metric"]
+        august = json.loads((self.board / "2026-08/report.json").read_text())
+        item = august["watch"][0]
+        expected = "No change" if item["metric"] == july else ("Better" if item["metric"] < july else "Worse")
+        self.assertEqual(item["status"], expected)
+        # With no report the month before, every item is new.
+        (self.board / "2026-07/report.json").unlink()
+        self.assertEqual(self.build("2026-08")[1], 0)
+        self.assertEqual({w["status"] for w in json.loads((self.board / "2026-08/report.json").read_text())["watch"]} or {"New"}, {"New"})
+
     def test_changed_earlier_months_and_new_catch_all_accounts_are_raised(self):
         self.two_editions()
         july = self.board / "2026-07/report.json"
@@ -556,6 +568,18 @@ class FinanceChartLayoutTests(unittest.TestCase):
                     self.assertTrue(all(b - a >= 11.9 for a, b in zip(baselines, baselines[1:])))
                     self.assertGreaterEqual(baselines[0], 10)
                     self.assertLessEqual(baselines[-1], 123.5)
+
+    def test_running_line_and_label_stop_at_the_month_the_answer_reads(self):
+        run = {"this_year": [-1000, -4000, -9000], "this_year_label": "2026",
+               "plan": [500 * m for m in range(1, 13)], "last_year": [100] * 12, "last_year_label": "2025"}
+        root = ET.fromstring(self.renderer.chart_running(self.draw, run, 0, 1))
+        label = next(t for t in root.findall("{*}text") if (t.text or "").startswith("2026:"))
+        self.assertIn("4", label.text)
+        self.assertNotIn("9", label.text)
+        line = [p for p in root.findall("{*}polyline") if p.attrib.get("stroke-width") == "3"][0]
+        self.assertEqual(len(line.attrib["points"].split()), 2)
+        circle = root.find("{*}circle")
+        self.assertAlmostEqual(float(circle.attrib["cx"]), 4 + (self.renderer.HALF - 4 - 58) / 11, places=1)
 
     def test_cash_marker_and_label_fit_at_both_edges_and_beyond_scale(self):
         for previous, expected in ((0, "last month"), (1, "last month"), (300, "last month"),
