@@ -356,9 +356,9 @@ def chart_running(d, run, pending):
     # Faint ahead and short zones either side of break even, so the line reads at a glance.
     z = y(0)
     if z > top:
-        o.append(f'<rect x="{left}" y="{top:.1f}" width="{usable:.1f}" height="{z - top:.1f}" fill="{t["positive_soft"]}" opacity="0.18"/>')
+        o.append(f'<rect x="{left}" y="{top:.1f}" width="{usable:.1f}" height="{z - top:.1f}" fill="{t["positive_soft"]}" opacity="0.18" data-zone="ahead"/>')
     if z < bottom:
-        o.append(f'<rect x="{left}" y="{z:.1f}" width="{usable:.1f}" height="{bottom - z:.1f}" fill="{t["attention_soft"]}" opacity="0.16"/>')
+        o.append(f'<rect x="{left}" y="{z:.1f}" width="{usable:.1f}" height="{bottom - z:.1f}" fill="{t["attention_soft"]}" opacity="0.16" data-zone="short"/>')
     o.append(d.line(left, z, left + usable, z, t["ink"], 1.6))
     end_labels = [(y(0) + 3.5, "break even", 9.5, 700)]
 
