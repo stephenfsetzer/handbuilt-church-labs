@@ -50,6 +50,7 @@
       "items": {"type": "array", "prefixItems": [{"type": "string"}, {"type": "number"}]}},
     "full_years": {"type": "array",
       "items": {"type": "object", "required": ["year", "result", "reported"]}},
+    "full_years_note": {"type": "string"},
     "pressure": {"type": ["object", "null"], "required": ["question", "answer", "series"]},
     "short_history": {"type": "boolean"}
   },
