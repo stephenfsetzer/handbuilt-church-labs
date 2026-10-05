@@ -48,8 +48,12 @@ operations workflows. Sessions here behave by these rules.
    export into this repository, even as an illustration. Money figures in
    docs and tests are invented, and each one is listed in
    `tools/example-figures.txt`; `tools/pii_check.py` fails on any that is
-   not. CI also checks every pull request against a private denylist kept
-   in the `HANDBUILT_PRIVATE_DENYLIST` repository secret.
+   not. Images, PDFs, office files, spreadsheets and accounting exports are
+   never committed. Commit messages, pull request titles and descriptions,
+   and release notes are public too: describe a bug in general terms, never
+   with a church's name or figures. CI checks all of it, including against a
+   private denylist kept in the `HANDBUILT_PRIVATE_DENYLIST` repository
+   secret.
 2. **Use verified liturgical sources.** Never invent readings, a
    pastor-selected sermon passage, or liturgical text.
 3. **Write for a smart generalist.** Use simple, direct language. Explain an

@@ -2,6 +2,7 @@ name: Public publication checks
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
   release:
     types: [published]
@@ -15,6 +16,8 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -35,6 +38,13 @@ jobs:
         env:
           PRIVATE_DENYLIST: ${{ secrets.HANDBUILT_PRIVATE_DENYLIST }}
           FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
         run: |
           # The private denylist (church names, people, emails, addresses, account IDs and
           # figures from real books) lives only in a repository secret, never in the tree.
@@ -45,7 +55,20 @@ jobs:
             echo "::error::The HANDBUILT_PRIVATE_DENYLIST repository secret is not set, so this run cannot check for private church data."
             exit 1
           fi
-          python tools/pii_check.py
+          # Pull request titles, descriptions and commit messages are public too.
+          text_args=""
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" > "$RUNNER_TEMP/pull-request.txt"
+            git log --format=%B "$PR_BASE_SHA..$PR_HEAD_SHA" > "$RUNNER_TEMP/commit-messages.txt"
+            text_args="--text $RUNNER_TEMP/pull-request.txt --text $RUNNER_TEMP/commit-messages.txt"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            git log --format=%B "$PUSH_BEFORE..$GITHUB_SHA" > "$RUNNER_TEMP/commit-messages.txt"
+            text_args="--text $RUNNER_TEMP/commit-messages.txt"
+          elif [ "$GITHUB_EVENT_NAME" = "release" ]; then
+            printf '%s\n\n%s\n' "$RELEASE_NAME" "$RELEASE_BODY" > "$RUNNER_TEMP/release-notes.txt"
+            text_args="--text $RUNNER_TEMP/release-notes.txt"
+          fi
+          python tools/pii_check.py $text_args
       - name: Build the verified workflow distribution
         run: python tools/package_workflow.py --output-dir "$RUNNER_TEMP/handbuilt-release"
       - name: Verify the packaged entrypoint

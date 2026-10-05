@@ -139,6 +139,44 @@ class PublicationHygieneTest(unittest.TestCase):
         result = run_checker(REPO_ROOT)
         self.assertNotIn("unregistered money figure", result.stdout)
 
+    def test_scans_and_exports_are_blocked_once_committed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "fixture@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Fixture User"], cwd=root, check=True)
+            for name in ("report.pdf", "scan.png", "export.csv"):
+                (root / name).write_bytes(b"synthetic")
+            (root / "fonts").mkdir()
+            (root / "fonts" / "Body.ttf").write_bytes(b"\x00font")
+            self.assertEqual(run_checker(root).returncode, 0)
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            result = run_checker(root)
+            self.assertEqual(result.returncode, 1)
+            for name in ("report.pdf", "scan.png", "export.csv"):
+                self.assertIn(f"{name}  [private file type]", result.stdout)
+            self.assertNotIn("Body.ttf", result.stdout)
+
+    def test_pull_request_and_commit_text_is_scanned(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            denylist = Path(tmp) / "private-denylist.txt"
+            denylist.write_text("Example Parish\n", encoding="utf-8")
+            clean = Path(tmp) / "clean.txt"
+            clean.write_text("Read the year through the last recorded month.\n", encoding="utf-8")
+            self.assertEqual(run_checker(root, "--denylist", str(denylist), "--text", str(clean)).returncode, 0)
+            leaky = Path(tmp) / "pull-request.txt"
+            leaky.write_text(
+                "Found building Example Parish's report.\nThe year read $" + "17,402 ahead.\n",
+                encoding="utf-8",
+            )
+            result = run_checker(root, "--denylist", str(denylist), "--text", str(leaky))
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("text:pull-request.txt:1  [private denylist]", result.stdout)
+            self.assertIn("text:pull-request.txt:2  [unregistered money figure]", result.stdout)
+            self.assertNotIn("Example Parish", result.stdout)
+
     def test_checker_does_not_exempt_its_own_source(self) -> None:
         source = CHECKER.read_text(encoding="utf-8")
         self.assertNotIn("path.resolve() == SELF", source)

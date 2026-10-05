@@ -11,6 +11,14 @@ like a made-up example. Every dollar amount of $1,000 or more, every
 comma-grouped number in a finance file, and every ``--amount`` example must be
 listed in ``tools/example-figures.txt``. Adding a figure there is a visible,
 deliberate statement in the pull request that the figure is invented.
+
+Images, PDFs, office documents, spreadsheets and accounting exports are never
+committed: a scan, screenshot or export cannot be read for private material,
+so the file type itself is a finding. Fonts are the only binary files allowed.
+
+``--text FILE`` scans pull request titles, descriptions and commit messages
+written to FILE with the same rules, so public Git and GitHub text is checked
+as well as the tree.
 """
 
 from __future__ import annotations
@@ -98,6 +106,11 @@ DETECTION_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+BLOCKED_FILE_TYPES = {
+    ".bmp", ".csv", ".doc", ".docx", ".gif", ".heic", ".iif", ".jpeg", ".jpg", ".numbers",
+    ".ods", ".odt", ".ofx", ".pages", ".pdf", ".png", ".ppt", ".pptx", ".qbo", ".qfx",
+    ".svg", ".tif", ".tiff", ".tsv", ".webp", ".xls", ".xlsx", ".zip",
+}
 FIGURE_REGISTRY = Path("tools") / "example-figures.txt"
 DOLLAR_FIGURE = re.compile(r"\$\s?([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})(?:\.[0-9]{1,2})?(?![0-9])")
 GROUPED_FIGURE = re.compile(r"(?<![0-9.,$])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,])")
@@ -260,6 +273,11 @@ def scan_worktree(root: Path, denylist: Iterable[str]) -> tuple[list[Finding], l
             continue
         if is_sensitive_filename(path):
             findings.append(Finding(location, "sensitive filename"))
+        if path.suffix.lower() in BLOCKED_FILE_TYPES:
+            # In a checkout, only committed files count; test runs may leave renders behind.
+            if not (root / ".git").exists() or location in tracked:
+                findings.append(Finding(location, "private file type"))
+            continue
         if not is_text_candidate(path):
             continue
         try:
@@ -340,6 +358,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="private terms file, one term per line, kept outside the repository",
     )
+    parser.add_argument(
+        "--text",
+        type=Path,
+        action="append",
+        default=[],
+        help="also scan this file of pull request or commit message text (repeatable)",
+    )
     return parser.parse_args(argv)
 
 
@@ -357,6 +382,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     findings, errors = scan_worktree(root, denylist)
+    figures = load_figure_registry(root)
+    for text_path in args.text:
+        try:
+            text = text_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"could not read {text_path}: {exc}")
+            continue
+        findings.extend(scan_text(text, f"text:{text_path.name}", denylist, figures))
     if args.history:
         history_findings, history_errors = scan_history(root, denylist)
         findings.extend(history_findings)
