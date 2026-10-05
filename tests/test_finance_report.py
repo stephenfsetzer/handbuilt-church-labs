@@ -190,7 +190,13 @@ class FinanceReportTests(unittest.TestCase):
         self.assertNotIn("That leaves us", answer)
         self.assertIn("August not yet recorded", [r["title"] for r in report["readiness"]])
         self.assertEqual(self.render("2026-08")[1], 0)
-        self.assertIn("August not yet recorded", page_text(self.church, "2026-08"))
+        page = " ".join(page_text(self.church, "2026-08").split())
+        self.assertIn("August not yet recorded", page)
+        # The tile and Question 2 read the year through July too, so the page never contradicts itself.
+        self.assertIn(f"${abs(through_july):,} {'ahead' if through_july >= 0 else 'short'} Through July; August not yet recorded", page)
+        self.assertIn("August is not yet recorded, so this reads the year through July.", page)
+        self.assertIn("Nothing entered yet", page)
+        self.assertNotIn(f"${abs(report['plan']['actual']):,} {'ahead' if report['plan']['actual'] >= 0 else 'short'}", page)
         # A recorded month is unchanged: no flag, no caveat, and the month's own sentence.
         self.assertEqual(self.build("2026-07")[1], 0)
         july = json.loads((self.board / "2026-07/report.json").read_text())
