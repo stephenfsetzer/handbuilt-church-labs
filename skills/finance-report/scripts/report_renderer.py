@@ -731,13 +731,24 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     # since last month strip
     since = f"since {prev['as_of']}" if prev else ""
     bank_chg = f"{delta_text(cash['bank'] - prev['bank'])} {since}" if prev else "&nbsp;"
-    ytd_chg = f"{delta_text(plan['actual'] - prev['ytd'])} in {mname}" if prev else "&nbsp;"
-    ytd_word = "ahead" if plan["actual"] >= 0 else "short"
+    run = plan["running"]
+    m = len(run["this_year"])
+    # A month with no income entered is not yet recorded (bug 022): the page reads the year through the
+    # month before, as the short answer does, so the tile and Question 2 agree with it.
+    unrecorded = bool(tm.get("unrecorded")) and m >= 2
+    at = m - 2 if unrecorded else m - 1
+    year = run["this_year"][at] if unrecorded else plan["actual"]
+    before_name = MONTHS_LONG[(int(meta["month"][5:]) - 2) % 12]
+    ytd_chg = (f"Through {before_name}; {mname} not yet recorded" if unrecorded
+               else f"{delta_text(plan['actual'] - prev['ytd'])} in {mname}" if prev else "&nbsp;")
+    ytd_word = "ahead" if year >= 0 else "short"
+    in_chg = ("Nothing entered yet" if unrecorded and not tm["came_in"]
+              else f"Most: {esc(tm['top_in']['label'])}, {signed_money(tm['top_in']['amount'])}")
     tiles = f"""<div class="eyebrow" style="margin-bottom:3pt">Since last month</div><div class="tiles">
 <div class="tile"><div class="lab">Bank cash</div><div class="val">{signed_money(cash['bank'])}</div><div class="chg">{bank_chg}</div></div>
-<div class="tile"><div class="lab">Year so far</div><div class="val">{money(plan['actual'])} {ytd_word}</div><div class="chg">{ytd_chg}</div></div>
+<div class="tile"><div class="lab">Year so far</div><div class="val">{money(year)} {ytd_word}</div><div class="chg">{ytd_chg}</div></div>
 <div class="tile"><div class="lab">Money in, {esc(mname)}</div><div class="val">{signed_money(tm['came_in'])}</div>
-<div class="chg">Most: {esc(tm['top_in']['label'])}, {signed_money(tm['top_in']['amount'])}</div></div>
+<div class="chg">{in_chg}</div></div>
 <div class="tile"><div class="lab">Money out, {esc(mname)}</div><div class="val">{signed_money(tm['went_out'])}</div>
 <div class="chg">Largest: {esc(tm['top_out']['label'])}, {signed_money(tm['top_out']['amount'])}</div></div></div>"""
 
@@ -745,11 +756,10 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
 <p class="answer">{esc(cash_summary(cash['bank'], cash['monthly_spending']))}</p>{chart_cash(d, cash, prev['bank'] if prev else None)}
 <p class="note">{esc(cash.get('note', ''))}</p>{set_aside_block(cash)}</div>"""
 
-    run = plan["running"]
-    m = len(run["this_year"])
-    ly_now, ly_end = (run["last_year"][m - 1], run["last_year"][-1]) if run.get("last_year") else (None, None)
-    has_budget = plan.get("budget") is not None
-    on_plan = ("Yes" if plan["actual"] >= plan["budget"] else "Not yet") if has_budget else ""
+    ly_now, ly_end = (run["last_year"][at], run["last_year"][-1]) if run.get("last_year") else (None, None)
+    budget = (run["plan"][at] if unrecorded and run.get("plan") else plan.get("budget"))
+    has_budget = budget is not None
+    on_plan = ("Yes" if year >= budget else "Not yet") if has_budget else ""
     pend_line = ""
     if pending:
         pend_line = (f'<span><svg width="10" height="10"><circle cx="5" cy="5" r="3.6" fill="#fff" stroke="{t["positive"]}" '
@@ -761,9 +771,9 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     plan_key = (f'<span><svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="{t["muted"]}" '
                 f'stroke-width="1.4" stroke-dasharray="5 3"/></svg> Plan</span>') if has_budget else ""
     q2 = f"""<div class="q"><div class="num">Question 2</div><h2>Are we on plan?</h2>
-<p class="answer">{(on_plan + ". The plan was <b>" + money(plan['budget']) + " ahead</b> by now; we are") if has_budget
+<p class="answer">{(mname + " is not yet recorded, so this reads the year through " + before_name + ". ") if unrecorded else ""}{(on_plan + ". The plan was <b>" + money(budget) + " ahead</b> by now; we are") if has_budget
  else "There is no budget to compare with. We are"}
-<b>{money(plan['actual'])} {ytd_word}</b>.{last_sentence}</p>
+<b>{money(year)} {ytd_word}</b>.{last_sentence}</p>
 {chart_running(d, run, pending)}
 <div class="keyline"><span>{swatch(t['positive'])}{run['this_year_label']}</span>{last_key}
 {plan_key}{pend_line}</div></div>"""
