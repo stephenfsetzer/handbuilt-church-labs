@@ -14,8 +14,8 @@ add a budget, and save the confirmed settings.
     finance-report setup budget --church-folder . --year 2026 --none
 
     # 3. One-time items found in past years: confirm each, or none
-    finance-report setup one-time --church-folder . --year 2023 --amount 111697 \
-        --label "loan forgiveness" [--done]
+    finance-report setup one-time --church-folder . --year 2025 --amount 25000 \
+        --label "estate gift" [--done]
     finance-report setup one-time --church-folder . --none
 
     # 4. Check the confirmed draft and save it as finance/board/config.json

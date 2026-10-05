@@ -7,7 +7,7 @@ figures all come from files.
 
     python3 report_renderer.py finance/board/2026-08/report.json --church-folder .
     python3 report_renderer.py finance/board/2026-08/report.json --church-folder . \
-        --brand finance/board/brand-previews/holdfast.json --suffix holdfast
+        --brand finance/board/brand-previews/alternate.json --suffix alternate
 
 The previous month's report.json (meta.previous_report) supplies "since last
 month" figures and watch-list statuses.
