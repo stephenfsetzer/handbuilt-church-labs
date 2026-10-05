@@ -21,6 +21,12 @@ every session; the other tools require it.
 If a response comes back inline instead of as a saved file, write it to the
 pulls folder exactly as returned. Do not retype or summarize it.
 
+**Books that close into a fund balance.** Only when the build stops because
+equity moved without a result: pull the profit and loss for January 1
+through each month end of last year (twelve pulls), and this year through
+each month end before the prior month (pulls 2 and 3 cover the last two). Save each as `pulls/pl-through-YYYY-MM.json` and pass
+it as `--pl-through YYYY-MM=pulls/pl-through-YYYY-MM.json`.
+
 ## Connector traps
 
 - **Summary fields are wrong.** `totalExpenses`, `netIncome`, and
@@ -38,7 +44,8 @@ pulls folder exactly as returned. Do not retype or summarize it.
   Net Income row resets each August. Never read year-to-date or retained
   earnings from it directly. The builder takes each month's result as the
   change in Retained Earnings plus Net Income, which is right whatever the
-  fiscal year, and checks it against the profit and loss.
+  fiscal year, and checks it against the profit and loss. Books that close
+  into a fund balance break this; use the `--pl-through` pulls above.
 - **Profit and loss stops at 100 rows.** The connector returns at most 100
   line rows, with no cursor and no warning. Section totals stay correct, so
   a church with a large chart of accounts silently loses line items, usually

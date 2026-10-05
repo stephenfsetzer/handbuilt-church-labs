@@ -127,7 +127,7 @@ class FinanceReportTests(unittest.TestCase):
         pulls.write_text(json.dumps(data))
         _, code, err = self.build("2026-08")
         self.assertNotEqual(code, 0)
-        self.assertIn("prior spending groups", err)
+        self.assertIn("pl-prior.json: the Expenses lines add up to", err)
         for row in original["reportData"]["data"]["rows"]:
             if row["cells"][0]["value"] in ("6520 Repairs", "Expenses"):
                 row["cells"][1]["value"] += 500
@@ -144,6 +144,48 @@ class FinanceReportTests(unittest.TestCase):
         _, code, err = self.build("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("books for 2025 have changed", err)
+
+    def test_the_settings_note_on_whole_years_is_printed(self):
+        config_path = self.church / "finance/board/config.json"
+        config = json.loads(config_path.read_text())
+        config["long_view"]["note"] = "Whole years leave out the roof campaign."
+        config_path.write_text(json.dumps(config))
+        self.assertEqual(self.build("2026-08")[1], 0)
+        report = json.loads((self.board / "2026-08/report.json").read_text())
+        self.assertEqual(report["full_years_note"], "Whole years leave out the roof campaign.")
+        self.assertEqual(self.render("2026-08")[1], 0)
+        self.assertIn("Whole years leave out the roof campaign.", page_text(self.church, "2026-08"))
+
+    def test_books_closed_into_a_fund_read_monthly_results_from_profit_and_loss_pulls(self):
+        self.assertEqual(self.build("2026-08")[1], 0)
+        expected = json.loads((self.board / "2026-08/report.json").read_text())["plan"]["running"]
+        # The year's results are moved out of retained earnings into a fund balance in June 2025 and
+        # February 2026: equity on the balance sheet drops with nothing earned or spent.
+        pulls = self.board / "2026-08/pulls"
+        sheet = json.loads((pulls / "balance-sheet.json").read_text())
+        cols = [c["key"] for c in sheet["displayColumns"][1:]]
+        moved = next(r for r in sheet["reportData"]["rows"] if r["cells"][0]["value"] == "Retained Earnings")
+        for i, key in enumerate(cols):
+            shift = (500 if key not in ("Dec 2024", "Jan 2025", "Feb 2025", "Mar 2025", "Apr 2025", "May 2025") else 0) \
+                + (700 if key.endswith("2026") and key not in ("Jan 2026",) else 0)
+            moved["cells"][i + 1]["value"] -= shift
+        (pulls / "balance-sheet.json").write_text(json.dumps(sheet))
+        result, code, err = self.build("2026-08")
+        self.assertNotEqual(code, 0)
+        self.assertIn("last year's line ends at", err + json.dumps(result))
+        through = []
+        for y, upto in ((2025, 12), (2026, 6)):
+            for m in range(1, upto + 1):
+                path = pulls / f"pl-through-{y}-{m:02d}.json"
+                path.write_text(json.dumps(fixture.pl(y, m)))
+                through += ["--pl-through", f"{y}-{m:02d}={path}"]
+        result, code, err = self.build("2026-08", *through)
+        self.assertEqual(code, 0, err + json.dumps(result))
+        self.assertEqual(json.loads((self.board / "2026-08/report.json").read_text())["plan"]["running"], expected)
+        # A pull that does not run January 1 to its month end is refused.
+        result, code, err = self.build("2026-08", *through[:-1], f"2026-06={pulls / 'pl-through-2026-05.json'}")
+        self.assertNotEqual(code, 0)
+        self.assertIn("it must run January 1 to the end of 2026-06", err + json.dumps(result))
 
     def test_each_watch_item_carries_its_status_against_last_month(self):
         self.two_editions()
@@ -569,6 +611,24 @@ class FinanceChartLayoutTests(unittest.TestCase):
                     self.assertGreaterEqual(baselines[0], 10)
                     self.assertLessEqual(baselines[-1], 123.5)
 
+    def test_low_point_figure_stays_clear_of_the_year_labels(self):
+        hist = [["2025-12", 9000], ["2026-01", 4000], ["2026-02", 0], ["2026-03", 6000]]
+        root = ET.fromstring(self.renderer.chart_cash_line(self.draw, hist, 3000))
+        texts = [(float(t.get("y")), "".join(t.itertext())) for t in root.findall(".//{*}text")]
+        years = [y for y, label in texts if label == "2026"]
+        figures = [y for y, label in texts if label != "2026"]
+        self.assertTrue(years)
+        self.assertLess(max(figures), min(years) - 8)
+
+    def test_plan_and_cash_wording_for_small_and_even_figures(self):
+        self.assertEqual(self.renderer.plan_by_now(0), "to break even")
+        self.assertEqual(self.renderer.plan_by_now(1250), "$1,250 ahead")
+        self.assertEqual(self.renderer.plan_by_now(-800), "$800 short")
+        with mock.patch.object(sys, "path", [str(ENTRY.parent), *sys.path]):
+            from cash_position import cash_summary
+        self.assertEqual(cash_summary(100, 12000), "Cash is tight: $100 in the bank covers less than a week of spending.")
+        self.assertIn("about 2.0 months", cash_summary(24000, 12000))
+
     def test_running_line_and_label_stop_at_the_month_the_answer_reads(self):
         run = {"this_year": [-1000, -4000, -9000], "this_year_label": "2026",
                "plan": [500 * m for m in range(1, 13)], "last_year": [100] * 12, "last_year_label": "2025"}
@@ -636,3 +696,99 @@ class FinanceChartLayoutTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IncompletePullTests(unittest.TestCase):
+    """A profit and loss the connector cut off is refused by every step that reads one."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        with mock.patch.object(sys, "path", [str(ENTRY.parent), *sys.path]):
+            import build_report_data
+        self.build = build_report_data
+
+    def load(self, data):
+        path = Path(self.temp.name) / "pl.json"
+        path.write_text(json.dumps(data))
+        with self.assertRaises(SystemExit) as caught:
+            self.build.load_pl(path)
+        return str(caught.exception)
+
+    def test_a_pull_at_the_connector_limit_is_refused(self):
+        data = fixture.pl(2026, 8)
+        rows = data["reportData"]["data"]["rows"]
+        filler = [{"metadata": {"id": f"9.{i}", "parentId": "9", "type": ["FORMULA"]},
+                   "cells": [{"value": f"Line {i}"}, {"value": 0}]} for i in range(100 - len(rows))]
+        data["reportData"]["data"]["rows"] = rows + filler
+        self.assertIn("100 rows, the connector's limit", self.load(data))
+
+    def test_section_headings_spelled_singular_are_read(self):
+        data = fixture.pl(2026, 8)
+        for row in data["reportData"]["data"]["rows"]:
+            if row["cells"][0]["value"] == "Expenses":
+                row["cells"][0]["value"] = "Expense"
+        _, _, items, sections = self.build.load_pl(self._write(data))
+        self.assertIn("Expenses", sections)
+        self.assertTrue(any(it["section"] == "Expenses" for it in items))
+
+    def _write(self, data):
+        path = Path(self.temp.name) / "pl-ok.json"
+        path.write_text(json.dumps(data))
+        return path
+
+
+class ConcentrationTests(unittest.TestCase):
+    """When one heading holds nearly all income, the finding names the largest source under it."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("finance_onboarding", ROOT / "skills/finance-onboarding/scripts/finance_onboarding.py")
+        cls.onboarding = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.onboarding)
+
+    def test_the_largest_account_under_a_heading_that_holds_most_income(self):
+        items = [{"name": "4100 Plate", "chain": ["4100 Plate", "4000-00 Operating Income", "Income"], "section": "Income", "value": 300.0},
+                 {"name": "4200 Hall rent", "chain": ["4200 Hall rent", "4000-00 Operating Income", "Income"], "section": "Income", "value": 600.0},
+                 {"name": "4300 Gifts", "chain": ["4300 Gifts", "4000-00 Operating Income", "Income"], "section": "Income", "value": 90.0},
+                 {"name": "Interest", "chain": ["Interest", "Other Income"], "section": "Other Income", "value": 10.0}]
+        top = {"name": "Operating income", "accounts": ["4000-00"], "share": 0.99}
+        self.assertEqual(self.onboarding.largest_source(items, top, 1000.0), {"name": "Hall rent", "share": 0.6})
+        spread = {**top, "share": 0.7}
+        self.assertIs(self.onboarding.largest_source(items, spread, 1000.0), spread)
+
+
+class AccountNameTests(unittest.TestCase):
+    """Account numbers with hyphen, dot and letter parts (an invented chart, not a church's)."""
+
+    @classmethod
+    def setUpClass(cls):
+        with mock.patch.object(sys, "path", [str(ENTRY.parent), *sys.path]):
+            import build_report_data
+            import finance_setup
+        cls.build, cls.setup = build_report_data, finance_setup
+
+    def test_numbers_come_off_names_whatever_their_shape(self):
+        for name, plain, number in (("6600 Physical Plant", "Physical Plant", "6600"),
+                                    ("1006-01 Operating Fund Income", "Operating Fund Income", "1006-01"),
+                                    ("4010-00 Plate Offering", "Plate Offering", "4010-00"),
+                                    ("5002A Associate Pastor Expenses", "Associate Pastor Expenses", "5002A"),
+                                    ("4010.5 Easter Offering", "Easter Offering", "4010.5"),
+                                    ("1st Sunday Offering", "1st Sunday Offering", "1st Sunday Offering"),
+                                    ("Money Market", "Money Market", "Money Market")):
+            with self.subTest(name=name):
+                self.assertEqual(self.build.strip_code(name), plain)
+                self.assertEqual(self.build.code(name), number)
+        self.assertEqual(self.setup.plain("1006-01 OPERATING FUND INCOME"), "Operating fund income")
+        self.assertEqual(self.setup.plain("5002A Associate Pastor Expenses"), "Associate Pastor Expenses")
+
+    def test_opening_and_change_rows_pair_when_numbers_have_parts(self):
+        rows = [("Checking", [10.0, 20.0]), ("1006-01 Checking", [100.0, 100.0]),
+                ("Reserve", [1.0, 2.0]), ("1007A Reserve", [50.0, 50.0])]
+        self.assertEqual(self.build.account_total(rows, {"Checking"}, 2), [110.0, 120.0])
+        self.assertEqual(self.build.account_total(rows, {"Reserve"}, 2), [51.0, 52.0])
+        self.assertTrue(self.build.account_present(rows, "Reserve"))
+        items = [{"name": "5002A Associate Pastor", "chain": ["5002A Associate Pastor", "5000-00 Staff"], "section": "Expenses", "value": 30.0},
+                 {"name": "Office supplies", "chain": ["Office supplies"], "section": "Expenses", "value": 5.0}]
+        groups = [{"name": "Staff", "accounts": ["5000-00"]}, {"name": "Everything else", "accounts": ["*"]}]
+        self.assertEqual(self.build.group_items(items, groups, self.build.EXPENSE), {"Staff": 30.0, "Everything else": 5.0})

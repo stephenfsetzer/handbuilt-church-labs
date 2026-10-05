@@ -477,6 +477,13 @@ def chart_full_years(d, rows):
     return d.svg(HALF, 116, o)
 
 
+def plan_by_now(budget):
+    """What the plan expected by now: '$1,250 ahead', '$800 short' or 'to break even'."""
+    if round(budget) == 0:
+        return "to break even"
+    return f"{money(budget)} {'ahead' if budget > 0 else 'short'}"
+
+
 def chart_cash_line(d, hist, monthly):
     """Month-end bank cash as an area line; a new point each month."""
     t = d.t
@@ -508,7 +515,8 @@ def chart_cash_line(d, hist, monthly):
     for i in {0, lo_i, n - 1}:
         o.append(f'<circle cx="{x(i):.1f}" cy="{y(vals[i]):.1f}" r="3.6" fill="{t["positive"]}" stroke="#ffffff" stroke-width="1.4"/>')
         anchor = "start" if i == 0 else ("end" if i == n - 1 else "middle")
-        dy = -8 if i != lo_i or i in (0, n - 1) else 16
+        # The low point's figure goes below it, unless that would reach the year labels.
+        dy = -8 if i != lo_i or i in (0, n - 1) or y(vals[i]) + 16 > bottom - 2 else 16
         o.append(d.text(x(i), y(vals[i]) + dy, ("−" if vals[i] < 0 else "") + kfmt(vals[i]), 11, 700, None, anchor))
     for i, (when, _) in enumerate(hist):
         if when.endswith("-01"):
@@ -781,7 +789,7 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     plan_key = (f'<span><svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke="{t["muted"]}" '
                 f'stroke-width="1.4" stroke-dasharray="5 3"/></svg> Plan</span>') if has_budget else ""
     q2 = f"""<div class="q"><div class="num">Question 2</div><h2>Are we on plan?</h2>
-<p class="answer">{(mname + " is not yet recorded, so this reads the year through " + before_name + ". ") if unrecorded else ""}{(on_plan + ". The plan was <b>" + money(budget) + " ahead</b> by now; we are") if has_budget
+<p class="answer">{(mname + " is not yet recorded, so this reads the year through " + before_name + ". ") if unrecorded else ""}{(on_plan + ". The plan was <b>" + plan_by_now(budget) + "</b> by now; we are") if has_budget
  else "There is no budget to compare with. We are"}
 <b>{money(year)} {ytd_word}</b>.{last_sentence}</p>
 {chart_running(d, run, pending, at)}
@@ -858,7 +866,7 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
                          f"to <b>{aw(fy[-1]['result'])}</b> in {fy[-1]['year']}.")
         q6 = f"""<div class="q last"><div class="num">Question 6 &middot; updated yearly</div><h2>How have whole years gone?</h2>
     <p class="answer">{fy_answer}</p>{chart_full_years(d, fy)}
-    {f'<p class="note">* {ot_note}</p>' if ot_note else ''}</div>"""
+    {f'<p class="note">* {ot_note}</p>' if ot_note else ''}{f'<p class="note">{esc(report["full_years_note"])}</p>' if report.get("full_years_note") else ''}</div>"""
 
         pr = report["pressure"]
         keys = "".join(

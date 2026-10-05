@@ -34,7 +34,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from build_report_data import load_balance_sheet, load_pl, code, INCOME, EXPENSE  # noqa: E402
+from build_report_data import load_balance_sheet, load_pl, code, strip_code, INCOME, EXPENSE  # noqa: E402
 
 PROCESSOR = re.compile(r"stripe|givebutter|paypal|square|venmo|tithe\.?ly|pushpay|vanco|"
                        r"clearing|undeposited|payment", re.I)
@@ -49,7 +49,7 @@ OBLIGATIONS = {
 
 def plain(name):
     """'6600 Physical Plant' -> 'Physical plant'."""
-    n = re.sub(r"^\d+\s*", "", name).strip()
+    n = strip_code(name).strip()
     n = n.replace("&", "and")
     return n[:1].upper() + n[1:].lower() if n.isupper() else n
 
@@ -88,7 +88,7 @@ def bank_block(rows):
 def draft_accounts(rows):
     balances = {}
     for name, vals in bank_block(rows):
-        base = re.sub(r"^\d+\s+", "", name)
+        base = strip_code(name)
         cur = balances.get(base, [0.0] * len(vals))
         balances[base] = [a + b for a, b in zip(cur, vals)]
     accounts = []
@@ -177,7 +177,7 @@ def cmd_draft(args, root):
     info = church_info(root)
 
     # history: first month any everyday bank account held money
-    bank_rows = [(re.sub(r"^\d+\s+", "", n), v) for n, v in rows]
+    bank_rows = [(strip_code(n), v) for n, v in rows]
     first = None
     for i, m in enumerate(months):
         if any(abs(v[i]) >= 0.5 for n, v in bank_rows if n in bank):

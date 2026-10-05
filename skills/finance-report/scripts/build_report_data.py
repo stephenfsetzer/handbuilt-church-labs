@@ -11,6 +11,11 @@ Inputs (saved connector responses, JSON):
   --pl-ytd         profit and loss, January 1 through the report month end
   --pl-prior       profit and loss, January 1 through the prior month end
                    (omit for January)
+  --pl-through     YYYY-MM=PULL.json, repeatable: profit and loss, January 1
+                   through that month end. When a year's months are all
+                   given (with --pl-ytd and --pl-prior), its monthly results
+                   come from them instead of from equity on the balance sheet,
+                   for books that close each year into a fund balance
 
 Writes <report_folder>/<month>/report.json. The short answer and any watch
 item without a template are drafts for a person to finish. Stops with an
@@ -37,6 +42,18 @@ def money(v):
     return f"${abs(round(v)):,}"
 
 
+# --- account names ------------------------------------------------------------
+
+# An account number at the start of a QuickBooks account name: digits, then any
+# hyphen or dot parts, then at most one letter ("6600", "1006-01", "5002A").
+ACCOUNT_CODE = r"\d+(?:[-.]\d+)*[A-Za-z]?"
+
+
+def strip_code(name):
+    """'1006-01 Operating Fund' -> 'Operating Fund'; a name with no number is unchanged."""
+    return re.sub(rf"^{ACCOUNT_CODE}\s+", "", name)
+
+
 # --- balance sheet ------------------------------------------------------------
 
 def load_balance_sheet(path):
@@ -60,14 +77,14 @@ def account_total(rows, names, n):
     change row ('Name'). The balance is their sum."""
     total = [0.0] * n
     for name, vals in rows:
-        base = re.sub(r"^\d+\s+", "", name)
+        base = strip_code(name)
         if base in names:
             total = [a + b for a, b in zip(total, vals)]
     return total
 
 
 def account_present(rows, name):
-    return any(re.sub(r"^\d+\s+", "", n) == name for n, _ in rows)
+    return any(strip_code(n) == name for n, _ in rows)
 
 
 SET_ASIDE_KINDS = ("restricted", "designated", "investment", "in_transit")
@@ -107,6 +124,16 @@ def row(rows, name):
 
 # --- profit and loss ------------------------------------------------------------
 
+# Section headings as QuickBooks sometimes spells them, read as the names the builder uses.
+SECTION_NAMES = {"other expense": "Other Expenses", "other expenses": "Other Expenses", "expense": "Expenses",
+                 "expenses": "Expenses", "other income": "Other Income", "income": "Income",
+                 "cost of goods sold": "Cost of Goods Sold", "cost of sales": "Cost of Goods Sold"}
+
+
+def section_name(name):
+    return SECTION_NAMES.get((name or "").strip().lower(), name or "")
+
+
 def load_pl(path):
     d = json.loads(Path(path).read_text())
     rows = d["reportData"]["data"]["rows"]
@@ -115,14 +142,14 @@ def load_pl(path):
     for r in rows:
         rid = r["metadata"]["id"]
         if "." not in rid:
-            section_of[rid] = r["cells"][0]["value"] or ""
+            section_of[rid] = section_name(r["cells"][0]["value"])
     items, sections = [], {}
     for r in rows:
         rid = r["metadata"]["id"]
         name = r["cells"][0]["value"]
         val = r["cells"][1]["value"] or 0
         if "." not in rid and name:
-            sections[name] = val
+            sections[section_name(name)] = val
         own = (r["cells"][2]["value"] or 0) if len(r["cells"]) > 2 else 0
         if "GROUP" in r["metadata"]["type"] and "." in rid and own:
             val = own  # an amount posted to the heading itself, not a sub-account
@@ -135,12 +162,56 @@ def load_pl(path):
                 chain.append(parent["cells"][0]["value"])
         sec = section_of.get(parts[0], "")
         items.append({"name": name, "chain": chain, "section": sec, "value": val})
+    check_complete(path, rows, items, sections)
     return d["periodStart"], d["periodEnd"], items, sections
 
 
+# The QuickBooks connector returns at most this many profit and loss rows, with no warning.
+CONNECTOR_ROW_LIMIT = 100
+
+
+def check_complete(path, rows, items, sections):
+    """Stop on a profit and loss the connector cut off: rows at its limit, or line rows that do not
+    add up to their section's total. Nothing drafted from a partial pull can be trusted."""
+    name = Path(path).name
+    if len(rows) >= CONNECTOR_ROW_LIMIT:
+        fail(f"{name} has {len(rows)} rows, the connector's limit, so it is probably cut off; "
+             "pull a shorter period or use the QuickBooks export instead")
+    for sec in (*INCOME, *EXPENSE):
+        if sec not in sections:
+            continue
+        lines = sum(it["value"] for it in items if it["section"] == sec)
+        if abs(lines - sections[sec]) > 1:
+            fail(f"{name}: the {sec} lines add up to {lines:,.2f} but the {sec} total is {sections[sec]:,.2f}, "
+                 "so the pull is incomplete; pull it again or use the QuickBooks export instead")
+
+
+def pl_net(sections):
+    """A profit and loss pull's result: income less spending, from its section totals."""
+    return sum(sections.get(s, 0) for s in INCOME) - sum(sections.get(s, 0) for s in EXPENSE)
+
+
+def results_through(args, year, mon):
+    """Year-to-date results by month end ('YYYY-MM'), from the profit and loss pulls given."""
+    out = {}
+    for spec in args.pl_through:
+        month, sep, path = spec.partition("=")
+        if not sep or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+            fail(f"--pl-through takes YYYY-MM=PULL.json, not {spec!r}")
+        start, end, _, sections = load_pl(path)
+        if not start.startswith(f"{month[:4]}-01") or not end.startswith(month):
+            fail(f"--pl-through {month} covers {start} to {end}; it must run January 1 to the end of {month}")
+        out[month] = pl_net(sections)
+    _, _, _, ytd_sec = load_pl(args.pl_ytd)
+    out[f"{year}-{mon:02d}"] = pl_net(ytd_sec)
+    if args.pl_prior and mon > 1:
+        out[f"{year}-{mon - 1:02d}"] = pl_net(load_pl(args.pl_prior)[3])
+    return out
+
+
 def code(name):
-    first = name.split()[0]
-    return first if first.isdigit() else name
+    first = name.split()[0] if name.split() else name
+    return first if re.fullmatch(ACCOUNT_CODE, first) else name
 
 
 def group_items(items, groups, sections_wanted):
@@ -193,6 +264,7 @@ def main(argv=None):
     ap.add_argument("--balance-sheet", required=True)
     ap.add_argument("--pl-ytd", required=True)
     ap.add_argument("--pl-prior")
+    ap.add_argument("--pl-through", action="append", default=[], help="'YYYY-MM=PULL.json'")
     ap.add_argument("--unrecorded", action="append", default=[], help="'amount|label'")
     ap.add_argument("--prepared", required=True, help="YYYY-MM-DD")
     ap.add_argument("--sample", action="store_true", help="mark as a sample rebuilt from current books")
@@ -215,6 +287,15 @@ def main(argv=None):
     bank = account_total(bs, set(cfg["bank_accounts"]), n)
     equity = [a + b for a, b in zip(row(bs, "Retained Earnings"), row(bs, "Net Income"))]
     monthly = {months[i]: equity[i] - equity[i - 1] for i in range(1, n)}
+    # A year whose month ends all have a profit and loss pull takes its results from them. Books
+    # that close each year into a fund balance move equity without a result, so equity alone
+    # misreads the months the closing entry falls in.
+    ytd = results_through(args, year, mon) if args.pl_through else {}
+    for y, upto in ((year - 1, 12), (year, mon)):
+        keys = [f"{y}-{m:02d}" for m in range(1, upto + 1)]
+        if all(k in ytd for k in keys):
+            for m, k in enumerate(keys):
+                monthly[k] = ytd[k] - (ytd[keys[m - 1]] if m else 0)
     idx = months.index(args.month)
 
     def cum(y, upto):
@@ -291,7 +372,7 @@ def main(argv=None):
         if not any(diffs.values()):
             return {"label": "No net change", "amount": 0}
         k = max(diffs, key=lambda key: abs(diffs[key]))
-        return {"label": labels.get(code(k), re.sub(r"^\d+\s+", "", k)), "amount": round(diffs[k])}
+        return {"label": labels.get(code(k), strip_code(k)), "amount": round(diffs[k])}
 
     came_in = round(sum(inc_ytd.values()) - sum(inc_prior.values()))
     went_out = round(sum(sp_ytd.values()) - sum(sp_prior.values()))
@@ -475,6 +556,7 @@ def main(argv=None):
         "cash_history_note": cfg.get("cash_history_note", ""),
         "short_history": short_history,
         "full_years": cfg.get("long_view", {}).get("full_years", []),
+        "full_years_note": cfg.get("long_view", {}).get("note", ""),
         "pressure": cfg.get("long_view", {}).get("pressure"),
     }
     if not prev:

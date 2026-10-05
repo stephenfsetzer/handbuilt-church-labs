@@ -14,7 +14,8 @@ def cash_summary(bank, monthly_spending):
     elif monthly_spending > 0:
         months = bank / monthly_spending
         lead = "We can pay our bills" if months >= 1.5 else "Cash is tight"
-        answer = f"{lead}: {amount} in the bank covers about {months:.1f} months of spending."
+        cover = "less than a week of spending" if months < 0.25 else f"about {months:.1f} months of spending"
+        answer = f"{lead}: {amount} in the bank covers {cover}."
     else:
         answer = f"Bank cash is {amount}."
     if monthly_spending <= 0:

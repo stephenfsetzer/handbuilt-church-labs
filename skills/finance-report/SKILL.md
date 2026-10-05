@@ -81,6 +81,15 @@ month folder before asking anything.
    recorded result. Stop and report it. Never edit figures by hand to make a
    check pass.
 
+   If the church closes each year into a fund balance, equity moves without
+   a result and the build stops on last year's line or on the balance sheet
+   change. Ask the treasurer whether the books close into funds. If they do,
+   pull the profit and loss for January 1 through each month end of last
+   year, and through each month end this year before the prior month (the
+   two pulls above cover the last two; see `references/quickbooks.md`), and
+   add one `--pl-through YYYY-MM=PULL.json` per month. The build then
+   reads those years' monthly results from the profit and loss.
+
    Raise each item in the result's `needs_a_person` list: watch items that
    need this month's facts, new accounts that fell into "Everything else"
    (confirm or change the grouping in the settings), and earlier months that

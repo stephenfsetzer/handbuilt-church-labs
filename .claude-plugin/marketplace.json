@@ -9,7 +9,7 @@
       "name": "handbuilt-church-labs",
       "source": "./",
       "description": "Church workspace setup, sermon research and reflection, reviewable worship bulletins, and monthly finance reports.",
-      "version": "0.8.5",
+      "version": "0.8.6",
       "author": {
         "name": "Handbuilt",
         "url": "https://gethandbuilt.com"

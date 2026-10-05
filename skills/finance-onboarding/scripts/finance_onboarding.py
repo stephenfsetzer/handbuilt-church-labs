@@ -20,8 +20,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPORT_SCRIPTS = HERE.parents[1] / "finance-report" / "scripts"
 sys.path.insert(0, str(REPORT_SCRIPTS))
-from build_report_data import load_balance_sheet, load_pl, INCOME, EXPENSE  # noqa: E402
-from finance_setup import draft_accounts, draft_groups  # noqa: E402
+from build_report_data import load_balance_sheet, load_pl, code, strip_code, INCOME, EXPENSE  # noqa: E402
+from finance_setup import draft_accounts, draft_groups, plain  # noqa: E402
 
 STAGES = {
     1: ("Look", "Pull the books read-only and write the finance overview for the pastor."),
@@ -85,11 +85,32 @@ def log(st, text):
     st["log"].append({"date": date.today().isoformat(), "note": text})
 
 
+def largest_source(items, top, income):
+    """The largest source of income: the top group, or, when one heading holds most of the
+    income (more than 80%), the largest account or heading directly under it."""
+    if top["share"] <= 0.8 or not income or top["accounts"] == ["*"]:
+        return top
+    under = {}
+    for it in items:
+        if it["section"] not in INCOME:
+            continue
+        chain = [code(n) for n in it["chain"]]
+        if top["accounts"][0] not in chain[1:]:
+            continue
+        at = chain.index(top["accounts"][0])
+        child = it["chain"][at - 1]
+        under[child] = under.get(child, 0) + it["value"]
+    if len(under) < 2:
+        return top
+    name, amount = max(under.items(), key=lambda kv: kv[1])
+    return {"name": plain(name), "share": round(amount / income, 3)}
+
+
 def balances(rows, n):
     """Sum each account's opening row and change row by name."""
     out = {}
     for name, vals in rows:
-        base = re.sub(r"^\d+\s+", "", name)
+        base = strip_code(name)
         cur = out.get(base, [0.0] * n)
         out[base] = [a + b for a, b in zip(cur, vals)]
     return out
@@ -131,8 +152,8 @@ def cmd_look(args, root):
         "The first thing a board asks: can we pay our bills?")
     add("result", "info", f"Over the {period_months} months pulled, {money(inc)} came in and {money(exp)} went out, "
         f"{money(inc - exp)} {'ahead' if inc >= exp else 'short'}.", "The year's direction, before any detail.")
-    top = groups[0]
-    if top["share"] >= 0.5:
+    top = largest_source(items, groups[0], inc)
+    if top and top["share"] >= 0.5:
         add("concentration", "watch", f"{top['name']} is {top['share']:.0%} of income.",
             "Heavy reliance on one source is the main financial risk to name for the board.",
             f"How secure is {top['name']} over the next two years?")
