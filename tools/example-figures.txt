@@ -1,0 +1,25 @@
+# Made-up money figures that may appear in this public repository.
+#
+# tools/pii_check.py fails on any dollar amount of $1,000 or more, any
+# comma-grouped number in a finance file, and any --amount example that is not
+# listed here. Listing a figure says, in the pull request, that it is invented.
+# Never list a figure copied from a real church's books, reports or exports;
+# replace it with one from the synthetic Riverbend fixture
+# (tests/fixtures/finance/make_fixture.py) or another invented number.
+
+1,000      # the threshold named in pii_check.py
+1,250      # tests: Stripe and online gifts on the way to the bank
+1,800      # quickbooks.md: amount posted to an account heading
+2,140      # short-answer.md: example month's income
+3,900      # short-answer.md: example boiler repair
+4,500      # tests: designated roof reserve
+12,000     # tests: restricted memorial fund
+12,345     # tests: made-up gift and caption rounding
+12,600     # short-answer.md: example last-year result
+16,380     # short-answer.md: example month's spending
+18,450     # short-answer.md: example year so far
+21,300     # short-answer.md: example same point last year
+25,000     # Riverbend estate gift; finance_setup.py one-time example
+25,200     # tests: Riverbend 2025 result
+30,000     # short-answer.md: example unrecorded-month year
+92,400     # tests: Riverbend endowment

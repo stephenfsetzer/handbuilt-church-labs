@@ -101,6 +101,82 @@ class PublicationHygieneTest(unittest.TestCase):
             self.assertIn("history:.private/church.md", history.stdout)
             self.assertIn("tracked private path", history.stdout)
 
+    def test_unregistered_money_figures_are_caught_without_printing_them(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tools").mkdir()
+            (root / "tools" / "example-figures.txt").write_text("1,800  # invented\n", encoding="utf-8")
+            (root / "guide.md").write_text(
+                "We spent $1,800 on repairs.\nAugust brought in $" + "3,417 of giving.\n",
+                encoding="utf-8",
+            )
+            (root / "finance_notes.md").write_text("The year is 61," + "803 short.\n", encoding="utf-8")
+            (root / "setup.py").write_text("finance-report setup one-time --amount 98" + "765\n", encoding="utf-8")
+            result = run_checker(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertNotIn("guide.md:1 ", result.stdout)
+            self.assertIn("guide.md:2  [unregistered money figure]", result.stdout)
+            self.assertIn("finance_notes.md:1  [unregistered money figure]", result.stdout)
+            self.assertIn("setup.py:1  [unregistered money figure]", result.stdout)
+            self.assertIn("tools/example-figures.txt", result.stdout)
+            for figure in ("3,417", "61,803", "98765"):
+                self.assertNotIn(figure, result.stdout)
+
+    def test_registered_figures_small_amounts_and_word_counts_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tools").mkdir()
+            (root / "tools" / "example-figures.txt").write_text("$25,000\n12345\n", encoding="utf-8")
+            (root / "guide.md").write_text(
+                "An estate gift of $25,000.00 and a $12,345 bequest; coffee was $50 and $999.\n"
+                "Research runs 1,600 to 2,200 words.\n",
+                encoding="utf-8",
+            )
+            result = run_checker(root)
+            self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_this_repository_registers_every_money_figure(self) -> None:
+        result = run_checker(REPO_ROOT)
+        self.assertNotIn("unregistered money figure", result.stdout)
+
+    def test_scans_and_exports_are_blocked_once_committed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "fixture@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Fixture User"], cwd=root, check=True)
+            for name in ("report.pdf", "scan.png", "export.csv"):
+                (root / name).write_bytes(b"synthetic")
+            (root / "fonts").mkdir()
+            (root / "fonts" / "Body.ttf").write_bytes(b"\x00font")
+            self.assertEqual(run_checker(root).returncode, 0)
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            result = run_checker(root)
+            self.assertEqual(result.returncode, 1)
+            for name in ("report.pdf", "scan.png", "export.csv"):
+                self.assertIn(f"{name}  [private file type]", result.stdout)
+            self.assertNotIn("Body.ttf", result.stdout)
+
+    def test_pull_request_and_commit_text_is_scanned(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            denylist = Path(tmp) / "private-denylist.txt"
+            denylist.write_text("Example Parish\n", encoding="utf-8")
+            clean = Path(tmp) / "clean.txt"
+            clean.write_text("Read the year through the last recorded month.\n", encoding="utf-8")
+            self.assertEqual(run_checker(root, "--denylist", str(denylist), "--text", str(clean)).returncode, 0)
+            leaky = Path(tmp) / "pull-request.txt"
+            leaky.write_text(
+                "Found building Example Parish's report.\nThe year read $" + "17,402 ahead.\n",
+                encoding="utf-8",
+            )
+            result = run_checker(root, "--denylist", str(denylist), "--text", str(leaky))
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("text:pull-request.txt:1  [private denylist]", result.stdout)
+            self.assertIn("text:pull-request.txt:2  [unregistered money figure]", result.stdout)
+            self.assertNotIn("Example Parish", result.stdout)
+
     def test_checker_does_not_exempt_its_own_source(self) -> None:
         source = CHECKER.read_text(encoding="utf-8")
         self.assertNotIn("path.resolve() == SELF", source)
