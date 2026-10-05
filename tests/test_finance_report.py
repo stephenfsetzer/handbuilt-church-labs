@@ -533,7 +533,9 @@ class FinanceChartLayoutTests(unittest.TestCase):
                     run = {"this_year": [value] * month, "this_year_label": "2026",
                            "plan": [0] * 12, "last_year": [100] * 12, "last_year_label": "2025"}
                     root = ET.fromstring(self.renderer.chart_running(self.draw, run, pending))
-                    box = root.find("{*}rect")
+                    zones = [r for r in root.findall("{*}rect") if "data-zone" in r.attrib]
+                    self.assertTrue(zones)
+                    box = next(r for r in root.findall("{*}rect") if "data-zone" not in r.attrib)
                     label = next(t for t in root.findall("{*}text") if (t.text or "").startswith("2026:"))
                     left, width = float(box.attrib["x"]), float(box.attrib["width"])
                     self.assertGreaterEqual(left, 0)
