@@ -353,8 +353,14 @@ def chart_running(d, run, pending):
         return top + (hi - v) / span * (bottom - top)
 
     o = []
-    o.append(d.line(left, y(0), left + usable, y(0), t["ink"], 1.1))
-    end_labels = [(y(0) + 3.5, "break even", 9.5, 600)]
+    # Faint ahead and short zones either side of break even, so the line reads at a glance.
+    z = y(0)
+    if z > top:
+        o.append(f'<rect x="{left}" y="{top:.1f}" width="{usable:.1f}" height="{z - top:.1f}" fill="{t["positive_soft"]}" opacity="0.18"/>')
+    if z < bottom:
+        o.append(f'<rect x="{left}" y="{z:.1f}" width="{usable:.1f}" height="{bottom - z:.1f}" fill="{t["attention_soft"]}" opacity="0.16"/>')
+    o.append(d.line(left, z, left + usable, z, t["ink"], 1.6))
+    end_labels = [(y(0) + 3.5, "break even", 9.5, 700)]
 
     def path(vals, color, width, dash=None):
         pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(vals))
@@ -362,7 +368,7 @@ def chart_running(d, run, pending):
         return f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="{width}" stroke-linejoin="round"{da}/>'
 
     if has_plan:
-        o.append(path(run["plan"], t["muted"], 1.4, "5 3"))
+        o.append(path(run["plan"], t["muted"], 1.8, "5 3"))
     if has_last:
         o.append(path(run["last_year"], t["positive_soft"], 2.2))
     o.append(path(run["this_year"], t["positive"], 3))
