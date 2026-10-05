@@ -110,7 +110,7 @@ class PublicationHygieneTest(unittest.TestCase):
                 "We spent $1,800 on repairs.\nAugust brought in $" + "3,417 of giving.\n",
                 encoding="utf-8",
             )
-            (root / "finance_notes.md").write_text("The year is 27," + "209 short.\n", encoding="utf-8")
+            (root / "finance_notes.md").write_text("The year is 61," + "803 short.\n", encoding="utf-8")
             (root / "setup.py").write_text("finance-report setup one-time --amount 98" + "765\n", encoding="utf-8")
             result = run_checker(root)
             self.assertEqual(result.returncode, 1)
@@ -119,7 +119,7 @@ class PublicationHygieneTest(unittest.TestCase):
             self.assertIn("finance_notes.md:1  [unregistered money figure]", result.stdout)
             self.assertIn("setup.py:1  [unregistered money figure]", result.stdout)
             self.assertIn("tools/example-figures.txt", result.stdout)
-            for figure in ("3,417", "27,209", "98765"):
+            for figure in ("3,417", "61,803", "98765"):
                 self.assertNotIn(figure, result.stdout)
 
     def test_registered_figures_small_amounts_and_word_counts_pass(self) -> None:
