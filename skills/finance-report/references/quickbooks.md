@@ -39,6 +39,16 @@ pulls folder exactly as returned. Do not retype or summarize it.
   earnings from it directly. The builder takes each month's result as the
   change in Retained Earnings plus Net Income, which is right whatever the
   fiscal year, and checks it against the profit and loss.
+- **Profit and loss stops at 100 rows.** The connector returns at most 100
+  line rows, with no cursor and no warning. Section totals stay correct, so
+  a church with a large chart of accounts silently loses line items, usually
+  partway through Expenses. If a pull has exactly 100 rows, or its rows do
+  not add up to their section totals, treat it as cut off: stop and tell the
+  person in plain words. Do not draft groups or findings from it.
+- **The first profit and loss may ask for a company profile.** On first use
+  the connector can answer `profile_info_required` (industry and state).
+  Filling these in is a write to QuickBooks. Never fill them in on your own:
+  ask the pastor, name the two fields, and continue only with their yes.
 - **The books move.** Bookkeepers post late entries. Always pull fresh; a
   report rebuilt later will not match the one delivered, which is why final
   reports keep their own `report.json`.
