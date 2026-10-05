@@ -173,6 +173,19 @@ def metric_total(items, accounts):
 
 # --- main --------------------------------------------------------------------
 
+def watch_status(item, prev_watch):
+    """New, No change, Better or Worse against last month's item, as the report prints it."""
+    before = next((w for w in prev_watch if w.get("id") == item.get("id")), None)
+    if before is None:
+        return "New"
+    if "metric" in item and "metric" in before:
+        if item["metric"] == before["metric"]:
+            return "No change"
+        improved = item["metric"] < before["metric"] if item.get("better", "down") == "down" else item["metric"] > before["metric"]
+        return "Better" if improved else "Worse"
+    return "No change"
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--church-folder", default=".")
@@ -311,6 +324,7 @@ def main(argv=None):
                 month_name=mname, **{k: money(v) for k, v in metrics.items()}, **words)
         else:
             item["needs_update"] = True
+        item["status"] = watch_status(item, (prev or {}).get("watch") or [])
         watch.append(item)
     unrecorded = []
     for u in args.unrecorded:
