@@ -32,7 +32,20 @@ jobs:
       - name: Rehearse a packaged upgrade with church customizations
         run: python tests/smoke_managed_updates.py
       - name: Run public-tree hygiene check
-        run: python tools/pii_check.py
+        env:
+          PRIVATE_DENYLIST: ${{ secrets.HANDBUILT_PRIVATE_DENYLIST }}
+          FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          # The private denylist (church names, people, emails, addresses, account IDs and
+          # figures from real books) lives only in a repository secret, never in the tree.
+          if [ -n "$PRIVATE_DENYLIST" ]; then
+            printf '%s\n' "$PRIVATE_DENYLIST" > "$RUNNER_TEMP/private-denylist.txt"
+            export HANDBUILT_PRIVATE_DENYLIST="$RUNNER_TEMP/private-denylist.txt"
+          elif [ "$FROM_FORK" != "true" ]; then
+            echo "::error::The HANDBUILT_PRIVATE_DENYLIST repository secret is not set, so this run cannot check for private church data."
+            exit 1
+          fi
+          python tools/pii_check.py
       - name: Build the verified workflow distribution
         run: python tools/package_workflow.py --output-dir "$RUNNER_TEMP/handbuilt-release"
       - name: Verify the packaged entrypoint

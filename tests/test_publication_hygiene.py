@@ -101,6 +101,44 @@ class PublicationHygieneTest(unittest.TestCase):
             self.assertIn("history:.private/church.md", history.stdout)
             self.assertIn("tracked private path", history.stdout)
 
+    def test_unregistered_money_figures_are_caught_without_printing_them(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tools").mkdir()
+            (root / "tools" / "example-figures.txt").write_text("1,800  # invented\n", encoding="utf-8")
+            (root / "guide.md").write_text(
+                "We spent $1,800 on repairs.\nAugust brought in $" + "3,417 of giving.\n",
+                encoding="utf-8",
+            )
+            (root / "finance_notes.md").write_text("The year is 27," + "209 short.\n", encoding="utf-8")
+            (root / "setup.py").write_text("finance-report setup one-time --amount 98" + "765\n", encoding="utf-8")
+            result = run_checker(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertNotIn("guide.md:1 ", result.stdout)
+            self.assertIn("guide.md:2  [unregistered money figure]", result.stdout)
+            self.assertIn("finance_notes.md:1  [unregistered money figure]", result.stdout)
+            self.assertIn("setup.py:1  [unregistered money figure]", result.stdout)
+            self.assertIn("tools/example-figures.txt", result.stdout)
+            for figure in ("3,417", "27,209", "98765"):
+                self.assertNotIn(figure, result.stdout)
+
+    def test_registered_figures_small_amounts_and_word_counts_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tools").mkdir()
+            (root / "tools" / "example-figures.txt").write_text("$25,000\n12345\n", encoding="utf-8")
+            (root / "guide.md").write_text(
+                "An estate gift of $25,000.00 and a $12,345 bequest; coffee was $50 and $999.\n"
+                "Research runs 1,600 to 2,200 words.\n",
+                encoding="utf-8",
+            )
+            result = run_checker(root)
+            self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_this_repository_registers_every_money_figure(self) -> None:
+        result = run_checker(REPO_ROOT)
+        self.assertNotIn("unregistered money figure", result.stdout)
+
     def test_checker_does_not_exempt_its_own_source(self) -> None:
         source = CHECKER.read_text(encoding="utf-8")
         self.assertNotIn("path.resolve() == SELF", source)

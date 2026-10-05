@@ -5,6 +5,12 @@ This is a release hygiene check, not a complete privacy audit. A private
 denylist can be supplied outside the repository with ``--denylist`` or the
 ``HANDBUILT_PRIVATE_DENYLIST`` environment variable. Each non-empty,
 non-comment line is matched without printing the matching text.
+
+Money figures get a stricter rule because a real church's books look exactly
+like a made-up example. Every dollar amount of $1,000 or more, every
+comma-grouped number in a finance file, and every ``--amount`` example must be
+listed in ``tools/example-figures.txt``. Adding a figure there is a visible,
+deliberate statement in the pull request that the figure is invented.
 """
 
 from __future__ import annotations
@@ -92,6 +98,40 @@ DETECTION_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+FIGURE_REGISTRY = Path("tools") / "example-figures.txt"
+DOLLAR_FIGURE = re.compile(r"\$\s?([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})(?:\.[0-9]{1,2})?(?![0-9])")
+GROUPED_FIGURE = re.compile(r"(?<![0-9.,$])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,])")
+AMOUNT_OPTION = re.compile(r"--amount[ =]([0-9]{4,})(?![0-9])")
+
+
+def normalize_figure(raw: str) -> str:
+    return raw.replace("$", "").replace(",", "").strip().split(".")[0].lstrip("0") or "0"
+
+
+def load_figure_registry(root: Path) -> frozenset[str]:
+    path = root / FIGURE_REGISTRY
+    if not path.exists():
+        return frozenset()
+    figures = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        entry = line.split("#", 1)[0].strip()
+        if entry:
+            figures.add(normalize_figure(entry))
+    return frozenset(figures)
+
+
+def is_finance_path(location: str) -> bool:
+    return "finance" in location.casefold()
+
+
+def unregistered_figures(line: str, location: str, registry: frozenset[str]) -> bool:
+    found = [m.group(1) for m in DOLLAR_FIGURE.finditer(line)]
+    found += [m.group(1) for m in AMOUNT_OPTION.finditer(line)]
+    if is_finance_path(location):
+        found += [m.group(1) for m in GROUPED_FIGURE.finditer(line)]
+    return any(normalize_figure(figure) not in registry for figure in found)
+
+
 class Finding:
     def __init__(self, location: str, rule: str, line: int | None = None):
         self.location = location
@@ -174,12 +214,21 @@ def load_private_denylist(path: Path | None) -> list[str]:
     return terms
 
 
-def scan_text(text: str, location: str, denylist: Iterable[str]) -> list[Finding]:
+def scan_text(
+    text: str,
+    location: str,
+    denylist: Iterable[str],
+    figures: frozenset[str] | None = None,
+) -> list[Finding]:
+    """Scan one text. ``figures`` is the example-figure registry; None skips the money rule."""
     findings: list[Finding] = []
     for line_number, line in enumerate(text.splitlines(), 1):
         for rule, pattern in DETECTION_RULES:
             if pattern.search(line):
                 findings.append(Finding(location, rule, line_number))
+        if figures is not None and location != FIGURE_REGISTRY.as_posix():
+            if unregistered_figures(line, location, figures):
+                findings.append(Finding(location, "unregistered money figure", line_number))
         lowered = line.casefold()
         for _term in denylist:
             if _term.casefold() in lowered:
@@ -191,6 +240,7 @@ def scan_text(text: str, location: str, denylist: Iterable[str]) -> list[Finding
 def scan_worktree(root: Path, denylist: Iterable[str]) -> tuple[list[Finding], list[str]]:
     findings: list[Finding] = []
     errors: list[str] = []
+    figures = load_figure_registry(root)
     try:
         tracked = tracked_paths(root)
     except RuntimeError as exc:
@@ -218,7 +268,7 @@ def scan_worktree(root: Path, denylist: Iterable[str]) -> tuple[list[Finding], l
             errors.append(str(exc))
             continue
         if text is not None:
-            findings.extend(scan_text(text, location, denylist))
+            findings.extend(scan_text(text, location, denylist, figures))
     return findings, errors
 
 
@@ -320,6 +370,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PII CHECK FAILED: {len(findings)} hit(s)")
         for finding in findings:
             print(finding.display())
+        if any(finding.rule == "unregistered money figure" for finding in findings):
+            print(
+                "  Money figures must be invented. If a flagged figure is made up, add it to "
+                f"{FIGURE_REGISTRY.as_posix()}. If it came from a real church, replace it."
+            )
         return 1
     scope = "working tree and reachable Git history" if args.history else "working tree"
     print(f"PII check passed: no high-confidence findings in {scope}.")
