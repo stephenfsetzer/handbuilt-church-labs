@@ -851,8 +851,13 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
 
         fy = report["full_years"]
         one_time = [r for r in fy if r.get("one_time")]
+        def one_time_words(item):
+            # A one-time cost is recorded with a negative amount.
+            if item["amount"] < 0:
+                return f"a one-time cost of {money(-item['amount'])} ({esc(item['label'])})"
+            return f"a one-time {money(item['amount'])} {esc(item['label'])}"
         ot_note = " ".join(
-            f"{r['year']} leaves out a one-time {money(r['one_time']['amount'])} {esc(r['one_time']['label'])}"
+            f"{r['year']} leaves out {one_time_words(r['one_time'])}"
             f" (the books show {money(r['reported'], True)})." for r in one_time)
         def aw(v):
             return f"{money(v)} {'ahead' if v >= 0 else 'short'}"

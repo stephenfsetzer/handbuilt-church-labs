@@ -55,10 +55,12 @@ It writes `finance/board/setup-draft.json` and prints a summary.
    With an export, setup also offers a watch-list item for the largest cost
    area against its budget.
 5. **Unusual years.** Show each year's result and every one-time candidate
-   it found (loan forgiveness, bequests, insurance claims, large other
-   income). For each, ask whether it was a one-time item. Record each yes
-   with `<launcher> finance-report setup one-time --year Y --amount A --label "plain words"` (add `--done` on
-   the last), or `one-time --none`.
+   it found (loan forgiveness, bequests, insurance payments, large other
+   income, and costs such as storm damage or a large other expense). For
+   each, ask whether it was a one-time item. Record each yes with
+   `<launcher> finance-report setup one-time --year Y --amount A --label "plain words"` (add `--done` on
+   the last), or `one-time --none`. A cost carries a negative amount, as the
+   candidate shows it: `--amount=-A`. Two items in one year add together.
 6. **The pressure question.** Show the drafted pair (largest source of money
    against largest cost) and ask whether that is the tension the board
    watches. Write its one-sentence answer with the person.
