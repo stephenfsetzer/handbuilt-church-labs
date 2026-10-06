@@ -770,15 +770,15 @@ class OneTimeCandidateTests(unittest.TestCase):
 
     def test_flags_a_damage_cost_and_its_insurance_payment(self):
         items = [
-            {"name": "4000 Pledges", "section": "Income", "value": 12345.0},
-            {"name": "4800 Insurance reimbursement", "section": "Income", "value": 3900.0},
-            {"name": "6610 Storm damage repairs", "section": "Expenses", "value": 3900.0},
-            {"name": "6900 Office supplies", "section": "Expenses", "value": 1250.0},
-            {"name": "7000 Expense reimbursements", "section": "Expenses", "value": 1250.0},
+            {"name": "Pledges", "section": "Income", "value": 12345.0},
+            {"name": "Insurance reimbursement", "section": "Income", "value": 3900.0},
+            {"name": "Storm damage repairs", "section": "Expenses", "value": 3900.0},
+            {"name": "Office supplies", "section": "Expenses", "value": 1250.0},
+            {"name": "Expense reimbursements", "section": "Expenses", "value": 1250.0},
         ]
         flags = self.setup.one_time_flags(items, inc=16245.0, exp=6400.0)
-        self.assertEqual(flags, [{"name": "4800 Insurance reimbursement", "amount": 3900},
-                                 {"name": "6610 Storm damage repairs", "amount": -3900}])
+        self.assertEqual(flags, [{"name": "Insurance reimbursement", "amount": 3900},
+                                 {"name": "Storm damage repairs", "amount": -3900}])
 
     def test_two_items_in_one_year_add_together(self):
         with tempfile.TemporaryDirectory() as tmp:
