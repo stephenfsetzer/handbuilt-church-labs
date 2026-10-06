@@ -1,0 +1,46 @@
+# Made-up account numbers that may appear in this public repository.
+#
+# tools/pii_check.py fails on any account number in a finance file, or in pull
+# request and commit text, that is not listed here. It looks for a number
+# written with its account name ("6510 Utilities") and for quoted numbers with
+# hyphen, dot or letter parts ("2210-07", "7315B"). Listing a number says, in
+# the pull request, that it is invented. Never list a number or account name
+# copied from a real church's chart of accounts, reports or exports; use the
+# synthetic Riverbend chart (tests/fixtures/finance/make_fixture.py) or invent
+# a new one.
+
+# Riverbend chart (tests/fixtures/finance/make_fixture.py)
+1010
+1020
+1500
+4000
+4010
+4020
+4030
+4100
+4110
+4500
+4510
+4910
+6000
+6010
+6020
+6500
+6510
+6520
+7000
+7010
+7500
+7510
+
+# Invented shapes for account-number parsing tests (tests/test_finance_report.py)
+2210-07
+2211C
+3100-00
+3110
+3120
+3130
+3140-00
+3140.2
+7300-00
+7315B

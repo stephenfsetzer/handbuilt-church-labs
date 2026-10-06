@@ -43,10 +43,13 @@ Claude use the same canonical workflows under `skills/`.
    rehearsals belong elsewhere. Product specifications belong in the private
    Handbuilt product repository. Tests use synthetic fixtures.
    Never copy figures, names, or examples from a church folder, report, or
-   export into this repository, even as an illustration. Money figures in
+   export into this repository, even as an illustration. That includes any
+   church whose books a session has seen, not only your own. Money figures in
    docs and tests are invented, and each one is listed in
-   `tools/example-figures.txt`; `tools/pii_check.py` fails on any that is
-   not. Images, PDFs, office files, spreadsheets and accounting exports are
+   `tools/example-figures.txt`. Account numbers come from the synthetic
+   Riverbend chart or are invented, and each one is listed in
+   `tools/example-accounts.txt`. `tools/pii_check.py` fails on any figure or
+   account number that is not listed. Images, PDFs, office files, spreadsheets and accounting exports are
    never committed. Commit messages, pull request titles and descriptions,
    and release notes are public too: describe a bug in general terms, never
    with a church's name or figures. CI checks all of it, including against a
