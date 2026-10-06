@@ -39,8 +39,10 @@ from build_report_data import load_balance_sheet, load_pl, code, strip_code, INC
 PROCESSOR = re.compile(r"stripe|givebutter|paypal|square|venmo|tithe\.?ly|pushpay|vanco|"
                        r"clearing|undeposited|payment", re.I)
 INVEST = re.compile(r"invest|trust|endow|fund\b|brokerage|schwab|vanguard|fidelity|\bcd\b|certificate", re.I)
-ONE_TIME = re.compile(r"forgiv|bequest|estate|legacy|insurance claim|gain on sale|sale of|\bppp\b|"
-                      r"employee retention|\berc\b|one[- ]time", re.I)
+ONE_TIME = re.compile(r"forgiv|bequest|estate|legacy|insurance (?:claim|reimburs|proceeds|recover|settlement)|"
+                      r"gain on sale|sale of|\bppp\b|employee retention|\berc\b|one[- ]time", re.I)
+# Costs that make one year look worse than the church usually does: damage, a disaster, a settlement.
+ONE_TIME_COST = re.compile(r"damage|disaster|flood|\bfire\b|storm|lawsuit|settlement|one[- ]time", re.I)
 OBLIGATIONS = {
     "episcopal": ["Payroll tax filings", "Church Pension Fund", "Diocesan assessment", "Property insurance"],
     "lutheran": ["Payroll tax filings", "Portico benefits", "Synod mission support", "Property insurance"],
@@ -190,10 +192,7 @@ def cmd_draft(args, root):
         inc = sum(sections.get(s, 0) for s in INCOME)
         exp = sum(sections.get(s, 0) for s in EXPENSE)
         year = int(start[:4])
-        flagged = [{"name": it["name"], "amount": round(it["value"])} for it in items
-                   if it["section"] in INCOME and (ONE_TIME.search(it["name"]) or
-                   (it["section"] == "Other Income" and inc and it["value"] > 0.1 * inc))]
-        for f in flagged:
+        for f in one_time_flags(items, inc, exp):
             one_time_candidates.append({"year": year, **f})
         years.append({"year": year, "reported": round(inc - exp), "result": round(inc - exp),
                       "pressure": {"income": group_total(items, income, income[0]["name"], INCOME),
@@ -297,6 +296,19 @@ def cmd_budget(args, root):
                       "metrics": list(d["metrics"])}, indent=1))
 
 
+def one_time_flags(items, inc, exp):
+    """Lines in a full year that may be one-time: gifts and payments in, and costs out. A cost
+    (often paired with an insurance payment for it) carries a negative amount, so taking it out
+    of the year raises the result."""
+    gains = [{"name": it["name"], "amount": round(it["value"])} for it in items
+             if it["section"] in INCOME and (ONE_TIME.search(it["name"]) or
+             (it["section"] == "Other Income" and inc and it["value"] > 0.1 * inc))]
+    costs = [{"name": it["name"], "amount": -round(it["value"])} for it in items
+             if it["section"] in EXPENSE and it["value"] > 0 and (ONE_TIME_COST.search(it["name"]) or
+             (it["section"] == "Other Expenses" and exp and it["value"] > 0.1 * exp))]
+    return gains + costs
+
+
 def cmd_one_time(args, root):
     """Record a confirmed one-time item (it is taken out of that year's result), or none."""
     path = draft_path(root)
@@ -304,8 +316,12 @@ def cmd_one_time(args, root):
     if not args.none:
         for y in d["long_view"]["full_years"]:
             if y["year"] == args.year:
-                y["one_time"] = {"amount": args.amount, "label": args.label}
-                y["result"] = round(y["reported"] - args.amount)
+                # A second item in the same year (a damage cost and the insurance paid for it) adds to the first.
+                before = y.get("one_time")
+                amount = args.amount + (before["amount"] if before else 0)
+                label = f'{before["label"]} and {args.label}' if before else args.label
+                y["one_time"] = {"amount": amount, "label": label}
+                y["result"] = round(y["reported"] - amount)
                 break
         else:
             sys.exit(f"no {args.year} in the draft's full years")

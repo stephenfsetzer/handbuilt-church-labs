@@ -5,6 +5,7 @@ Riverbend Lutheran Church, QuickBooks responses in the connector's shapes).
 """
 from __future__ import annotations
 
+from argparse import Namespace
 import importlib.util
 import json
 from pathlib import Path
@@ -756,6 +757,48 @@ class ConcentrationTests(unittest.TestCase):
         self.assertEqual(self.onboarding.largest_source(items, top, 1000.0), {"name": "Preschool rent", "share": 0.6})
         spread = {**top, "share": 0.7}
         self.assertIs(self.onboarding.largest_source(items, spread, 1000.0), spread)
+
+
+class OneTimeCandidateTests(unittest.TestCase):
+    """A storm-damage cost and the insurance payment for it are both offered as one-time (invented figures)."""
+
+    @classmethod
+    def setUpClass(cls):
+        with mock.patch.object(sys, "path", [str(ENTRY.parent), *sys.path]):
+            import finance_setup
+        cls.setup = finance_setup
+
+    def test_flags_a_damage_cost_and_its_insurance_payment(self):
+        items = [
+            {"name": "Pledges", "section": "Income", "value": 12345.0},
+            {"name": "Insurance reimbursement", "section": "Income", "value": 3900.0},
+            {"name": "Storm damage repairs", "section": "Expenses", "value": 3900.0},
+            {"name": "Office supplies", "section": "Expenses", "value": 1250.0},
+            {"name": "Expense reimbursements", "section": "Expenses", "value": 1250.0},
+        ]
+        flags = self.setup.one_time_flags(items, inc=16245.0, exp=6400.0)
+        self.assertEqual(flags, [{"name": "Insurance reimbursement", "amount": 3900},
+                                 {"name": "Storm damage repairs", "amount": -3900}])
+
+    def test_two_items_in_one_year_add_together(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            draft = root / "finance/board/setup-draft.json"
+            draft.parent.mkdir(parents=True)
+            draft.write_text(json.dumps({"long_view": {"full_years": [{"year": 2025, "result": 25200, "reported": 25200}]},
+                                         "one_time_reviewed": False}))
+            with mock.patch.object(self.setup, "draft_path", return_value=draft), mock.patch("sys.stdout"):
+                self.setup.cmd_one_time(Namespace(none=False, done=False, year=2025, amount=3900.0, label="insurance payment"), root)
+                self.setup.cmd_one_time(Namespace(none=False, done=True, year=2025, amount=-3900.0, label="storm damage"), root)
+            year = json.loads(draft.read_text())["long_view"]["full_years"][0]
+            self.assertEqual(year["one_time"], {"amount": 0.0, "label": "insurance payment and storm damage"})
+            self.assertEqual(year["result"], 25200)
+
+    def test_flags_a_large_other_expense(self):
+        items = [{"name": "Loss on sale of equipment", "section": "Other Expenses", "value": 4500.0},
+                 {"name": "Bank fees", "section": "Other Expenses", "value": 12.0}]
+        self.assertEqual(self.setup.one_time_flags(items, inc=12345.0, exp=12000.0),
+                         [{"name": "Loss on sale of equipment", "amount": -4500}])
 
 
 class AccountNameTests(unittest.TestCase):
