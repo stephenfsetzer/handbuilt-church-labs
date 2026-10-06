@@ -12,6 +12,12 @@ comma-grouped number in a finance file, and every ``--amount`` example must be
 listed in ``tools/example-figures.txt``. Adding a figure there is a visible,
 deliberate statement in the pull request that the figure is invented.
 
+Account numbers get the same rule, because a chart of accounts is as
+identifying as the figures in it. In finance files and in pull request and
+commit text, an account number written with its name ("6510 Utilities"), or a
+quoted number with hyphen, dot or letter parts ("2210-07", "7315B"), must be
+listed in ``tools/example-accounts.txt``.
+
 Images, PDFs, office documents, spreadsheets and accounting exports are never
 committed: a scan, screenshot or export cannot be read for private material,
 so the file type itself is a finding. Fonts are the only binary files allowed.
@@ -115,6 +121,13 @@ FIGURE_REGISTRY = Path("tools") / "example-figures.txt"
 DOLLAR_FIGURE = re.compile(r"\$\s?([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})(?:\.[0-9]{1,2})?(?![0-9])")
 GROUPED_FIGURE = re.compile(r"(?<![0-9.,$])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,])")
 AMOUNT_OPTION = re.compile(r"--amount[ =]([0-9]{4,})(?![0-9])")
+ACCOUNT_REGISTRY = Path("tools") / "example-accounts.txt"
+ACCOUNT_CODE = r"[0-9]{3,5}(?:[-.][0-9]{1,3})*[A-Za-z]?"
+# A number followed by a capitalised name: "6510 Utilities", "2210-07 General Fund".
+NAMED_ACCOUNT = re.compile(rf"(?<![\w.$,/-])({ACCOUNT_CODE})[ \t]+(?=[A-Z][A-Za-z&]{{2}})")
+# A quoted number with parts, as in group settings: "2210-07", "7315B".
+QUOTED_ACCOUNT = re.compile(r"[\"']([0-9]{3,5}(?:[-.][0-9]{1,3})+[A-Za-z]?|[0-9]{3,5}[A-Za-z])[\"']")
+YEAR_OR_MONTH = re.compile(r"(?:19|20)[0-9]{2}(?:-(?:0[1-9]|1[0-2])(?:-[0-9]{2})?)?")
 
 
 def normalize_figure(raw: str) -> str:
@@ -131,6 +144,26 @@ def load_figure_registry(root: Path) -> frozenset[str]:
         if entry:
             figures.add(normalize_figure(entry))
     return frozenset(figures)
+
+
+def load_account_registry(root: Path) -> frozenset[str]:
+    path = root / ACCOUNT_REGISTRY
+    if not path.exists():
+        return frozenset()
+    accounts = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        entry = line.split("#", 1)[0].strip()
+        if entry:
+            accounts.add(entry.casefold())
+    return frozenset(accounts)
+
+
+def unregistered_accounts(line: str, registry: frozenset[str]) -> bool:
+    found = [m.group(1) for m in NAMED_ACCOUNT.finditer(line)]
+    found += [m.group(1) for m in QUOTED_ACCOUNT.finditer(line)]
+    return any(
+        not YEAR_OR_MONTH.fullmatch(code) and code.casefold() not in registry for code in found
+    )
 
 
 def is_finance_path(location: str) -> bool:
@@ -232,8 +265,15 @@ def scan_text(
     location: str,
     denylist: Iterable[str],
     figures: frozenset[str] | None = None,
+    accounts: frozenset[str] | None = None,
 ) -> list[Finding]:
-    """Scan one text. ``figures`` is the example-figure registry; None skips the money rule."""
+    """Scan one text. ``figures`` and ``accounts`` are the example registries; None skips that rule.
+
+    The account rule applies to finance files and to pull request and commit text.
+    """
+    check_accounts = accounts is not None and (
+        is_finance_path(location) or location.startswith("text:")
+    )
     findings: list[Finding] = []
     for line_number, line in enumerate(text.splitlines(), 1):
         for rule, pattern in DETECTION_RULES:
@@ -242,6 +282,8 @@ def scan_text(
         if figures is not None and location != FIGURE_REGISTRY.as_posix():
             if unregistered_figures(line, location, figures):
                 findings.append(Finding(location, "unregistered money figure", line_number))
+        if check_accounts and unregistered_accounts(line, accounts):
+            findings.append(Finding(location, "unregistered account number", line_number))
         lowered = line.casefold()
         for _term in denylist:
             if _term.casefold() in lowered:
@@ -254,6 +296,7 @@ def scan_worktree(root: Path, denylist: Iterable[str]) -> tuple[list[Finding], l
     findings: list[Finding] = []
     errors: list[str] = []
     figures = load_figure_registry(root)
+    accounts = load_account_registry(root)
     try:
         tracked = tracked_paths(root)
     except RuntimeError as exc:
@@ -286,7 +329,7 @@ def scan_worktree(root: Path, denylist: Iterable[str]) -> tuple[list[Finding], l
             errors.append(str(exc))
             continue
         if text is not None:
-            findings.extend(scan_text(text, location, denylist, figures))
+            findings.extend(scan_text(text, location, denylist, figures, accounts))
     return findings, errors
 
 
@@ -383,13 +426,14 @@ def main(argv: list[str] | None = None) -> int:
 
     findings, errors = scan_worktree(root, denylist)
     figures = load_figure_registry(root)
+    accounts = load_account_registry(root)
     for text_path in args.text:
         try:
             text = text_path.read_text(encoding="utf-8")
         except OSError as exc:
             errors.append(f"could not read {text_path}: {exc}")
             continue
-        findings.extend(scan_text(text, f"text:{text_path.name}", denylist, figures))
+        findings.extend(scan_text(text, f"text:{text_path.name}", denylist, figures, accounts))
     if args.history:
         history_findings, history_errors = scan_history(root, denylist)
         findings.extend(history_findings)
@@ -407,6 +451,12 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 "  Money figures must be invented. If a flagged figure is made up, add it to "
                 f"{FIGURE_REGISTRY.as_posix()}. If it came from a real church, replace it."
+            )
+        if any(finding.rule == "unregistered account number" for finding in findings):
+            print(
+                "  Account numbers must come from the invented Riverbend chart. If a flagged number "
+                f"is made up, add it to {ACCOUNT_REGISTRY.as_posix()}. If it came from a real "
+                "church's books, replace it."
             )
         return 1
     scope = "working tree and reachable Git history" if args.history else "working tree"

@@ -177,6 +177,36 @@ class PublicationHygieneTest(unittest.TestCase):
             self.assertIn("text:pull-request.txt:2  [unregistered money figure]", result.stdout)
             self.assertNotIn("Example Parish", result.stdout)
 
+    def test_unregistered_account_numbers_are_caught_in_finance_files_and_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            (root / "tools").mkdir(parents=True)
+            (root / "tools" / "example-accounts.txt").write_text("6510\n2210-07\n", encoding="utf-8")
+            (root / "finance_notes.md").write_text(
+                '"6510 Utilities" and the "2210-07" fund.\n'
+                "The 2026-08 report covers 2025 Giving and 3 Sundays.\n"
+                '"88' + '31-04 Choir Robes" and the group ["' + '9925Q"].\n',
+                encoding="utf-8",
+            )
+            (root / "guide.md").write_text("Room 88" + "31 Choir practice.\n", encoding="utf-8")
+            result = run_checker(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertNotIn("finance_notes.md:1 ", result.stdout)
+            self.assertNotIn("finance_notes.md:2 ", result.stdout)
+            self.assertIn("finance_notes.md:3  [unregistered account number]", result.stdout)
+            self.assertNotIn("guide.md", result.stdout)
+            self.assertIn("tools/example-accounts.txt", result.stdout)
+            for code in ("8831", "9925Q"):
+                self.assertNotIn(code, result.stdout)
+            text = Path(tmp) / "commit.txt"
+            text.write_text("Strip numbers like 44" + "02B Sexton Wages.\n", encoding="utf-8")
+            result = run_checker(root, "--text", str(text))
+            self.assertIn("text:commit.txt:1  [unregistered account number]", result.stdout)
+
+    def test_this_repository_registers_every_account_number(self) -> None:
+        result = run_checker(REPO_ROOT)
+        self.assertNotIn("unregistered account number", result.stdout)
+
     def test_checker_does_not_exempt_its_own_source(self) -> None:
         source = CHECKER.read_text(encoding="utf-8")
         self.assertNotIn("path.resolve() == SELF", source)

@@ -3,7 +3,7 @@
 
     python3 build_report_data.py --church-folder . --month 2026-08 \
         --balance-sheet PULL.json --pl-ytd PULL.json [--pl-prior PULL.json] \
-        [--unrecorded "1500|Hall rent received August 21, not yet recorded"]
+        [--unrecorded "1500|Preschool rent received August 21, not yet recorded"]
 
 Inputs (saved connector responses, JSON):
   --balance-sheet  balance sheet split by month, from config history_start
@@ -45,12 +45,12 @@ def money(v):
 # --- account names ------------------------------------------------------------
 
 # An account number at the start of a QuickBooks account name: digits, then any
-# hyphen or dot parts, then at most one letter ("6600", "1006-01", "5002A").
+# hyphen or dot parts, then at most one letter ("6520", "2210-07", "7315B").
 ACCOUNT_CODE = r"\d+(?:[-.]\d+)*[A-Za-z]?"
 
 
 def strip_code(name):
-    """'1006-01 Operating Fund' -> 'Operating Fund'; a name with no number is unchanged."""
+    """'2210-07 General Fund' -> 'General Fund'; a name with no number is unchanged."""
     return re.sub(rf"^{ACCOUNT_CODE}\s+", "", name)
 
 
@@ -73,7 +73,7 @@ def load_balance_sheet(path):
 
 
 def account_total(rows, names, n):
-    """The connector prints each account as an opening row ('1002 Name') and a
+    """The connector prints each account as an opening row ('1020 Name') and a
     change row ('Name'). The balance is their sum."""
     total = [0.0] * n
     for name, vals in rows:

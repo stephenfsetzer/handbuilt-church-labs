@@ -149,13 +149,13 @@ class FinanceReportTests(unittest.TestCase):
     def test_the_settings_note_on_whole_years_is_printed(self):
         config_path = self.church / "finance/board/config.json"
         config = json.loads(config_path.read_text())
-        config["long_view"]["note"] = "Whole years leave out the roof campaign."
+        config["long_view"]["note"] = "Whole years leave out the organ fund."
         config_path.write_text(json.dumps(config))
         self.assertEqual(self.build("2026-08")[1], 0)
         report = json.loads((self.board / "2026-08/report.json").read_text())
-        self.assertEqual(report["full_years_note"], "Whole years leave out the roof campaign.")
+        self.assertEqual(report["full_years_note"], "Whole years leave out the organ fund.")
         self.assertEqual(self.render("2026-08")[1], 0)
-        self.assertIn("Whole years leave out the roof campaign.", page_text(self.church, "2026-08"))
+        self.assertIn("Whole years leave out the organ fund.", page_text(self.church, "2026-08"))
 
     def test_books_closed_into_a_fund_read_monthly_results_from_profit_and_loss_pulls(self):
         self.assertEqual(self.build("2026-08")[1], 0)
@@ -749,12 +749,12 @@ class ConcentrationTests(unittest.TestCase):
         spec.loader.exec_module(cls.onboarding)
 
     def test_the_largest_account_under_a_heading_that_holds_most_income(self):
-        items = [{"name": "4100 Plate", "chain": ["4100 Plate", "4000-00 Operating Income", "Income"], "section": "Income", "value": 300.0},
-                 {"name": "4200 Hall rent", "chain": ["4200 Hall rent", "4000-00 Operating Income", "Income"], "section": "Income", "value": 600.0},
-                 {"name": "4300 Gifts", "chain": ["4300 Gifts", "4000-00 Operating Income", "Income"], "section": "Income", "value": 90.0},
+        items = [{"name": "3110 Plate", "chain": ["3110 Plate", "3100-00 Operating Income", "Income"], "section": "Income", "value": 300.0},
+                 {"name": "3120 Preschool rent", "chain": ["3120 Preschool rent", "3100-00 Operating Income", "Income"], "section": "Income", "value": 600.0},
+                 {"name": "3130 Gifts", "chain": ["3130 Gifts", "3100-00 Operating Income", "Income"], "section": "Income", "value": 90.0},
                  {"name": "Interest", "chain": ["Interest", "Other Income"], "section": "Other Income", "value": 10.0}]
-        top = {"name": "Operating income", "accounts": ["4000-00"], "share": 0.99}
-        self.assertEqual(self.onboarding.largest_source(items, top, 1000.0), {"name": "Hall rent", "share": 0.6})
+        top = {"name": "Operating income", "accounts": ["3100-00"], "share": 0.99}
+        self.assertEqual(self.onboarding.largest_source(items, top, 1000.0), {"name": "Preschool rent", "share": 0.6})
         spread = {**top, "share": 0.7}
         self.assertIs(self.onboarding.largest_source(items, spread, 1000.0), spread)
 
@@ -812,26 +812,26 @@ class AccountNameTests(unittest.TestCase):
         cls.build, cls.setup = build_report_data, finance_setup
 
     def test_numbers_come_off_names_whatever_their_shape(self):
-        for name, plain, number in (("6600 Physical Plant", "Physical Plant", "6600"),
-                                    ("1006-01 Operating Fund Income", "Operating Fund Income", "1006-01"),
-                                    ("4010-00 Plate Offering", "Plate Offering", "4010-00"),
-                                    ("5002A Associate Pastor Expenses", "Associate Pastor Expenses", "5002A"),
-                                    ("4010.5 Easter Offering", "Easter Offering", "4010.5"),
+        for name, plain, number in (("6520 Repairs", "Repairs", "6520"),
+                                    ("2210-07 General Fund Income", "General Fund Income", "2210-07"),
+                                    ("3140-00 Loose Plate", "Loose Plate", "3140-00"),
+                                    ("7315B Youth Ministry Expenses", "Youth Ministry Expenses", "7315B"),
+                                    ("3140.2 Christmas Offering", "Christmas Offering", "3140.2"),
                                     ("1st Sunday Offering", "1st Sunday Offering", "1st Sunday Offering"),
                                     ("Money Market", "Money Market", "Money Market")):
             with self.subTest(name=name):
                 self.assertEqual(self.build.strip_code(name), plain)
                 self.assertEqual(self.build.code(name), number)
-        self.assertEqual(self.setup.plain("1006-01 OPERATING FUND INCOME"), "Operating fund income")
-        self.assertEqual(self.setup.plain("5002A Associate Pastor Expenses"), "Associate Pastor Expenses")
+        self.assertEqual(self.setup.plain("2210-07 GENERAL FUND INCOME"), "General fund income")
+        self.assertEqual(self.setup.plain("7315B Youth Ministry Expenses"), "Youth Ministry Expenses")
 
     def test_opening_and_change_rows_pair_when_numbers_have_parts(self):
-        rows = [("Checking", [10.0, 20.0]), ("1006-01 Checking", [100.0, 100.0]),
-                ("Reserve", [1.0, 2.0]), ("1007A Reserve", [50.0, 50.0])]
+        rows = [("Checking", [10.0, 20.0]), ("2210-07 Checking", [100.0, 100.0]),
+                ("Reserve", [1.0, 2.0]), ("2211C Reserve", [50.0, 50.0])]
         self.assertEqual(self.build.account_total(rows, {"Checking"}, 2), [110.0, 120.0])
         self.assertEqual(self.build.account_total(rows, {"Reserve"}, 2), [51.0, 52.0])
         self.assertTrue(self.build.account_present(rows, "Reserve"))
-        items = [{"name": "5002A Associate Pastor", "chain": ["5002A Associate Pastor", "5000-00 Staff"], "section": "Expenses", "value": 30.0},
+        items = [{"name": "7315B Youth Ministry", "chain": ["7315B Youth Ministry", "7300-00 Programs"], "section": "Expenses", "value": 30.0},
                  {"name": "Office supplies", "chain": ["Office supplies"], "section": "Expenses", "value": 5.0}]
-        groups = [{"name": "Staff", "accounts": ["5000-00"]}, {"name": "Everything else", "accounts": ["*"]}]
-        self.assertEqual(self.build.group_items(items, groups, self.build.EXPENSE), {"Staff": 30.0, "Everything else": 5.0})
+        groups = [{"name": "Programs", "accounts": ["7300-00"]}, {"name": "Everything else", "accounts": ["*"]}]
+        self.assertEqual(self.build.group_items(items, groups, self.build.EXPENSE), {"Programs": 30.0, "Everything else": 5.0})

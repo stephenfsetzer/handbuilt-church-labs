@@ -42,7 +42,7 @@ It writes `finance/board/setup-draft.json` and prints a summary.
    that happened.
 2. **Money in.** Show the groups (at most five, the last one catches the
    rest) with twelve-month amounts. Ask for plain names a board member would
-   use (for example, "4110 Rental Income @ Main Hall" becomes "Hall rent"). Offer to merge
+   use (for example, "4110 Preschool Rent @ Fellowship Room" becomes "Preschool rent"). Offer to merge
    groups. Edit the draft's `income_groups` names, notes, and accounts.
 3. **Money out.** The same for `spending_groups`. If one area needs a
    separate line (for example, legal fees filed under building costs), add a
