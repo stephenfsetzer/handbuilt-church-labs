@@ -33,11 +33,11 @@ it as `--pl-through YYYY-MM=pulls/pl-through-YYYY-MM.json`.
   `monthlyBreakdown` double-count or come back as zero. The builder reads the
   line rows (`reportData.data.rows`) only.
 - **Amounts posted to a heading.** A parent account can carry its own amount
-  (for example $1,800 posted to "9000 Misc Expenses" itself). The builder
+  (for example $1,800 posted to "7500 OFFICE" itself). The builder
   adds these; its total check catches any it misses.
 - **Opening balance plus change.** In a split balance sheet each account
-  appears twice: a numbered row with the opening balance ("1002 Money
-  Market") and an unnumbered row with the change since ("Money Market").
+  appears twice: a numbered row with the opening balance ("1020
+  Savings") and an unnumbered row with the change since ("Savings").
   The balance is their sum.
 - **The connector's fiscal year.** It assumes a fiscal year starting in
   August, so its "quarters" end January, April, July, and October, and its

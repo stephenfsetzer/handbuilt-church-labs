@@ -48,7 +48,7 @@ OBLIGATIONS = {
 
 
 def plain(name):
-    """'6600 Physical Plant' -> 'Physical plant'."""
+    """'6510 UTILITIES' -> 'Utilities'."""
     n = strip_code(name).strip()
     n = n.replace("&", "and")
     return n[:1].upper() + n[1:].lower() if n.isupper() else n

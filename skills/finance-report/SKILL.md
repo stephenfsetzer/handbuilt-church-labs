@@ -73,7 +73,7 @@ month folder before asking anything.
      --balance-sheet finance/board/YYYY-MM/pulls/balance-sheet.json \
      --pl-ytd finance/board/YYYY-MM/pulls/pl-ytd.json \
      --pl-prior finance/board/YYYY-MM/pulls/pl-prior.json \
-     [--unrecorded "1500|Hall rent received August 21, not yet recorded"]
+     [--unrecorded "1500|Preschool rent received August 21, not yet recorded"]
    ```
 
    A blocked result means something does not agree: a total with
