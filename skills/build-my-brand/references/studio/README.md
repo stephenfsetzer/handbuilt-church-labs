@@ -14,7 +14,7 @@ otherwise.
 | Creative director | [creative-director.md](creative-director.md) | judgment, with vision; the host session | The direction, every presentation, the kill decision on any internal round, the recommendation |
 | Senior designer | [senior-designer.md](senior-designer.md) | judgment, with vision | Direction development and refinement: whole compositions in context, mark and system together |
 | Researcher | [researcher.md](researcher.md) | judgment | A reference board of named real work, plus saved reference images in a private scratch path the makers can see |
-| Makers | [maker.md](maker.md) | making, or an image tool | Wide internal exploration against the senior designer's brief, including non-literal constructions; never the source of a presentation on their own |
+| Makers | [maker.md](maker.md) | making, with an image model | Logo designers who write one editorial brief per concept and run draw, edit, and vectorize; wide internal exploration, including non-literal constructions; never the source of a presentation on their own |
 | Producer | [producer.md](producer.md) | making | Clean vectors on a grid, the mark family, the small variant, exports, the sub-brand generator, the survival checks |
 
 Tiers are mapped to models per host in [routing.md](routing.md).
@@ -38,6 +38,10 @@ Tiers are mapped to models per host in [routing.md](routing.md).
 
 ```bash
 python3 "<church-folder>/handbuilt.py" build-my-brand explore     --round <name> --files <svg|png> ... [--maker <name>] [--dark <hex>]
+python3 "<church-folder>/handbuilt.py" build-my-brand draw        --round <name> --brief-file <md> [--n N] [--reference <png> ...] [--provider openai|recraft]
+python3 "<church-folder>/handbuilt.py" build-my-brand edit        --round <name> --source <png> --instruction-file <md> [--n N]
+python3 "<church-folder>/handbuilt.py" build-my-brand vectorize   --source <png> --out brand/staging/marks/<name>.svg
+python3 "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <md> --tool "<name>"
 python3 "<church-folder>/handbuilt.py" build-my-brand redirect    --round <name> --reason "<why>" [--rebrief-file <md>]
 python3 "<church-folder>/handbuilt.py" build-my-brand record      --stage develop|refine-1|refine-2 --content-file <md> --metadata-file <json>
 python3 "<church-folder>/handbuilt.py" build-my-brand check-marks [--primary <svg> --small <svg>] [--dark <hex>]
@@ -56,6 +60,12 @@ python3 "<church-folder>/handbuilt.py" build-my-brand check-marks [--primary <sv
   sketches (SVG or PNG) out on a contact sheet under
   `brand/staging/explorations/<round>/` with a receipt. Nothing is scored.
   The guide shows a curated sample; the pastor never sees a raw round.
+- **The symbol comes from an image model.** `draw` and `edit` save every
+  image flattened onto white into the round, with a receipt naming the
+  provider, the model, the brief's path and hash, input and output hashes,
+  and the cost when the service reports one. `vectorize` folds the chosen
+  raster into one even-odd `currentColor` path and runs the mark checks.
+  `import-images` does the same bookkeeping for a host's own image tool.
 - **The creative director's redirect is a receipted operation.** `redirect`
   stops a round, records why, and can carry a new brief. The round stays as
   the record of what was considered; the run is not archived.

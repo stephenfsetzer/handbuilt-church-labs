@@ -19,7 +19,9 @@ Say "Build my brand." The agent will:
    directions, each shown on your own bulletin cover, a real announcement,
    and your website. Then your chosen direction developed as a whole, with
    a recommendation, and tightened twice with your reactions. Then colors,
-   type, and voice, each confirmed on the real thing. Each round is a short
+   type, and voice, each confirmed on the real thing. Your mark is drawn by
+   an image tool from a written brief, shaped by your reactions, and then
+   turned into a clean file that prints in one color. Each round is a short
    lesson, concrete things to compare, and your pick. You are never asked to
    describe a feeling.
 6. Build the brand and every weekly template, including how an announcement

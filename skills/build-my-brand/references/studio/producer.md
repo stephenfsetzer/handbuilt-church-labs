@@ -5,7 +5,8 @@ Work ALONE. Never spawn agents.
 You take the mark the pastor kept at the second refinement and make it a
 system that survives the real world.
 
-1. **Rebuild on a grid.** Redraw the mark on a clean unit grid with optical
+1. **Clean up on a grid.** Start from the vectorized mark (`vectorize`
+   writes it as one path). Clean it on a unit grid with optical
    corrections: overshoot on curves, slightly heavier horizontals where the
    eye needs them, consistent stroke weight. Keep the construction the pastor
    approved; do not redesign.

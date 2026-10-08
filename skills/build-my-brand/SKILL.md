@@ -27,6 +27,7 @@ Read a reference only when its stage is reached:
 - [Lessons](references/lessons.md): the teach-and-choose rounds.
 - [Direction proposals](references/direction-proposals.md): how to build and show directions.
 - [The studio](references/studio/README.md): the firm's roles, the phases after direction, and [model routing](references/studio/routing.md).
+- [Image briefs](references/image-briefs.md): the editorial brief an image model needs for each concept.
 - [Brand system](references/brand-system.md): what build stages, the schema, the survival checks, and the templates.
 - [Guide format](references/guide-format.md): how each guide section is written.
 - [Small operations](references/small-operations.md): lockups, announcement images, posters, seasonal color, on-brand checks after the workflow.
@@ -158,11 +159,12 @@ ALONE. Never spawn agents."
 
 1. The researcher builds a reference board and saves reference images under
    the run's private scratch path for the makers to see.
-2. Makers explore wide, internally, with at least two non-literal
-   territories per round, as SVG or image-tool form-finding. `explore`
-   lays each round out on a contact sheet. Judge it against the direction
-   board. If it is generic, `redirect` it with a reason and a new brief; the
-   redirect is receipted and the run is not archived.
+2. Makers are logo designers who write image briefs. They explore wide,
+   internally, with at least two non-literal territories per round, one
+   editorial brief per concept, run through the image studio below. Each
+   round lands on a contact sheet. Judge it against the direction board. If
+   it is generic, `redirect` it with a reason and a new brief; the redirect
+   is receipted and the run is not archived.
 3. The senior designer presents two or three developed versions on the
    direction's applications plus the sign and the social avatar, with a
    recommendation. Record `develop` with `applications`, `boards`,
@@ -174,11 +176,47 @@ ALONE. Never spawn agents."
 Color and type are confirmed on the developed system in their own rounds.
 Voice is derived from the pastor's picks among rewrites.
 
-Raster image generation is not required. Claude and Codex author vectors
-directly. Where a host or the pastor supplies an image tool, it may be used
-for form-finding and for mockups in context, with the direction board and
-references in front of it; explorations stay under staging as the record,
-and the chosen mark is always an editable SVG.
+### The image studio: where the symbol comes from
+
+Language models cannot draw a church mark. Hand-written SVG and agents
+drawing from prose produce generic clip art, however clean. The symbol comes
+from an image model given a full editorial brief per concept (see
+[Image briefs](references/image-briefs.md)). Claude and Codex write the
+briefs, curate the results, compose the boards, and write the system.
+Hand-authored SVG is for construction and cleanup (the grid, the wordmark,
+lockups, the small variant), never for the symbol itself.
+
+The loop: draw a round from the briefs, show the pastor two or three and
+take reactions, draw again or make precise edits of the chosen image, then
+vectorize the one the pastor keeps.
+
+```bash
+python3 "<church-folder>/handbuilt.py" build-my-brand draw --round <name> --brief-file <brief.md> [--n 4] [--reference <png> ...] [--provider openai|recraft]
+python3 "<church-folder>/handbuilt.py" build-my-brand edit --round <name> --source <chosen.png> --instruction-file <edit.md> [--n 2]
+python3 "<church-folder>/handbuilt.py" build-my-brand vectorize --source <chosen.png> --out brand/staging/marks/mark.svg
+python3 "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <brief.md> --tool "<tool>"
+python3 "<church-folder>/handbuilt.py" build-my-brand keys status
+```
+
+Every image is flattened onto white before review (a transparent PNG
+otherwise shows its ground as black) and laid out on the round's contact
+sheet. Receipts record the provider, the model, the brief's path and hash,
+input and output hashes, and the cost only when the service reports one.
+`vectorize` sends the chosen raster to Recraft and folds the result into
+one path painted with `currentColor`, fill rule even-odd, square viewBox,
+the white ground removed and the counters cut as holes, then runs the mark
+checks on it. When a host has its own image tool (Codex's built-in image
+generator, for example), make the images there and register them with
+`import-images`; no network is used.
+
+Service keys live on the computer, never in the church folder: the
+environment (`OPENAI_API_KEY`, `RECRAFT_API_KEY`) or a key file in the
+Handbuilt support folder. `keys status` shows which services are set up
+without printing a key; `keys set --provider <name>` reads the key from
+standard input. If a key is missing, say so plainly and offer the host's own
+image tool; never ask the pastor to paste a key into the conversation.
+Explorations stay under staging as the record, and the chosen mark is
+always an editable SVG.
 
 ## 6. Build into staging
 

@@ -42,7 +42,8 @@ OPERATIONS = {
     "sermon-reflection": {"orient", "open", "done", "record", "speaker-copy"},
     "finance-onboarding": {"orient", "look", "readiness", "calendar", "stage"},
     "finance-report": {"status", "setup", "build", "render"},
-    "build-my-brand": {"orient", "record", "explore", "redirect", "check-marks", "stage-brand", "approve", "render-guide", "restart"},
+    "build-my-brand": {"orient", "record", "explore", "redirect", "draw", "edit", "vectorize", "import-images", "keys",
+                       "check-marks", "stage-brand", "approve", "render-guide", "restart"},
 }
 # Workflows that make PDFs check the full PDF runtime before they start.
 PDF_WORKFLOWS = {"bulletin", "finance-report"}

@@ -15,6 +15,7 @@ sys.path.insert(0, str(SKILL_DIR))
 from brand_workflow import (  # noqa: E402
     LEGACY_STAGES, STAGES, approve, check_marks, explore, orient, record, redirect, render_guide, restart, stage_brand,
 )
+from brand_workflow import images  # noqa: E402
 
 
 class _Parser(argparse.ArgumentParser):
@@ -56,6 +57,45 @@ def _parser() -> argparse.ArgumentParser:
     item.add_argument("--reason", required=True)
     item.add_argument("--rebrief-file", help="A Markdown file with the new brief")
 
+    item = sub.add_parser("draw", help="Send an editorial brief to an image model and lay the round out on a contact sheet")
+    item.add_argument("--church-folder", required=True)
+    item.add_argument("--round", required=True)
+    item.add_argument("--brief-file", required=True, help="A Markdown editorial brief inside the church folder")
+    item.add_argument("--n", type=int, default=4, help=f"How many images, 1 to {images.MAX_IMAGES}")
+    item.add_argument("--reference", nargs="+", default=[], help="Reference PNGs inside the church folder")
+    item.add_argument("--provider", choices=("openai", "recraft"), default="openai")
+    item.add_argument("--model", help="Override the image model for this request")
+    item.add_argument("--size", default=images.DEFAULT_SIZE)
+    item.add_argument("--maker")
+
+    item = sub.add_parser("edit", help="A precise edit of one chosen image, for variations")
+    item.add_argument("--church-folder", required=True)
+    item.add_argument("--round", required=True)
+    item.add_argument("--source", required=True, help="The chosen PNG inside the church folder")
+    item.add_argument("--instruction-file", required=True, help="A Markdown file saying exactly what changes and what stays")
+    item.add_argument("--n", type=int, default=2)
+    item.add_argument("--model")
+    item.add_argument("--size", default=images.DEFAULT_SIZE)
+    item.add_argument("--maker")
+
+    item = sub.add_parser("vectorize", help="Turn the chosen raster into one currentColor path and check it")
+    item.add_argument("--church-folder", required=True)
+    item.add_argument("--source", required=True, help="The chosen PNG inside the church folder")
+    item.add_argument("--out", required=True, help="The SVG to write under brand/staging/, for example brand/staging/marks/mark.svg")
+    item.add_argument("--dark", help="The dark color for the reversal check, six-digit hex")
+
+    item = sub.add_parser("import-images", help="Register images the host made with its own image tool (no network)")
+    item.add_argument("--church-folder", required=True)
+    item.add_argument("--round", required=True)
+    item.add_argument("--files", nargs="+", required=True)
+    item.add_argument("--prompt-file", required=True, help="The brief or prompt the host's tool was given")
+    item.add_argument("--tool", required=True, help="The tool that made the images")
+
+    item = sub.add_parser("keys", help="Which image services are set up on this computer, or save a key (read from standard input)")
+    item.add_argument("action", choices=("status", "set"))
+    item.add_argument("--church-folder")
+    item.add_argument("--provider", choices=tuple(sorted(images.KEY_ENVIRONMENT)))
+
     item = sub.add_parser("check-marks", help="Run the pass/fail survival checks on the marks")
     item.add_argument("--church-folder", required=True)
     item.add_argument("--primary", help="The primary mark SVG under brand/staging/ (defaults to the staged system)")
@@ -93,6 +133,23 @@ def main() -> int:
     elif args.command == "redirect":
         rebrief = Path(args.rebrief_file).read_text(encoding="utf-8") if args.rebrief_file else None
         result = redirect(args.church_folder, args.round, args.reason, rebrief=rebrief)
+    elif args.command == "draw":
+        result = images.draw(args.church_folder, args.round, args.brief_file, n=args.n, references=args.reference,
+                             provider=args.provider, model=args.model, size=args.size, maker=args.maker)
+    elif args.command == "edit":
+        result = images.edit(args.church_folder, args.round, args.source, args.instruction_file, n=args.n,
+                             model=args.model, size=args.size, maker=args.maker)
+    elif args.command == "vectorize":
+        result = images.vectorize(args.church_folder, args.source, args.out, dark=args.dark)
+    elif args.command == "import-images":
+        result = images.import_images(args.church_folder, args.round, args.files, args.prompt_file, tool=args.tool)
+    elif args.command == "keys":
+        if args.action == "status":
+            result = images.keys_status(args.church_folder)
+        elif not args.provider:
+            result = {"status": "blocked", "errors": [{"code": "invalid_arguments", "message": "keys set needs --provider"}]}
+        else:
+            result = images.keys_set(args.provider, sys.stdin.readline(), args.church_folder)
     elif args.command == "check-marks":
         result = check_marks(args.church_folder, primary=args.primary, small=args.small, dark=args.dark)
     elif args.command == "stage-brand":
