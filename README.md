@@ -74,6 +74,22 @@ suggestion. It can also make a large-type speaker's copy to print. The
 [sermon reflection guide](handbook/sermon-reflection.md) shows every step as a
 flowchart.
 
+### Sermon video
+
+```text
+Prepare this Sunday's sermon video.
+```
+
+Point the agent at your church's video page, or give it a recording on your
+computer. It finds the full service on YouTube, Vimeo, or another public
+player, locates the sermon, and cuts it with its first and last words intact.
+It adds a short opening card, a name panel, and a closing card in your
+church's colors, makes a thumbnail, and drafts captions. Everything lands on a
+review page you can play in your browser. Labels such as the preacher and the
+Scripture appear on the video only when a bulletin, the recording, or you
+confirm them. Nothing is uploaded or published. See the
+[sermon video guide](handbook/sermon-video.md).
+
 ### Worship bulletins
 
 ```text
@@ -202,7 +218,7 @@ https://github.com/stephenfsetzer/handbuilt-church-labs.git
 
 Choose the offered **Use [pasted URL]** option, then choose **Sync**.
 In **Discover**, choose **Add Handbuilt Church Labs**.
-Open **Yours** and confirm that the detail view shows version 0.8.7, six
+Open **Yours** and confirm that the detail view shows version 0.8.7, seven
 skills, and **Enable plugin** on. The success message is
 “Handbuilt Church Labs is installed and ready to use.”
 

@@ -44,6 +44,8 @@ TEXT_EXTENSIONS = {
     ".css",
     ".html",
     ".ini",
+    ".cjs",
+    ".js",
     ".json",
     ".md",
     ".py",
