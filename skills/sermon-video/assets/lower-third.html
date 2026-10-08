@@ -1,0 +1,8 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Sermon name panel</title><style>
+@import url('assets/fonts.css');
+*{box-sizing:border-box}html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}body{color:#fff;font-family:$body_font,sans-serif}
+.shade{position:absolute;bottom:0;left:0;right:0;height:380px;background:linear-gradient(to top,rgba(8,17,27,.86),rgba(8,17,27,.52) 60%,rgba(8,17,27,0))}
+.panel{position:absolute;bottom:96px;left:96px;max-width:1550px;text-shadow:0 2px 6px rgba(0,0,0,.7)}
+.panel:before{content:"";display:block;width:72px;height:4px;background:$accent;margin-bottom:16px}
+.preacher{font:600 48px/1.15 $body_font,sans-serif}.meta{font-size:27px;line-height:1.4;margin-top:11px;color:rgba(255,255,255,.88)}
+</style><body><div class="shade"></div><div class="panel"><div class="preacher">$preacher</div><div class="meta">$panel_metadata</div></div></body></html>

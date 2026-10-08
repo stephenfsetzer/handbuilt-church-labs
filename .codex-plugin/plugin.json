@@ -1,7 +1,7 @@
 {
   "name": "handbuilt-church-labs",
   "version": "0.8.7",
-  "description": "Church workspace setup, weekly bulletins, sermon research and reflection, and monthly finance reports.",
+  "description": "Church workspace setup, weekly bulletins, sermon research and reflection, sermon videos, and monthly finance reports.",
   "author": {
     "name": "Handbuilt",
     "url": "https://gethandbuilt.com"
@@ -10,7 +10,7 @@
   "interface": {
     "displayName": "Handbuilt Church Labs",
     "shortDescription": "Weekly church writing and worship workflows",
-    "longDescription": "Create a private church folder, prepare source-verified sermon research briefs, write your sermon in your own voice with a light edit, produce reviewable worship bulletin booklets, and build a monthly finance report for the vestry or council from QuickBooks.",
+    "longDescription": "Create a private church folder, prepare source-verified sermon research briefs, write your sermon in your own voice with a light edit, prepare the recorded sermon as a reviewable video, produce reviewable worship bulletin booklets, and build a monthly finance report for the vestry or council from QuickBooks.",
     "developerName": "Handbuilt",
     "category": "Productivity",
     "capabilities": [

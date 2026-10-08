@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Sermon thumbnail</title><style>
+@import url('assets/fonts.css');
+*{box-sizing:border-box}html,body{margin:0;width:1280px;height:720px;overflow:hidden}
+body{background:$background;color:$foreground;font-family:$body_font,sans-serif}
+.portrait{position:absolute;left:576px;top:0;width:704px;height:720px;object-fit:cover;object-position:$portrait_position}
+.shade{position:absolute;inset:0;background:linear-gradient(90deg,$background 0%,$background 45%,transparent 65%)}
+.logo{position:absolute;left:64px;top:60px;width:330px;height:100px;object-fit:contain;object-position:left center}
+.church{position:absolute;left:64px;top:60px;width:500px;font-size:28px;line-height:1.3}
+.copy{position:absolute;left:64px;top:205px;width:500px}.kicker{font-size:17px;letter-spacing:3px;color:$accent;text-transform:uppercase}
+h1{font-family:$heading_font,serif;font-size:${title_size}px;line-height:1.05;font-weight:500;margin:25px 0;max-width:500px;overflow-wrap:break-word;text-wrap:balance}
+.rule{height:4px;width:80px;background:$accent}.preacher{font-size:22px;line-height:1.35;margin-top:22px}.preacher:empty{display:none}
+.meta{font-size:19px;line-height:1.55;margin-top:8px;max-width:500px;opacity:.86}
+.footer{position:absolute;left:64px;bottom:60px;font-size:16px;letter-spacing:1px;max-width:500px}
+</style><body>$portrait_html<div class="shade"></div>$logo_html<div class="copy"><div class="kicker">A Sunday sermon</div><h1>$title</h1><div class="rule"></div><div class="preacher">$preacher</div><div class="meta">$scripture<br>$sunday</div></div><div class="footer">$church_footer</div></body></html>

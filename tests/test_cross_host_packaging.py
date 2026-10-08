@@ -50,7 +50,7 @@ class CrossHostPackagingTest(unittest.TestCase):
             claude_entry["keywords"]
             and all(isinstance(keyword, str) and keyword for keyword in claude_entry["keywords"])
         )
-        for skill in ("onboarding", "bulletin", "sermon-research"):
+        for skill in ("onboarding", "bulletin", "sermon-research", "sermon-video"):
             canonical = f"skills/{skill}/SKILL.md"
             for host in (".agents", ".claude"):
                 pointer = REPO_ROOT / host / "skills" / skill / "SKILL.md"
