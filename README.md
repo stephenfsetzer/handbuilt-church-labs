@@ -128,6 +128,19 @@ cannot yet show, such as months that are not closed, is stated plainly on the
 report. The treasurer approves each report before it goes to the board.
 See the [finance report guide](handbook/finance-report.md).
 
+## Your church's brand
+
+```text
+Build my brand.
+```
+
+The agent shows you the whole plan first, then looks at how your church
+appears today and asks a few questions only you can answer. After that it
+works in rounds: a short lesson, two or three concrete options shown on your
+own bulletin and announcements, and your pick. Your current brand stays live
+until you approve the new one on a real bulletin. See the
+[brand guide](handbook/build-my-brand.md).
+
 ## Come back to your work
 
 Your private church folder is the home for church details, preferences,
@@ -218,7 +231,7 @@ https://github.com/stephenfsetzer/handbuilt-church-labs.git
 
 Choose the offered **Use [pasted URL]** option, then choose **Sync**.
 In **Discover**, choose **Add Handbuilt Church Labs**.
-Open **Yours** and confirm that the detail view shows version 0.8.7, seven
+Open **Yours** and confirm that the detail view shows version 0.8.7, eight
 skills, and **Enable plugin** on. The success message is
 “Handbuilt Church Labs is installed and ready to use.”
 

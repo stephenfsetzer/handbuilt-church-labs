@@ -32,6 +32,7 @@ WORKFLOWS = {
     "sermon-reflection": "skills/sermon-reflection/scripts/sermon_reflection.py",
     "finance-onboarding": "skills/finance-onboarding/scripts/finance_onboarding.py",
     "finance-report": "skills/finance-report/scripts/finance_report.py",
+    "build-my-brand": "skills/build-my-brand/scripts/brand_workflow.py",
 }
 OPERATIONS = {
     "onboarding": {"status", "update", "resolve-person"},
@@ -41,6 +42,7 @@ OPERATIONS = {
     "sermon-reflection": {"orient", "open", "done", "record", "speaker-copy"},
     "finance-onboarding": {"orient", "look", "readiness", "calendar", "stage"},
     "finance-report": {"status", "setup", "build", "render"},
+    "build-my-brand": {"orient", "record", "explore", "redirect", "check-marks", "stage-brand", "approve", "render-guide", "restart"},
 }
 # Workflows that make PDFs check the full PDF runtime before they start.
 PDF_WORKFLOWS = {"bulletin", "finance-report"}
@@ -579,7 +581,7 @@ def main() -> int:
     start = sub.add_parser("start")
     start.add_argument("workflow", choices=("onboarding", "bulletin", "sermon-research",
                                             "sermon-reflection", "finance-onboarding",
-                                            "finance-report"))
+                                            "finance-report", "build-my-brand"))
     start.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
     sub.add_parser("ensure-latest", help="Force a verified stable release check for this church")
     print_check = sub.add_parser("check-print", help="Check saved bulletins against the church's print check list")
