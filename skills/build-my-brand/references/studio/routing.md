@@ -18,9 +18,14 @@ designers who write its briefs.
 ## Image services
 
 `draw` defaults to OpenAI's image model (`gpt-image-1`, or the model named
-in `HANDBUILT_OPENAI_IMAGE_MODEL`); `--provider recraft` uses Recraft
-(`HANDBUILT_RECRAFT_IMAGE_MODEL`). `edit` uses OpenAI. `vectorize` uses
-Recraft. Keys come from `OPENAI_API_KEY` and `RECRAFT_API_KEY`, or from the
+in `HANDBUILT_OPENAI_IMAGE_MODEL`); `--provider gemini` uses Gemini's image
+model (`HANDBUILT_GEMINI_IMAGE_MODEL`), and `--provider recraft` uses Recraft
+(`HANDBUILT_RECRAFT_IMAGE_MODEL`). `edit` uses OpenAI, or Gemini with
+`--provider gemini`. Use Gemini when it is the only drawing key on the
+computer: it keeps a reference image steady across edits, and it follows a
+long editorial brief less literally than OpenAI, so keep its briefs short
+and concrete. `vectorize` uses Recraft. Keys come from `OPENAI_API_KEY`,
+`GEMINI_API_KEY` and `RECRAFT_API_KEY`, or from the
 key file in the Handbuilt support folder on this computer; `keys status`
 shows which are set without printing them. A hosted Handbuilt image service
 is planned and not yet available. A host with its own image tool makes

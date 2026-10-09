@@ -191,8 +191,8 @@ take reactions, draw again or make precise edits of the chosen image, then
 vectorize the one the pastor keeps.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand draw --round <name> --brief-file <brief.md> [--n 4] [--reference <png> ...] [--provider openai|recraft]
-python3 "<church-folder>/handbuilt.py" build-my-brand edit --round <name> --source <chosen.png> --instruction-file <edit.md> [--n 2]
+python3 "<church-folder>/handbuilt.py" build-my-brand draw --round <name> --brief-file <brief.md> [--n 4] [--reference <png> ...] [--provider openai|gemini|recraft]
+python3 "<church-folder>/handbuilt.py" build-my-brand edit --round <name> --source <chosen.png> --instruction-file <edit.md> [--n 2] [--provider openai|gemini]
 python3 "<church-folder>/handbuilt.py" build-my-brand vectorize --source <chosen.png> --out brand/staging/marks/mark.svg
 python3 "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <brief.md> --tool "<tool>"
 python3 "<church-folder>/handbuilt.py" build-my-brand keys status
@@ -210,7 +210,7 @@ generator, for example), make the images there and register them with
 `import-images`; no network is used.
 
 Service keys live on the computer, never in the church folder: the
-environment (`OPENAI_API_KEY`, `RECRAFT_API_KEY`) or a key file in the
+environment (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `RECRAFT_API_KEY`) or a key file in the
 Handbuilt support folder. `keys status` shows which services are set up
 without printing a key; `keys set --provider <name>` reads the key from
 standard input. If a key is missing, say so plainly and offer the host's own

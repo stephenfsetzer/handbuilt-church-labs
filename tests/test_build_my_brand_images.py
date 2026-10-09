@@ -112,7 +112,8 @@ class ImageStudioTest(unittest.TestCase):
         self.support = base / "support"
         self.env = mock.patch.dict(os.environ, {"HANDBUILT_RUNTIME_HOME": str(self.support / "runtime")})
         self.env.start()
-        for name in ("OPENAI_API_KEY", "RECRAFT_API_KEY", "HANDBUILT_OPENAI_IMAGE_MODEL", "HANDBUILT_RECRAFT_IMAGE_MODEL"):
+        for name in ("OPENAI_API_KEY", "RECRAFT_API_KEY", "GEMINI_API_KEY", "HANDBUILT_OPENAI_IMAGE_MODEL",
+                     "HANDBUILT_RECRAFT_IMAGE_MODEL", "HANDBUILT_GEMINI_IMAGE_MODEL"):
             os.environ.pop(name, None)
         self.briefs = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "briefs"
         self.briefs.mkdir(parents=True)
@@ -307,6 +308,45 @@ class ImageStudioTest(unittest.TestCase):
         self.assertIsNone(drawn.cost)
         os.environ["HANDBUILT_OPENAI_IMAGE_MODEL"] = "another-image-model"
         self.assertEqual(images.OpenAIImages().model, "another-image-model")
+
+    def test_gemini_request_sends_the_brief_and_references_once_per_image(self):
+        os.environ["GEMINI_API_KEY"] = "fake-gemini-value-456"
+        payload = base64.b64encode(_transparent_png()).decode()
+        seen = []
+
+        class Response:
+            def __init__(self, body):
+                self.body = body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                return self.body
+
+        def fake_urlopen(request, timeout=None):
+            seen.append({"url": request.full_url, "body": json.loads(request.data),
+                         "key": request.get_header("X-goog-api-key"), "auth": request.get_header("Authorization")})
+            return Response(json.dumps({"candidates": [{"content": {"parts": [{"text": "here"}, {"inlineData": {"mimeType": "image/png", "data": payload}}]}}],
+                                        "usageMetadata": {"totalTokenCount": 9}}).encode())
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            drawn = images.GeminiImages().draw("a brief", n=2, references=[b"ref"], size="1536x1024")
+        self.assertEqual(len(seen), 2)
+        self.assertEqual(seen[0]["url"], "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent")
+        self.assertEqual(seen[0]["key"], "fake-gemini-value-456")
+        self.assertIsNone(seen[0]["auth"])
+        parts = seen[0]["body"]["contents"][0]["parts"]
+        self.assertEqual(parts[0], {"text": "a brief"})
+        self.assertEqual(parts[1]["inline_data"]["data"], base64.b64encode(b"ref").decode())
+        self.assertEqual(seen[0]["body"]["generationConfig"]["imageConfig"], {"aspectRatio": "3:2"})
+        self.assertEqual(drawn.images, [_transparent_png(), _transparent_png()])
+        self.assertIsNone(drawn.cost)
+        with self.assertRaises(images.WorkflowFailure):
+            images.GeminiImages().vectorize(b"x")
 
     def _cli(self, *argv: str, stdin: str = "") -> tuple[int, str, dict]:
         done = subprocess.run([sys.executable, str(CLI), *argv], input=stdin, capture_output=True, text=True, env=dict(os.environ))

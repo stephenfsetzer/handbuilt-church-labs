@@ -38,7 +38,7 @@ Tiers are mapped to models per host in [routing.md](routing.md).
 
 ```bash
 python3 "<church-folder>/handbuilt.py" build-my-brand explore     --round <name> --files <svg|png> ... [--maker <name>] [--dark <hex>]
-python3 "<church-folder>/handbuilt.py" build-my-brand draw        --round <name> --brief-file <md> [--n N] [--reference <png> ...] [--provider openai|recraft]
+python3 "<church-folder>/handbuilt.py" build-my-brand draw        --round <name> --brief-file <md> [--n N] [--reference <png> ...] [--provider openai|gemini|recraft]
 python3 "<church-folder>/handbuilt.py" build-my-brand edit        --round <name> --source <png> --instruction-file <md> [--n N]
 python3 "<church-folder>/handbuilt.py" build-my-brand vectorize   --source <png> --out brand/staging/marks/<name>.svg
 python3 "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <md> --tool "<name>"

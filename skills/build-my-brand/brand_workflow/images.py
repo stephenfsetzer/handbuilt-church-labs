@@ -36,6 +36,7 @@ import re
 import stat
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
@@ -58,11 +59,13 @@ IMPORT_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 KEY_FILE_NAME = "image-keys.json"
 
 # Model names change; each can be set per computer without a code change.
-DEFAULT_MODELS = {"openai": "gpt-image-1", "recraft": "recraftv3"}
-MODEL_ENVIRONMENT = {"openai": "HANDBUILT_OPENAI_IMAGE_MODEL", "recraft": "HANDBUILT_RECRAFT_IMAGE_MODEL"}
-KEY_ENVIRONMENT = {"openai": "OPENAI_API_KEY", "recraft": "RECRAFT_API_KEY"}
-PROVIDER_NAMES = {"openai": "OpenAI", "recraft": "Recraft"}
+DEFAULT_MODELS = {"openai": "gpt-image-1", "recraft": "recraftv3", "gemini": "gemini-2.5-flash-image"}
+MODEL_ENVIRONMENT = {"openai": "HANDBUILT_OPENAI_IMAGE_MODEL", "recraft": "HANDBUILT_RECRAFT_IMAGE_MODEL",
+                     "gemini": "HANDBUILT_GEMINI_IMAGE_MODEL"}
+KEY_ENVIRONMENT = {"openai": "OPENAI_API_KEY", "recraft": "RECRAFT_API_KEY", "gemini": "GEMINI_API_KEY"}
+PROVIDER_NAMES = {"openai": "OpenAI", "recraft": "Recraft", "gemini": "Gemini"}
 OPENAI_BASE = "https://api.openai.com/v1"
+GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 RECRAFT_BASE = "https://external.api.recraft.ai/v1"
 RECRAFT_PROMPT_LIMIT = 1000
 
@@ -236,13 +239,15 @@ def _multipart(fields: list[_Part]) -> tuple[bytes, str]:
     return body.getvalue(), f"multipart/form-data; boundary={boundary}"
 
 
-def _http(service: str, url: str, *, key: str, payload: dict[str, Any] | None = None, parts: list[_Part] | None = None) -> dict[str, Any]:
+def _http(service: str, url: str, *, key: str, payload: dict[str, Any] | None = None, parts: list[_Part] | None = None,
+          key_header: str = "Authorization") -> dict[str, Any]:
     if parts is not None:
         data, content_type = _multipart(parts)
     else:
         data, content_type = json.dumps(payload or {}).encode("utf-8"), "application/json"
     request = urllib.request.Request(url, data=data, method="POST", headers={
-        "Authorization": f"Bearer {key}", "Content-Type": content_type, "Accept": "application/json"})
+        key_header: f"Bearer {key}" if key_header == "Authorization" else key,
+        "Content-Type": content_type, "Accept": "application/json"})
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:  # noqa: S310 (fixed https endpoints)
             return json.loads(response.read().decode("utf-8"))
@@ -367,6 +372,65 @@ class RecraftImages:
         return Vectorized(svg, None, _reported_cost(response), response.get("usage"))
 
 
+class GeminiImages:
+    """Gemini's image model: drawing from a brief and editing a chosen image.
+
+    It returns one image per request, so several images are several requests.
+    """
+
+    name = "gemini"
+
+    def __init__(self, model: str | None = None, *, key: Callable[[str], str] = service_key):
+        self.model = _model_for(self.name, model)
+        self._key = key
+
+    def draw(self, prompt: str, *, n: int, references: list[bytes], size: str) -> Drawn:
+        return self._generate(prompt, references, n=n, size=size)
+
+    def edit(self, image: bytes, instruction: str, *, n: int, size: str) -> Drawn:
+        return self._generate(instruction, [image], n=n, size=size)
+
+    def _generate(self, prompt: str, images: list[bytes], *, n: int, size: str) -> Drawn:
+        key = self._key(self.name)
+        parts: list[dict[str, Any]] = [{"text": prompt}]
+        parts += [{"inline_data": {"mime_type": "image/png", "data": base64.b64encode(data).decode("ascii")}} for data in images]
+        payload = {"contents": [{"parts": parts}],
+                   "generationConfig": {"responseModalities": ["TEXT", "IMAGE"], "imageConfig": {"aspectRatio": _aspect_ratio(size)}}}
+        url = f"{GEMINI_BASE}/models/{urllib.parse.quote(str(self.model), safe='.-')}:generateContent"
+        drawn, usage = [], []
+        for _ in range(n):
+            response = _http(self.name, url, key=key, payload=payload, key_header="x-goog-api-key")
+            drawn += _gemini_images(response)
+            usage.append(response.get("usageMetadata"))
+        return Drawn(drawn, self.model, None, usage)
+
+    def vectorize(self, image: bytes) -> Vectorized:
+        raise WorkflowFailure("not_supported", "Gemini does not vectorize; use Recraft for vectorize", field="provider")
+
+
+def _aspect_ratio(size: str) -> str:
+    try:
+        width, height = (int(part) for part in str(size).lower().split("x"))
+    except ValueError:
+        raise WorkflowFailure("invalid_size", f"Size must look like 1024x1024, not {size}", field="size") from None
+    common = math.gcd(width, height) or 1
+    return f"{width // common}:{height // common}"
+
+
+def _gemini_images(response: dict[str, Any]) -> list[bytes]:
+    images = []
+    for candidate in response.get("candidates") or []:
+        for part in ((candidate or {}).get("content") or {}).get("parts") or []:
+            inline = (part or {}).get("inlineData") or (part or {}).get("inline_data")
+            if isinstance(inline, dict) and inline.get("data"):
+                images.append(base64.b64decode(inline["data"]))
+    if not images:
+        reason = ((response.get("promptFeedback") or {}).get("blockReason")
+                  or next((c.get("finishReason") for c in response.get("candidates") or [] if isinstance(c, dict)), None))
+        raise WorkflowFailure("image_service_failed", "Gemini returned no image" + (f" ({reason})" if reason else ""))
+    return images
+
+
 class HandbuiltImages:
     """Placeholder for a future hosted Handbuilt image service.
 
@@ -381,12 +445,13 @@ class HandbuiltImages:
         self.model = model
 
     def _unavailable(self, *_args: Any, **_kwargs: Any):
-        raise WorkflowFailure("not_available_yet", "The hosted Handbuilt image service is not available yet. Use openai or recraft, or import images the host made.", field="provider")
+        raise WorkflowFailure("not_available_yet", "The hosted Handbuilt image service is not available yet. Use openai, gemini or recraft, or import images the host made.", field="provider")
 
     draw = edit = vectorize = _unavailable
 
 
-PROVIDERS: dict[str, Callable[..., Any]] = {"openai": OpenAIImages, "recraft": RecraftImages, "handbuilt": HandbuiltImages}
+PROVIDERS: dict[str, Callable[..., Any]] = {"openai": OpenAIImages, "recraft": RecraftImages, "gemini": GeminiImages,
+                                            "handbuilt": HandbuiltImages}
 
 
 def provider_for(provider: Any, model: str | None = None):

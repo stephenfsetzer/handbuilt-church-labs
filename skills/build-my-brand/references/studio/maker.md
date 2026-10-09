@@ -44,7 +44,7 @@ Draw each concept, with reference images when they help:
 
 ```bash
 python3 "<church-folder>/handbuilt.py" build-my-brand draw \
-  --round <name> --brief-file <brief.md> --n 4 [--reference <png> ...] [--provider openai|recraft] --maker <your name>
+  --round <name> --brief-file <brief.md> --n 4 [--reference <png> ...] [--provider openai|gemini|recraft] --maker <your name>
 ```
 
 After the pastor reacts to the creative director's picks, make precise

@@ -63,7 +63,7 @@ def _parser() -> argparse.ArgumentParser:
     item.add_argument("--brief-file", required=True, help="A Markdown editorial brief inside the church folder")
     item.add_argument("--n", type=int, default=4, help=f"How many images, 1 to {images.MAX_IMAGES}")
     item.add_argument("--reference", nargs="+", default=[], help="Reference PNGs inside the church folder")
-    item.add_argument("--provider", choices=("openai", "recraft"), default="openai")
+    item.add_argument("--provider", choices=("openai", "gemini", "recraft"), default="openai")
     item.add_argument("--model", help="Override the image model for this request")
     item.add_argument("--size", default=images.DEFAULT_SIZE)
     item.add_argument("--maker")
@@ -74,6 +74,7 @@ def _parser() -> argparse.ArgumentParser:
     item.add_argument("--source", required=True, help="The chosen PNG inside the church folder")
     item.add_argument("--instruction-file", required=True, help="A Markdown file saying exactly what changes and what stays")
     item.add_argument("--n", type=int, default=2)
+    item.add_argument("--provider", choices=("openai", "gemini"), default="openai")
     item.add_argument("--model")
     item.add_argument("--size", default=images.DEFAULT_SIZE)
     item.add_argument("--maker")
@@ -138,7 +139,7 @@ def main() -> int:
                              provider=args.provider, model=args.model, size=args.size, maker=args.maker)
     elif args.command == "edit":
         result = images.edit(args.church_folder, args.round, args.source, args.instruction_file, n=args.n,
-                             model=args.model, size=args.size, maker=args.maker)
+                             provider=args.provider, model=args.model, size=args.size, maker=args.maker)
     elif args.command == "vectorize":
         result = images.vectorize(args.church_folder, args.source, args.out, dark=args.dark)
     elif args.command == "import-images":
