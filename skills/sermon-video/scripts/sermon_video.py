@@ -843,11 +843,91 @@ def download_selector(max_height):
     return f"bv*[height<={max_height}]+ba/b[height<={max_height}]"
 
 
-def estimate_download_bytes(url, max_height):
+# YouTube hides its video addresses behind a small JavaScript puzzle. yt-dlp solves it with an outside
+# JavaScript runtime and its yt-dlp-ejs scripts, and turns on only Deno unless told otherwise. With no
+# solver, captions still arrive but the video stops with HTTP 403 Forbidden a few megabytes in. The
+# --js-runtimes option first shipped in yt-dlp 2025.11.12; an older yt-dlp refuses it, so it is left off there.
+JS_RUNTIMES = ("deno", "node", "bun")    # yt-dlp's own order of preference
+JS_RUNTIMES_SINCE = (2025, 11, 12)
+
+
+def js_runtime(which=shutil.which):
+    """The JavaScript runtime yt-dlp can use on this computer: Deno first, then Node.js, then Bun."""
+    return next((name for name in JS_RUNTIMES if which(name)), None)
+
+
+def release(version):
+    """(year, month, day) from a yt-dlp version such as 2026.07.04 or a nightly 2026.07.04.232958."""
+    found = re.match(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", version or "")
+    return tuple(int(part) for part in found.groups()) if found else None
+
+
+def yt_dlp_version():
+    try:
+        return run(["yt-dlp", "--version"], capture_output=True, text=True).stdout.strip() or None
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def yt_dlp_command(args, runtime, version):
+    """yt-dlp with the helper's fixed options. Deno needs no option; Node.js and Bun must be turned on."""
+    command = ["yt-dlp", "--no-playlist", "--no-update"]
+    if runtime in ("node", "bun") and (release(version) or (0,)) >= JS_RUNTIMES_SINCE:
+        command += ["--js-runtimes", runtime]
+    return command + list(args)
+
+
+def estimate_command(url, max_height, runtime, version):
+    return yt_dlp_command(["--skip-download", "--dump-single-json", "-f", download_selector(max_height), url],
+                          runtime, version)
+
+
+def download_command(url, max_height, folder, runtime, version):
+    return yt_dlp_command(["--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en.*",
+                           "--sub-format", "json3/vtt/best", "--concurrent-fragments", "8", "-f", download_selector(max_height),
+                           "--merge-output-format", "mp4", "-o", Path(folder) / "service.%(ext)s", url], runtime, version)
+
+
+def downloader_status(version, runtime, header):
+    """What yt-dlp needs for YouTube, read from the debug header it prints with -v."""
+    libraries = re.search(r"Optional libraries: (.*)", header)
+    ejs = re.search(r"\byt_dlp_ejs-([\w.]+)", libraries.group(1)) if libraries else None
+    enabled = re.search(r"JS runtimes: (.*)", header)
+    enabled = enabled.group(1).strip() if enabled and enabled.group(1).strip() != "none" else None
+    fixes = []
+    if (release(version) or (0,)) < JS_RUNTIMES_SINCE:
+        fixes.append("Update yt-dlp to 2025.11.12 or later, with its JavaScript helpers: "
+                     'pip install -U "yt-dlp[default]", or brew upgrade yt-dlp if Homebrew installed it.')
+    elif not ejs:
+        fixes.append("Add yt-dlp's JavaScript helpers (yt-dlp-ejs) to the same install as yt-dlp: "
+                     'pip install -U "yt-dlp[default]". Homebrew\'s yt-dlp already includes them.')
+    if not runtime:
+        fixes.append("Install a JavaScript runtime yt-dlp can use: Deno (brew install deno) or Node.js.")
+    elif not enabled and not fixes:
+        fixes.append(f"yt-dlp did not turn on {runtime}. Update yt-dlp, then run doctor again.")
+    if fixes:
+        fixes.append("Until then, YouTube downloads stop with HTTP 403 Forbidden. Other sources and local recordings are not affected.")
+    return {"version": version, "js_runtime": enabled, "yt_dlp_ejs": ejs.group(1) if ejs else None,
+            "youtube_ready": not fixes, "fix": " ".join(fixes) or None}
+
+
+def downloader_report():
+    if not shutil.which("yt-dlp"):
+        return {"version": None, "youtube_ready": False,
+                "fix": "Install yt-dlp to download YouTube, Vimeo, or BoxCast recordings. Local recordings do not need it."}
+    version, runtime = yt_dlp_version(), js_runtime()
+    try:
+        header = subprocess.run([str(a) for a in yt_dlp_command(["-v"], runtime, version)],
+                                capture_output=True, text=True, timeout=60).stderr
+    except (OSError, subprocess.TimeoutExpired):
+        header = ""
+    return downloader_status(version, runtime, header)
+
+
+def estimate_download_bytes(url, max_height, runtime, version):
     """The provider's own size estimate for the chosen formats, or None when it gives none."""
     try:
-        info = json.loads(run(["yt-dlp", "--no-playlist", "--no-update", "--skip-download", "--dump-single-json",
-                               "-f", download_selector(max_height), url], capture_output=True, text=True).stdout)
+        info = json.loads(run(estimate_command(url, max_height, runtime, version), capture_output=True, text=True).stdout)
     except (OSError, ValueError, subprocess.CalledProcessError):
         return None
     sizes = [part.get("filesize") or part.get("filesize_approx") for part in (info.get("requested_formats") or [info])]
@@ -863,13 +943,12 @@ def acquire_recording(root, url, max_height):
         if saved["url"] == url and media.is_file() and saved["hash"] == digest(media):
             return {"status": "reused", **saved}
     # Peak use is the video and audio parts plus the merged file, then room for the sermon master and the render.
-    estimate = estimate_download_bytes(url, max_height)
+    runtime, version = js_runtime(), yt_dlp_version()
+    estimate = estimate_download_bytes(url, max_height, runtime, version)
     require_space(source, int(estimate * 2.2) + 300_000_000 if estimate else 3_000_000_000, "the download")
     pending = source / "acquisition" / hashlib.sha256(url.encode()).hexdigest()[:16]
     pending.mkdir(parents=True, exist_ok=True)
-    run(["yt-dlp", "--no-playlist", "--no-update", "--write-info-json", "--write-subs", "--write-auto-subs",
-         "--sub-langs", "en.*", "--sub-format", "json3/vtt/best", "--concurrent-fragments", "8", "-f", download_selector(max_height),
-         "--merge-output-format", "mp4", "-o", pending / "service.%(ext)s", url], stdout=sys.stderr)
+    run(download_command(url, max_height, pending, runtime, version), stdout=sys.stderr)
     matches = [f for f in pending.iterdir() if f.suffix in (".mp4", ".mkv", ".webm", ".mov")]
     if len(matches) != 1:
         raise ValueError("The downloader did not produce one complete recording.")
@@ -911,6 +990,7 @@ def main():
     args = parser.parse_args()
     if args.command == "doctor":
         return {"tools": {name: shutil.which(name) for name in ("ffmpeg", "ffprobe", "yt-dlp", "node")},
+                "downloader": downloader_report(),
                 "artwork_renderer": "Use an available browser renderer or render_artwork.cjs with an installed Playwright module."}
     if args.command in ("discover", "boxcast"):
         output = Path(args.output).resolve(); private_dir(output.parent)

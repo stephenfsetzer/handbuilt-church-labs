@@ -3,8 +3,9 @@
 The contracts under test: discovery names the provider behind a recording link
 without fetching anything, the editing plan refuses labels without evidence and
 boundaries that cut off the sermon, captions move into video time after the
-opening card, and the measured artwork layout is held to its clear zones. All
-data here is invented; no network, FFmpeg, or browser is used.
+opening card, the measured artwork layout is held to its clear zones, and the
+downloader turns on Node.js or Bun for YouTube when Deno is missing. All data
+here is invented; no network, FFmpeg, yt-dlp, or browser is used.
 """
 from __future__ import annotations
 
@@ -233,6 +234,78 @@ class LayoutTests(unittest.TestCase):
     def test_longer_titles_get_smaller_type(self):
         self.assertGreater(video.thumbnail_title_size("Hope"), video.thumbnail_title_size("A" * 30))
         self.assertGreater(video.thumbnail_title_size("A" * 30), video.thumbnail_title_size("A" * 50))
+
+
+class DownloaderTests(unittest.TestCase):
+    URL = "https://www.youtube.com/watch?v=EXAMPLEVID01"
+    CURRENT = "2026.08.19"
+
+    @staticmethod
+    def which(*installed):
+        return lambda name: f"/usr/local/bin/{name}" if name in installed else None
+
+    @staticmethod
+    def header(libraries, runtimes=None):
+        lines = ["[debug] yt-dlp version stable", f"[debug] Optional libraries: {libraries}"]
+        if runtimes is not None:
+            lines.append(f"[debug] JS runtimes: {runtimes}")
+        return "\n".join(lines)
+
+    def test_deno_is_preferred_then_node_then_bun(self):
+        self.assertEqual(video.js_runtime(self.which("deno", "node", "bun")), "deno")
+        self.assertEqual(video.js_runtime(self.which("node", "bun")), "node")
+        self.assertEqual(video.js_runtime(self.which("bun")), "bun")
+        self.assertIsNone(video.js_runtime(self.which()))
+
+    def test_node_or_bun_is_turned_on_when_deno_is_missing(self):
+        for runtime in ("node", "bun"):
+            with self.subTest(runtime=runtime):
+                command = video.yt_dlp_command([self.URL], runtime, self.CURRENT)
+                self.assertEqual(command, ["yt-dlp", "--no-playlist", "--no-update", "--js-runtimes", runtime, self.URL])
+
+    def test_deno_or_no_runtime_adds_nothing(self):
+        for runtime in ("deno", None):
+            with self.subTest(runtime=runtime):
+                self.assertNotIn("--js-runtimes", video.yt_dlp_command([self.URL], runtime, self.CURRENT))
+
+    def test_yt_dlp_older_than_the_option_is_not_given_it(self):
+        self.assertNotIn("--js-runtimes", video.yt_dlp_command([self.URL], "node", "2025.10.22"))
+        self.assertNotIn("--js-runtimes", video.yt_dlp_command([self.URL], "node", None))
+        self.assertIn("--js-runtimes", video.yt_dlp_command([self.URL], "node", "2025.11.12"))
+        self.assertIn("--js-runtimes", video.yt_dlp_command([self.URL], "node", "2026.08.19.232958"))
+
+    def test_size_estimate_and_download_both_carry_the_runtime(self):
+        estimate = video.estimate_command(self.URL, 1080, "node", self.CURRENT)
+        download = video.download_command(self.URL, 1080, Path("pending"), "node", self.CURRENT)
+        for command in (estimate, download):
+            with self.subTest(command=command[5]):
+                self.assertEqual(command[:5], ["yt-dlp", "--no-playlist", "--no-update", "--js-runtimes", "node"])
+                self.assertEqual(command[-1], self.URL)
+        self.assertIn("--skip-download", estimate)
+        self.assertEqual(download[download.index("-o") + 1], Path("pending") / "service.%(ext)s")
+
+    def test_doctor_passes_a_ready_downloader(self):
+        status = video.downloader_status(self.CURRENT, "node", self.header("certifi-1.0, yt_dlp_ejs-0.8.0", "node-22.0.0"))
+        self.assertEqual(status, {"version": self.CURRENT, "js_runtime": "node-22.0.0", "yt_dlp_ejs": "0.8.0",
+                                  "youtube_ready": True, "fix": None})
+
+    def test_doctor_names_a_missing_runtime(self):
+        status = video.downloader_status(self.CURRENT, None, self.header("yt_dlp_ejs-0.8.0", "none"))
+        self.assertFalse(status["youtube_ready"])
+        self.assertIsNone(status["js_runtime"])
+        self.assertIn("Deno", status["fix"])
+        self.assertIn("HTTP 403", status["fix"])
+
+    def test_doctor_names_missing_javascript_helpers(self):
+        status = video.downloader_status(self.CURRENT, "node", self.header("certifi-1.0", "node-22.0.0"))
+        self.assertFalse(status["youtube_ready"])
+        self.assertIsNone(status["yt_dlp_ejs"])
+        self.assertIn('pip install -U "yt-dlp[default]"', status["fix"])
+
+    def test_doctor_asks_for_an_update_before_the_runtime_option(self):
+        status = video.downloader_status("2025.10.22", "node", self.header("certifi-1.0"))
+        self.assertFalse(status["youtube_ready"])
+        self.assertIn("2025.11.12 or later", status["fix"])
 
 
 if __name__ == "__main__":
