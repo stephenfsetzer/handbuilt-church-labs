@@ -53,7 +53,7 @@ class InstructionRecoveryIntegrationTests(unittest.TestCase):
 
     def test_start_records_deletion_without_restoring_instruction_file(self):
         self.instructions.unlink()
-        with mock.patch.object(bridge, "_doctor", return_value={"status": "ready", "runtime": {"python": sys.executable}}):
+        with mock.patch.object(bridge, "_doctor", return_value={"status": "ready", "runtime": {"python": sys.executable, "root": str(Path(self.temp.name) / "runtime")}}):
             result, code = bridge._start(self.church, "sermon-research", skip_update=True)
         self.assertEqual(code, 0, result)
         self.assertIn("instruction_recovery", result)

@@ -92,7 +92,7 @@ Give a brief setup orientation, then follow
 Check all dependencies together, using workspace readiness for this stage:
 
 ```bash
-python3 "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
+python3 "<plugin-root>/tools/handbuilt_runtime.py" ensure --capability workspace --format json
 ```
 
 After `ready`, use the returned `runtime.python` executable for workflow
