@@ -195,7 +195,7 @@ def knock_out_light_background(source, target):
 
 def thumbnail_title_size(title):
     """The thumbnail title's size in pixels: smaller for a longer title, so it stays within three lines of its column."""
-    return 76 if len(title) <= 24 else 64 if len(title) <= 40 else 56
+    return 76 if len(title) <= 24 else 64 if len(title) <= 40 else 50
 
 
 def artwork(root, data):
@@ -664,8 +664,10 @@ CAPTION_ZONE_BOTTOM = 0.60    # captions raised to 45 percent run to about this 
 # Where the review page's play button sits over the thumbnail, as fractions of the picture (left, top, right,
 # bottom). It is centered across, on the seam between the words and the photo, and set a little below the middle
 # (56 percent down) so it clears the end of a title's first line. Measured in Chrome: the full button on a desktop
-# player (1440 and 1024 px wide) and the round one on a phone (390 and 340 px wide).
+# player (1440 and 1024 px wide) and the round one on a phone (390 and 340 px wide). The thumbnail's words keep to a
+# column that ends left of both zones (TEXT_COLUMN_RIGHT), so no title can run under the button.
 PLAY_ZONES = {"desktop": (0.40, 0.505, 0.60, 0.615), "phone": (0.43, 0.44, 0.57, 0.68)}
+TEXT_COLUMN_RIGHT = 504        # px on a 1280 px thumbnail: assets/thumbnail.html's 64 px left edge plus its 440 px column
 BADGE_ZONE = (130, 70)        # YouTube's duration badge, bottom right of a 1280 by 720 thumbnail (design guidance: about 120 by 60)
 THUMBNAIL_MARGIN = 60         # design guidance for a thumbnail; a note, not a failure
 LAYOUT_NAMES = {"logo": "logo", "church": "church name", "kicker": "small heading", "title": "title", "meta": "scripture line",
