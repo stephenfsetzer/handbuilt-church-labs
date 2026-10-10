@@ -19,6 +19,28 @@ appropriate to the authorized task. It does not obtain credentials or supply
 access to private channels. Obtain account access through the host's supported
 account routing, never by copying a personal browser profile into this skill.
 
+### When a YouTube download stops with HTTP 403
+
+Symptom: the captions download, then the video stops with
+`HTTP Error 403: Forbidden` after a few megabytes, at the same point on every
+retry. YouTube hides its video addresses behind a small JavaScript puzzle.
+yt-dlp 2025.11.12 and later solve it with two things: a JavaScript runtime
+(a program that runs JavaScript outside a browser, such as Deno or Node.js)
+and its `yt-dlp-ejs` helper scripts. Without both, YouTube refuses the video.
+
+Run `doctor` and read its `downloader` section. It reports the yt-dlp version,
+the JavaScript runtime yt-dlp turned on, whether `yt-dlp-ejs` is installed,
+and a fix when something is missing. Typical fixes:
+
+- Update yt-dlp with its helpers: `pip install -U "yt-dlp[default]"`, or
+  `brew upgrade yt-dlp` when Homebrew installed it.
+- Install Deno (`brew install deno`) or Node.js.
+
+yt-dlp turns on only Deno by itself. When Deno is missing and Node.js or Bun
+is installed, the helper passes `--js-runtimes node` (or `bun`) for you, so a
+manual run of yt-dlp needs the same option. Other providers and local
+recordings do not need any of this.
+
 ## Vimeo
 
 Inspect the official embedded video or parish library. Use enabled downloads,
