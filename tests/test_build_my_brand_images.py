@@ -302,12 +302,37 @@ class ImageStudioTest(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
             drawn = images.OpenAIImages().draw("a brief", n=1, references=[], size="1024x1024")
         self.assertEqual(seen["url"], "https://api.openai.com/v1/images/generations")
-        self.assertEqual(seen["body"], {"model": "gpt-image-1", "prompt": "a brief", "n": 1, "size": "1024x1024"})
+        self.assertEqual(seen["body"], {"model": "gpt-image-1", "prompt": "a brief", "n": 1, "size": "1024x1024", "background": "opaque"})
         self.assertEqual(seen["auth"], "Bearer fake-openai-value-123")
         self.assertEqual(drawn.images, [_transparent_png()])
         self.assertIsNone(drawn.cost)
         os.environ["HANDBUILT_OPENAI_IMAGE_MODEL"] = "another-image-model"
         self.assertEqual(images.OpenAIImages().model, "another-image-model")
+
+    def test_openai_edit_asks_for_an_opaque_image(self):
+        os.environ["OPENAI_API_KEY"] = "fake-openai-value-123"
+        payload = base64.b64encode(_transparent_png()).decode()
+        seen = {}
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                return json.dumps({"data": [{"b64_json": payload}]}).encode()
+
+        def fake_urlopen(request, timeout=None):
+            seen["url"] = request.full_url
+            seen["body"] = request.data
+            return Response()
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            images.OpenAIImages().edit(_transparent_png(), "make the ground navy", n=1, size="1536x1024")
+        self.assertEqual(seen["url"], "https://api.openai.com/v1/images/edits")
+        self.assertRegex(seen["body"], rb'name="background"\r\n\r\nopaque\r\n')
 
     def test_gemini_request_sends_the_brief_and_references_once_per_image(self):
         os.environ["GEMINI_API_KEY"] = "fake-gemini-value-456"

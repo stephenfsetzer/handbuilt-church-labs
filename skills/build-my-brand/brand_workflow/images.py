@@ -307,6 +307,8 @@ class OpenAIImages:
     """OpenAI images: generations for a brief, edits for references and precise changes."""
 
     name = "openai"
+    # Always ask for an opaque image. A transparent one is flattened on white
+    # for review, which erases a dark ground the brief asked for.
 
     def __init__(self, model: str | None = None, *, key: Callable[[str], str] = service_key):
         self.model = _model_for(self.name, model)
@@ -318,7 +320,7 @@ class OpenAIImages:
             # Reference images go through the edits endpoint, which accepts several.
             return self._edit(key, references, prompt, n=n, size=size)
         response = _http(self.name, f"{OPENAI_BASE}/images/generations", key=key,
-                         payload={"model": self.model, "prompt": prompt, "n": n, "size": size})
+                         payload={"model": self.model, "prompt": prompt, "n": n, "size": size, "background": "opaque"})
         return Drawn(_decode_images(self.name, response), self.model, _reported_cost(response), response.get("usage"))
 
     def edit(self, image: bytes, instruction: str, *, n: int, size: str) -> Drawn:
@@ -327,7 +329,7 @@ class OpenAIImages:
     def _edit(self, key: str, images: list[bytes], prompt: str, *, n: int, size: str) -> Drawn:
         field_name = "image" if len(images) == 1 else "image[]"
         parts = [_Part("model", str(self.model).encode()), _Part("prompt", prompt.encode("utf-8")),
-                 _Part("n", str(n).encode()), _Part("size", size.encode())]
+                 _Part("n", str(n).encode()), _Part("size", size.encode()), _Part("background", b"opaque")]
         parts += [_Part(field_name, data, f"input-{index + 1}.png", "image/png") for index, data in enumerate(images)]
         response = _http(self.name, f"{OPENAI_BASE}/images/edits", key=key, parts=parts)
         return Drawn(_decode_images(self.name, response), self.model, _reported_cost(response), response.get("usage"))
