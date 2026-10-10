@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -877,13 +878,13 @@ def yt_dlp_command(args, runtime, version):
     return command + list(args)
 
 
-def estimate_command(url, max_height, runtime, version):
-    return yt_dlp_command(["--skip-download", "--dump-single-json", "-f", download_selector(max_height), url],
+def estimate_command(url, max_height, runtime, version, extra=()):
+    return yt_dlp_command([*extra, "--skip-download", "--dump-single-json", "-f", download_selector(max_height), url],
                           runtime, version)
 
 
-def download_command(url, max_height, folder, runtime, version):
-    return yt_dlp_command(["--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en.*",
+def download_command(url, max_height, folder, runtime, version, extra=()):
+    return yt_dlp_command([*extra, "--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en.*",
                            "--sub-format", "json3/vtt/best", "--concurrent-fragments", "8", "-f", download_selector(max_height),
                            "--merge-output-format", "mp4", "-o", Path(folder) / "service.%(ext)s", url], runtime, version)
 
@@ -924,18 +925,65 @@ def downloader_report():
     return downloader_status(version, runtime, header)
 
 
-def estimate_download_bytes(url, max_height, runtime, version):
+def estimate_download_bytes(url, max_height, runtime, version, extra=()):
     """The provider's own size estimate for the chosen formats, or None when it gives none."""
     try:
-        info = json.loads(run(estimate_command(url, max_height, runtime, version), capture_output=True, text=True).stdout)
+        info = json.loads(run(estimate_command(url, max_height, runtime, version, extra), capture_output=True, text=True).stdout)
     except (OSError, ValueError, subprocess.CalledProcessError):
         return None
     sizes = [part.get("filesize") or part.get("filesize_approx") for part in (info.get("requested_formats") or [info])]
     return int(sum(sizes)) if sizes and all(sizes) else None
 
 
-def acquire_recording(root, url, max_height):
+# yt-dlp refuses vimeo.com pages without a Vimeo sign-in, but still reads a video anyone may play
+# through Vimeo's player. Most churches set their videos to play only on the church's own website;
+# the player refuses those, and only the church's own signed-in Vimeo account, or the file, gets them.
+VIMEO_LOCKED = ("Vimeo won't share this video outside the church's website. With permission, try again "
+                "signed in to the church's Vimeo account (--cookies-from-browser), or send the video file "
+                "instead: the Download button on the video in the church's Vimeo account, or the church's "
+                "livestream service, then adopt.")
+
+
+BROWSERS = ("chrome", "safari", "firefox", "edge", "brave", "chromium", "opera", "vivaldi")    # yt-dlp's names
+
+
+def vimeo_player_url(url):
+    """The player address for a Vimeo video link, keeping an unlisted video's hash; other links unchanged."""
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or "").lower()
+    parts = [part for part in parsed.path.split("/") if part]
+    if host in ("vimeo.com", "www.vimeo.com") and parts and parts[0].isdigit():
+        video_id, unlisted = parts[0], parts[1] if len(parts) > 1 and re.fullmatch(r"[0-9a-f]{6,}", parts[1]) else None
+    elif host == "player.vimeo.com" and len(parts) >= 2 and parts[0] == "video" and parts[1].isdigit():
+        video_id, unlisted = parts[1], (urllib.parse.parse_qs(parsed.query).get("h") or [None])[0]
+    else:
+        return url
+    return f"https://player.vimeo.com/video/{video_id}" + (f"?h={unlisted}" if unlisted else "")
+
+
+def vimeo_locked(url, opener=urllib.request.urlopen):
+    """True when Vimeo's player plainly refuses the video (401 or 403). Any other answer, or none, is not a refusal."""
+    player = vimeo_player_url(url)
+    if not player.startswith("https://player.vimeo.com/"):
+        return False
+    base, _, query = player.partition("?")
+    request = urllib.request.Request(f"{base}/config" + (f"?{query}" if query else ""), headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with opener(request, timeout=15):
+            return False
+    except urllib.error.HTTPError as error:
+        return error.code in (401, 403)
+    except (OSError, ValueError):
+        return False
+
+
+def acquire_recording(root, url, max_height, browser=None, locked=vimeo_locked):
+    """Download the recording. `browser` reads that browser's sign-ins for this one download, only with the pastor's permission."""
     validate_url(url)
+    if browser is None and locked(url):
+        raise ValueError(VIMEO_LOCKED)
+    # Signed in, Vimeo serves its own page; signed out, only the player will.
+    fetch_url = url if browser else vimeo_player_url(url)
     source = root / "source"; source.mkdir(exist_ok=True)
     ledger = root / ".receipts/acquisition.json"
     if ledger.exists():
@@ -944,11 +992,12 @@ def acquire_recording(root, url, max_height):
             return {"status": "reused", **saved}
     # Peak use is the video and audio parts plus the merged file, then room for the sermon master and the render.
     runtime, version = js_runtime(), yt_dlp_version()
-    estimate = estimate_download_bytes(url, max_height, runtime, version)
+    signed_in = ["--cookies-from-browser", browser] if browser else []
+    estimate = estimate_download_bytes(fetch_url, max_height, runtime, version, signed_in)
     require_space(source, int(estimate * 2.2) + 300_000_000 if estimate else 3_000_000_000, "the download")
     pending = source / "acquisition" / hashlib.sha256(url.encode()).hexdigest()[:16]
     pending.mkdir(parents=True, exist_ok=True)
-    run(download_command(url, max_height, pending, runtime, version), stdout=sys.stderr)
+    run(download_command(fetch_url, max_height, pending, runtime, version, signed_in), stdout=sys.stderr)
     matches = [f for f in pending.iterdir() if f.suffix in (".mp4", ".mkv", ".webm", ".mov")]
     if len(matches) != 1:
         raise ValueError("The downloader did not produce one complete recording.")
@@ -974,6 +1023,8 @@ def main():
     p = commands.add_parser("discover"); p.add_argument("--url", required=True); p.add_argument("--output", required=True)
     p = commands.add_parser("boxcast"); p.add_argument("--channel", required=True); p.add_argument("--output", required=True)
     p = commands.add_parser("acquire"); p.add_argument("--url", required=True); p.add_argument("--run-dir", required=True); p.add_argument("--max-height", type=int, default=1080)
+    p.add_argument("--cookies-from-browser", dest="browser", choices=BROWSERS,
+                   help="Use this browser's sign-ins for this one download. Only with the pastor's permission.")
     p = commands.add_parser("adopt"); p.add_argument("--url", required=True); p.add_argument("--run-dir", required=True); p.add_argument("--path", required=True)
     p = commands.add_parser("status"); p.add_argument("--run-dir", required=True)
     for name in ("artwork", "render", "verify", "captions", "review", "finish", "published"):
@@ -1012,7 +1063,7 @@ def main():
         save(root / ".receipts/acquisition.json", result)
         return result
     if args.command == "acquire":
-        return acquire_recording(private_dir(args.run_dir), args.url, args.max_height)
+        return acquire_recording(private_dir(args.run_dir), args.url, args.max_height, args.browser)
     if args.command == "status":
         root = private_dir(args.run_dir)
         try:

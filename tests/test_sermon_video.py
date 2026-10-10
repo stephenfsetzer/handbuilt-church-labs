@@ -9,11 +9,13 @@ here is invented; no network, FFmpeg, yt-dlp, or browser is used.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.error
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY = ROOT / "skills/sermon-video/scripts/sermon_video.py"
@@ -234,6 +236,57 @@ class LayoutTests(unittest.TestCase):
     def test_longer_titles_get_smaller_type(self):
         self.assertGreater(video.thumbnail_title_size("Hope"), video.thumbnail_title_size("A" * 30))
         self.assertGreater(video.thumbnail_title_size("A" * 30), video.thumbnail_title_size("A" * 50))
+
+
+class VimeoTests(unittest.TestCase):
+    """Vimeo is read through its player, and a video locked to its church's website is caught before any download."""
+
+    def test_vimeo_links_go_to_the_player_and_keep_an_unlisted_hash(self):
+        self.assertEqual(video.vimeo_player_url("https://vimeo.com/100000001?share=copy"), "https://player.vimeo.com/video/100000001")
+        self.assertEqual(video.vimeo_player_url("https://vimeo.com/100000001/abcdef1234"),
+                         "https://player.vimeo.com/video/100000001?h=abcdef1234")
+        self.assertEqual(video.vimeo_player_url("https://player.vimeo.com/video/100000001?h=abcdef1234&badge=0"),
+                         "https://player.vimeo.com/video/100000001?h=abcdef1234")
+        for other in ("https://www.youtube.com/watch?v=EXAMPLEVID01", "https://vimeo.com/channels/example"):
+            self.assertEqual(video.vimeo_player_url(other), other)
+
+    @staticmethod
+    def opener(status=None, error=None):
+        asked = []
+
+        def answer(request, timeout):
+            asked.append(request.full_url)
+            if error:
+                raise error
+            if status != 200:
+                raise urllib.error.HTTPError(request.full_url, status, "refused", {}, None)
+            return contextlib.nullcontext()
+        return answer, asked
+
+    def test_a_refusing_player_means_locked_and_anything_else_does_not(self):
+        refused, asked = self.opener(403)
+        self.assertTrue(video.vimeo_locked("https://vimeo.com/100000001/abcdef1234", refused))
+        self.assertEqual(asked, ["https://player.vimeo.com/video/100000001/config?h=abcdef1234"])
+        self.assertTrue(video.vimeo_locked("https://vimeo.com/100000001", self.opener(401)[0]))
+        self.assertFalse(video.vimeo_locked("https://vimeo.com/100000001", self.opener(200)[0]))
+        self.assertFalse(video.vimeo_locked("https://vimeo.com/100000001", self.opener(error=OSError("offline"))[0]))
+        never, asked = self.opener(403)
+        self.assertFalse(video.vimeo_locked("https://www.youtube.com/watch?v=EXAMPLEVID01", never))
+        self.assertEqual(asked, [])
+
+    def test_a_locked_video_stops_before_any_download_unless_signed_in(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "send the video file"):
+                video.acquire_recording(Path(folder), "https://vimeo.com/100000001", 1080, locked=lambda url: True)
+            self.assertFalse((Path(folder) / "source").exists())
+
+    def test_signing_in_passes_the_browser_to_both_yt_dlp_calls(self):
+        extra = ["--cookies-from-browser", "safari"]
+        url = "https://vimeo.com/100000001"
+        for command in (video.estimate_command(url, 1080, None, "2026.08.19", extra),
+                        video.download_command(url, 1080, Path("pending"), None, "2026.08.19", extra)):
+            self.assertEqual(command[3:5], extra)
+            self.assertEqual(command[-1], url)
 
 
 class DownloaderTests(unittest.TestCase):

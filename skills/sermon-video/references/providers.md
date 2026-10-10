@@ -50,6 +50,13 @@ account. Expiring file links are acquisition inputs, not durable website URLs.
 - [Enabled downloads](https://help.vimeo.com/hc/en-us/articles/12426502581265-How-to-download-a-video-on-Vimeo)
 - [API video files](https://developer.vimeo.com/api/files/video-links)
 
+yt-dlp refuses vimeo.com pages without a sign-in, so `acquire` reads Vimeo
+through `player.vimeo.com/video/<id>` (with `?h=` for an unlisted video). A
+video set to play only on the church's website is refused there with 401 or
+403; `acquire` checks for that first and stops before downloading. The church's
+own signed-in account (`--cookies-from-browser`, with the pastor's permission)
+or the original file are the two ways forward.
+
 Do not assume a Vimeo account's plan supports direct file access. Record the
 durable video page URL separately from a temporary media URL.
 
