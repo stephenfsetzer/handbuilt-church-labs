@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -232,6 +233,17 @@ class LayoutTests(unittest.TestCase):
         problems = " ".join(self.audit(layout)["problems"])
         self.assertIn("play button would cover the title", problems)
         self.assertIn("too close to the bottom edge", problems)
+
+    def test_thumbnail_words_keep_left_of_every_play_button(self):
+        template = (Path(video.__file__).resolve().parents[1] / "assets/thumbnail.html").read_text()
+        column = re.search(r"\.copy\{position:absolute;left:(\d+)px;top:\d+px;width:(\d+)px\}", template)
+        self.assertIsNotNone(column)
+        self.assertEqual(int(column[1]) + int(column[2]), video.TEXT_COLUMN_RIGHT)
+        for selector in ("h1", ".meta"):
+            rule = re.search(r"(?:^|\})" + re.escape(selector) + r"\{[^\n]*?max-width:(\d+)px", template, re.M)
+            self.assertEqual(rule[1], column[2])
+        nearest = min(left for left, _, _, _ in video.PLAY_ZONES.values()) * 1280
+        self.assertLess(video.TEXT_COLUMN_RIGHT, nearest - 2)
 
     def test_longer_titles_get_smaller_type(self):
         self.assertGreater(video.thumbnail_title_size("Hope"), video.thumbnail_title_size("A" * 30))
