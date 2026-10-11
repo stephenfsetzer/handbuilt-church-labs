@@ -835,3 +835,89 @@ class AccountNameTests(unittest.TestCase):
                  {"name": "Office supplies", "chain": ["Office supplies"], "section": "Expenses", "value": 5.0}]
         groups = [{"name": "Programs", "accounts": ["7300-00"]}, {"name": "Everything else", "accounts": ["*"]}]
         self.assertEqual(self.build.group_items(items, groups, self.build.EXPENSE), {"Programs": 30.0, "Everything else": 5.0})
+
+
+class QuickBooksOwnReportTests(unittest.TestCase):
+    """QuickBooks' own report JSON, as a hosted run reads the books, builds the same report as the connector's."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+
+    def church(self, name, native):
+        church = fixture.main(Path(self.temp.name) / name)
+        if native:
+            pulls = church / "finance/board/2026-08/pulls"
+            (pulls / "balance-sheet.json").write_text(json.dumps(fixture.native_balance_sheet((2026, 8))))
+            (pulls / "pl-ytd.json").write_text(json.dumps(fixture.native_pl(2026, 8)))
+            (pulls / "pl-prior.json").write_text(json.dumps(fixture.native_pl(2026, 7)))
+            setup = church / "setup-pulls"
+            (setup / "pl-12m.json").write_text(json.dumps(fixture.native_pl(2026, 8, start=(2025, 9))))
+            (setup / "pl-2025.json").write_text(json.dumps(fixture.native_pl(2025, 12)))
+        return church
+
+    def build(self, church, *extra):
+        pulls = church / "finance/board/2026-08/pulls"
+        return run(church, "build", "--month", "2026-08", "--prepared", "2026-09-10",
+                   "--balance-sheet", str(pulls / "balance-sheet.json"), "--pl-ytd", str(pulls / "pl-ytd.json"),
+                   "--pl-prior", str(pulls / "pl-prior.json"), *extra)
+
+    def test_the_report_is_the_same_whichever_way_the_books_were_read(self):
+        reports = {}
+        for native in (False, True):
+            church = self.church(f"native-{native}", native)
+            _, code, err = self.build(church)
+            self.assertEqual(code, 0, err)
+            reports[native] = json.loads((church / "finance/board/2026-08/report.json").read_text())
+        self.assertEqual(reports[True], reports[False])
+        result, code, err = run(church, "render", str(church / "finance/board/2026-08/report.json"))
+        self.assertEqual((code, result["checks"]["pages"]), (0, 2), err)
+
+    def test_setup_drafts_the_same_settings_from_quickbooks_own_reports(self):
+        drafts = {}
+        for native in (False, True):
+            church = self.church(f"setup-{native}", native)
+            (church / "finance/board/config.json").unlink()
+            pulls = church / "setup-pulls"
+            draft, code, err = run(church, "setup", "draft",
+                                   "--balance-sheet", str(church / "finance/board/2026-08/pulls/balance-sheet.json"),
+                                   "--pl-12m", str(pulls / "pl-12m.json"), "--pl-year", str(pulls / "pl-2025.json"))
+            self.assertEqual(code, 0, err)
+            drafts[native] = draft
+        for key in ("bank_accounts", "endowment_accounts", "history_start", "income_groups", "spending_groups"):
+            self.assertEqual(drafts[True][key], drafts[False][key], key)
+
+    def test_lines_that_do_not_add_up_to_their_total_still_stop_the_build(self):
+        church = self.church("native-short", True)
+        path = church / "finance/board/2026-08/pulls/pl-ytd.json"
+        data = json.loads(path.read_text())
+        giving = data["Rows"]["Row"][0]["Rows"]["Row"][0]["Rows"]["Row"]
+        giving.pop()  # a line QuickBooks left out; the section total still counts it
+        path.write_text(json.dumps(data))
+        _, code, err = self.build(church)
+        self.assertNotEqual(code, 0)
+        self.assertIn("CHECK FAILED", err)
+
+    def test_a_long_chart_of_accounts_is_not_mistaken_for_a_cut_off_pull(self):
+        data = fixture.native_pl(2026, 8)
+        spare = [{"type": "Data", "ColData": [{"value": f"Unused account {i}", "id": str(5000 + i)}, {"value": ""}]}
+                 for i in range(120)]
+        data["Rows"]["Row"][0]["Rows"]["Row"][0]["Rows"]["Row"].extend(spare)
+        path = Path(self.temp.name) / "pl-long.json"
+        path.write_text(json.dumps(data))
+        with mock.patch.object(sys, "path", [str(ENTRY.parent), *sys.path]):
+            import build_report_data
+        _, _, items, sections = build_report_data.load_pl(path)
+        self.assertGreater(len(items), 100)
+        self.assertIn("Income", sections)
+
+    def test_a_balance_sheet_without_month_columns_is_refused_plainly(self):
+        church = self.church("native-total", True)
+        path = church / "finance/board/2026-08/pulls/balance-sheet.json"
+        data = json.loads(path.read_text())
+        data["Columns"]["Column"] = data["Columns"]["Column"][:1] + [
+            {"ColTitle": "Total", "ColType": "Money", "MetaData": [{"Name": "ColKey", "Value": "total"}]}]
+        path.write_text(json.dumps(data))
+        _, code, err = self.build(church)
+        self.assertNotEqual(code, 0)
+        self.assertIn("summarized by month", err)
