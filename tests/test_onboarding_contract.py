@@ -8,6 +8,8 @@ ROOT = Path(__file__).parents[1]
 CORE = ROOT / "skills" / "onboarding" / "SKILL.md"
 WEBSITE = ROOT / "skills" / "onboarding" / "references" / "website-discovery.md"
 WORSHIP = ROOT / "skills" / "onboarding" / "references" / "worship-onboarding.md"
+GUIDED = ROOT / "skills" / "onboarding" / "references" / "guided-setup.md"
+INSTALL = ROOT / "INSTALL.md"
 
 
 def prose(path: Path) -> str:
@@ -23,6 +25,29 @@ class OnboardingContractTest(unittest.TestCase):
         self.assertIn("Required stage sequence", text)
         self.assertIn("What I found", text)
         self.assertIn("private church folder", text)
+
+    def test_install_and_computer_setup_guide_the_pastor(self) -> None:
+        self.assertIn("references/guided-setup.md", CORE.read_text(encoding="utf-8"))
+        guided = prose(GUIDED)
+        for phrase in (
+            "Do it yourself first",
+            "One step at a time",
+            "Never ask for a password in chat",
+            "Open the Terminal on a Mac",
+            "nothing appears as you type",
+            "**Homebrew.**",
+            "Common snags",
+        ):
+            self.assertIn(phrase, guided)
+        install = prose(INSTALL)
+        for phrase in (
+            "skills/onboarding/references/guided-setup.md",
+            "claude plugin install handbuilt-church-labs@handbuilt-church-labs",
+            '"autoUpdate": true',
+            "Set up my church workspace.",
+        ):
+            self.assertIn(phrase, install)
+        self.assertIn("INSTALL.md", (ROOT / "README.md").read_text(encoding="utf-8"))
 
     def test_core_skill_makes_sources_do_the_interview_work(self) -> None:
         text = prose(CORE)

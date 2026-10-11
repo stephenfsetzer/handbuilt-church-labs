@@ -15,7 +15,7 @@ use [Instruction recovery](../../handbook/instruction-recovery.md).
 
 Read supporting references when their stage is reached:
 
-- [Computer preparation and progress](references/computer-preparation.md) at the start or when resuming setup.
+- [Computer preparation and progress](references/computer-preparation.md) at the start or when resuming setup, with [Guided computer setup](references/guided-setup.md) whenever a tool is missing, an error appears, or the pastor must act.
 - [Connection and visual setup](references/connection-and-brand.md) when creating or resuming a church folder.
 - [Website discovery and QR](references/website-discovery.md) for bounded
   website inspection, brand candidates, and QR destinations.

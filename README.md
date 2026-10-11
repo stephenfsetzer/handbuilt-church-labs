@@ -8,6 +8,22 @@ learning and experimentation space for [Handbuilt](https://gethandbuilt.com).
 You bring your church's practice and judgment. The plugin gives the agent a
 repeatable way to help with the routine work.
 
+## Install with your AI agent
+
+The easiest way to install is to ask your AI agent to do it. In the Claude
+desktop app's **Code** tab (or Claude Code, Codex, or ChatGPT), paste:
+
+```text
+Please install the Handbuilt Church Labs plugin from
+https://github.com/stephenfsetzer/handbuilt-church-labs
+and keep it updated. Follow its INSTALL.md, and explain each step to me.
+```
+
+The agent follows [INSTALL.md](INSTALL.md). It explains each step in plain
+language and asks for your help only when your computer needs your password
+or a click. Point-and-click and terminal routes are in
+[Installation and support](#installation-and-support).
+
 ## Set up my church workspace
 
 Install the plugin using the instructions below, then ask the agent:
