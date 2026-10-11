@@ -23,3 +23,4 @@
 25,200     # tests: Riverbend 2025 result
 30,000     # short-answer.md: example unrecorded-month year
 92,400     # tests: Riverbend endowment
+31,337     # finance evals: a figure no eval church's books support
