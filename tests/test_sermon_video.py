@@ -143,6 +143,17 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(video.visible(data, "sunday"), "")
 
 
+    def test_font_names_are_quoted_for_css(self):
+        self.assertEqual(video.css_families("Source Serif 4"), '"Source Serif 4"')
+        self.assertEqual(video.css_families("Georgia, Times New Roman"), '"Georgia", "Times New Roman"')
+
+    def test_cards_keep_a_font_name_with_a_number(self):
+        plan = synthetic_plan()
+        plan["brand"] = {**plan.get("brand", {}), "heading_font": "Source Serif 4"}
+        root, data = self.load(plan)
+        video.artwork(root, data)
+        self.assertIn('font:500 118px/1.08 "Source Serif 4",serif', (root / "intro.html").read_text())
+
 class CaptionTests(unittest.TestCase):
     DATA = {"sermon": {"start": 100.0, "end": 130.0}, "video": {"intro_seconds": 2.5}}
 
