@@ -83,10 +83,9 @@ no private data, and it never asks for either.
    listed in `tools/example-accounts.txt`. Add a figure or account number to
    those lists only when you invented it. CI also checks against a private
    denylist you cannot see, so a green local check is not the last word.
-3. **Stephen is the only author.** Commit as
-   `Stephen Setzer <227029240+stephenfsetzer@users.noreply.github.com>`. Do
-   not add co-author trailers, session links, or "generated with" lines to
-   commits or pull request descriptions.
+3. **Stephen is the only author.** Commit under the repository owner's
+   GitHub noreply identity. Do not add co-author trailers, session links, or
+   "generated with" lines to commits or pull request descriptions.
 4. **Stephen merges.** Open a pull request and leave it for review. Never push
    to `main` or merge.
 
