@@ -1,7 +1,7 @@
 {
   "name": "handbuilt-church-labs",
   "version": "0.8.7",
-  "description": "Church workspace setup, weekly bulletins, sermon research and reflection, sermon videos, and monthly finance reports.",
+  "description": "Church Command Center setup, weekly bulletins, sermon research and reflection, sermon videos, and monthly finance reports.",
   "author": {
     "name": "Handbuilt",
     "url": "https://gethandbuilt.com"
@@ -18,7 +18,7 @@
       "Document creation"
     ],
     "defaultPrompt": [
-      "Set up my church workspace.",
+      "Set up my Church Command Center.",
       "Start my sermon research.",
       "Start my sermon reflection.",
       "Build this week's bulletin.",
