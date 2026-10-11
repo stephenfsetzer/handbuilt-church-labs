@@ -6,5 +6,11 @@
   "author": {
     "name": "Handbuilt",
     "url": "https://gethandbuilt.com"
+  },
+  "mcpServers": {
+    "church-labs": {
+      "type": "http",
+      "url": "https://gethandbuilt.com/api/mcp"
+    }
   }
 }
