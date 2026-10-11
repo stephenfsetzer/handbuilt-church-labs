@@ -46,6 +46,44 @@ class FinanceOnboardingTests(unittest.TestCase):
                            "--balance-sheet", str(pulls / "balance-sheet.json"),
                            "--pl-ytd", str(pulls / "pl-ytd.json"), "--pl-prior", str(pulls / "pl-prior.json"), *extra)
 
+    def edited_balance_sheet(self, edit) -> Path:
+        """The fixture's August balance sheet with its bank rows changed by edit(name, values) -> (name, values)."""
+        path = self.board / "2026-08/pulls/balance-sheet.json"
+        data = json.loads(path.read_text())
+        for row in data["reportData"]["rows"]:
+            cells = row["cells"]
+            name, values = edit(cells[0]["value"], [c.get("value") for c in cells[1:]])
+            cells[0]["value"] = name
+            for cell, value in zip(cells[1:], values):
+                cell["value"] = value
+        out = Path(self.temp.name) / "balance-sheet-edited.json"
+        out.write_text(json.dumps(data))
+        return out
+
+    def test_overdrawn_cash_reads_as_overdrawn_never_as_money_in_the_bank(self):
+        def overdraw(name, values):
+            if name in ("Checking - First Bank 1111", "1010 Checking - First Bank 1111", "Savings - First Bank 2222",
+                        "1020 Savings - First Bank 2222"):
+                return name, [0] * (len(values) - 1) + [-150 if name.startswith("1010") else 0]
+            return name, values
+        look, code, err = self.ob("look", "--balance-sheet", str(self.edited_balance_sheet(overdraw)),
+                                  "--pl-12m", str(self.church / "setup-pulls/pl-12m.json"))
+        self.assertEqual(code, 0, err)
+        cash = " ".join(line for line in look["summary"] if "overdrawn" in line or "everyday bank" in line)
+        self.assertIn("overdrawn: $150 below zero", cash)
+        self.assertNotIn("in everyday bank accounts", cash)
+
+    def test_a_numbered_checking_account_named_in_capitals_is_an_account_not_a_heading(self):
+        def capitals(name, values):
+            return name.replace("Checking - First Bank 1111", "LAKE CHECKING"), values
+        draft, code, err = self.report("setup", "draft", "--balance-sheet", str(self.edited_balance_sheet(capitals)),
+                                       "--pl-12m", str(self.church / "setup-pulls/pl-12m.json"),
+                                       "--pl-year", str(self.church / "setup-pulls/pl-2025.json"))
+        self.assertEqual(code, 0, err)
+        self.assertIn("LAKE CHECKING", draft["bank_accounts"])
+        # A capitalized name with no numbered account is still a heading.
+        self.assertEqual(draft["set_aside"]["CASH"], "heading")
+
     def test_four_stages_with_gates_waivers_and_recurring_flags(self):
         oriented, code, _ = self.ob("orient")
         self.assertEqual((oriented["stage"], oriented["locked"], oriented["started_fresh"]), (1, False, True))
