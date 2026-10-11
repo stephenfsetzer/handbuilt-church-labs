@@ -6,7 +6,7 @@ unfinished dated work, or asking why a bulletin's wording or layout should
 change. It supplements the production contract. It does not replace source
 verification, artifact review, or the pastor's approval.
 
-The pastor may keep a customized church workspace or choose another tool.
+The pastor may keep a customized Church Command Center or choose another tool.
 Use this guidance to make supported Handbuilt work clearer, never to require
 plugin approval or to limit a church's local practice.
 

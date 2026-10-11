@@ -119,8 +119,9 @@ A new plugin loads in a new session. Tell the pastor exactly what to do:
 
 > Handbuilt is installed. To start using it, open a new session: click
 > **New session** at the top of the sidebar, keep the same folder, and type
-> **Set up my church workspace.** That starts a guided setup of your private
-> church folder. I'll check your computer, ask for your church's website, and
+> **Set up my Church Command Center.** That starts a guided setup of your
+> Church Command Center, a private folder on this computer for your church's
+> details, sermons, bulletins, and skills. I'll check your computer, ask for your church's website, and
 > show you what I find before saving anything.
 
 In the terminal version of Claude Code, `/reload-plugins` also works. If the

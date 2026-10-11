@@ -1,6 +1,6 @@
 # Quickstart
 
-## Set up my church workspace
+## Set up my Church Command Center
 
 1. Choose your app:
 
@@ -28,7 +28,7 @@
    development project. Ask:
 
    ```text
-   Set up my church workspace.
+   Set up my Church Command Center.
    ```
 
 3. Give the agent your church website when you have one. It proposes public
@@ -49,7 +49,7 @@ it explains the preparation together and gives one next action at a time.
 An already-working computer proceeds without extra setup. Missing PDF tools
 can wait while you set up the workspace or begin sermon research.
 If you stop, return to the same task or open the church folder and say
-“Continue setting up my church workspace.” The agent checks saved progress
+“Continue setting up my Church Command Center.” The agent checks saved progress
 and resumes what remains.
 
 ## Your first result
@@ -120,7 +120,7 @@ troubleshooting and intentional version pinning.
 
 Your workspace can grow beyond the supplied workflows. Add local skills,
 change the agent's instructions, and use other tools as needed. See
-[Make your church workspace your own](workspace-customization.md).
+[Make your Church Command Center your own](workspace-customization.md).
 
 Use ordinary language and state the scope:
 

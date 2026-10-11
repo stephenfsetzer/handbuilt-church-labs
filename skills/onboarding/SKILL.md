@@ -1,9 +1,9 @@
 ---
 name: onboarding
-description: "Set up my church workspace: create or resume a private church folder through website discovery and worship setup. Use when a pastor asks to set up their church workspace, get started, run onboarding, check saved setup, or update standing church preferences."
+description: "Set up my Church Command Center: create or resume a private church folder through website discovery and worship setup. Use when a pastor asks to set up their Church Command Center or church workspace, get started, run onboarding, check saved setup, or update standing church preferences."
 ---
 
-# Set up my church workspace
+# Set up my Church Command Center
 
 Create a private church folder, a useful church profile, and a visible progress
 record. Recover source facts before asking the pastor for configuration details.

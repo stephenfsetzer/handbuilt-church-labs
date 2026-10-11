@@ -1,6 +1,7 @@
 # Computer preparation and progress
 
-The experience is called **Set up my church workspace**. The skill and existing
+The experience is called **Set up my Church Command Center**. Pastors may also
+say "set up my church workspace", the earlier name; treat both the same. The skill and existing
 `onboarding` commands keep their names. Explain that this prepares a home for
 church files, preferences, and skills, rather than welcoming new parishioners.
 

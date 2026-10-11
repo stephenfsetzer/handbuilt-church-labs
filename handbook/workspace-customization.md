@@ -1,4 +1,4 @@
-# Make your church workspace your own
+# Make your Church Command Center your own
 
 Handbuilt helps you create a private workspace and supplies a few useful
 skills. You own that workspace. Add, edit, replace, or remove instructions,

@@ -24,13 +24,17 @@ language and asks for your help only when your computer needs your password
 or a click. Point-and-click and terminal routes are in
 [Installation and support](#installation-and-support).
 
-## Set up my church workspace
+## Set up my Church Command Center
 
 Install the plugin using the instructions below, then ask the agent:
 
 ```text
-Set up my church workspace.
+Set up my Church Command Center.
 ```
+
+Your Church Command Center is a private folder on your computer for your
+church's details, sermons, bulletins, and skills. Saying "Set up my church
+workspace" also works.
 
 The agent can inspect your public church website when you provide one and
 propose the details it finds. It asks you to confirm the church identity and
@@ -184,7 +188,7 @@ local and are never replaced silently.
 Your workspace is yours to change. Add local skills under `skills/`, edit
 `CLAUDE.md` and `AGENTS.md`, and use other tools when you need them. You can
 adapt or remove local files without plugin permission. Reconnecting Handbuilt
-preserves your changes. See [Make your church workspace your own](handbook/workspace-customization.md).
+preserves your changes. See [Make your Church Command Center your own](handbook/workspace-customization.md).
 
 Handbuilt saves local recovery copies of your church's `CLAUDE.md` and
 `AGENTS.md` during setup and workflow startup. Ask your agent to compare earlier
@@ -275,7 +279,7 @@ codex plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-
 codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
 ```
 
-Start a new task and ask, “Set up my church workspace.”
+Start a new task and ask, “Set up my Church Command Center.”
 
 #### Claude Code
 
@@ -293,7 +297,7 @@ Inside an existing Claude Code terminal session, the equivalent commands are:
 /plugin install handbuilt-church-labs@handbuilt-church-labs
 ```
 
-Start a new task and ask, “Set up my church workspace.”
+Start a new task and ask, “Set up my Church Command Center.”
 
 ### Update an installation
 

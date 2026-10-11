@@ -44,7 +44,7 @@ class OnboardingContractTest(unittest.TestCase):
             "skills/onboarding/references/guided-setup.md",
             "claude plugin install handbuilt-church-labs@handbuilt-church-labs",
             '"autoUpdate": true',
-            "Set up my church workspace.",
+            "Set up my Church Command Center.",
         ):
             self.assertIn(phrase, install)
         self.assertIn("INSTALL.md", (ROOT / "README.md").read_text(encoding="utf-8"))
