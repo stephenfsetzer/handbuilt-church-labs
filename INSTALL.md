@@ -128,6 +128,13 @@ In the terminal version of Claude Code, `/reload-plugins` also works. If the
 pastor wants to stay in this session, try that first, then confirm the
 `onboarding` skill is available before continuing.
 
+This install lives in Claude Code, which includes the desktop app's **Code**
+tab. It does not appear in Claude Chat or Cowork. Tell the pastor so in one
+sentence, and that their church work happens in the Code tab. If they also
+want Handbuilt in Chat or Cowork, give them the point-and-click steps in the
+README's [Claude Chat and Cowork](README.md#claude-chat-and-cowork) section;
+an agent cannot do that part for them.
+
 From there, the [onboarding skill](skills/onboarding/SKILL.md) takes over,
 including any missing computer tools, with the same guided approach.
 
