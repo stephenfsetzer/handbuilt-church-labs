@@ -46,10 +46,12 @@ tools, environment, and the operating system) instead of asking the pastor.
   pastor the point-and-click steps in the README's
   [Claude Chat and Cowork](README.md#claude-chat-and-cowork) section, one step
   at a time.
-- **Codex or ChatGPT**: follow the README's
-  [ChatGPT and Codex desktop](README.md#chatgpt-and-codex-desktop) steps, or
-  the [Codex CLI](README.md#codex) commands when you have a shell with
-  `codex`.
+- **Codex**, in the ChatGPT desktop app's **Codex** mode, the Codex app, or
+  the Codex CLI: use section 2b.
+- **ChatGPT Chat or Work**: you cannot install plugins from here. Give the
+  pastor the point-and-click steps in the README's
+  [ChatGPT and Codex desktop](README.md#chatgpt-and-codex-desktop) section,
+  one step at a time.
 
 ## 2. Install in Claude Code
 
@@ -97,6 +99,40 @@ every existing setting, save a backup copy beside it, and merge in:
 Check that the file is still valid JSON. Claude Code downloads the plugin
 when the next session starts.
 
+## 2b. Install in Codex
+
+The marketplace name and plugin name are both `handbuilt-church-labs`.
+
+**Check Git first,** exactly as in section 2.
+
+**Preferred route, when `codex` is available in your shell:**
+
+```bash
+codex plugin marketplace add https://github.com/stephenfsetzer/handbuilt-church-labs.git --ref main --json
+codex plugin add handbuilt-church-labs@handbuilt-church-labs --json
+codex plugin list
+```
+
+Confirm `handbuilt-church-labs` appears in the list and is enabled. These
+commands download from GitHub and write to Codex's own settings folder, so
+Codex may ask the pastor to approve them. Explain the request before it
+appears: "Codex will ask permission to download Handbuilt from GitHub and
+add it to its plugin list. Choose to allow it."
+
+**Fallback, when `codex` is not on the path or the commands are refused:**
+give the pastor the point-and-click steps in the README's
+[ChatGPT and Codex desktop](README.md#chatgpt-and-codex-desktop) section, one
+step at a time: **Settings**, **Plugins**, **Add**, **Add plugin
+marketplace**, paste the address, set **Git ref** to `main`, then **Browse
+directory** and **Install**. Do not edit Codex configuration files by hand.
+
+**Updates in Codex:** the marketplace follows `main`. Codex has no
+automatic-update switch documented for this marketplace, so do not claim one.
+Tell the pastor that Handbuilt checks for verified workflow updates each time
+church work starts (see section 3), and that the agent can refresh the app's
+copy on request with `codex plugin marketplace upgrade handbuilt-church-labs --json`
+followed by the `codex plugin add` line above.
+
 ## 3. Keep it updated
 
 Claude Code leaves automatic updates off for marketplaces like this one. Turn
@@ -121,12 +157,23 @@ A new plugin loads in a new session. Tell the pastor exactly what to do:
 > **New session** at the top of the sidebar, keep the same folder, and type
 > **Set up my Church Command Center.** That starts a guided setup of your
 > Church Command Center, a private folder on this computer for your church's
-> details, sermons, bulletins, and skills. I'll check your computer, ask for your church's website, and
-> show you what I find before saving anything.
+> details, sermons, bulletins, and skills. I'll check your computer, ask for
+> your church's website, and show you what I find before saving anything.
+
+In Codex, say instead: "Start a new task, outside this one, and type
+**Set up my Church Command Center.**" The plugin is available in new Codex
+tasks, and church work continues there.
 
 In the terminal version of Claude Code, `/reload-plugins` also works. If the
 pastor wants to stay in this session, try that first, then confirm the
 `onboarding` skill is available before continuing.
+
+This install lives in Claude Code, which includes the desktop app's **Code**
+tab. It does not appear in Claude Chat or Cowork. Tell the pastor so in one
+sentence, and that their church work happens in the Code tab. If they also
+want Handbuilt in Chat or Cowork, give them the point-and-click steps in the
+README's [Claude Chat and Cowork](README.md#claude-chat-and-cowork) section;
+an agent cannot do that part for them.
 
 From there, the [onboarding skill](skills/onboarding/SKILL.md) takes over,
 including any missing computer tools, with the same guided approach.
