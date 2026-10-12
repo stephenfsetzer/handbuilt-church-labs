@@ -126,7 +126,7 @@ def claude_command(prompt: str, model: str, budget: float, mcp: dict, plugin: Pa
                "--max-budget-usd", str(budget), "--tools", "", "--strict-mcp-config",
                "--mcp-config", json.dumps(mcp), "--setting-sources", "", "--no-session-persistence"]
     if plugin:
-        command += ["--plugin-dir", str(plugin), "--allowedTools", "mcp__Intuit_QuickBooks__*", "mcp__Workspace__*"]
+        command += ["--plugin-dir", str(plugin), "--allowedTools", "mcp__QuickBooks__*", "mcp__Workspace__*"]
     return command
 
 
@@ -226,7 +226,7 @@ def run(cid: str, model: str, out: Path, budget: float = BUDGET_USD, skill: str 
             plugin, config = temp / "plugin", temp / "claude-config"
             stage_plugin(plugin)
             config.mkdir()
-            mcp = {"mcpServers": {"Intuit_QuickBooks": {
+            mcp = {"mcpServers": {"QuickBooks": {
                 "command": sys.executable, "args": [str(HERE / "quickbooks_stub.py"), cid],
                 "env": {"EVAL_QBO_LOG": str(qlog)}}, "Workspace": {
                 "command": sys.executable, "args": [str(HERE / "quickbooks_stub.py"), "--workspace", str(root), "--plugin", str(plugin)],

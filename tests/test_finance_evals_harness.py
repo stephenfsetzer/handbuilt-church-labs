@@ -184,7 +184,7 @@ args = sys.argv[1:]
 assert args[args.index('--tools') + 1] == ''
 assert '--strict-mcp-config' in args
 assert args[args.index('--setting-sources') + 1] == ''
-assert set(json.loads(args[args.index('--mcp-config') + 1])['mcpServers']) == {'Workspace', 'Intuit_QuickBooks'}
+assert set(json.loads(args[args.index('--mcp-config') + 1])['mcpServers']) == {'Workspace', 'QuickBooks'}
 plugin = pathlib.Path(args[args.index('--plugin-dir') + 1])
 assert not (plugin / 'evals').exists()
 assert 'OTHER_SERVICE_TOKEN' not in os.environ
