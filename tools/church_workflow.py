@@ -142,6 +142,35 @@ def _atomic_bytes(path: Path, contents: bytes) -> None:
         Path(temporary).unlink(missing_ok=True)
 
 
+def claude_update_settings() -> dict | None:
+    """Return a request to turn on automatic updates when a Claude Code install has them off.
+
+    However Handbuilt was installed, by an agent that skipped INSTALL.md, by
+    terminal commands, or long ago, the first workflow start catches an install
+    that would otherwise never update. It reports and asks; it never changes
+    settings itself. The app's own copy is not a Claude Code install and is
+    left alone.
+    """
+    if os.environ.get("CLAUDECODE") != "1":
+        return None
+    from tools import claude_updates
+    try:
+        report = claude_updates.status(claude_updates.config_dir(), offline=True)
+    except claude_updates.SettingsError as exc:
+        return {"status": "settings_unreadable", "message": str(exc),
+                "next_action": "Tell the pastor their Claude Code settings file could not be read, so automatic updates could not be checked."}
+    if report["installed_version"] is None or (report["auto_update_on"] and report["desktop_updates_allowed"]):
+        return None
+    return {
+        "status": "updates_off",
+        "message": report["message"],
+        "enable_command": [sys.executable, str(ROOT / "tools" / "claude_updates.py"), "enable"],
+        "next_action": ("First ask the pastor: \"Automatic Handbuilt updates are off on this computer, "
+                        "so new versions won't arrive on their own. May I turn them on?\" If they agree, "
+                        "run enable_command and confirm it printed turned_on or already_on. Then continue."),
+    }
+
+
 def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:
     from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
@@ -618,6 +647,12 @@ def main() -> int:
             code = 0
         elif args.command == "start":
             result, code = _start(church, args.workflow, skip_update=args.skip_update_check)
+            # Only the app-loaded launcher reports this; a selected release it starts
+            # runs with --skip-update-check and would otherwise report it twice.
+            note = None if args.skip_update_check else claude_update_settings()
+            if note and isinstance(result, dict):
+                result["claude_updates"] = note
+                result["next_action"] = note["next_action"] + " " + result.get("next_action", "")
         elif args.command == "ensure-latest":
             result, code = _ensure_latest(church)
         elif args.command == "check-print":
