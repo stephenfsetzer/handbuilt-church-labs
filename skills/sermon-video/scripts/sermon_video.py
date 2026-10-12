@@ -203,6 +203,12 @@ def thumbnail_title_size(title):
     return 76 if len(title) <= 24 else 64 if len(title) <= 40 else 50
 
 
+def css_families(value):
+    """A font name, or a comma-separated list of them, quoted for CSS. Unquoted, a name with a word that starts
+    with a digit ("Source Serif 4") is invalid, and the browser drops the whole font rule it appears in."""
+    return ", ".join(f'"{name.strip()}"' for name in value.split(",") if name.strip())
+
+
 def artwork(root, data):
     assets = root / "assets"
     assets.mkdir(exist_ok=True)
@@ -222,6 +228,7 @@ def artwork(root, data):
     for key in ("heading_font", "body_font"):
         if not re.fullmatch(r"[\w ,'-]+", brand[key]):
             raise ValueError("Use a plain font family name.")
+        brand[key] = css_families(brand[key])
     values.update(brand)
     for key in ("portrait", "logo"):
         name = data.get("assets", {}).get(key)
