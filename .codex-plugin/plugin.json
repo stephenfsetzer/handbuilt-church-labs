@@ -1,12 +1,17 @@
 {
   "name": "handbuilt-church-labs",
-  "version": "0.8.10",
+  "version": "0.8.11",
   "description": "Church Command Center setup, weekly bulletins, sermon research and reflection, sermon videos, and monthly finance reports.",
   "author": {
     "name": "Handbuilt",
     "url": "https://gethandbuilt.com"
   },
   "skills": "./skills/",
+  "mcpServers": {
+    "church-labs": {
+      "url": "https://gethandbuilt.com/api/mcp"
+    }
+  },
   "interface": {
     "displayName": "Handbuilt Church Labs",
     "shortDescription": "Weekly church writing and worship workflows",
