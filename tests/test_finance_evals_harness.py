@@ -24,7 +24,9 @@ class WorkspaceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="finance-harness-test-")
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        # Resolve as the harness entry points do: on macOS the temp folder is
+        # reached through the /var -> /private/var symlink.
+        self.base = Path(self.temp.name).resolve()
         self.root = harness.church_folder("cedar_hollow", self.base / "cedar_hollow")
         self.plugin = self.base / "plugin"
         harness.stage_plugin(self.plugin)
@@ -177,9 +179,9 @@ class RunnerAndGradeTests(unittest.TestCase):
 
     def test_fake_cli_run_records_resolved_model_but_missing_work_still_fails_grade(self):
         with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-            executable = base / "claude"
-            executable.write_text(f"#!{sys.executable}\n" + """import json, os, pathlib, sys
+            base = Path(tmp).resolve()
+            fake = base / "fake_claude.py"
+            fake.write_text("""import json, os, pathlib, sys
 args = sys.argv[1:]
 assert args[args.index('--tools') + 1] == ''
 assert '--strict-mcp-config' in args
@@ -190,8 +192,14 @@ assert not (plugin / 'evals').exists()
 assert 'OTHER_SERVICE_TOKEN' not in os.environ
 print(json.dumps({'result': 'No work was produced.', 'subtype': 'success', 'modelUsage': {'fake-exact-model-id': {}}}))
 """)
+            # A shell wrapper, not a shebang naming the interpreter: a shebang cannot
+            # hold an interpreter path with a space (the managed runtime lives under
+            # "Application Support"), and when exec fails the PATH search moves on
+            # to the next folder. PATH holds only the fake, so no real claude runs.
+            executable = base / "claude"
+            executable.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(fake))} "$@"\n')
             executable.chmod(0o700)
-            with patch.dict(os.environ, {"PATH": str(base) + os.pathsep + os.environ.get("PATH", ""),
+            with patch.dict(os.environ, {"PATH": str(base),
                                          "ANTHROPIC_API_KEY": "synthetic-test-key", "OTHER_SERVICE_TOKEN": "must-not-copy"}):
                 result = harness.run("cedar_hollow", "sonnet", base / "results")
             self.assertEqual(result["status"], "completed", result)
