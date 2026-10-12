@@ -89,13 +89,15 @@ def bank_block(rows):
 
 def draft_accounts(rows):
     balances = {}
+    # QuickBooks numbers accounts, not headings: a name that also appears with an account number is an account.
+    numbered = {strip_code(name) for name, _ in bank_block(rows) if strip_code(name) != name}
     for name, vals in bank_block(rows):
         base = strip_code(name)
         cur = balances.get(base, [0.0] * len(vals))
         balances[base] = [a + b for a, b in zip(cur, vals)]
     accounts = []
     for name, vals in balances.items():
-        if re.fullmatch(r"[A-Z &/]+", name) and len(name.split()) <= 2:
+        if re.fullmatch(r"[A-Z &/]+", name) and len(name.split()) <= 2 and name not in numbered:
             kind = "heading"
         elif PROCESSOR.search(name):
             kind = "payment service"

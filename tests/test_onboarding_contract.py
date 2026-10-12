@@ -43,6 +43,7 @@ class OnboardingContractTest(unittest.TestCase):
         for phrase in (
             "skills/onboarding/references/guided-setup.md",
             "claude plugin install handbuilt-church-labs@handbuilt-church-labs",
+            "codex plugin add handbuilt-church-labs@handbuilt-church-labs",
             '"autoUpdate": true',
             "Set up my Church Command Center.",
         ):

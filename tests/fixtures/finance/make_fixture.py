@@ -164,6 +164,123 @@ def pl(year, upto, start=None):
             "reportData": {"data": {"rows": rows}}}
 
 
+# --- the same books in QuickBooks' own report JSON (the Accounting API, as a hosted run reads them) ------------
+
+def _money(v):
+    return f"{v:.2f}"
+
+
+def native_balance_sheet(end):
+    """The balance sheet summarized by month, as QuickBooks' Reports API returns it: one row per account
+    with its true balance, nested sections with subtotals, and Net Income resetting each January."""
+    cols = list(months_between((2024, 12), end))
+    connector = {r["cells"][0]["value"]: [c["value"] for c in r["cells"][1:]]
+                 for r in balance_sheet(end)["reportData"]["rows"]}
+    cum = connector["Checking - First Bank 1111"]  # the change row carries the running result
+    december = {y: cum[i] for i, (y, m) in enumerate(cols) if m == 12}
+    net_income = [cum[i] - december.get(y - 1, cum[i]) for i, (y, m) in enumerate(cols)]
+    retained = [150000.0 + c - ni for c, ni in zip(cum, net_income)]
+
+    def both(name):  # the connector's opening row plus its change row: the account's balance
+        return [a + b for a, b in zip(connector[name], connector[name.split(" ", 1)[1]])]
+    accounts = {"1010 Checking - First Bank 1111": both("1010 Checking - First Bank 1111"),
+                "1020 Savings - First Bank 2222": both("1020 Savings - First Bank 2222"),
+                "1500 ELCA Endowment Fund": both("1500 ELCA Endowment Fund"),
+                "Stripe": connector["Stripe"], "Old Checking 9999": connector["Old Checking 9999"]}
+
+    def data(name, values, ident=None):
+        first = {"value": name, **({"id": ident} if ident else {})}
+        return {"type": "Data", "ColData": [first] + [{"value": _money(v)} for v in values]}
+
+    def section(title, group, rows, values):
+        return {"type": "Section", "group": group,
+                "Header": {"ColData": [{"value": title}] + [{"value": ""} for _ in values]},
+                "Rows": {"Row": rows},
+                "Summary": {"ColData": [{"value": f"Total {title}"}] + [{"value": _money(v)} for v in values]}}
+
+    def add(*series):
+        return [sum(parts) for parts in zip(*series)]
+    bank = [data(name, accounts[name], str(i)) for i, name in enumerate(accounts, 1)]
+    bank_total = add(*accounts.values())
+    assets = section("Assets", "TotalAssets", [section("Bank Accounts", "BankAccounts", bank, bank_total)], bank_total)
+    equity_total = add(retained, net_income)
+    equity = section("Equity", "Equity", [data("Retained Earnings", retained, "40"), data("Net Income", net_income)],
+                     equity_total)
+    other = [a - e for a, e in zip(bank_total, equity_total)]  # what the fixture's liabilities hold
+    liabilities = section("Liabilities", "Liabilities", [data("Other Liabilities", other, "30")], other)
+    both_sides = section("Liabilities and Equity", "TotalLiabilitiesAndEquity", [liabilities, equity], bank_total)
+    columns = [{"ColTitle": "", "ColType": "Account", "MetaData": [{"Name": "ColKey", "Value": "account"}]}]
+    for y, m in cols:
+        last = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]
+        columns.append({"ColTitle": f"{MON[m - 1]} {y}", "ColType": "Money",
+                        "MetaData": [{"Name": "StartDate", "Value": f"{y}-{m:02d}-01"},
+                                     {"Name": "EndDate", "Value": f"{y}-{m:02d}-{last}"},
+                                     {"Name": "ColKey", "Value": f"{MON[m - 1]} {y}"}]})
+    return {"Header": {"ReportName": "BalanceSheet", "StartPeriod": "2024-12-01",
+                       "EndPeriod": f"{end[0]}-{end[1]:02d}-{[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][end[1] - 1]}",
+                       "SummarizeColumnsBy": "Month", "ReportBasis": "Accrual", "Currency": "USD",
+                       "Option": [{"Name": "NoReportData", "Value": "false"}]},
+            "Columns": {"Column": columns}, "Rows": {"Row": [assets, both_sides]}}
+
+
+def native_pl(year, upto, start=None):
+    """Profit and loss for one period, as QuickBooks' Reports API returns it with a Total column."""
+    start = start or (year, 1)
+    totals, count = {}, 0
+    for y, m in months_between(start, (year, upto)):
+        inc, exp = month_values(y, m)
+        for k, v in {**inc, **exp, **other_income(y, m)}.items():
+            totals[k] = totals.get(k, 0) + v
+        count += 1
+    own = HEADING_OWN[1] * count
+    ids = iter(range(100, 1000))
+
+    def data(name):
+        return {"type": "Data", "ColData": [{"value": name, "id": str(next(ids))}, {"value": _money(totals[name])}]}
+
+    def group(heading, names, heading_own=0.0):
+        value = sum(totals[n] for n in names) + heading_own
+        return value, {"type": "Section",
+                       "Header": {"ColData": [{"value": heading, "id": str(next(ids))},
+                                              {"value": _money(heading_own) if heading_own else ""}]},
+                       "Rows": {"Row": [data(n) for n in names]},
+                       "Summary": {"ColData": [{"value": f"Total {heading}"}, {"value": _money(value)}]}}
+
+    def section(title, key, accounts, own_heading=None):
+        heads = {}
+        for name, (heading, _, _) in accounts.items():
+            heads.setdefault(heading, []).append(name)
+        made = [group(h, names, own if h == own_heading else 0.0) for h, names in heads.items()]
+        value = sum(v for v, _ in made)
+        return value, {"type": "Section", "group": key, "Header": {"ColData": [{"value": title}, {"value": ""}]},
+                       "Rows": {"Row": [row for _, row in made]},
+                       "Summary": {"ColData": [{"value": f"Total {title}"}, {"value": _money(value)}]}}
+
+    def formula(key, title, value):
+        return {"type": "Section", "group": key, "Summary": {"ColData": [{"value": title}, {"value": _money(value)}]}}
+    income, income_row = section("Income", "Income", INCOME)
+    expenses, expense_row = section("Expenses", "Expenses", EXPENSE, own_heading=HEADING_OWN[0])
+    rows = [income_row, formula("GrossProfit", "Gross Profit", income), expense_row,
+            formula("NetOperatingIncome", "Net Operating Income", income - expenses)]
+    others = {k: v for k, v in totals.items() if k == ESTATE_GIFT[1]}
+    other = sum(others.values())
+    if others:
+        rows.append({"type": "Section", "group": "OtherIncome",
+                     "Header": {"ColData": [{"value": "Other Income"}, {"value": ""}]},
+                     "Rows": {"Row": [data(k) for k in others]},
+                     "Summary": {"ColData": [{"value": "Total Other Income"}, {"value": _money(other)}]}})
+        rows.append(formula("NetOtherIncome", "Net Other Income", other))
+    rows.append(formula("NetIncome", "Net Income", income - expenses + other))
+    last = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][upto - 1]
+    return {"Header": {"ReportName": "ProfitAndLoss", "StartPeriod": f"{start[0]}-{start[1]:02d}-01",
+                       "EndPeriod": f"{year}-{upto:02d}-{last}", "SummarizeColumnsBy": "Total",
+                       "ReportBasis": "Accrual", "Currency": "USD",
+                       "Option": [{"Name": "NoReportData", "Value": "false"}]},
+            "Columns": {"Column": [{"ColTitle": "", "ColType": "Account", "MetaData": [{"Name": "ColKey", "Value": "account"}]},
+                                   {"ColTitle": "Total", "ColType": "Money", "MetaData": [{"Name": "ColKey", "Value": "total"}]}]},
+            "Rows": {"Row": rows}}
+
+
 def main(out, short=False):
     """Write the synthetic church. short=True: books that start in January 2026."""
     out = Path(out)

@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 
 from cash_position import cash_summary, signed_money
+import quickbooks_native
 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
           "September", "October", "November", "December"]
@@ -56,8 +57,19 @@ def strip_code(name):
 
 # --- balance sheet ------------------------------------------------------------
 
-def load_balance_sheet(path):
+def read_pull(path, convert):
+    """A saved pull: the connector's response, or QuickBooks' own report JSON read as the connector's."""
     d = json.loads(Path(path).read_text())
+    if quickbooks_native.is_native(d):
+        try:
+            return convert(d)
+        except (quickbooks_native.NativeReportError, KeyError, IndexError, TypeError) as problem:
+            fail(f"{Path(path).name} is a QuickBooks report the builder cannot read: {problem}")
+    return d
+
+
+def load_balance_sheet(path):
+    d = read_pull(path, quickbooks_native.balance_sheet)
     cols = [c["key"] for c in d["displayColumns"][1:]]
     months = []
     for c in cols:
@@ -135,7 +147,7 @@ def section_name(name):
 
 
 def load_pl(path):
-    d = json.loads(Path(path).read_text())
+    d = read_pull(path, quickbooks_native.profit_and_loss)
     rows = d["reportData"]["data"]["rows"]
     by_id = {r["metadata"]["id"]: r for r in rows}
     section_of = {}
@@ -162,7 +174,7 @@ def load_pl(path):
                 chain.append(parent["cells"][0]["value"])
         sec = section_of.get(parts[0], "")
         items.append({"name": name, "chain": chain, "section": sec, "value": val})
-    check_complete(path, rows, items, sections)
+    check_complete(path, rows, items, sections, limited=d.get("source") != "quickbooks-api")
     return d["periodStart"], d["periodEnd"], items, sections
 
 
@@ -170,11 +182,12 @@ def load_pl(path):
 CONNECTOR_ROW_LIMIT = 100
 
 
-def check_complete(path, rows, items, sections):
+def check_complete(path, rows, items, sections, limited=True):
     """Stop on a profit and loss the connector cut off: rows at its limit, or line rows that do not
-    add up to their section's total. Nothing drafted from a partial pull can be trusted."""
+    add up to their section's total. Nothing drafted from a partial pull can be trusted. QuickBooks'
+    own reports have no row limit, so only the totals are checked for them."""
     name = Path(path).name
-    if len(rows) >= CONNECTOR_ROW_LIMIT:
+    if limited and len(rows) >= CONNECTOR_ROW_LIMIT:
         fail(f"{name} has {len(rows)} rows, the connector's limit, so it is probably cut off; "
              "pull a shorter period or use the QuickBooks export instead")
     for sec in (*INCOME, *EXPENSE):

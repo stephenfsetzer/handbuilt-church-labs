@@ -148,8 +148,13 @@ def cmd_look(args, root):
         findings.append({"id": fid, "level": level, "finding": text, "why": why, "question": question,
                          "readiness": readiness})
 
-    add("cash", "info", f"{money(cash_now)} in everyday bank accounts, about {cash_now / (exp / period_months):.1f} months of spending.",
-        "The first thing a board asks: can we pay our bills?")
+    if cash_now < 0:  # money() drops the sign, so an overdraft must say so in words
+        add("cash", "watch", f"Everyday bank accounts are overdrawn: {money(cash_now)} below zero at month end.",
+            "The first thing a board asks: can we pay our bills?",
+            "Was the overdraft covered after month end, and how?")
+    else:
+        add("cash", "info", f"{money(cash_now)} in everyday bank accounts, about {cash_now / (exp / period_months):.1f} months of spending.",
+            "The first thing a board asks: can we pay our bills?")
     add("result", "info", f"Over the {period_months} months pulled, {money(inc)} came in and {money(exp)} went out, "
         f"{money(inc - exp)} {'ahead' if inc >= exp else 'short'}.", "The year's direction, before any detail.")
     top = largest_source(items, groups[0], inc)

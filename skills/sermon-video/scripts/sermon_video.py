@@ -147,6 +147,11 @@ def visible(data, key):
     return item.get("text", "") if item.get("status") in allowed else ""
 
 
+def name_panel(data):
+    """The name panel appears only with a verified preacher; without one there is nothing to show."""
+    return bool(visible(data, "preacher"))
+
+
 def escape(value):
     return html.escape(str(value), quote=True)
 
@@ -426,7 +431,7 @@ def write_captions(root, data, given, origin=0.0):
     panel_end = panel_start + data["video"]["lower_duration"]
     for i, (a, b, text) in enumerate(cues, 1):
         wrapped = "\n".join(textwrap.wrap(text, width=40, break_long_words=False, break_on_hyphens=False))
-        position = " line:45%" if a < panel_end and b > panel_start else ""
+        position = " line:45%" if name_panel(data) and a < panel_end and b > panel_start else ""
         vtt.extend([f"{timestamp(a)} --> {timestamp(b)}{position}", wrapped, ""])
         srt.extend([str(i), f'{timestamp(a, ",")} --> {timestamp(b, ",")}', wrapped, ""])
     (root / "sermon.en.vtt").write_text("\n".join(vtt)); (root / "sermon.en.srt").write_text("\n".join(srt))
@@ -632,13 +637,17 @@ def render(root, data):
     if video["intro_seconds"] > 0:
         card("intro", video["intro_seconds"])
     recording = add_input("-ss", start, "-t", speech_duration, "-i", source)
-    panel = add_input("-i", root / "assets/lower-third.png")
-    graph.append(
-        f"[{recording}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[cut];"
-        f"[{panel}:v]scale={w}:{h},format=rgba,loop=loop=-1:size=1:start=0,setpts=N/30/TB,"
-        f"fade=t=in:st={video['lower_start']}:d={fade}:alpha=1,fade=t=out:st={panel_end-fade}:d={fade}:alpha=1[panel];"
-        f"[cut][panel]overlay=0:0:shortest=1:enable='between(t,{video['lower_start']},{panel_end})',format=yuv420p[sermonv];"
-        f"[{recording}:a:0]{af},{uniform}[sermona]")
+    picture = f"[{recording}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30"
+    if name_panel(data):
+        panel = add_input("-i", root / "assets/lower-third.png")
+        graph.append(
+            f"{picture}[cut];"
+            f"[{panel}:v]scale={w}:{h},format=rgba,loop=loop=-1:size=1:start=0,setpts=N/30/TB,"
+            f"fade=t=in:st={video['lower_start']}:d={fade}:alpha=1,fade=t=out:st={panel_end-fade}:d={fade}:alpha=1[panel];"
+            f"[cut][panel]overlay=0:0:shortest=1:enable='between(t,{video['lower_start']},{panel_end})',format=yuv420p[sermonv];"
+            f"[{recording}:a:0]{af},{uniform}[sermona]")
+    else:
+        graph.append(f"{picture},format=yuv420p[sermonv];[{recording}:a:0]{af},{uniform}[sermona]")
     segments.append("[sermonv][sermona]")
     if video["outro_seconds"] > 0:
         card("outro", video["outro_seconds"])

@@ -60,6 +60,17 @@ it as `--pl-through YYYY-MM=pulls/pl-through-YYYY-MM.json`.
   report rebuilt later will not match the one delivered, which is why final
   reports keep their own `report.json`.
 
+## QuickBooks' own report format
+
+Some hosts read the books through QuickBooks' Accounting API instead of the
+connector, for example Handbuilt's hosted runs. Their read tools return
+QuickBooks' own report JSON (`Header`, `Columns`, `Rows`) under the same tool
+names. Save those responses exactly as returned, like the connector's. The
+builder reads both formats and runs the same checks on each. QuickBooks' own
+reports have no 100-row limit and print each account once with its balance,
+so the connector traps above about cut-off pulls and opening-plus-change rows
+do not apply to them. The balance sheet must still be split by month.
+
 ## What the connector cannot read
 
 Budgets and classes. The budget goes into `config.json` once a year from the
