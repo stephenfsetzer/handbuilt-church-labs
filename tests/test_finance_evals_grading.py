@@ -27,6 +27,10 @@ def save(path, value):
 
 
 class FinanceGradeEvidenceTests(unittest.TestCase):
+    # Grader helpers expect the resolved folder grade() passes them. Tests that
+    # call them directly resolve their temp folder, which macOS reaches through
+    # the /var -> /private/var symlink.
+
     def test_prose_in_options_cannot_impersonate_workflow_operations(self):
         fake = command(["python3", "handbuilt.py", "finance-onboarding", "readiness", "--item", "budget",
                         "--status", "open", "--reason", "church_workflow.py start finance-onboarding finance-onboarding look"])
@@ -57,7 +61,7 @@ class FinanceGradeEvidenceTests(unittest.TestCase):
 
     def test_only_authentic_case_specific_source_blocks_relax_output_requirements(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder = Path(tmp)
+            folder = Path(tmp).resolve()
             calls, qcalls = self.source_command(folder, "cedar_hollow", error="CHECK FAILED: incorrect total")
             self.assertFalse(E.known_source_block("cedar_hollow", "finance-onboarding", folder, calls, qcalls))
             calls, qcalls = self.source_command(folder, "harbor_light", error="CHECK FAILED: profit and loss cut off")
@@ -84,7 +88,7 @@ class FinanceGradeEvidenceTests(unittest.TestCase):
 
     def test_monthly_gate_binds_current_files_and_requires_inspection_after_render(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder = Path(tmp)
+            folder = Path(tmp).resolve()
             report, workspace = self.monthly_artifacts(folder)
             def errors():
                 return E.monthly_artifacts(folder, "2026-08", E.workflow_calls({"workspace_calls": workspace}), workspace, report)
