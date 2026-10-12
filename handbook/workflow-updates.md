@@ -89,12 +89,21 @@ Cowork, update a host manifest integration, or promise that the app's plugin
 controls need no manual action. Host marketplace controls remain the source of
 truth for those identities.
 
-For Claude Code, enable automatic plugin updates through `/plugin` >
-**Marketplaces** > `handbuilt-church-labs` > **Enable auto-update**. Third-party
-marketplaces default to off; follow any reload notification after an update.
-See [Claude Code's documented behavior](https://code.claude.com/docs/en/discover-plugins#configure-auto-updates).
+For Claude Code, run `tools/claude_updates.py enable` from the installed
+marketplace copy (see [INSTALL.md](../INSTALL.md), section 3). It sets
+`autoUpdate` for the marketplace, which third-party marketplaces leave off,
+and `FORCE_AUTOUPDATE_PLUGINS=1`, without which the desktop app's Code
+sessions skip plugin updates. `claude_updates.py status` reports the installed
+version, the latest release, and both settings. Follow any reload
+notification after an update. See
+[Claude Code's documented behavior](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs).
 
-Cowork's **Sync automatically** setting controls GitHub marketplace sync.
+Every version merged to `main` is released automatically, and a pull request
+that changes shipped files must raise the version
+(`tools/check_version_bump.py`). Claude Code compares version numbers to find
+updates, so a change at an unchanged version would never reach an install.
+
+The Claude desktop app's **Sync automatically** setting controls GitHub marketplace sync.
 Do not disable a working automatic-sync setup. For organization marketplaces,
 enabling it requires repository admin access and approved GitHub App
 permissions. Those permissions are not required to install this public
@@ -110,19 +119,25 @@ PDF tools do not block workspace setup or sermon research.
 
 ## Release-owner procedure
 
-To publish a workflow update, bump both plugin manifests to the same strict
-`X.Y.Z` version and pass the full regression suite, hygiene scan, package check,
-and skill validators before publishing. Rehearse an actual upgrade with
-`python tests/smoke_managed_updates.py` from a prepared managed runtime.
-The deterministic package includes tools, skills, scaffold, referenced handbook
-pages, plugin manifests, root documentation, requirements, license, and notices.
+To publish a workflow update, raise the version in all four manifest entries
+(`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
+`.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json`) to the same
+strict `X.Y.Z` version in the pull request that makes the change. The
+`version-bump` check fails a pull request that changes shipped files without
+raising it. Rehearse an actual upgrade with `python tests/smoke_managed_updates.py`
+from a prepared managed runtime. The deterministic package includes tools,
+skills, scaffold, referenced handbook pages, plugin manifests, root
+documentation, requirements, license, and notices.
 
-Publish the matching tag and GitHub release. The publication workflow rebuilds
-and validates that tagged package, then its `release-assets` job attaches
-`handbuilt-workflow.zip` and `handbuilt-workflow.sha256` only after checks pass.
-A release without both valid assets is unavailable to the updater. Never replace
+Merging to `main` publishes the release. After the full regression suite,
+hygiene scan, package check, and entrypoint check pass on `main`, the
+`release-new-version` job creates the `v<version>` tag and GitHub release and
+attaches `handbuilt-workflow.zip` and `handbuilt-workflow.sha256`. It does
+nothing when that version is already released. A release published by hand
+still works: its `release-assets` job attaches the same checked assets. A
+release without both valid assets is unavailable to the updater. Never replace
 an existing release's assets; publish a new version for any correction.
 
-An ordinary git push or marketplace refresh does not publish a managed workflow
-update. Inspect the successful asset job and release contents before announcing
-that an update is available. The next daily release check can then select it.
+Inspect the successful release job and the release's two assets before
+announcing that an update is available. The next daily release check can then
+select it.

@@ -96,6 +96,49 @@ jobs:
             ${{ runner.temp }}/handbuilt-release/handbuilt-workflow.zip
             ${{ runner.temp }}/handbuilt-release/handbuilt-workflow.sha256
 
+  version-bump:
+    # Installs only receive a change that arrives with a new version number.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a new version when shipped files change
+        run: python3 tools/check_version_bump.py --base "origin/${{ github.base_ref }}"
+
+  release-new-version:
+    # Every new version on main becomes a release, so the managed updater and
+    # every install path can receive it. A release created with the workflow
+    # token starts no other run, so this job attaches the checked assets itself.
+    # Their notes are pull request titles, which the hygiene check already read.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: checks
+    runs-on: ubuntu-latest
+    concurrency: release-main
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: handbuilt-workflow
+          path: distribution
+      - name: Publish the release for a new version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')"
+          if gh release view "v${version}" >/dev/null 2>&1; then
+            echo "v${version} is already released; nothing to publish."
+            exit 0
+          fi
+          gh release create "v${version}" \
+            distribution/handbuilt-workflow.zip distribution/handbuilt-workflow.sha256 \
+            --target "${GITHUB_SHA}" --title "Handbuilt Church Labs ${version}" --generate-notes
+          gh release view "v${version}" --json assets --jq '.assets[].name'
+
   release-assets:
     if: github.event_name == 'release' && !github.event.release.prerelease
     needs: checks
