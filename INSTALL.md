@@ -200,7 +200,8 @@ Then tell the pastor to start a new session, which loads the new version.
 Handbuilt also checks for itself. When a church workflow starts in Claude Code
 and an install has automatic updates off, however it was installed, the start
 result includes `claude_updates` with a question for the pastor and the
-`enable` command to run on a yes.
+`enable` command to run on a yes. Sermon video, which can run without a church
+folder, asks the same question with `claude_updates.py check`.
 
 Separately, once the church folder exists, Handbuilt checks for verified
 workflow updates each time church work starts. See

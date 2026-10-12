@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -159,6 +161,33 @@ class ClaudeUpdatesTest(unittest.TestCase):
             self.assertIsNone(church_workflow.claude_update_settings())
         with mock.patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": self.folder.name, "CLAUDECODE": ""}):
             self.assertIsNone(church_workflow.claude_update_settings(), "other hosts are left alone")
+
+    def test_check_command_asks_without_a_church_folder_and_never_blocks(self) -> None:
+        record = self.directory / "plugins" / "installed_plugins.json"
+        record.parent.mkdir()
+        record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.8"}]}}))
+
+        def check(claudecode: str) -> tuple[int, dict]:
+            output = io.StringIO()
+            with mock.patch.dict("os.environ", {"CLAUDECODE": claudecode}), redirect_stdout(output):
+                code = claude_updates.main(["check", "--config-dir", str(self.directory)])
+            return code, json.loads(output.getvalue())
+
+        code, result = check("1")
+        self.assertEqual((code, result["status"]), (0, "updates_off"))
+        self.assertIn("May I turn them on?", result["next_action"])
+        self.assertFalse(self.settings.exists(), "the check asks; it never writes settings")
+        self.assertEqual(check("")[1], {"status": "nothing_to_ask"}, "other hosts are left alone")
+        claude_updates.enable(self.directory)
+        self.assertEqual(check("1"), (0, {"status": "nothing_to_ask"}))
+        self.settings.write_text("{not json")
+        code, result = check("1")
+        self.assertEqual((code, result["status"]), (0, "settings_unreadable"))
+
+    def test_sermon_video_asks_the_update_question_without_the_launcher(self) -> None:
+        skill = (Path(__file__).resolve().parents[1] / "skills/sermon-video/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn('"<app-loaded-plugin-root>/tools/claude_updates.py" check', skill)
+        self.assertNotIn("church_workflow.py", skill)
 
     def test_config_dir_follows_claude_config_dir(self) -> None:
         with mock.patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": self.folder.name}):

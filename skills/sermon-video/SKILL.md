@@ -11,6 +11,18 @@ rehearsal, use a private scratch folder. Never put church recordings, portraits,
 plans, or results in the public plugin. This version prepares local files;
 uploading, website publication, and recurring schedules are separate actions.
 
+This skill does not start through the church launcher, so first check once
+whether the app-loaded plugin (the one containing this `skills/sermon-video`)
+updates itself:
+
+```bash
+python3 "<app-loaded-plugin-root>/tools/claude_updates.py" check
+```
+
+It needs no church folder and changes nothing. If the result has a
+`next_action`, follow it before continuing; it asks the pastor's permission
+first. `nothing_to_ask` means continue. It never blocks the video work.
+
 Use the skill-owned helper:
 
 ```bash
