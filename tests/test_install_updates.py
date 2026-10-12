@@ -138,6 +138,8 @@ class ClaudeUpdatesTest(unittest.TestCase):
             after = claude_updates.status(self.directory)
         self.assertEqual(after["status"], "current")
         self.assertTrue(after["auto_update_on"] and after["desktop_updates_allowed"] and after["plugin_enabled"])
+        with mock.patch.object(claude_updates, "_latest_release", return_value=("0.8.7", None)):
+            self.assertEqual(claude_updates.status(self.directory)["status"], "current")
 
     def test_config_dir_follows_claude_config_dir(self) -> None:
         with mock.patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": self.folder.name}):

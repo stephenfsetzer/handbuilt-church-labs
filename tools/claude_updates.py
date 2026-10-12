@@ -137,6 +137,14 @@ def _synced_version(directory: Path) -> Optional[str]:
     return None
 
 
+def _older(installed: str, latest: str) -> bool:
+    """True when the installed version is behind the release, or not comparable."""
+    try:
+        return tuple(int(part) for part in installed.split(".")) < tuple(int(part) for part in latest.split("."))
+    except ValueError:
+        return installed != latest
+
+
 def _latest_release(timeout: float = 10.0) -> Tuple[Optional[str], Optional[str]]:
     request = urllib.request.Request(LATEST_RELEASE_API, headers={"Accept": "application/vnd.github+json"})
     try:
@@ -173,7 +181,7 @@ def status(directory: Path, offline: bool = False) -> Dict[str, Any]:
         gaps.append("automatic updates are off for the Handbuilt marketplace")
     if not forced:
         gaps.append(f"{FORCE_VARIABLE} is not set, so desktop app sessions skip plugin updates")
-    if installed and latest and installed != latest:
+    if installed and latest and _older(installed, latest):
         gaps.append(f"version {installed} is installed and {latest} is the latest release")
     result["status"] = "current" if not gaps else "needs_attention"
     summary = "; ".join(gaps)
