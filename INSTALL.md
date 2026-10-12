@@ -6,8 +6,12 @@ Church Labs. If you are a pastor, you can paste this into your AI app:
 ```text
 Please install the Handbuilt Church Labs plugin from
 https://github.com/stephenfsetzer/handbuilt-church-labs
-and keep it updated. Follow its INSTALL.md, and explain each step to me.
+and turn on automatic updates so I always have the newest version.
+Follow its INSTALL.md, and explain each step to me.
 ```
+
+Later, to check that Handbuilt is current, the pastor can ask: "Check that
+Handbuilt Church Labs is up to date." Section 3 covers that request.
 
 ## For the agent: how to treat the pastor
 
@@ -44,7 +48,7 @@ tools, environment, and the operating system) instead of asking the pastor.
   section 2.
 - **Claude Chat or Cowork**: you cannot install plugins from here. Give the
   pastor the point-and-click steps in the README's
-  [Claude Chat and Cowork](README.md#claude-chat-and-cowork) section, one step
+  [Claude desktop app](README.md#claude-desktop-app) section, one step
   at a time.
 - **Codex**, in the ChatGPT desktop app's **Codex** mode, the Codex app, or
   the Codex CLI: use section 2b.
@@ -73,10 +77,16 @@ claude plugin list
 The `.git` address uses HTTPS, so the pastor does not need a GitHub account or
 key. Confirm `handbuilt-church-labs` appears in the list and is enabled.
 
+Then turn on automatic updates (section 3) before anything else. An install
+without them stays on the version it started with.
+
 If the list already shows `handbuilt-church-labs@synced`, the pastor added
 Handbuilt through Claude's **Customize** panel earlier, and claude.ai shares it
-here. Install anyway: the copy installed here takes precedence and gets
-updates from this marketplace. Tell the pastor so in one sentence.
+here. Install anyway and turn on updates for this copy too, so whichever copy
+loads is current. Ask the pastor to confirm that **Sync automatically** is on
+for the Handbuilt marketplace in that panel (README,
+[Claude desktop app](README.md#claude-desktop-app)). Tell them so in one
+sentence.
 
 **Fallback, when `claude` is not on the path:** declare the marketplace in the
 user settings file, `~/.claude/settings.json`. Tell the pastor you are adding
@@ -94,6 +104,9 @@ every existing setting, save a backup copy beside it, and merge in:
       },
       "autoUpdate": true
     }
+  },
+  "env": {
+    "FORCE_AUTOUPDATE_PLUGINS": "1"
   },
   "enabledPlugins": {
     "handbuilt-church-labs@handbuilt-church-labs": true
@@ -140,14 +153,49 @@ followed by the `codex plugin add` line above.
 
 ## 3. Keep it updated
 
-Claude Code leaves automatic updates off for marketplaces like this one. Turn
-them on by making sure the `handbuilt-church-labs` entry in
-`extraKnownMarketplaces` (user settings) has `"autoUpdate": true`, using the
-same careful merge as above. The preferred route already writes that entry
-without `autoUpdate`; add the field to it and keep its `source`. Explain it to the pastor in one sentence:
+Claude Code needs two settings before Handbuilt updates itself, and an install
+has neither by default:
+
+- `"autoUpdate": true` on the `handbuilt-church-labs` marketplace. Claude Code
+  leaves automatic updates off for marketplaces outside Anthropic's own.
+- `FORCE_AUTOUPDATE_PLUGINS=1` in the settings `env`. The Claude desktop app
+  starts its Code sessions with Claude Code's own updater switched off, and
+  that also stops plugin updates unless this is set.
+
+Handbuilt includes a script that merges both into the user settings file,
+keeps every other setting, and saves a backup first. After the preferred
+route, run it from the marketplace copy Claude Code just downloaded:
+
+```bash
+python3 "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
+```
+
+It prints `turned_on` or `already_on`. If it reports an error, the settings
+file was left unchanged: read the message, and fall back to the careful manual
+merge shown in section 2. The fallback route's settings already include both.
+
+Then confirm the result:
+
+```bash
+python3 "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
+```
+
+`status` reports the installed version, the latest release, and whether both
+settings are on. Explain it to the pastor in one sentence:
 
 > I've turned on automatic updates, so new Handbuilt improvements arrive on
 > their own. When one arrives, starting a new session picks it up.
+
+**When the pastor asks whether Handbuilt is up to date,** run `status`. If it
+reports `current`, say so. If a setting is off, run `enable`. If the installed
+version is older than the latest release, update now rather than waiting:
+
+```bash
+claude plugin marketplace update handbuilt-church-labs
+claude plugin update handbuilt-church-labs@handbuilt-church-labs
+```
+
+Then tell the pastor to start a new session, which loads the new version.
 
 Separately, once the church folder exists, Handbuilt checks for verified
 workflow updates each time church work starts. See
@@ -177,7 +225,7 @@ This install lives in Claude Code, which includes the desktop app's **Code**
 tab. It does not appear in Claude Chat or Cowork. Tell the pastor so in one
 sentence, and that their church work happens in the Code tab. If they also
 want Handbuilt in Chat or Cowork, give them the point-and-click steps in the
-README's [Claude Chat and Cowork](README.md#claude-chat-and-cowork) section;
+README's [Claude desktop app](README.md#claude-desktop-app) section;
 an agent cannot do that part for them.
 
 From there, the [onboarding skill](skills/onboarding/SKILL.md) takes over,

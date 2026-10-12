@@ -16,13 +16,16 @@ desktop app's **Code** tab (or Claude Code, Codex, or ChatGPT), paste:
 ```text
 Please install the Handbuilt Church Labs plugin from
 https://github.com/stephenfsetzer/handbuilt-church-labs
-and keep it updated. Follow its INSTALL.md, and explain each step to me.
+and turn on automatic updates so I always have the newest version.
+Follow its INSTALL.md, and explain each step to me.
 ```
 
 The agent follows [INSTALL.md](INSTALL.md). It explains each step in plain
 language and asks for your help only when your computer needs your password
-or a click. Point-and-click and terminal routes are in
-[Installation and support](#installation-and-support).
+or a click. Automatic updates are part of the install, so new versions arrive
+on their own and load the next time you start a session. To check later, ask:
+"Check that Handbuilt Church Labs is up to date." Point-and-click and terminal
+routes are in [Installation and support](#installation-and-support).
 
 ## Set up my Church Command Center
 
@@ -203,8 +206,11 @@ readings, translation, or research preferences trigger the relevant recheck.
 ## Installation and support
 
 Install Handbuilt Church Labs version 0.8.8 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
-The point-and-click path below is the primary path for pastors. The repository
-is public, so manual installation does not require a GitHub access grant.
+There are two ways to install, and you can use both: ask your agent (see
+[Install with your AI agent](#install-with-your-ai-agent)), or click through
+the app as described below. Either way, automatic updates must be on so each
+new version reaches you. The repository is public, so installation does not
+require a GitHub account or access grant.
 
 ### ChatGPT and Codex desktop
 
@@ -226,31 +232,40 @@ In the ChatGPT or Codex desktop app:
 4. Start a fresh task outside the Labs development project and ask Handbuilt
    Church Labs to create your private church folder.
 
-### Claude Chat and Cowork
+### Claude desktop app
 
-Use the Claude desktop app in **Chat and Cowork** mode. Choose
-**Customize** in the sidebar, then **Plugins**, **Add plugin**, **Add
-marketplace**, and **Add from a repository**. Enter:
+This adds Handbuilt to your Claude account, so it is available in Chat,
+Cowork, and the **Code** tab.
 
-```text
-https://github.com/stephenfsetzer/handbuilt-church-labs.git
-```
+1. Open **Settings** from the menu under your name, then choose **Plugins**.
+2. Choose **Add** at the top right, then **Add marketplace**.
+3. Choose **Add from a repository**. In **URL**, paste:
 
-Choose the offered **Use [pasted URL]** option, then choose **Sync**.
-In **Discover**, choose **Add Handbuilt Church Labs**.
-Open **Yours** and confirm that the detail view shows version 0.8.8, seven
-skills, and **Enable plugin** on. The success message is
-“Handbuilt Church Labs is installed and ready to use.”
+   ```text
+   https://github.com/stephenfsetzer/handbuilt-church-labs.git
+   ```
 
-Automatic sync does not need to be disabled to install Handbuilt. If enabling
-it asks for GitHub permissions you do not have, use **Sync** to complete the
-installation. The managed workflow updater does not depend on that setting.
-For a manual host update, open
-**Manage marketplaces**, find `handbuilt-church-labs`, open its More actions
-menu, and choose **Check for updates**. Use the plugin's **Update** button if
-it is offered. Start a new Cowork task after installing or updating. For a first setup, choose where to
-create the private church work folder. Plain Chat is useful for conversation,
-but Cowork is the right place for persistent local church work.
+   Then choose the **Use “https://github.com/...”** line that appears under
+   it.
+4. Make sure **Sync automatically** is on (the switch is blue). This is the
+   setting that brings each new Handbuilt version to you. Without it, your
+   copy stays on the version you installed today.
+5. Confirm. Then open the **Discover** tab, find **Handbuilt Church Labs**,
+   and choose **Add**.
+6. Open **Your plugins** and confirm that Handbuilt Church Labs shows version
+   0.8.8, seven skills, and **Enable plugin** on.
+
+Start a new session or task, and ask, “Set up my Church Command Center.” The
+**Code** tab or Cowork is the right place for church work, because it keeps
+files in a folder on your computer. Plain Chat is useful for conversation.
+
+If turning on **Sync automatically** asks for GitHub permissions you do not
+have, finish with it off, then also ask your agent to install Handbuilt (see
+[Install with your AI agent](#install-with-your-ai-agent)). The agent's copy
+updates itself. To update the app's copy by hand, open **Manage
+marketplaces**, find `handbuilt-church-labs`, open its More actions menu, and
+choose **Check for updates**, then use the plugin's **Update** button if it
+is offered.
 
 The Cowork marketplace update changes the app-loaded plugin and its displayed
 version. It is separate from the managed workflow release selected when a
@@ -297,6 +312,14 @@ Inside an existing Claude Code terminal session, the equivalent commands are:
 /plugin install handbuilt-church-labs@handbuilt-church-labs
 ```
 
+Then turn on automatic updates. This sets `autoUpdate` for the marketplace and
+`FORCE_AUTOUPDATE_PLUGINS=1`, which the desktop app's Code tab needs, and
+backs up your settings first:
+
+```bash
+python3 ~/.claude/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py enable
+```
+
 Start a new task and ask, “Set up my Church Command Center.”
 
 ### Update an installation
@@ -305,12 +328,15 @@ Once this updater is installed, routine workflow updates happen when you start
 church work. Existing installations need the host update below once to receive
 it. These controls also remain available for changes to the app integration.
 
-For **Claude Code**, enable automatic plugin updates: open `/plugin`, choose
-**Marketplaces**, select `handbuilt-church-labs`, and choose **Enable auto-update**.
-Third-party marketplaces default to off. Follow any reload notification so the
-running session uses the updated plugin. See [Claude Code auto-updates](https://code.claude.com/docs/en/discover-plugins#configure-auto-updates).
+For **Claude Code**, run the `claude_updates.py enable` command shown above,
+or ask your agent to. Turning on **Enable auto-update** under `/plugin`
+**Marketplaces** covers terminal sessions but not the desktop app's Code tab,
+which also needs `FORCE_AUTOUPDATE_PLUGINS=1`. `claude_updates.py status`
+reports the installed version, the latest release, and both settings. New
+versions install in the background and load in your next session. See
+[Claude Code auto-updates](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs).
 
-Cowork's **Sync automatically** is a separate GitHub marketplace control.
+In the Claude desktop app, **Sync automatically** is the matching control.
 For organization marketplaces, enabling it requires repository admin access
 and GitHub App permissions; this is not required to install Handbuilt's public
 marketplace. Keep a working automatic-sync setup enabled. See
