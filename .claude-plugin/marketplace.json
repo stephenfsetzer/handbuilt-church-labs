@@ -9,7 +9,7 @@
       "name": "handbuilt-church-labs",
       "source": "./",
       "description": "Church Command Center setup, sermon research and reflection, sermon videos, reviewable worship bulletins, and monthly finance reports.",
-      "version": "0.8.8",
+      "version": "0.8.9",
       "author": {
         "name": "Handbuilt",
         "url": "https://gethandbuilt.com"
