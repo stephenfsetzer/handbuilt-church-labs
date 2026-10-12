@@ -73,6 +73,11 @@ claude plugin list
 The `.git` address uses HTTPS, so the pastor does not need a GitHub account or
 key. Confirm `handbuilt-church-labs` appears in the list and is enabled.
 
+If the list already shows `handbuilt-church-labs@synced`, the pastor added
+Handbuilt through Claude's **Customize** panel earlier, and claude.ai shares it
+here. Install anyway: the copy installed here takes precedence and gets
+updates from this marketplace. Tell the pastor so in one sentence.
+
 **Fallback, when `claude` is not on the path:** declare the marketplace in the
 user settings file, `~/.claude/settings.json`. Tell the pastor you are adding
 Handbuilt to the app's own settings file and why. Read the file first, keep
@@ -138,8 +143,8 @@ followed by the `codex plugin add` line above.
 Claude Code leaves automatic updates off for marketplaces like this one. Turn
 them on by making sure the `handbuilt-church-labs` entry in
 `extraKnownMarketplaces` (user settings) has `"autoUpdate": true`, using the
-same careful merge as above. If you used the preferred route, add the entry
-with the same `source` shown above. Explain it to the pastor in one sentence:
+same careful merge as above. The preferred route already writes that entry
+without `autoUpdate`; add the field to it and keep its `source`. Explain it to the pastor in one sentence:
 
 > I've turned on automatic updates, so new Handbuilt improvements arrive on
 > their own. When one arrives, starting a new session picks it up.
