@@ -37,7 +37,7 @@ Open with a short welcome, for example:
 > It usually takes a few minutes.
 
 Use these progress labels and say which one you are on: **Plugin installed**,
-**Updates turned on**, **Ready for church setup**.
+**Updates turned on**, **Church Labs connected**, **Ready for church setup**.
 
 ## 1. Find out where you are running
 
@@ -206,6 +206,49 @@ Separately, once the church folder exists, Handbuilt checks for verified
 workflow updates each time church work starts. See
 [managed workflow updates](handbook/workflow-updates.md). Both keep the
 church's own settings and files.
+
+## 3b. Connect Church Labs
+
+The plugin brings **Church Labs**, Handbuilt's connection for the cohort. With
+it, the pastor can send Stephen a question or report a problem from any chat,
+and see his answers there. It needs a one-time sign-in to Handbuilt. Do this
+step before the hand-off, and tell the pastor first:
+
+> One more thing: I'm connecting Church Labs, so you can send Stephen
+> questions from here. A Handbuilt page will open in your browser. Sign in
+> with the **same email you used to join the cohort**, then press **Connect**
+> and come back here.
+
+If they have no Handbuilt account yet, tell them to choose **Continue with
+Google** or **Create an account** on that page.
+
+**In Codex,** the plugin adds Church Labs but does not sign in by itself. Run:
+
+```bash
+codex mcp login church-labs
+```
+
+It opens the Handbuilt page and finishes once the pastor presses **Connect**.
+Codex may ask permission first; explain that this signs in to Handbuilt.
+`codex mcp list` should then show `church-labs` without "Not logged in". If
+Codex says its model needs a newer version of Codex, update Codex first, then
+run the sign-in again.
+
+**In Claude Code,** a new plugin's connection loads in a new session, so this
+happens right after the hand-off in section 4. In that new session, ask the
+pastor to type `/mcp`, choose **church-labs**, then choose the option to
+sign in (Claude Code may call it **Authenticate**). The same Handbuilt page
+opens.
+
+**In the Claude app** (Chat or Cowork, with the plugin added from the
+**Customize** panel), Church Labs is on the plugin's **Connectors** tab: the
+pastor chooses **Connect** there.
+
+To check it worked, ask Church Labs for the pastor's answers. A new pastor
+sees "Nothing yet." If the answer says the account isn't enrolled, they signed
+in with a different email than the one they joined with: sign them out of
+Handbuilt and connect again with that email. If the tools can't be found
+later, run the sign-in step again.
 
 ## 4. Hand off to church setup
 
