@@ -173,6 +173,22 @@ class CaptionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "No word timestamps"):
             video.caption_cues(self.DATA, self.transcription([(0.0, 0.5, " Early")]), origin=0.0)
 
+    def captions_beside_the_panel(self, labels):
+        data = {"sermon": {"start": 100.0, "end": 130.0}, "labels": labels,
+                "video": {"intro_seconds": 2.5, "lower_start": 7, "lower_duration": 10}}
+        with tempfile.TemporaryDirectory() as temp:
+            given = Path(temp) / "service.en.srt"
+            given.write_text("1\n00:01:50,000 --> 00:01:52,000\nGrace and peace to you.\n")
+            video.write_captions(Path(temp), data, given)
+            return (Path(temp) / "sermon.en.vtt").read_text()
+
+    def test_captions_rise_over_a_name_panel_and_stay_low_without_one(self):
+        named = {"preacher": {"text": "The Rev. Jordan Lee", "status": "verified", "evidence": "Bulletin"}}
+        unnamed = {"preacher": {"text": "Guest preacher", "status": "unknown", "evidence": "Not established"}}
+        self.assertIn("line:45%", self.captions_beside_the_panel(named))
+        self.assertNotIn("line:", self.captions_beside_the_panel(unnamed))
+        self.assertFalse(video.name_panel({"labels": unnamed}))
+
     def test_timestamps_use_the_caption_formats(self):
         self.assertEqual(video.timestamp(3725.5), "01:02:05.500")
         self.assertEqual(video.timestamp(3725.5, ","), "01:02:05,500")
