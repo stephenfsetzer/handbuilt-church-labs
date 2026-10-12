@@ -141,6 +141,25 @@ class ClaudeUpdatesTest(unittest.TestCase):
         with mock.patch.object(claude_updates, "_latest_release", return_value=("0.8.7", None)):
             self.assertEqual(claude_updates.status(self.directory)["status"], "current")
 
+    def test_workflow_start_asks_to_turn_updates_on_only_when_needed(self) -> None:
+        from tools import church_workflow
+
+        environment = {"CLAUDE_CONFIG_DIR": self.folder.name, "CLAUDECODE": "1"}
+        with mock.patch.dict("os.environ", environment):
+            self.assertIsNone(church_workflow.claude_update_settings(), "no Claude Code install, nothing to ask")
+            record = self.directory / "plugins" / "installed_plugins.json"
+            record.parent.mkdir()
+            record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.8"}]}}))
+            note = church_workflow.claude_update_settings()
+            self.assertEqual(note["status"], "updates_off")
+            self.assertIn("May I turn them on?", note["next_action"])
+            self.assertTrue(note["enable_command"][-2].endswith("tools/claude_updates.py"))
+            self.assertFalse(self.settings.exists(), "the check asks; it never writes settings")
+            claude_updates.enable(self.directory)
+            self.assertIsNone(church_workflow.claude_update_settings())
+        with mock.patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": self.folder.name, "CLAUDECODE": ""}):
+            self.assertIsNone(church_workflow.claude_update_settings(), "other hosts are left alone")
+
     def test_config_dir_follows_claude_config_dir(self) -> None:
         with mock.patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": self.folder.name}):
             self.assertEqual(claude_updates.config_dir(), self.directory)

@@ -197,6 +197,11 @@ claude plugin update handbuilt-church-labs@handbuilt-church-labs
 
 Then tell the pastor to start a new session, which loads the new version.
 
+Handbuilt also checks for itself. When a church workflow starts in Claude Code
+and an install has automatic updates off, however it was installed, the start
+result includes `claude_updates` with a question for the pastor and the
+`enable` command to run on a yes.
+
 Separately, once the church folder exists, Handbuilt checks for verified
 workflow updates each time church work starts. See
 [managed workflow updates](handbook/workflow-updates.md). Both keep the
