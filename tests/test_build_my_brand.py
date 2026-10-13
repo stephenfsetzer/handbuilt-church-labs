@@ -198,6 +198,18 @@ class BuildMyBrandTest(unittest.TestCase):
     def test_interview_asks_for_admired_work(self):
         self.assertIn("admired", INTERVIEW_KEYS)
 
+    def test_no_image_key_never_stops_the_pastor(self):
+        skill = (Path(__file__).resolve().parents[1] / "skills" / "build-my-brand" / "SKILL.md").read_text()
+        section = skill.split("### Without an image service", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("never asked for a key", section)
+        self.assertIn("by default", section)
+        apps = (Path(__file__).resolve().parents[1] / "skills" / "build-my-brand" / "references" / "image-apps.md").read_text()
+        self.assertIn("https://chatgpt.com", apps)
+        self.assertIn("import-images", apps)
+        self.assertIn("brand/inbox/", section)
+        self.assertIn("import-images", section)
+        self.assertIn("construction mark", section)
+
     def test_every_section_opens_with_where_the_pastor_is(self):
         self._record_through("direction")
         guide = (self.church / "brand" / "guide.md").read_text()

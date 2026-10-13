@@ -24,6 +24,8 @@ sys.path.insert(0, str(ROOT / "skills" / "build-my-brand"))
 
 from brand_workflow import DIRECTION_APPLICATIONS, INTERVIEW_KEYS, STAGES, record, survival  # noqa: E402
 from brand_workflow import images  # noqa: E402
+import urllib.error  # noqa: E402
+from brand_workflow import WorkflowFailure  # noqa: E402
 
 CLI = ROOT / "skills" / "build-my-brand" / "scripts" / "brand_workflow.py"
 PHASES = [
@@ -271,6 +273,8 @@ class ImageStudioTest(unittest.TestCase):
         self.assertEqual(error["code"], "image_key_missing")
         self.assertIn("nothing was charged", error["message"])
         self.assertIn("keys set --provider openai", error["message"])
+        self.assertIn("Do not ask the pastor for a key", error["message"])
+        self.assertIn("Without an image service", error["message"])
         self.assertIn("never in the church folder", error["message"])
         self.assertEqual(vector["errors"][0]["code"], "image_key_missing")
         self.assertFalse((self.church / "brand" / "staging" / "explorations" / "door-1").exists())
@@ -304,12 +308,48 @@ class ImageStudioTest(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
             drawn = images.OpenAIImages().draw("a brief", n=1, references=[], size="1024x1024")
         self.assertEqual(seen["url"], "https://api.openai.com/v1/images/generations")
-        self.assertEqual(seen["body"], {"model": "gpt-image-1", "prompt": "a brief", "n": 1, "size": "1024x1024", "background": "opaque"})
+        self.assertEqual(seen["body"], {"model": "gpt-image-2.5-sunburst", "prompt": "a brief", "n": 1, "size": "1024x1024", "background": "opaque"})
         self.assertEqual(seen["auth"], "Bearer fake-openai-value-123")
         self.assertEqual(drawn.images, [_transparent_png()])
         self.assertIsNone(drawn.cost)
         os.environ["HANDBUILT_OPENAI_IMAGE_MODEL"] = "another-image-model"
         self.assertEqual(images.OpenAIImages().model, "another-image-model")
+
+    def test_openai_falls_back_when_the_account_cannot_use_the_newest_model(self):
+        os.environ["OPENAI_API_KEY"] = "fake-openai-value-123"
+        payload = base64.b64encode(_transparent_png()).decode()
+        asked = []
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                return json.dumps({"data": [{"b64_json": payload}]}).encode()
+
+        def fake_urlopen(request, timeout=None):
+            model = json.loads(request.data)["model"]
+            asked.append(model)
+            if model != "gpt-image-1":
+                body = io.BytesIO(json.dumps({"error": {"message": f"Your organization must be verified to use the model {model}."}}).encode())
+                raise urllib.error.HTTPError(request.full_url, 403, "Forbidden", {}, body)
+            return Response()
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            drawn = images.OpenAIImages().draw("a brief", n=1, references=[], size="1024x1024")
+        self.assertEqual(asked, ["gpt-image-2.5-sunburst", "gpt-image-2", "gpt-image-1"])
+        self.assertEqual(drawn.model, "gpt-image-1")
+
+        def refuse_everything(request, timeout=None):
+            raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, io.BytesIO(b'{"error": {"message": "Incorrect API key"}}'))
+
+        with mock.patch("urllib.request.urlopen", side_effect=refuse_everything):
+            with self.assertRaises(WorkflowFailure) as caught:
+                images.OpenAIImages().draw("a brief", n=1, references=[], size="1024x1024")
+        self.assertIn("HTTP 401", caught.exception.message)
 
     def test_openai_edit_asks_for_an_opaque_image(self):
         os.environ["OPENAI_API_KEY"] = "fake-openai-value-123"
@@ -384,6 +424,8 @@ class ImageStudioTest(unittest.TestCase):
         code, _out, status = self._cli("keys", "status", "--church-folder", str(self.church))
         self.assertEqual(code, 0)
         self.assertFalse(status["providers"]["openai"]["configured"])
+        self.assertEqual(status["studio"], "none")
+        self.assertIn("Do not ask the pastor for keys", status["next_action"])
         code, out, saved = self._cli("keys", "set", "--provider", "openai", "--church-folder", str(self.church), stdin=value + "\n")
         self.assertEqual(code, 0, out)
         self.assertNotIn(value, out)
@@ -400,6 +442,7 @@ class ImageStudioTest(unittest.TestCase):
         code, out, status = self._cli("keys", "status")
         self.assertNotIn("fake-recraft-value-456", out)
         self.assertEqual(status["providers"]["recraft"]["source"], "environment")
+        self.assertEqual(status["studio"], "image services")
         self.assertNotIn("fake-recraft-value-456", path.read_text())
         os.environ["HANDBUILT_RUNTIME_HOME"] = str(self.church / "runtime")
         refused = images.keys_set("openai", value, self.church)

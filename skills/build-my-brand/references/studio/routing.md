@@ -17,8 +17,9 @@ designers who write its briefs.
 
 ## Image services
 
-`draw` defaults to OpenAI's image model (`gpt-image-1`, or the model named
-in `HANDBUILT_OPENAI_IMAGE_MODEL`); `--provider gemini` uses Gemini's image
+`draw` defaults to OpenAI's newest image model (`gpt-image-2.5-sunburst`,
+falling back to `gpt-image-2`, then `gpt-image-1`, when the account cannot use
+it yet), or the model named in `HANDBUILT_OPENAI_IMAGE_MODEL`; `--provider gemini` uses Gemini's image
 model (`HANDBUILT_GEMINI_IMAGE_MODEL`), and `--provider recraft` uses Recraft
 (`HANDBUILT_RECRAFT_IMAGE_MODEL`). `edit` uses OpenAI, or Gemini with
 `--provider gemini`. Use Gemini when it is the only drawing key on the
@@ -29,7 +30,10 @@ and concrete. `vectorize` uses Recraft. Keys come from `OPENAI_API_KEY`,
 key file in the Handbuilt support folder on this computer; `keys status`
 shows which are set without printing them. A hosted Handbuilt image service
 is planned and not yet available. A host with its own image tool makes
-images there and registers them with `import-images`.
+images there and registers them with `import-images`. With no image service
+at all, the pastor's own image app is the studio (see
+[Drawing in the pastor's own image app](../image-apps.md)); the pastor is
+never asked for a key.
 
 ## Claude Code
 

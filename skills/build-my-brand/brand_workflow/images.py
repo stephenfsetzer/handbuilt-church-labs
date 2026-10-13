@@ -59,11 +59,15 @@ IMPORT_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 KEY_FILE_NAME = "image-keys.json"
 
 # Model names change; each can be set per computer without a code change.
-DEFAULT_MODELS = {"openai": "gpt-image-1", "recraft": "recraftv3", "gemini": "gemini-2.5-flash-image"}
+DEFAULT_MODELS = {"openai": "gpt-image-2.5-sunburst", "recraft": "recraftv3", "gemini": "gemini-2.5-flash-image"}
 MODEL_ENVIRONMENT = {"openai": "HANDBUILT_OPENAI_IMAGE_MODEL", "recraft": "HANDBUILT_RECRAFT_IMAGE_MODEL",
                      "gemini": "HANDBUILT_GEMINI_IMAGE_MODEL"}
+# Newest first. An account that cannot use a model yet (no access, or
+# organization verification pending) falls back to the next one.
+OPENAI_MODEL_FALLBACKS = ("gpt-image-2.5-sunburst", "gpt-image-2", "gpt-image-1")
 KEY_ENVIRONMENT = {"openai": "OPENAI_API_KEY", "recraft": "RECRAFT_API_KEY", "gemini": "GEMINI_API_KEY"}
 PROVIDER_NAMES = {"openai": "OpenAI", "recraft": "Recraft", "gemini": "Gemini"}
+DRAWING_PROVIDERS = ("openai", "gemini", "recraft")
 OPENAI_BASE = "https://api.openai.com/v1"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 RECRAFT_BASE = "https://external.api.recraft.ai/v1"
@@ -129,10 +133,11 @@ def service_key(provider: str) -> str:
     if not value:
         raise WorkflowFailure(
             "image_key_missing",
-            f"{PROVIDER_NAMES[provider]} is not set up on this computer yet, so no image was made and nothing was charged. "
-            f"Whoever looks after Handbuilt here can add the key with: handbuilt.py build-my-brand keys set --provider {provider} "
-            "(the key is read from the keyboard and kept on this computer, never in the church folder). "
-            "Or make the images in the host's own image tool and register them with import-images.",
+            f"{PROVIDER_NAMES[provider]} is not set up on this computer, so no image was made and nothing was charged. "
+            "Do not ask the pastor for a key and do not stop: keep going without an image service, as the skill's "
+            "\"Without an image service\" section says (the host's own image tool, or by default prompts the pastor takes to their own image app; see references/image-apps.md). "
+            f"An operator who looks after this computer can add one later with: handbuilt.py build-my-brand keys set --provider {provider} "
+            "(the key is read from the keyboard and kept on this computer, never in the church folder).",
             field="provider")
     return value
 
@@ -156,9 +161,15 @@ def keys_status(church_folder: str | Path | None = None) -> dict[str, Any]:
             source = _key_source(name)
             providers[name] = {"configured": bool(source), "source": source, "environment_variable": KEY_ENVIRONMENT[name],
                                "model": _model_for(name, None)}
-        return {"status": "ok", "providers": providers, "key_file": str(path), "key_file_exists": path.is_file(),
+        can_draw = any(providers[name]["configured"] for name in DRAWING_PROVIDERS)
+        can_vectorize = providers["recraft"]["configured"]
+        studio = "image services" if can_draw and can_vectorize else "partial" if can_draw or can_vectorize else "none"
+        action = ("Draw, edit and vectorize with the image studio." if studio == "image services" else
+                  "Do not ask the pastor for keys. Use what is set up and fill the gap as the skill's \"Without an image service\" section says.")
+        return {"status": "ok", "providers": providers, "can_draw": can_draw, "can_vectorize": can_vectorize, "studio": studio,
+                "key_file": str(path), "key_file_exists": path.is_file(),
                 "handbuilt": "The hosted Handbuilt image service is not available yet.",
-                "next_action": "Add a missing key with keys set --provider <name>; the key is read from standard input."}
+                "next_action": action}
     except Exception as exc:  # noqa: BLE001
         return _failure(exc)
 
@@ -258,7 +269,8 @@ def _http(service: str, url: str, *, key: str, payload: dict[str, Any] | None = 
         except (ValueError, AttributeError):
             message = None
         hint = " The key may be wrong or expired; set it again with keys set." if exc.code in {401, 403} else ""
-        raise WorkflowFailure("image_service_failed", f"{PROVIDER_NAMES.get(service, service)} turned the request down (HTTP {exc.code}). {str(message or '')[:300]}{hint}".strip()) from None
+        raise WorkflowFailure("image_service_failed", f"{PROVIDER_NAMES.get(service, service)} turned the request down (HTTP {exc.code}). {str(message or '')[:300]}{hint}".strip(),
+                              detail={"status": exc.code, "message": str(message or "")[:300]}) from None
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise WorkflowFailure("image_service_unreachable", f"Could not reach {PROVIDER_NAMES.get(service, service)} ({getattr(exc, 'reason', exc)}). Check the internet connection and try again.") from None
     except ValueError as exc:
@@ -311,20 +323,39 @@ class OpenAIImages:
     # for review, which erases a dark ground the brief asked for.
 
     def __init__(self, model: str | None = None, *, key: Callable[[str], str] = service_key):
-        self.model = _model_for(self.name, model)
+        chosen = model or os.environ.get(MODEL_ENVIRONMENT[self.name], "").strip()
+        # A model named on purpose is used alone; the default walks the fallbacks.
+        self._models = [chosen] if chosen else list(OPENAI_MODEL_FALLBACKS)
+        self.model = self._models[0]
         self._key = key
+
+    def _with_fallback(self, call: Callable[[], Drawn]) -> Drawn:
+        while True:
+            try:
+                return call()
+            except WorkflowFailure as exc:
+                detail = exc.detail if isinstance(exc.detail, dict) else {}
+                refused_model = detail.get("status") in {400, 403, 404} and "model" in str(detail.get("message", "")).casefold()
+                index = self._models.index(self.model)
+                if not refused_model or index + 1 >= len(self._models):
+                    raise
+                self.model = self._models[index + 1]
 
     def draw(self, prompt: str, *, n: int, references: list[bytes], size: str) -> Drawn:
         key = self._key(self.name)
         if references:
             # Reference images go through the edits endpoint, which accepts several.
-            return self._edit(key, references, prompt, n=n, size=size)
-        response = _http(self.name, f"{OPENAI_BASE}/images/generations", key=key,
-                         payload={"model": self.model, "prompt": prompt, "n": n, "size": size, "background": "opaque"})
-        return Drawn(_decode_images(self.name, response), self.model, _reported_cost(response), response.get("usage"))
+            return self._with_fallback(lambda: self._edit(key, references, prompt, n=n, size=size))
+
+        def generate() -> Drawn:
+            response = _http(self.name, f"{OPENAI_BASE}/images/generations", key=key,
+                             payload={"model": self.model, "prompt": prompt, "n": n, "size": size, "background": "opaque"})
+            return Drawn(_decode_images(self.name, response), self.model, _reported_cost(response), response.get("usage"))
+        return self._with_fallback(generate)
 
     def edit(self, image: bytes, instruction: str, *, n: int, size: str) -> Drawn:
-        return self._edit(self._key(self.name), [image], instruction, n=n, size=size)
+        key = self._key(self.name)
+        return self._with_fallback(lambda: self._edit(key, [image], instruction, n=n, size=size))
 
     def _edit(self, key: str, images: list[bytes], prompt: str, *, n: int, size: str) -> Drawn:
         field_name = "image" if len(images) == 1 else "image[]"
