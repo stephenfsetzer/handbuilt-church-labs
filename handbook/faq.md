@@ -23,7 +23,7 @@ Yes. Your church folder is yours. Ask your agent to create a local skill under
 `skills/`, adapt a supplied workflow, or update `CLAUDE.md` and `AGENTS.md`.
 You can edit or remove these files and use other tools without uninstalling
 Handbuilt. Reconnection preserves local changes. See
-[Make your church workspace your own](workspace-customization.md), including
+[Make your Church Command Center your own](workspace-customization.md), including
 guidance for updating older folders and making custom bulletin edits.
 
 **Which AI tools can run the workflows?**

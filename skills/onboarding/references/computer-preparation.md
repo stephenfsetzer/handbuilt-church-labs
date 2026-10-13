@@ -1,6 +1,7 @@
 # Computer preparation and progress
 
-The experience is called **Set up my church workspace**. The skill and existing
+The experience is called **Set up my Church Command Center**. Pastors may also
+say "set up my church workspace", the earlier name; treat both the same. The skill and existing
 `onboarding` commands keep their names. Explain that this prepares a home for
 church files, preferences, and skills, rather than welcoming new parishioners.
 
@@ -54,6 +55,10 @@ installation. Do not invent download URLs, repeatedly trigger developer-tools
 installation, or change the pastor's preferred app. Recheck after each repair
 and continue from the first incomplete stage. If a repair fails, inspect the
 new error rather than repeating the same installation without new evidence.
+
+Guide every repair with [Guided computer setup](guided-setup.md): explain
+what each tool is and why it matters, open the Terminal with the pastor only
+when a person must act, and check each result yourself.
 
 Let the agent perform supported actions. When sign-in, an installer window,
 or an OS permission needs the person, explain why and give one concrete next

@@ -3,16 +3,20 @@
 The contracts under test: discovery names the provider behind a recording link
 without fetching anything, the editing plan refuses labels without evidence and
 boundaries that cut off the sermon, captions move into video time after the
-opening card, and the measured artwork layout is held to its clear zones. All
-data here is invented; no network, FFmpeg, or browser is used.
+opening card, the measured artwork layout is held to its clear zones, and the
+downloader turns on Node.js or Bun for YouTube when Deno is missing. All data
+here is invented; no network, FFmpeg, yt-dlp, or browser is used.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.error
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY = ROOT / "skills/sermon-video/scripts/sermon_video.py"
@@ -140,6 +144,17 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(video.visible(data, "sunday"), "")
 
 
+    def test_font_names_are_quoted_for_css(self):
+        self.assertEqual(video.css_families("Source Serif 4"), '"Source Serif 4"')
+        self.assertEqual(video.css_families("Georgia, Times New Roman"), '"Georgia", "Times New Roman"')
+
+    def test_cards_keep_a_font_name_with_a_number(self):
+        plan = synthetic_plan()
+        plan["brand"] = {**plan.get("brand", {}), "heading_font": "Source Serif 4"}
+        root, data = self.load(plan)
+        video.artwork(root, data)
+        self.assertIn('font:500 118px/1.08 "Source Serif 4",serif', (root / "intro.html").read_text())
+
 class CaptionTests(unittest.TestCase):
     DATA = {"sermon": {"start": 100.0, "end": 130.0}, "video": {"intro_seconds": 2.5}}
 
@@ -155,6 +170,12 @@ class CaptionTests(unittest.TestCase):
         self.assertAlmostEqual(end, 2.4 + 2.5)
         self.assertEqual(text, "Grace to you.")
 
+    def test_words_without_their_leading_space_still_read_as_words(self):
+        words = [(1.0, 1.4, "Grace"), (1.5, 1.9, "to"), (2.0, 2.4, "you"), (2.4, 2.5, "."), (2.6, 3.0, "Jordan's"),
+                 (3.1, 3.5, "here.")]
+        cues = video.caption_cues(self.DATA, self.transcription(words), origin=100.0)
+        self.assertEqual(" ".join(cue[2] for cue in cues), "Grace to you. Jordan's here.")
+
     def test_words_outside_the_sermon_are_left_out(self):
         words = [(-5.0, -4.5, " Before"), (1.0, 1.4, " Inside"), (40.0, 40.5, " After")]
         cues = video.caption_cues(self.DATA, self.transcription(words), origin=100.0)
@@ -169,6 +190,22 @@ class CaptionTests(unittest.TestCase):
     def test_no_words_inside_the_sermon_is_an_error(self):
         with self.assertRaisesRegex(ValueError, "No word timestamps"):
             video.caption_cues(self.DATA, self.transcription([(0.0, 0.5, " Early")]), origin=0.0)
+
+    def captions_beside_the_panel(self, labels):
+        data = {"sermon": {"start": 100.0, "end": 130.0}, "labels": labels,
+                "video": {"intro_seconds": 2.5, "lower_start": 7, "lower_duration": 10}}
+        with tempfile.TemporaryDirectory() as temp:
+            given = Path(temp) / "service.en.srt"
+            given.write_text("1\n00:01:50,000 --> 00:01:52,000\nGrace and peace to you.\n")
+            video.write_captions(Path(temp), data, given)
+            return (Path(temp) / "sermon.en.vtt").read_text()
+
+    def test_captions_rise_over_a_name_panel_and_stay_low_without_one(self):
+        named = {"preacher": {"text": "The Rev. Jordan Lee", "status": "verified", "evidence": "Bulletin"}}
+        unnamed = {"preacher": {"text": "Guest preacher", "status": "unknown", "evidence": "Not established"}}
+        self.assertIn("line:45%", self.captions_beside_the_panel(named))
+        self.assertNotIn("line:", self.captions_beside_the_panel(unnamed))
+        self.assertFalse(video.name_panel({"labels": unnamed}))
 
     def test_timestamps_use_the_caption_formats(self):
         self.assertEqual(video.timestamp(3725.5), "01:02:05.500")
@@ -230,9 +267,143 @@ class LayoutTests(unittest.TestCase):
         self.assertIn("play button would cover the title", problems)
         self.assertIn("too close to the bottom edge", problems)
 
+    def test_thumbnail_words_keep_left_of_every_play_button(self):
+        template = (Path(video.__file__).resolve().parents[1] / "assets/thumbnail.html").read_text()
+        column = re.search(r"\.copy\{position:absolute;left:(\d+)px;top:\d+px;width:(\d+)px\}", template)
+        self.assertIsNotNone(column)
+        self.assertEqual(int(column[1]) + int(column[2]), video.TEXT_COLUMN_RIGHT)
+        for selector in ("h1", ".meta"):
+            rule = re.search(r"(?:^|\})" + re.escape(selector) + r"\{[^\n]*?max-width:(\d+)px", template, re.M)
+            self.assertEqual(rule[1], column[2])
+        nearest = min(left for left, _, _, _ in video.PLAY_ZONES.values()) * 1280
+        self.assertLess(video.TEXT_COLUMN_RIGHT, nearest - 2)
+
     def test_longer_titles_get_smaller_type(self):
         self.assertGreater(video.thumbnail_title_size("Hope"), video.thumbnail_title_size("A" * 30))
         self.assertGreater(video.thumbnail_title_size("A" * 30), video.thumbnail_title_size("A" * 50))
+
+
+class VimeoTests(unittest.TestCase):
+    """Vimeo is read through its player, and a video locked to its church's website is caught before any download."""
+
+    def test_vimeo_links_go_to_the_player_and_keep_an_unlisted_hash(self):
+        self.assertEqual(video.vimeo_player_url("https://vimeo.com/100000001?share=copy"), "https://player.vimeo.com/video/100000001")
+        self.assertEqual(video.vimeo_player_url("https://vimeo.com/100000001/abcdef1234"),
+                         "https://player.vimeo.com/video/100000001?h=abcdef1234")
+        self.assertEqual(video.vimeo_player_url("https://player.vimeo.com/video/100000001?h=abcdef1234&badge=0"),
+                         "https://player.vimeo.com/video/100000001?h=abcdef1234")
+        for other in ("https://www.youtube.com/watch?v=EXAMPLEVID01", "https://vimeo.com/channels/example"):
+            self.assertEqual(video.vimeo_player_url(other), other)
+
+    @staticmethod
+    def opener(status=None, error=None):
+        asked = []
+
+        def answer(request, timeout):
+            asked.append(request.full_url)
+            if error:
+                raise error
+            if status != 200:
+                raise urllib.error.HTTPError(request.full_url, status, "refused", {}, None)
+            return contextlib.nullcontext()
+        return answer, asked
+
+    def test_a_refusing_player_means_locked_and_anything_else_does_not(self):
+        refused, asked = self.opener(403)
+        self.assertTrue(video.vimeo_locked("https://vimeo.com/100000001/abcdef1234", refused))
+        self.assertEqual(asked, ["https://player.vimeo.com/video/100000001/config?h=abcdef1234"])
+        self.assertTrue(video.vimeo_locked("https://vimeo.com/100000001", self.opener(401)[0]))
+        self.assertFalse(video.vimeo_locked("https://vimeo.com/100000001", self.opener(200)[0]))
+        self.assertFalse(video.vimeo_locked("https://vimeo.com/100000001", self.opener(error=OSError("offline"))[0]))
+        never, asked = self.opener(403)
+        self.assertFalse(video.vimeo_locked("https://www.youtube.com/watch?v=EXAMPLEVID01", never))
+        self.assertEqual(asked, [])
+
+    def test_a_locked_video_stops_before_any_download_unless_signed_in(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "send the video file"):
+                video.acquire_recording(Path(folder), "https://vimeo.com/100000001", 1080, locked=lambda url: True)
+            self.assertFalse((Path(folder) / "source").exists())
+
+    def test_signing_in_passes_the_browser_to_both_yt_dlp_calls(self):
+        extra = ["--cookies-from-browser", "safari"]
+        url = "https://vimeo.com/100000001"
+        for command in (video.estimate_command(url, 1080, None, "2026.08.19", extra),
+                        video.download_command(url, 1080, Path("pending"), None, "2026.08.19", extra)):
+            self.assertEqual(command[3:5], extra)
+            self.assertEqual(command[-1], url)
+
+
+class DownloaderTests(unittest.TestCase):
+    URL = "https://www.youtube.com/watch?v=EXAMPLEVID01"
+    CURRENT = "2026.08.19"
+
+    @staticmethod
+    def which(*installed):
+        return lambda name: f"/usr/local/bin/{name}" if name in installed else None
+
+    @staticmethod
+    def header(libraries, runtimes=None):
+        lines = ["[debug] yt-dlp version stable", f"[debug] Optional libraries: {libraries}"]
+        if runtimes is not None:
+            lines.append(f"[debug] JS runtimes: {runtimes}")
+        return "\n".join(lines)
+
+    def test_deno_is_preferred_then_node_then_bun(self):
+        self.assertEqual(video.js_runtime(self.which("deno", "node", "bun")), "deno")
+        self.assertEqual(video.js_runtime(self.which("node", "bun")), "node")
+        self.assertEqual(video.js_runtime(self.which("bun")), "bun")
+        self.assertIsNone(video.js_runtime(self.which()))
+
+    def test_node_or_bun_is_turned_on_when_deno_is_missing(self):
+        for runtime in ("node", "bun"):
+            with self.subTest(runtime=runtime):
+                command = video.yt_dlp_command([self.URL], runtime, self.CURRENT)
+                self.assertEqual(command, ["yt-dlp", "--no-playlist", "--no-update", "--js-runtimes", runtime, self.URL])
+
+    def test_deno_or_no_runtime_adds_nothing(self):
+        for runtime in ("deno", None):
+            with self.subTest(runtime=runtime):
+                self.assertNotIn("--js-runtimes", video.yt_dlp_command([self.URL], runtime, self.CURRENT))
+
+    def test_yt_dlp_older_than_the_option_is_not_given_it(self):
+        self.assertNotIn("--js-runtimes", video.yt_dlp_command([self.URL], "node", "2025.10.22"))
+        self.assertNotIn("--js-runtimes", video.yt_dlp_command([self.URL], "node", None))
+        self.assertIn("--js-runtimes", video.yt_dlp_command([self.URL], "node", "2025.11.12"))
+        self.assertIn("--js-runtimes", video.yt_dlp_command([self.URL], "node", "2026.08.19.232958"))
+
+    def test_size_estimate_and_download_both_carry_the_runtime(self):
+        estimate = video.estimate_command(self.URL, 1080, "node", self.CURRENT)
+        download = video.download_command(self.URL, 1080, Path("pending"), "node", self.CURRENT)
+        for command in (estimate, download):
+            with self.subTest(command=command[5]):
+                self.assertEqual(command[:5], ["yt-dlp", "--no-playlist", "--no-update", "--js-runtimes", "node"])
+                self.assertEqual(command[-1], self.URL)
+        self.assertIn("--skip-download", estimate)
+        self.assertEqual(download[download.index("-o") + 1], Path("pending") / "service.%(ext)s")
+
+    def test_doctor_passes_a_ready_downloader(self):
+        status = video.downloader_status(self.CURRENT, "node", self.header("certifi-1.0, yt_dlp_ejs-0.8.0", "node-22.0.0"))
+        self.assertEqual(status, {"version": self.CURRENT, "js_runtime": "node-22.0.0", "yt_dlp_ejs": "0.8.0",
+                                  "youtube_ready": True, "fix": None})
+
+    def test_doctor_names_a_missing_runtime(self):
+        status = video.downloader_status(self.CURRENT, None, self.header("yt_dlp_ejs-0.8.0", "none"))
+        self.assertFalse(status["youtube_ready"])
+        self.assertIsNone(status["js_runtime"])
+        self.assertIn("Deno", status["fix"])
+        self.assertIn("HTTP 403", status["fix"])
+
+    def test_doctor_names_missing_javascript_helpers(self):
+        status = video.downloader_status(self.CURRENT, "node", self.header("certifi-1.0", "node-22.0.0"))
+        self.assertFalse(status["youtube_ready"])
+        self.assertIsNone(status["yt_dlp_ejs"])
+        self.assertIn('pip install -U "yt-dlp[default]"', status["fix"])
+
+    def test_doctor_asks_for_an_update_before_the_runtime_option(self):
+        status = video.downloader_status("2025.10.22", "node", self.header("certifi-1.0"))
+        self.assertFalse(status["youtube_ready"])
+        self.assertIn("2025.11.12 or later", status["fix"])
 
 
 if __name__ == "__main__":

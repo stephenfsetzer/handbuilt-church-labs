@@ -1,4 +1,4 @@
-# Set up my church workspace
+# Set up my Church Command Center
 
 This file is the visible record of your Handbuilt Church Labs setup.
 

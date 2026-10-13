@@ -145,6 +145,16 @@ def _atomic_bytes(path: Path, contents: bytes) -> None:
         Path(temporary).unlink(missing_ok=True)
 
 
+def claude_update_settings() -> dict | None:
+    """Ask to turn on automatic updates when a Claude Code install has them off.
+
+    The question lives in tools/claude_updates.py so a workflow that does not
+    start through this launcher, such as sermon-video, asks the same one.
+    """
+    from tools import claude_updates
+    return claude_updates.update_request()
+
+
 def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:
     from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
@@ -621,6 +631,12 @@ def main() -> int:
             code = 0
         elif args.command == "start":
             result, code = _start(church, args.workflow, skip_update=args.skip_update_check)
+            # Only the app-loaded launcher reports this; a selected release it starts
+            # runs with --skip-update-check and would otherwise report it twice.
+            note = None if args.skip_update_check else claude_update_settings()
+            if note and isinstance(result, dict):
+                result["claude_updates"] = note
+                result["next_action"] = note["next_action"] + " " + result.get("next_action", "")
         elif args.command == "ensure-latest":
             result, code = _ensure_latest(church)
         elif args.command == "check-print":

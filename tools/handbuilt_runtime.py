@@ -316,9 +316,9 @@ class RuntimeManager:
                 next_action = "A supported automatic native-tool installer was not found; the host agent must provide a platform-specific setup path."
         else:
             status = "ready"
-            message = ("Handbuilt's church workspace tools are available." if capability == "workspace"
+            message = ("Handbuilt's Church Command Center tools are available." if capability == "workspace"
                        else "Handbuilt's bulletin dependencies are available.")
-            next_action = ("Continue setting up the church workspace; prepare any missing PDF tools when needed."
+            next_action = ("Continue setting up the Church Command Center; prepare any missing PDF tools when needed."
                            if capability == "workspace" else "Run verify before PDF import or bulletin work.")
 
         assert status in STATUSES
@@ -384,7 +384,7 @@ class RuntimeManager:
             report.update({
                 "status": "install-failed", "ready": False,
                 "message": "Handbuilt's bulletin tools did not pass their working check.",
-                "next_action": "Use the check detail to repair the failing PDF component, then run verify again. Church workspace and sermon work can continue if their check is ready.",
+                "next_action": "Use the check detail to repair the failing PDF component, then run verify again. Church Command Center and sermon work can continue if their check is ready.",
                 "technical_detail": (str(probe.get("error"))[:800] if isinstance(probe, dict) and probe.get("error")
                                      else _command_detail(completed)),
                 "verification": {"ok": False},

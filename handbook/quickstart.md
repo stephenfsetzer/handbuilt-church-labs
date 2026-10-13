@@ -1,6 +1,6 @@
 # Quickstart
 
-## Set up my church workspace
+## Set up my Church Command Center
 
 1. Choose your app:
 
@@ -11,15 +11,18 @@
      Then choose **Browse directory**, search **Handbuilt**, open **Handbuilt
      Church Labs**, and choose **Install**. Adding the marketplace alone does
      not install or enable the plugin.
-   - **Claude Chat and Cowork:** In the Claude desktop app, choose **Chat and
-     Cowork** mode, then choose **Customize** in the sidebar, **Plugins**, **Add
-     plugin**, **Add marketplace**, and **Add from a repository**. Enter
-     `https://github.com/stephenfsetzer/handbuilt-church-labs.git`, then choose
-     the offered URL option, then choose **Sync**. In **Discover**, choose
-     **Add Handbuilt Church Labs**. Open
-     **Yours** and confirm version 0.8.7, eight skills, and **Enable plugin** on.
-     Automatic sync does not need to be disabled. If enabling it asks for
-     GitHub permissions you do not have, use **Sync** to finish installing.
+   - **Claude desktop app:** Open **Settings**, then **Plugins**, **Add**,
+     **Add marketplace**, and **Add from a repository**. Enter
+     `https://github.com/stephenfsetzer/handbuilt-church-labs.git` and choose
+     the offered URL option. Make sure **Sync automatically** is on, so each new
+     version reaches you, then confirm. In **Discover**, choose **Add** for
+     Handbuilt Church Labs. Open **Your plugins** and confirm version 0.8.8,
+     eight skills, and **Enable plugin** on. If turning on sync asks for GitHub
+     permissions you do not have, finish with it off and also ask your agent to
+     install Handbuilt, which turns on its own updates.
+   - **Ask your agent:** In the Code tab, paste the request from the
+     [README](../README.md#install-with-your-ai-agent). The agent installs
+     Handbuilt and turns on automatic updates.
      See the [installation and support guide](../README.md#installation-and-support) for optional
      Codex CLI and Claude Code CLI routes.
 2. Start a fresh task in your chosen host. In Claude, start a Claude Cowork task
@@ -28,7 +31,7 @@
    development project. Ask:
 
    ```text
-   Set up my church workspace.
+   Set up my Church Command Center.
    ```
 
 3. Give the agent your church website when you have one. It proposes public
@@ -49,7 +52,7 @@ it explains the preparation together and gives one next action at a time.
 An already-working computer proceeds without extra setup. Missing PDF tools
 can wait while you set up the workspace or begin sermon research.
 If you stop, return to the same task or open the church folder and say
-“Continue setting up my church workspace.” The agent checks saved progress
+“Continue setting up my Church Command Center.” The agent checks saved progress
 and resumes what remains.
 
 ## Your first result
@@ -120,7 +123,7 @@ troubleshooting and intentional version pinning.
 
 Your workspace can grow beyond the supplied workflows. Add local skills,
 change the agent's instructions, and use other tools as needed. See
-[Make your church workspace your own](workspace-customization.md).
+[Make your Church Command Center your own](workspace-customization.md).
 
 Use ordinary language and state the scope:
 

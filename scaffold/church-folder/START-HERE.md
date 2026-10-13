@@ -1,6 +1,6 @@
 # Start Here
 
-This is your church workspace. You can add, edit, replace, or remove its files
+This is your Church Command Center. You can add, edit, replace, or remove its files
 and skills to fit your church. Handbuilt Church Labs supplies a few workflows
 to get started, and writes their results here.
 

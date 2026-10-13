@@ -29,7 +29,7 @@ moved into the live brand.
 {
   "brand_system": {
     "schema_version": 2,
-    "name": {"wordmark": "St. Anne's Church", "short": "St. Anne's"},
+    "name": {"wordmark": "Riverbend Lutheran Church", "short": "Riverbend"},
     "direction": {"name": "Open Door", "story": "One paragraph a stranger could feel."},
     "marks": {
       "primary": "brand/staging/marks/mark.svg",

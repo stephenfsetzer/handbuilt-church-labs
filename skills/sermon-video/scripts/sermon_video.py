@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -146,6 +147,11 @@ def visible(data, key):
     return item.get("text", "") if item.get("status") in allowed else ""
 
 
+def name_panel(data):
+    """The name panel appears only with a verified preacher; without one there is nothing to show."""
+    return bool(visible(data, "preacher"))
+
+
 def escape(value):
     return html.escape(str(value), quote=True)
 
@@ -194,7 +200,13 @@ def knock_out_light_background(source, target):
 
 def thumbnail_title_size(title):
     """The thumbnail title's size in pixels: smaller for a longer title, so it stays within three lines of its column."""
-    return 76 if len(title) <= 24 else 64 if len(title) <= 40 else 56
+    return 76 if len(title) <= 24 else 64 if len(title) <= 40 else 50
+
+
+def css_families(value):
+    """A font name, or a comma-separated list of them, quoted for CSS. Unquoted, a name with a word that starts
+    with a digit ("Source Serif 4") is invalid, and the browser drops the whole font rule it appears in."""
+    return ", ".join(f'"{name.strip()}"' for name in value.split(",") if name.strip())
 
 
 def artwork(root, data):
@@ -216,6 +228,7 @@ def artwork(root, data):
     for key in ("heading_font", "body_font"):
         if not re.fullmatch(r"[\w ,'-]+", brand[key]):
             raise ValueError("Use a plain font family name.")
+        brand[key] = css_families(brand[key])
     values.update(brand)
     for key in ("portrait", "logo"):
         name = data.get("assets", {}).get(key)
@@ -366,6 +379,13 @@ def read_platform_captions(path):
                                                   "status": "draft for parish review"}}
 
 
+def spaced(word):
+    """A transcription word as Whisper writes it, with its leading space. Some word-timed transcriptions strip
+    that space; joined as they come, a cue would read "InthenameoftheFather". Punctuation stays attached."""
+    word = str(word)
+    return word if not word or word[0].isspace() or word[0] in ",.;:!?)]}'\u2019\u201d%" else " " + word
+
+
 def caption_cues(data, transcription, origin):
     start, end = data["sermon"]["start"], data["sermon"]["end"]
     offset = data["video"]["intro_seconds"]
@@ -380,7 +400,7 @@ def caption_cues(data, transcription, origin):
             if b <= a:
                 continue
             if start <= a and b <= end:
-                words.append({"start": a - start + offset, "end": b - start + offset, "word": item["word"]})
+                words.append({"start": a - start + offset, "end": b - start + offset, "word": spaced(item["word"])})
     words.sort(key=lambda w: w["start"])
     if not words:
         raise ValueError("No word timestamps fall inside the sermon.")
@@ -425,7 +445,7 @@ def write_captions(root, data, given, origin=0.0):
     panel_end = panel_start + data["video"]["lower_duration"]
     for i, (a, b, text) in enumerate(cues, 1):
         wrapped = "\n".join(textwrap.wrap(text, width=40, break_long_words=False, break_on_hyphens=False))
-        position = " line:45%" if a < panel_end and b > panel_start else ""
+        position = " line:45%" if name_panel(data) and a < panel_end and b > panel_start else ""
         vtt.extend([f"{timestamp(a)} --> {timestamp(b)}{position}", wrapped, ""])
         srt.extend([str(i), f'{timestamp(a, ",")} --> {timestamp(b, ",")}', wrapped, ""])
     (root / "sermon.en.vtt").write_text("\n".join(vtt)); (root / "sermon.en.srt").write_text("\n".join(srt))
@@ -631,13 +651,17 @@ def render(root, data):
     if video["intro_seconds"] > 0:
         card("intro", video["intro_seconds"])
     recording = add_input("-ss", start, "-t", speech_duration, "-i", source)
-    panel = add_input("-i", root / "assets/lower-third.png")
-    graph.append(
-        f"[{recording}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[cut];"
-        f"[{panel}:v]scale={w}:{h},format=rgba,loop=loop=-1:size=1:start=0,setpts=N/30/TB,"
-        f"fade=t=in:st={video['lower_start']}:d={fade}:alpha=1,fade=t=out:st={panel_end-fade}:d={fade}:alpha=1[panel];"
-        f"[cut][panel]overlay=0:0:shortest=1:enable='between(t,{video['lower_start']},{panel_end})',format=yuv420p[sermonv];"
-        f"[{recording}:a:0]{af},{uniform}[sermona]")
+    picture = f"[{recording}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30"
+    if name_panel(data):
+        panel = add_input("-i", root / "assets/lower-third.png")
+        graph.append(
+            f"{picture}[cut];"
+            f"[{panel}:v]scale={w}:{h},format=rgba,loop=loop=-1:size=1:start=0,setpts=N/30/TB,"
+            f"fade=t=in:st={video['lower_start']}:d={fade}:alpha=1,fade=t=out:st={panel_end-fade}:d={fade}:alpha=1[panel];"
+            f"[cut][panel]overlay=0:0:shortest=1:enable='between(t,{video['lower_start']},{panel_end})',format=yuv420p[sermonv];"
+            f"[{recording}:a:0]{af},{uniform}[sermona]")
+    else:
+        graph.append(f"{picture},format=yuv420p[sermonv];[{recording}:a:0]{af},{uniform}[sermona]")
     segments.append("[sermonv][sermona]")
     if video["outro_seconds"] > 0:
         card("outro", video["outro_seconds"])
@@ -663,8 +687,10 @@ CAPTION_ZONE_BOTTOM = 0.60    # captions raised to 45 percent run to about this 
 # Where the review page's play button sits over the thumbnail, as fractions of the picture (left, top, right,
 # bottom). It is centered across, on the seam between the words and the photo, and set a little below the middle
 # (56 percent down) so it clears the end of a title's first line. Measured in Chrome: the full button on a desktop
-# player (1440 and 1024 px wide) and the round one on a phone (390 and 340 px wide).
+# player (1440 and 1024 px wide) and the round one on a phone (390 and 340 px wide). The thumbnail's words keep to a
+# column that ends left of both zones (TEXT_COLUMN_RIGHT), so no title can run under the button.
 PLAY_ZONES = {"desktop": (0.40, 0.505, 0.60, 0.615), "phone": (0.43, 0.44, 0.57, 0.68)}
+TEXT_COLUMN_RIGHT = 504        # px on a 1280 px thumbnail: assets/thumbnail.html's 64 px left edge plus its 440 px column
 BADGE_ZONE = (130, 70)        # YouTube's duration badge, bottom right of a 1280 by 720 thumbnail (design guidance: about 120 by 60)
 THUMBNAIL_MARGIN = 60         # design guidance for a thumbnail; a note, not a failure
 LAYOUT_NAMES = {"logo": "logo", "church": "church name", "kicker": "small heading", "title": "title", "meta": "scripture line",
@@ -843,19 +869,146 @@ def download_selector(max_height):
     return f"bv*[height<={max_height}]+ba/b[height<={max_height}]"
 
 
-def estimate_download_bytes(url, max_height):
+# YouTube hides its video addresses behind a small JavaScript puzzle. yt-dlp solves it with an outside
+# JavaScript runtime and its yt-dlp-ejs scripts, and turns on only Deno unless told otherwise. With no
+# solver, captions still arrive but the video stops with HTTP 403 Forbidden a few megabytes in. The
+# --js-runtimes option first shipped in yt-dlp 2025.11.12; an older yt-dlp refuses it, so it is left off there.
+JS_RUNTIMES = ("deno", "node", "bun")    # yt-dlp's own order of preference
+JS_RUNTIMES_SINCE = (2025, 11, 12)
+
+
+def js_runtime(which=shutil.which):
+    """The JavaScript runtime yt-dlp can use on this computer: Deno first, then Node.js, then Bun."""
+    return next((name for name in JS_RUNTIMES if which(name)), None)
+
+
+def release(version):
+    """(year, month, day) from a yt-dlp version such as 2026.07.04 or a nightly 2026.07.04.232958."""
+    found = re.match(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", version or "")
+    return tuple(int(part) for part in found.groups()) if found else None
+
+
+def yt_dlp_version():
+    try:
+        return run(["yt-dlp", "--version"], capture_output=True, text=True).stdout.strip() or None
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def yt_dlp_command(args, runtime, version):
+    """yt-dlp with the helper's fixed options. Deno needs no option; Node.js and Bun must be turned on."""
+    command = ["yt-dlp", "--no-playlist", "--no-update"]
+    if runtime in ("node", "bun") and (release(version) or (0,)) >= JS_RUNTIMES_SINCE:
+        command += ["--js-runtimes", runtime]
+    return command + list(args)
+
+
+def estimate_command(url, max_height, runtime, version, extra=()):
+    return yt_dlp_command([*extra, "--skip-download", "--dump-single-json", "-f", download_selector(max_height), url],
+                          runtime, version)
+
+
+def download_command(url, max_height, folder, runtime, version, extra=()):
+    return yt_dlp_command([*extra, "--write-info-json", "--write-subs", "--write-auto-subs", "--sub-langs", "en.*",
+                           "--sub-format", "json3/vtt/best", "--concurrent-fragments", "8", "-f", download_selector(max_height),
+                           "--merge-output-format", "mp4", "-o", Path(folder) / "service.%(ext)s", url], runtime, version)
+
+
+def downloader_status(version, runtime, header):
+    """What yt-dlp needs for YouTube, read from the debug header it prints with -v."""
+    libraries = re.search(r"Optional libraries: (.*)", header)
+    ejs = re.search(r"\byt_dlp_ejs-([\w.]+)", libraries.group(1)) if libraries else None
+    enabled = re.search(r"JS runtimes: (.*)", header)
+    enabled = enabled.group(1).strip() if enabled and enabled.group(1).strip() != "none" else None
+    fixes = []
+    if (release(version) or (0,)) < JS_RUNTIMES_SINCE:
+        fixes.append("Update yt-dlp to 2025.11.12 or later, with its JavaScript helpers: "
+                     'pip install -U "yt-dlp[default]", or brew upgrade yt-dlp if Homebrew installed it.')
+    elif not ejs:
+        fixes.append("Add yt-dlp's JavaScript helpers (yt-dlp-ejs) to the same install as yt-dlp: "
+                     'pip install -U "yt-dlp[default]". Homebrew\'s yt-dlp already includes them.')
+    if not runtime:
+        fixes.append("Install a JavaScript runtime yt-dlp can use: Deno (brew install deno) or Node.js.")
+    elif not enabled and not fixes:
+        fixes.append(f"yt-dlp did not turn on {runtime}. Update yt-dlp, then run doctor again.")
+    if fixes:
+        fixes.append("Until then, YouTube downloads stop with HTTP 403 Forbidden. Other sources and local recordings are not affected.")
+    return {"version": version, "js_runtime": enabled, "yt_dlp_ejs": ejs.group(1) if ejs else None,
+            "youtube_ready": not fixes, "fix": " ".join(fixes) or None}
+
+
+def downloader_report():
+    if not shutil.which("yt-dlp"):
+        return {"version": None, "youtube_ready": False,
+                "fix": "Install yt-dlp to download YouTube, Vimeo, or BoxCast recordings. Local recordings do not need it."}
+    version, runtime = yt_dlp_version(), js_runtime()
+    try:
+        header = subprocess.run([str(a) for a in yt_dlp_command(["-v"], runtime, version)],
+                                capture_output=True, text=True, timeout=60).stderr
+    except (OSError, subprocess.TimeoutExpired):
+        header = ""
+    return downloader_status(version, runtime, header)
+
+
+def estimate_download_bytes(url, max_height, runtime, version, extra=()):
     """The provider's own size estimate for the chosen formats, or None when it gives none."""
     try:
-        info = json.loads(run(["yt-dlp", "--no-playlist", "--no-update", "--skip-download", "--dump-single-json",
-                               "-f", download_selector(max_height), url], capture_output=True, text=True).stdout)
+        info = json.loads(run(estimate_command(url, max_height, runtime, version, extra), capture_output=True, text=True).stdout)
     except (OSError, ValueError, subprocess.CalledProcessError):
         return None
     sizes = [part.get("filesize") or part.get("filesize_approx") for part in (info.get("requested_formats") or [info])]
     return int(sum(sizes)) if sizes and all(sizes) else None
 
 
-def acquire_recording(root, url, max_height):
+# yt-dlp refuses vimeo.com pages without a Vimeo sign-in, but still reads a video anyone may play
+# through Vimeo's player. Most churches set their videos to play only on the church's own website;
+# the player refuses those, and only the church's own signed-in Vimeo account, or the file, gets them.
+VIMEO_LOCKED = ("Vimeo won't share this video outside the church's website. With permission, try again "
+                "signed in to the church's Vimeo account (--cookies-from-browser), or send the video file "
+                "instead: the Download button on the video in the church's Vimeo account, or the church's "
+                "livestream service, then adopt.")
+
+
+BROWSERS = ("chrome", "safari", "firefox", "edge", "brave", "chromium", "opera", "vivaldi")    # yt-dlp's names
+
+
+def vimeo_player_url(url):
+    """The player address for a Vimeo video link, keeping an unlisted video's hash; other links unchanged."""
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or "").lower()
+    parts = [part for part in parsed.path.split("/") if part]
+    if host in ("vimeo.com", "www.vimeo.com") and parts and parts[0].isdigit():
+        video_id, unlisted = parts[0], parts[1] if len(parts) > 1 and re.fullmatch(r"[0-9a-f]{6,}", parts[1]) else None
+    elif host == "player.vimeo.com" and len(parts) >= 2 and parts[0] == "video" and parts[1].isdigit():
+        video_id, unlisted = parts[1], (urllib.parse.parse_qs(parsed.query).get("h") or [None])[0]
+    else:
+        return url
+    return f"https://player.vimeo.com/video/{video_id}" + (f"?h={unlisted}" if unlisted else "")
+
+
+def vimeo_locked(url, opener=urllib.request.urlopen):
+    """True when Vimeo's player plainly refuses the video (401 or 403). Any other answer, or none, is not a refusal."""
+    player = vimeo_player_url(url)
+    if not player.startswith("https://player.vimeo.com/"):
+        return False
+    base, _, query = player.partition("?")
+    request = urllib.request.Request(f"{base}/config" + (f"?{query}" if query else ""), headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with opener(request, timeout=15):
+            return False
+    except urllib.error.HTTPError as error:
+        return error.code in (401, 403)
+    except (OSError, ValueError):
+        return False
+
+
+def acquire_recording(root, url, max_height, browser=None, locked=vimeo_locked):
+    """Download the recording. `browser` reads that browser's sign-ins for this one download, only with the pastor's permission."""
     validate_url(url)
+    if browser is None and locked(url):
+        raise ValueError(VIMEO_LOCKED)
+    # Signed in, Vimeo serves its own page; signed out, only the player will.
+    fetch_url = url if browser else vimeo_player_url(url)
     source = root / "source"; source.mkdir(exist_ok=True)
     ledger = root / ".receipts/acquisition.json"
     if ledger.exists():
@@ -863,13 +1016,13 @@ def acquire_recording(root, url, max_height):
         if saved["url"] == url and media.is_file() and saved["hash"] == digest(media):
             return {"status": "reused", **saved}
     # Peak use is the video and audio parts plus the merged file, then room for the sermon master and the render.
-    estimate = estimate_download_bytes(url, max_height)
+    runtime, version = js_runtime(), yt_dlp_version()
+    signed_in = ["--cookies-from-browser", browser] if browser else []
+    estimate = estimate_download_bytes(fetch_url, max_height, runtime, version, signed_in)
     require_space(source, int(estimate * 2.2) + 300_000_000 if estimate else 3_000_000_000, "the download")
     pending = source / "acquisition" / hashlib.sha256(url.encode()).hexdigest()[:16]
     pending.mkdir(parents=True, exist_ok=True)
-    run(["yt-dlp", "--no-playlist", "--no-update", "--write-info-json", "--write-subs", "--write-auto-subs",
-         "--sub-langs", "en.*", "--sub-format", "json3/vtt/best", "--concurrent-fragments", "8", "-f", download_selector(max_height),
-         "--merge-output-format", "mp4", "-o", pending / "service.%(ext)s", url], stdout=sys.stderr)
+    run(download_command(fetch_url, max_height, pending, runtime, version, signed_in), stdout=sys.stderr)
     matches = [f for f in pending.iterdir() if f.suffix in (".mp4", ".mkv", ".webm", ".mov")]
     if len(matches) != 1:
         raise ValueError("The downloader did not produce one complete recording.")
@@ -895,6 +1048,8 @@ def main():
     p = commands.add_parser("discover"); p.add_argument("--url", required=True); p.add_argument("--output", required=True)
     p = commands.add_parser("boxcast"); p.add_argument("--channel", required=True); p.add_argument("--output", required=True)
     p = commands.add_parser("acquire"); p.add_argument("--url", required=True); p.add_argument("--run-dir", required=True); p.add_argument("--max-height", type=int, default=1080)
+    p.add_argument("--cookies-from-browser", dest="browser", choices=BROWSERS,
+                   help="Use this browser's sign-ins for this one download. Only with the pastor's permission.")
     p = commands.add_parser("adopt"); p.add_argument("--url", required=True); p.add_argument("--run-dir", required=True); p.add_argument("--path", required=True)
     p = commands.add_parser("status"); p.add_argument("--run-dir", required=True)
     for name in ("artwork", "render", "verify", "captions", "review", "finish", "published"):
@@ -911,6 +1066,7 @@ def main():
     args = parser.parse_args()
     if args.command == "doctor":
         return {"tools": {name: shutil.which(name) for name in ("ffmpeg", "ffprobe", "yt-dlp", "node")},
+                "downloader": downloader_report(),
                 "artwork_renderer": "Use an available browser renderer or render_artwork.cjs with an installed Playwright module."}
     if args.command in ("discover", "boxcast"):
         output = Path(args.output).resolve(); private_dir(output.parent)
@@ -932,7 +1088,7 @@ def main():
         save(root / ".receipts/acquisition.json", result)
         return result
     if args.command == "acquire":
-        return acquire_recording(private_dir(args.run_dir), args.url, args.max_height)
+        return acquire_recording(private_dir(args.run_dir), args.url, args.max_height, args.browser)
     if args.command == "status":
         root = private_dir(args.run_dir)
         try:

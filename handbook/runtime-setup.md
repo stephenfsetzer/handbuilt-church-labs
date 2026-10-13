@@ -6,7 +6,7 @@ the result.
 
 ## Host workflow
 
-For **Set up my church workspace**, check from the installed plugin directory:
+For **Set up my Church Command Center**, check from the installed plugin directory:
 
 ```bash
 python3 tools/handbuilt_runtime.py doctor --capability workspace --format json

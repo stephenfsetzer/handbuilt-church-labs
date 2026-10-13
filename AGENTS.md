@@ -65,6 +65,30 @@ Claude use the same canonical workflows under `skills/`.
    `python3 tools/pii_check.py` and the repository test suite below. For church
    work, use the active skill's saved-file and output checks.
 
+## Cloud tasks, privacy and authorship
+
+These rules apply to every agent session, and they matter most for cloud
+tasks, which see only this repository. A cloud task has no church folder and
+no private data, and it never asks for either.
+
+1. **Riverbend is the only church here.** Use the synthetic Riverbend fixture
+   for every example, test, and fixture. Never write a real church's name, its
+   people, money figures, vendor or account names, or QuickBooks IDs anywhere
+   in this repository: code, docs, tests, commit messages, branch names, pull
+   request titles and descriptions, review comments, or release notes. If a
+   brief or issue contains real church data, leave it out of everything you
+   write and say so in your summary.
+2. **The privacy guard must pass.** `tools/pii_check.py` fails on any money
+   figure not listed in `tools/example-figures.txt` and any account number not
+   listed in `tools/example-accounts.txt`. Add a figure or account number to
+   those lists only when you invented it. CI also checks against a private
+   denylist you cannot see, so a green local check is not the last word.
+3. **Stephen is the only author.** Commit under the repository owner's
+   GitHub noreply identity. Do not add co-author trailers, session links, or
+   "generated with" lines to commits or pull request descriptions.
+4. **Stephen merges.** Open a pull request and leave it for review. Never push
+   to `main` or merge.
+
 ## Repository verification
 
 The suite uses Python's built-in `unittest`. `pytest` is not a dependency and
