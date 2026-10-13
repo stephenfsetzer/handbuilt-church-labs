@@ -143,32 +143,13 @@ def _atomic_bytes(path: Path, contents: bytes) -> None:
 
 
 def claude_update_settings() -> dict | None:
-    """Return a request to turn on automatic updates when a Claude Code install has them off.
+    """Ask to turn on automatic updates when a Claude Code install has them off.
 
-    However Handbuilt was installed, by an agent that skipped INSTALL.md, by
-    terminal commands, or long ago, the first workflow start catches an install
-    that would otherwise never update. It reports and asks; it never changes
-    settings itself. The app's own copy is not a Claude Code install and is
-    left alone.
+    The question lives in tools/claude_updates.py so a workflow that does not
+    start through this launcher, such as sermon-video, asks the same one.
     """
-    if os.environ.get("CLAUDECODE") != "1":
-        return None
     from tools import claude_updates
-    try:
-        report = claude_updates.status(claude_updates.config_dir(), offline=True)
-    except claude_updates.SettingsError as exc:
-        return {"status": "settings_unreadable", "message": str(exc),
-                "next_action": "Tell the pastor their Claude Code settings file could not be read, so automatic updates could not be checked."}
-    if report["installed_version"] is None or (report["auto_update_on"] and report["desktop_updates_allowed"]):
-        return None
-    return {
-        "status": "updates_off",
-        "message": report["message"],
-        "enable_command": [sys.executable, str(ROOT / "tools" / "claude_updates.py"), "enable"],
-        "next_action": ("First ask the pastor: \"Automatic Handbuilt updates are off on this computer, "
-                        "so new versions won't arrive on their own. May I turn them on?\" If they agree, "
-                        "run enable_command and confirm it printed turned_on or already_on. Then continue."),
-    }
+    return claude_updates.update_request()
 
 
 def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:

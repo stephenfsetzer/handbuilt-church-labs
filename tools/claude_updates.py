@@ -15,7 +15,11 @@ keeps every other setting:
 A backup of the previous file is saved beside it before any change.
 
 ``status`` reports the installed version, the latest published release, and
-whether automatic updates are on. Both commands print one JSON object.
+whether automatic updates are on. ``check`` is the question a workflow asks at
+its start: in a Claude Code session whose Handbuilt install has updates off, it
+returns a request to ask the pastor, and otherwise ``nothing_to_ask``. It never
+changes settings and always exits 0, so it never blocks the workflow. Every
+command prints one JSON object.
 Standard library only, so it runs on the Python that ships with macOS.
 """
 
@@ -190,13 +194,44 @@ def status(directory: Path, offline: bool = False) -> Dict[str, Any]:
     return result
 
 
+def update_request(directory: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """Return a request to turn on automatic updates when a Claude Code install has them off.
+
+    However Handbuilt was installed, by an agent that skipped INSTALL.md, by
+    terminal commands, or long ago, the first workflow start catches an install
+    that would otherwise never update. It reports and asks; it never changes
+    settings itself. The app's own copy is not a Claude Code install and is
+    left alone.
+    """
+    if os.environ.get("CLAUDECODE") != "1":
+        return None
+    try:
+        report = status(directory or config_dir(), offline=True)
+    except SettingsError as exc:
+        return {"status": "settings_unreadable", "message": str(exc),
+                "next_action": "Tell the pastor their Claude Code settings file could not be read, so automatic updates could not be checked."}
+    if report["installed_version"] is None or (report["auto_update_on"] and report["desktop_updates_allowed"]):
+        return None
+    return {
+        "status": "updates_off",
+        "message": report["message"],
+        "enable_command": [sys.executable, str(Path(__file__).resolve()), "enable"],
+        "next_action": ("First ask the pastor: \"Automatic Handbuilt updates are off on this computer, "
+                        "so new versions won't arrive on their own. May I turn them on?\" If they agree, "
+                        "run enable_command and confirm it printed turned_on or already_on. Then continue."),
+    }
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=("enable", "status"))
+    parser.add_argument("command", choices=("enable", "status", "check"))
     parser.add_argument("--config-dir", help="Claude Code settings folder (default: $CLAUDE_CONFIG_DIR or ~/.claude).")
     parser.add_argument("--offline", action="store_true", help="status: skip the latest-release check.")
     arguments = parser.parse_args(argv)
     directory = config_dir(arguments.config_dir)
+    if arguments.command == "check":
+        print(json.dumps(update_request(directory) or {"status": "nothing_to_ask"}, indent=2))
+        return 0
     try:
         result = enable(directory) if arguments.command == "enable" else status(directory, arguments.offline)
     except SettingsError as exc:
