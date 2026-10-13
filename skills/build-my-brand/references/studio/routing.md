@@ -31,8 +31,9 @@ key file in the Handbuilt support folder on this computer; `keys status`
 shows which are set without printing them. A hosted Handbuilt image service
 is planned and not yet available. A host with its own image tool makes
 images there and registers them with `import-images`. With no image service
-at all, the mark is a construction mark (see the skill's "Without an image
-service" section); the pastor is never asked for a key.
+at all, the pastor's own image app is the studio (see
+[Drawing in the pastor's own image app](../image-apps.md)); the pastor is
+never asked for a key.
 
 ## Claude Code
 

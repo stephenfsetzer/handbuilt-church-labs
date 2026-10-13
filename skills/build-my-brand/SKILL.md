@@ -289,39 +289,34 @@ record, and the chosen mark is always an editable SVG.
 
 ### Without an image service
 
-Run `keys status` once before develop. A missing key never stops the run,
-and the pastor is never asked for a key, an account with an image company,
-or a terminal command. Do not mention keys to the pastor at all; say only
-how the mark will be made. Fill each gap in this order:
+Most churches have no image service key, and the workflow is built for
+that. Run `keys status` once before develop. A missing key never stops the
+run, and the pastor is never asked for a key, an account with an image
+company, or a terminal command. Do not mention keys to the pastor at all.
 
 1. **The host's own image tool.** Codex has a built-in image generator. Make
    the round there from the makers' briefs and register it with
-   `import-images`. No key is needed.
-2. **The pastor's own image app.** Offer this as a choice, with the
-   construction mark below as the other choice. Turn each maker's brief into
-   one short prompt in plain words, at most three prompts a round, each in
-   its own copyable block, and save them in
-   `brand/staging/explorations/<round>/prompts.md` so the pastor can come
-   back to them. Point to free tools the pastor may already use, with links:
-   ChatGPT (https://chatgpt.com) or Gemini (https://gemini.google.com). Say
-   what to do in one line each: paste a prompt, ask for two or three
-   versions, save the ones worth keeping into the church folder's
-   `brand/inbox/` folder (create it first and give its full path), then say
-   "done". An image pasted into the chat is not saved to disk, so always ask
-   for the files in `brand/inbox/`. Register them with `import-images` and
-   `--tool` set to the app's name, then judge and show them like any round.
-3. **A construction mark.** When the pastor would rather not, or nothing can
-   draw, the senior designer builds the mark as SVG from the direction's own
-   shapes: the letters of the name, the arch, the tile, the outline the board
-   already uses. Draw on a grid with few, bold shapes, and run `check-marks`
-   on it like any other mark. Do not attempt a pictorial symbol this way (a
-   building, a figure, a dove); choose a letter mark, a monogram or a framed
-   name instead. Tell the pastor in one line that this version is built from
-   type and shape, and that a drawn symbol can come later without redoing
-   the system.
-4. **No vectorizer.** Without Recraft, a chosen raster from step 1 or 2 is
-   redrawn as construction SVG by the senior designer, using the raster as
-   the reference, then checked.
+   `import-images`.
+2. **The pastor's own image app, by default.** Everywhere else, the image
+   app the pastor already uses is the studio. Recommend one app (ChatGPT
+   for the mark), write the makers' briefs as prompts tuned for it, save
+   them in `brand/staging/explorations/<round>/prompts.md`, and tell the
+   pastor in four short lines where to paste them and to save the results
+   into `brand/inbox/`. An image pasted into the chat is not saved as a file,
+   so always ask for the files there. Register them with `import-images`
+   and `--tool` set to the app's name. Read
+   [Drawing in the pastor's own image app](references/image-apps.md) first.
+3. **A construction mark, only if the pastor declines.** If the pastor would
+   rather not use an image app, the senior designer builds the mark as SVG
+   from the direction's own shapes: the letters of the name, the arch, the
+   tile, the outline the board already uses. Draw on a grid with few, bold
+   shapes, and run `check-marks` on it like any other mark. Do not attempt a
+   pictorial symbol this way (a building, a figure, a dove); choose a letter
+   mark, a monogram or a framed name instead, and say in one line that a
+   drawn symbol can come later without redoing the system.
+4. **No vectorizer.** Without Recraft, the chosen raster is redrawn as
+   construction SVG by the senior designer, using the raster as the
+   reference, then checked.
 
 Record which path made the mark in the develop section. Explorations stay
 under staging either way.

@@ -202,7 +202,10 @@ class BuildMyBrandTest(unittest.TestCase):
         skill = (Path(__file__).resolve().parents[1] / "skills" / "build-my-brand" / "SKILL.md").read_text()
         section = skill.split("### Without an image service", 1)[1].split("\n## ", 1)[0]
         self.assertIn("never asked for a key", section)
-        self.assertIn("https://chatgpt.com", section)
+        self.assertIn("by default", section)
+        apps = (Path(__file__).resolve().parents[1] / "skills" / "build-my-brand" / "references" / "image-apps.md").read_text()
+        self.assertIn("https://chatgpt.com", apps)
+        self.assertIn("import-images", apps)
         self.assertIn("brand/inbox/", section)
         self.assertIn("import-images", section)
         self.assertIn("construction mark", section)
