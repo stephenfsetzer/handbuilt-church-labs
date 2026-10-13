@@ -41,6 +41,14 @@ open beside the conversation, and in a working session put it on the shared
 screen so everyone looks at the same page. `build-my-brand book` rewrites it
 by hand.
 
+Show it with the host's own viewer, and keep that step thin: in Claude,
+publish the file as a private artifact and share the link; in Codex, open
+the file in its preview or browser; with no viewer, give the pastor the
+file path. The file is the brand book in every host; the viewer only shows
+it. Boards the pastor reacts to are saved as images under
+`brand/staging/explorations/` and appear in the book, so every round puts
+a real design in front of the pastor.
+
 ## Four rules that never bend
 
 1. **Teach, then ask.** No decision goes to the pastor before the pastor has
