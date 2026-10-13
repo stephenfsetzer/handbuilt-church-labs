@@ -38,8 +38,14 @@ when obtaining remote recordings.
 
 ## Discover and obtain the recording
 
-Load the church's saved brand and verified media sources when available. Given
-a parish page, inspect it before choosing a platform:
+Load the church's saved brand and verified media sources when available. A
+church with no saved brand gets its look from its own website: its main
+background and accent colors, its logo, and its heading and body fonts, read
+from the site's pages and stylesheet. Write them to `plan.json`'s `brand` and
+save the logo in `assets/`. Use only what the site plainly shows, and say where
+each came from. When the site gives nothing usable, keep the clean default:
+white cards, near-black type and a slate accent. Given a parish page, inspect it
+before choosing a platform:
 
 ```bash
 python3 <skill>/scripts/sermon_video.py discover --url <parish-page> \
