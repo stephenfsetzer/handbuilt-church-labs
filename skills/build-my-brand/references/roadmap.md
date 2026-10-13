@@ -36,7 +36,7 @@ plan must belong to exactly one phase. A natural grouping:
    "you_see": "How your church looks today, through a designer's eyes, and the brief in your words",
    "you_decide": "Keep your mark or start new; one identity for everything", "time": "One sitting"},
   {"title": "The idea", "stages": ["direction", "develop", "refine-1", "refine-2"],
-   "you_see": "Two or three directions on your own bulletin, announcement, and website; then one direction developed and tightened twice",
+   "you_see": "Two or three directions on your own bulletin, announcement, and a social post; then one direction developed and tightened twice",
    "you_decide": "The direction, then the version, then the mark you keep", "time": "Three short sessions"},
   {"title": "The system", "stages": ["color", "type", "voice", "build", "prove"],
    "you_see": "The palette, the type, your voice, then your latest bulletin in the new brand beside the old one",

@@ -14,7 +14,7 @@ church's tradition. Each direction is a whole idea the pastor can compare:
   learns from, with one line each on what to take.
 - **Real applications in type and color.** At least the bulletin cover, the
   church's own test announcement (the program image an agent would be asked
-  for in an ordinary week), and the website's first screen, set in the
+  for in an ordinary week), and a social post in the feed, set in the
   direction's type and palette with a plain placeholder where the mark will
   go. Add how an agent would make images in this direction, and where the
   kept mark limits the idea on the refresh path.
@@ -24,6 +24,10 @@ feel the same to a stranger, replace one. Make each board as one finished
 composition the pastor can read; this round sets the fidelity bar for
 everything after it, and the interface will not let a later presentation
 show less.
+
+Website screens, signage plans and print layouts are not applications of
+the brand round. They come after approval, as their own work, and the
+interface refuses a board that shows one.
 
 ## Marks
 
@@ -49,7 +53,7 @@ they said when they picked, or from the brief, and record it.
 
 Metadata carries `options` (one line per direction), `applications` (the
 keys shown on every board, at least `bulletin_cover`, `test_announcement`,
-`website_screen`), `boards` (the board images under `brand/`), the
+`social_post`), `boards` (the board images under `brand/`), the
 `decision`, and the `rationale` in the pastor's words. `references` may
 list the board's named work with `name`, `learn`, and a `url`.
 

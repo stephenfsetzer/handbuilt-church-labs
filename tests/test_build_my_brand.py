@@ -59,6 +59,7 @@ def _metadata(stage: str) -> dict:
         meta["boards"] = ["brand/staging/explorations/board.png"]
     if stage == "develop":
         meta["recommendation"] = "Option A, because it carries the direction's lines into the mark."
+        meta["follows"] = "The direction pick: the open door is the whole idea."
     if stage == "refine-2":
         meta["mark"] = {"primary": "brand/staging/marks/mark.svg"}
     return meta
@@ -183,7 +184,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertIn("**Where you are:** step 6 of 16, Your direction, in the phase \"The idea\".", guide)
         self.assertIn("**You decide today:** Which of two or three directions is the church you are trying to be.", guide)
         self.assertIn("**Next you will see:** Your direction, developed.", guide)
-        self.assertIn("**Shown on:** the bulletin cover; the church's own test announcement; the website's first screen", guide)
+        self.assertIn("**Shown on:** the bulletin cover; the church's own test announcement; a social post in the feed", guide)
         self.assertIn("**Decision:** direction choice", guide)
         self.assertIn("**Why:** Because the direction lesson showed why.", guide)
         self.assertIn("Lesson text for interview.", (self.church / "brand" / "brief.md").read_text())
@@ -209,7 +210,7 @@ class BuildMyBrandTest(unittest.TestCase):
         short["applications"] = ["bulletin_cover", "test_announcement"]
         dropped = record(self.church, "direction", "lesson", short)
         self.assertEqual(dropped["errors"][0]["code"], "fidelity_dropped")
-        self.assertIn("website", dropped["errors"][0]["message"])
+        self.assertIn("social post", dropped["errors"][0]["message"])
         wide = _metadata("direction")
         wide["applications"] = list(DIRECTION_APPLICATIONS) + ["poster"]
         self.assertEqual(record(self.church, "direction", "lesson", wide)["status"], "recorded")
@@ -257,6 +258,52 @@ class BuildMyBrandTest(unittest.TestCase):
         state = orient(self.church)
         self.assertEqual(state["mark"]["primary"], "brand/staging/marks/mark.svg")
         self.assertEqual(state["next_stage"], "color")
+
+    def test_brand_presentations_refuse_website_signage_and_print_design(self):
+        self._record_through("identity")
+        drift = _metadata("direction")
+        drift["applications"] = list(DIRECTION_APPLICATIONS) + ["website_screen"]
+        refused = record(self.church, "direction", "lesson", drift)
+        self.assertEqual(refused["errors"][0]["code"], "later_phase")
+        self.assertEqual(refused["errors"][0]["detail"]["later_phase"], ["website_screen"])
+        self.assertIn("after the brand is approved", refused["errors"][0]["message"])
+        self.assertEqual(record(self.church, "direction", "lesson", _metadata("direction"))["status"], "recorded")
+        later = _metadata("develop")
+        later["applications"] = list(DEVELOP_APPLICATIONS) + ["signage_plan"]
+        self.assertEqual(record(self.church, "develop", "developed", later)["errors"][0]["code"], "later_phase")
+
+    def test_a_recommendation_names_the_earlier_pick_it_follows(self):
+        self._record_through("direction")
+        loose = _metadata("develop")
+        loose.pop("follows")
+        self.assertEqual(record(self.church, "develop", "developed", loose)["errors"][0]["field"], "follows")
+        self.assertEqual(record(self.church, "develop", "developed", _metadata("develop"))["status"], "recorded")
+        guide = (self.church / "brand" / "guide.md").read_text()
+        self.assertIn("**It follows your earlier pick:** The direction pick: the open door is the whole idea.", guide)
+        self._record_through_from("refine-1", "type")
+        color_pick = _metadata("voice")
+        color_pick["recommendation"] = "Option B"
+        self.assertEqual(record(self.church, "voice", "voice", color_pick)["errors"][0]["field"], "follows")
+
+    def _record_through_from(self, first: str, last: str) -> None:
+        for stage in STAGES[STAGES.index(first): STAGES.index(last) + 1]:
+            result = record(self.church, stage, f"Lesson text for {stage}.", _metadata(stage))
+            self.assertEqual(result["status"], "recorded", result)
+
+    def test_the_brand_book_fills_in_after_every_decision(self):
+        first = record(self.church, "roadmap", "Here is the whole engagement on one page.", _metadata("roadmap"))
+        book_path = self.church / "brand" / "book.html"
+        self.assertEqual(first["book"], str(book_path))
+        page = book_path.read_text()
+        self.assertIn('<base href="../">', page)
+        self.assertIn("The plan", page)
+        self.assertNotIn("Refresh or start new</h2>", page)
+        record(self.church, "fork", "Refresh keeps the mark; new replaces it.", _metadata("fork"))
+        self.assertIn("Refresh or start new</h2>", book_path.read_text())
+        book_path.unlink()
+        rebuilt = subprocess.run([sys.executable, str(CLI), "book", "--church-folder", str(self.church)], capture_output=True, text=True)
+        self.assertEqual(json.loads(rebuilt.stdout)["status"], "written", rebuilt.stdout)
+        self.assertTrue(book_path.is_file())
 
     # ------------------------------------------------------------ a run from the first scheme
 
@@ -470,6 +517,24 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(brand["logo"]["social"], "brand/marks/avatar.png")
         self.assertTrue((self.church / "brand" / "marks" / "avatar.png").is_file())
 
+    def test_a_dry_run_lists_what_approval_installs_and_moves_nothing(self):
+        self._needs_renderer()
+        self._ready_to_approve()
+        before = self._snapshot()
+        listing = approve(self.church, dry_run=True)
+        self.assertEqual(listing["status"], "ready_to_approve", listing)
+        self.assertIn("brand/marks", listing["goes_in"])
+        self.assertIn("brand/staging/marks/mark.svg", listing["staged_files"])
+        self.assertIn("brand.json", listing["archived"])
+        self.assertIn("brand_system", listing["brand_json_changes"])
+        self.assertIn("colors", listing["brand_json_changes"])
+        self.assertEqual(self._snapshot(), before)
+        self.assertFalse(orient(self.church)["approved"])
+        cli = subprocess.run([sys.executable, str(CLI), "approve", "--church-folder", str(self.church), "--dry-run"], capture_output=True, text=True)
+        self.assertEqual(json.loads(cli.stdout)["status"], "ready_to_approve", cli.stdout)
+        self.assertEqual(approve(self.church)["status"], "approved")
+        self.assertIn("Approved", (self.church / "brand" / "book.html").read_text())
+
     def test_approval_checks_the_live_logo_before_anything_moves(self):
         self._needs_renderer()
         self._ready_to_approve()
@@ -572,7 +637,7 @@ class BuildMyBrandTest(unittest.TestCase):
 
     def test_the_launcher_registers_the_new_operations(self):
         source = (ROOT / "tools" / "church_workflow.py").read_text()
-        for operation in ("explore", "redirect", "check-marks", "stage-brand"):
+        for operation in ("explore", "redirect", "check-marks", "stage-brand", "book"):
             self.assertIn(f'"{operation}"', source)
         self.assertNotIn('"studio"', source)
 

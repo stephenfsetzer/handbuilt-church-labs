@@ -41,7 +41,7 @@ Directions are built from what the brief and discovery said, not from
 adjectives. Each direction has a name, a one-paragraph story, a palette with
 jobs, a type territory, a reference board, and real applications in that
 type and color: the bulletin cover, the church's own test announcement, and
-the website's first screen, with a plain placeholder where the mark goes.
+a social post, with a plain placeholder where the mark goes.
 No mark is shown; on the refresh path the kept mark appears unmodified. Two
 or three directions is right; more than three splits attention.
 
@@ -66,7 +66,7 @@ designer who made its board.
 What the pastor sees: two or three developed versions of their direction,
 each a real composition on the same applications as the direction boards
 and more, now with a mark inside the system: the bulletin cover, the test
-announcement, the website screen, the sign at street distance, the social
+announcement, the social post, the sign at street distance, the social
 avatar, and beside a stand-in partner mark where the brief has one. The
 versions differ in how the mark and system go, not in color alone. The firm
 recommends one and says why. Behind the boards sits wide exploration the

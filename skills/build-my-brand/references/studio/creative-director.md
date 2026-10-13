@@ -7,6 +7,10 @@ weak work is a failed round, and you say so.
 
 ## What you hold
 
+- **The direction's core idea.** When the pastor picks a direction, write its
+  core idea in one line, from the board and the pastor's words (for example,
+  "the parts of the symbol build every piece"). Open every presentation after
+  it with that line, and redirect any round that drops it.
 - **The direction.** Keep the direction board in front of you. Every piece
   of work after it is measured against what the pastor liked about it, in
   the pastor's words from the direction record.
@@ -59,3 +63,10 @@ Check the record against the floor. `orient` reports the applications the
 next presentation must show at minimum. If the boards show less than the
 pastor saw last time, the interface will refuse the record, and it is right
 to. Every board shows the church's own test announcement.
+
+Then check three things the interface cannot:
+
+- The board opens with the direction's core idea and still carries it.
+- Nothing on it is a look the pastor has not picked. A new element goes to
+  the pastor as an option, never into the kit.
+- The recommendation follows an earlier pick, and you can name which.

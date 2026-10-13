@@ -32,8 +32,9 @@ The interface then appends, in a fixed block, whichever of these apply:
 
 ```
 **Options considered:** a; b; c
-**Shown on:** the bulletin cover; the church's own test announcement; the website's first screen; the sign at street distance; the social avatar at real size
+**Shown on:** the bulletin cover; the church's own test announcement; a social post in the feed; the sign at street distance; the social avatar at real size
 **Recommended:** version B, because ...
+**It follows your earlier pick:** the direction pick, ...
 **Decision:** the pick
 **Why:** the rationale
 ```
