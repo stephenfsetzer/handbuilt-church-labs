@@ -310,6 +310,9 @@ def _snapshot_ids(snapshots: Path) -> list[str]:
             continue
         if entry.name == ".keep":
             continue
+        if entry.name.startswith("._") or entry.name == ".DS_Store":
+            # Finder and macOS archive tools leave these beside real files; they are never snapshots.
+            continue
         if not entry.name.endswith(".json"):
             raise _failure(f"unexpected recovery store entry {entry.name}.")
         snapshot_id = entry.name[:-5]

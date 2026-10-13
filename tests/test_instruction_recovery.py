@@ -122,6 +122,16 @@ class InstructionRecoveryTests(unittest.TestCase):
         self.assertEqual(0, stat.S_IMODE(snapshot_path.stat().st_mode) & 0o077)
         self.assertEqual(0, stat.S_IMODE((self.church / ".handbuilt" / "recovery").stat().st_mode) & 0o077)
 
+    def test_mac_metadata_beside_snapshots_is_ignored(self):
+        self.write("CLAUDE.md", b"one")
+        saved = recovery.snapshot(self.church, "first observation")
+        snapshots = self.church / ".handbuilt" / "recovery" / "snapshots"
+        (snapshots / ("._" + saved["snapshot_id"] + ".json")).write_bytes(b"\x00\x05\x16\x07")
+        (snapshots / ".DS_Store").write_bytes(b"\x00")
+        self.assertEqual([saved["snapshot_id"]], [item["snapshot_id"] for item in recovery.list_snapshots(self.church)["snapshots"]])
+        self.write("CLAUDE.md", b"two")
+        self.assertTrue(recovery.snapshot(self.church, "new observation")["created"])
+
     def test_list_is_read_only_when_no_store_exists(self):
         listing = recovery.list_snapshots(self.church)
         self.assertEqual("empty", listing["status"])
