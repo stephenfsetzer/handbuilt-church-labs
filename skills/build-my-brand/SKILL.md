@@ -105,7 +105,10 @@ python3 "<church-folder>/handbuilt.py" build-my-brand orient
 `orient` returns every stage's recorded state, the plan and where the pastor
 is in it, the fidelity floor for the next presentation, whether a brand is
 staged or approved, and the next action. Resume from there. Stopping after
-any round loses nothing. A run that began before the plan stage existed
+any round loses nothing. If Handbuilt updates itself partway through a run,
+keep going in the same session: every decision lives in the church folder.
+Mention the new version in one line and do not send the pastor to a new
+session. A run that began before the plan stage existed
 reports the plan in `owed_stages`; record it first.
 
 If `start` does not report `ready`, the host agent may prepare the runtime
@@ -242,13 +245,16 @@ stage with the speaker.
 
 ### The image studio: where the symbol comes from
 
-Language models cannot draw a church mark. Hand-written SVG and agents
-drawing from prose produce generic clip art, however clean. The symbol comes
+Language models cannot draw a pictorial church mark. Hand-written SVG and
+agents drawing from prose produce generic clip art, however clean. The symbol comes
 from an image model given a full editorial brief per concept (see
 [Image briefs](references/image-briefs.md)). Claude and Codex write the
 briefs, curate the results, compose the boards, and write the system.
 Hand-authored SVG is for construction and cleanup (the grid, the wordmark,
-lockups, the small variant), never for the symbol itself.
+lockups, the small variant), and for a construction mark built from letters
+and shapes when no image service is set up (see
+[Without an image service](#without-an-image-service)); never for a pictorial
+symbol. The run never stops for a key.
 
 The loop: draw a round from the briefs, show the pastor two or three and
 take reactions, draw again or make precise edits of the chosen image, then
@@ -273,14 +279,38 @@ checks on it. When a host has its own image tool (Codex's built-in image
 generator, for example), make the images there and register them with
 `import-images`; no network is used.
 
-Service keys live on the computer, never in the church folder: the
-environment (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `RECRAFT_API_KEY`) or a key file in the
-Handbuilt support folder. `keys status` shows which services are set up
-without printing a key; `keys set --provider <name>` reads the key from
-standard input. If a key is missing, say so plainly and offer the host's own
-image tool; never ask the pastor to paste a key into the conversation.
-Explorations stay under staging as the record, and the chosen mark is
-always an editable SVG.
+Service keys are an operator's setup, not a pastor's. They live on the
+computer, never in the church folder: the environment (`OPENAI_API_KEY`,
+`GEMINI_API_KEY`, `RECRAFT_API_KEY`) or a key file in the Handbuilt support
+folder. `keys status` shows which services are set up without printing a
+key, and `keys set --provider <name>` reads a key from standard input for
+whoever looks after the computer. Explorations stay under staging as the
+record, and the chosen mark is always an editable SVG.
+
+### Without an image service
+
+Run `keys status` once before develop. A missing key never stops the run,
+and the pastor is never asked for a key, an account with an image company,
+or a terminal command. Do not mention keys to the pastor at all; say only
+how the mark will be made. Fill each gap in this order:
+
+1. **The host's own image tool.** Codex has a built-in image generator. Make
+   the round there from the makers' briefs and register it with
+   `import-images`. No key is needed.
+2. **A construction mark.** When nothing can draw, the senior designer
+   builds the mark as SVG from the direction's own shapes: the letters of the
+   name, the arch, the tile, the outline the board already uses. Draw on a
+   grid with few, bold shapes, and run `check-marks` on it like any other
+   mark. Do not attempt a pictorial symbol this way (a building, a figure, a
+   dove); choose a letter mark, a monogram or a framed name instead. Tell the
+   pastor in one line that this version is built from type and shape, and that
+   a drawn symbol can come later without redoing the system.
+3. **No vectorizer.** Without Recraft, a chosen raster from step 1 is
+   redrawn as construction SVG by the senior designer, using the raster as
+   the reference, then checked.
+
+Record which path made the mark in the develop section. Explorations stay
+under staging either way.
 
 ## 6. Build into staging
 

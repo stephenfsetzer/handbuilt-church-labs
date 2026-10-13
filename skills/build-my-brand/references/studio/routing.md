@@ -29,7 +29,9 @@ and concrete. `vectorize` uses Recraft. Keys come from `OPENAI_API_KEY`,
 key file in the Handbuilt support folder on this computer; `keys status`
 shows which are set without printing them. A hosted Handbuilt image service
 is planned and not yet available. A host with its own image tool makes
-images there and registers them with `import-images`.
+images there and registers them with `import-images`. With no image service
+at all, the mark is a construction mark (see the skill's "Without an image
+service" section); the pastor is never asked for a key.
 
 ## Claude Code
 

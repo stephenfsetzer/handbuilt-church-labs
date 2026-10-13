@@ -76,8 +76,10 @@ python3 "<church-folder>/handbuilt.py" build-my-brand import-images \
   --round <name> --files <png> ... --prompt-file <brief.md> --tool "<tool name>"
 ```
 
-If a service key is missing, `keys status` says which. Report it; do not
-look for a key anywhere else.
+If a service key is missing, `keys status` says which. Report it to the
+creative director, who follows the skill's "Without an image service"
+section; do not look for a key anywhere else, and never ask the pastor for
+one.
 
 ## What you report
 

@@ -64,6 +64,7 @@ MODEL_ENVIRONMENT = {"openai": "HANDBUILT_OPENAI_IMAGE_MODEL", "recraft": "HANDB
                      "gemini": "HANDBUILT_GEMINI_IMAGE_MODEL"}
 KEY_ENVIRONMENT = {"openai": "OPENAI_API_KEY", "recraft": "RECRAFT_API_KEY", "gemini": "GEMINI_API_KEY"}
 PROVIDER_NAMES = {"openai": "OpenAI", "recraft": "Recraft", "gemini": "Gemini"}
+DRAWING_PROVIDERS = ("openai", "gemini", "recraft")
 OPENAI_BASE = "https://api.openai.com/v1"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 RECRAFT_BASE = "https://external.api.recraft.ai/v1"
@@ -129,10 +130,11 @@ def service_key(provider: str) -> str:
     if not value:
         raise WorkflowFailure(
             "image_key_missing",
-            f"{PROVIDER_NAMES[provider]} is not set up on this computer yet, so no image was made and nothing was charged. "
-            f"Whoever looks after Handbuilt here can add the key with: handbuilt.py build-my-brand keys set --provider {provider} "
-            "(the key is read from the keyboard and kept on this computer, never in the church folder). "
-            "Or make the images in the host's own image tool and register them with import-images.",
+            f"{PROVIDER_NAMES[provider]} is not set up on this computer, so no image was made and nothing was charged. "
+            "Do not ask the pastor for a key and do not stop: keep going without an image service, as the skill's "
+            "\"Without an image service\" section says (the host's own image tool with import-images, or a construction mark). "
+            f"An operator who looks after this computer can add one later with: handbuilt.py build-my-brand keys set --provider {provider} "
+            "(the key is read from the keyboard and kept on this computer, never in the church folder).",
             field="provider")
     return value
 
@@ -156,9 +158,15 @@ def keys_status(church_folder: str | Path | None = None) -> dict[str, Any]:
             source = _key_source(name)
             providers[name] = {"configured": bool(source), "source": source, "environment_variable": KEY_ENVIRONMENT[name],
                                "model": _model_for(name, None)}
-        return {"status": "ok", "providers": providers, "key_file": str(path), "key_file_exists": path.is_file(),
+        can_draw = any(providers[name]["configured"] for name in DRAWING_PROVIDERS)
+        can_vectorize = providers["recraft"]["configured"]
+        studio = "image services" if can_draw and can_vectorize else "partial" if can_draw or can_vectorize else "none"
+        action = ("Draw, edit and vectorize with the image studio." if studio == "image services" else
+                  "Do not ask the pastor for keys. Use what is set up and fill the gap as the skill's \"Without an image service\" section says.")
+        return {"status": "ok", "providers": providers, "can_draw": can_draw, "can_vectorize": can_vectorize, "studio": studio,
+                "key_file": str(path), "key_file_exists": path.is_file(),
                 "handbuilt": "The hosted Handbuilt image service is not available yet.",
-                "next_action": "Add a missing key with keys set --provider <name>; the key is read from standard input."}
+                "next_action": action}
     except Exception as exc:  # noqa: BLE001
         return _failure(exc)
 
