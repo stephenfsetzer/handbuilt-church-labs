@@ -25,6 +25,10 @@ tone, plain-language explanations, and common snags. In short:
 - Before each step, say what you are doing, why it matters, and what they
   will see. After it, check the result yourself and say what comes next.
 - Explain each new word once, briefly. Treat errors as normal and fixable.
+- Keep the machinery out of what you say. Do not name commands, file paths,
+  backup files, slash commands, or terms like "marketplace" or "catalog" unless
+  the pastor asks. Say "I'm adding Handbuilt to Claude's list of add-ons", not
+  "running the claude installer command against the marketplace catalog".
 - Never ask for a password in chat, and never change settings beyond this
   page without a yes.
 
@@ -138,16 +142,22 @@ appears: "Codex will ask permission to download Handbuilt from GitHub and
 add it to its plugin list. Choose to allow it."
 
 **Fallback, when `codex` is not on the path or the commands are refused:**
-give the pastor the point-and-click steps in the README's
+the point-and-click steps live in the Codex and ChatGPT desktop apps, not in
+the Codex terminal (CLI), which has no Settings or Plugins screen. If you are
+running in a desktop app, give the pastor the steps in the README's
 [ChatGPT and Codex desktop](README.md#chatgpt-and-codex-desktop) section, one
 step at a time: **Settings**, **Plugins**, **Add**, **Add plugin
 marketplace**, paste the address, set **Git ref** to `main`, then **Browse
-directory** and **Install**. Do not edit Codex configuration files by hand.
+directory** and **Install**. If you are running in the Codex CLI, hand the
+first two commands above to the pastor one at a time instead, using
+[Guided computer setup](skills/onboarding/references/guided-setup.md#run-one-command-in-the-terminal).
+Do not edit Codex configuration files by hand.
 
 **Updates in Codex:** the marketplace follows `main`. Codex has no
-automatic-update switch documented for this marketplace, so do not claim one.
-Tell the pastor that Handbuilt checks for verified workflow updates each time
-church work starts (see section 3), and that the agent can refresh the app's
+automatic-update switch documented for this marketplace, so do not claim one,
+and do not lead with its absence. Tell the pastor that Handbuilt checks for
+verified workflow updates each time church work starts (see section 3), and
+that the agent can refresh the app's
 copy on request with `codex plugin marketplace upgrade handbuilt-church-labs --json`
 followed by the `codex plugin add` line above.
 
@@ -235,10 +245,10 @@ Codex says its model needs a newer version of Codex, update Codex first, then
 run the sign-in again.
 
 **In Claude Code,** a new plugin's connection loads in a new session, so this
-happens right after the hand-off in section 4. In that new session, ask the
-pastor to type `/mcp`, choose **church-labs**, then choose the option to
-sign in (Claude Code may call it **Authenticate**). The same Handbuilt page
-opens.
+happens right after the hand-off in section 4. Only the pastor can start this
+sign-in, so it is the one slash command to give them: in that new session, ask
+them to type `/mcp`, choose **church-labs**, then choose **Authenticate**. The
+same Handbuilt page opens.
 
 **In the Claude app** (Chat or Cowork, with the plugin added from the
 **Customize** panel), Church Labs is on the plugin's **Connectors** tab: the
@@ -265,15 +275,16 @@ In Codex, say instead: "Start a new task, outside this one, and type
 **Set up my Church Command Center.**" The plugin is available in new Codex
 tasks, and church work continues there.
 
-In the terminal version of Claude Code, `/reload-plugins` also works. If the
-pastor wants to stay in this session, try that first, then confirm the
+Do not mention `/reload-plugins` to the pastor. **New session** is the one
+step to give. Only in the terminal version of Claude Code, when the pastor
+asks to stay in this session, may you suggest it, then confirm the
 `onboarding` skill is available before continuing.
 
 This install lives in Claude Code, which includes the desktop app's **Code**
-tab. It does not appear in Claude Chat or Cowork. Tell the pastor so in one
-sentence, and that their church work happens in the Code tab. If they also
-want Handbuilt in Chat or Cowork, give them the point-and-click steps in the
-README's [Claude desktop app](README.md#claude-desktop-app) section;
+tab. It does not appear in Claude Chat or Cowork. Say it as where to work,
+not as a limit, for example: "Your church work happens here in the Code tab."
+If the pastor asks about Chat or Cowork, give them the point-and-click steps
+in the README's [Claude desktop app](README.md#claude-desktop-app) section;
 an agent cannot do that part for them.
 
 From there, the [onboarding skill](skills/onboarding/SKILL.md) takes over,
