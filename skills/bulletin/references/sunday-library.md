@@ -83,9 +83,10 @@ omissions recorded in comments. For weekly named petitions or other local
 wording, prepare a verified private version from the source and the church's
 confirmed input. Do not silently add or guess names.
 
-Eleven verses in this source Psalter have no printed asterisk division. The
-lookup preserves those as one undivided verse, with no invented response split.
-The congregation continues at the next marked response.
+Eleven verses in this source Psalter have no printed asterisk division, but each
+sets its second half on its own indented line. The lookup divides them at that
+printed line and marks them `divided_at: "printed_line"`, so the people still
+read their half.
 
 ## Lutheran licensed worship text
 

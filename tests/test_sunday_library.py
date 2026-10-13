@@ -73,12 +73,14 @@ class SundayLibraryTest(unittest.TestCase):
                 else:
                     _validate_liturgy_sources(request, church)
 
-    def test_psalm_without_printed_division_keeps_its_words(self):
+    def test_psalm_without_printed_asterisk_divides_at_its_printed_line(self):
         for mode in ('responsive_half_verse', 'responsive_whole_verse', 'unison', 'plain'):
-            reading = lookup('psalms', '24', verses='10', psalm_format=mode)
+            reading = lookup('psalms', '34', verses='3', psalm_format=mode)
             _validate_reading_presentation(reading, 'psalm')
-            self.assertNotIn('*', reading['text'])
-            self.assertIn('King of glory', reading['text'])
+            self.assertIn('Proclaim with me the greatness of the Lord;', reading['text'])
+            self.assertIn('let us exalt his Name together.', reading['text'])
+        half = lookup('psalms', '34', verses='3')
+        self.assertEqual(half['text'], '3 Proclaim with me the greatness of the Lord; * let us exalt his Name together.')
 
     def test_form_vi_responses_and_explicit_confession_omission(self):
         html = liturgy_section('prayers-of-the-people-vi', {})

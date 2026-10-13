@@ -424,19 +424,26 @@ def build_psalms(pages: list[list[str]]) -> dict[str, dict[str, object]]:
                 first, second = joined.split("*", 1)
                 asterisk: str | None = "*"
             else:
-                # A small number of BCP verses intentionally have no printed
-                # asterisk.  Keep the complete verse in ``first`` and expose
-                # the missing marker instead of manufacturing a half-verse.
-                first, second = joined, ""
+                # Eleven verses print no asterisk, but the source still sets the
+                # second half on its own indented line.  Divide at that printed
+                # line, never elsewhere, and record that the division came from
+                # the layout.  A trailing " -" is how one of them prints the mark.
+                lines = [line for line in text_lines if line.strip()]
+                if len(lines) < 2:
+                    raise ValueError(f"Psalm {number} verse {current_number} has no printed half-verse")
+                first, second = folded(lines[:1]), folded(lines[1:])
+                if first.endswith(" -"):
+                    first = first[:-2]
                 asterisk = None
-            verses.append(
-                {
-                    "number": current_number,
-                    "first": first.strip(),
-                    "second": second.strip(),
-                    "asterisk": asterisk,
-                }
-            )
+            verse: dict[str, object] = {
+                "number": current_number,
+                "first": first.strip(),
+                "second": second.strip(),
+                "asterisk": asterisk,
+            }
+            if asterisk is None:
+                verse["divided_at"] = "printed_line"
+            verses.append(verse)
             current = []
             current_number = None
 

@@ -2894,9 +2894,10 @@
         },
         {
           "number": 10,
-          "first": "“Who is he, this King of glory?” “The Lord of hosts, he is the King of glory.”",
-          "second": "",
-          "asterisk": null
+          "first": "“Who is he, this King of glory?”",
+          "second": "“The Lord of hosts, he is the King of glory.”",
+          "asterisk": null,
+          "divided_at": "printed_line"
         }
       ],
       "source_pages": [
@@ -3815,9 +3816,10 @@
         },
         {
           "number": 16,
-          "first": "There is no king that can be saved by a mighty army; a strong man is not delivered by his great strength.",
-          "second": "",
-          "asterisk": null
+          "first": "There is no king that can be saved by a mighty army;",
+          "second": "a strong man is not delivered by his great strength.",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 17,
@@ -3879,9 +3881,10 @@
         },
         {
           "number": 3,
-          "first": "Proclaim with me the greatness of the Lord; let us exalt his Name together.",
-          "second": "",
-          "asterisk": null
+          "first": "Proclaim with me the greatness of the Lord;",
+          "second": "let us exalt his Name together.",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 4,
@@ -4869,9 +4872,10 @@
         },
         {
           "number": 16,
-          "first": "Let those who say “Aha!” and gloat over me be confounded, because they are ashamed.",
-          "second": "",
-          "asterisk": null
+          "first": "Let those who say “Aha!” and gloat over me be confounded,",
+          "second": "because they are ashamed.",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 17,
@@ -8048,9 +8052,10 @@
         },
         {
           "number": 21,
-          "first": "You strengthen me more and more; you enfold and comfort me,",
-          "second": "",
-          "asterisk": null
+          "first": "You strengthen me more and more;",
+          "second": "you enfold and comfort me,",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 22,
@@ -9723,15 +9728,17 @@
         },
         {
           "number": 16,
-          "first": "Cover their faces with shame, O Lord, that they may seek your Name.",
-          "second": "",
-          "asterisk": null
+          "first": "Cover their faces with shame, O Lord,",
+          "second": "that they may seek your Name.",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 17,
-          "first": "Let them be disgraced and terrified for ever; let them be put to confusion and perish.",
-          "second": "",
-          "asterisk": null
+          "first": "Let them be disgraced and terrified for ever;",
+          "second": "let them be put to confusion and perish.",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 18,
@@ -12180,15 +12187,17 @@
         },
         {
           "number": 21,
-          "first": "He set him as a master over his household, as a ruler over all his possessions,",
-          "second": "",
-          "asterisk": null
+          "first": "He set him as a master over his household,",
+          "second": "as a ruler over all his possessions,",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 22,
-          "first": "To instruct his princes according to his will and to teach his elders wisdom.",
-          "second": "",
-          "asterisk": null
+          "first": "To instruct his princes according to his will",
+          "second": "and to teach his elders wisdom.",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 23,
@@ -12806,9 +12815,10 @@
         },
         {
           "number": 28,
-          "first": "Then they cried to the Lord in their trouble, and he delivered them from their distress.",
-          "second": "",
-          "asterisk": null
+          "first": "Then they cried to the Lord in their trouble,",
+          "second": "and he delivered them from their distress.",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 29,
@@ -16745,9 +16755,10 @@
         },
         {
           "number": 15,
-          "first": "May there be no breaching of the walls, no going into exile, - no wailing in the public squares.",
-          "second": "",
-          "asterisk": null
+          "first": "May there be no breaching of the walls, no going into exile,",
+          "second": "no wailing in the public squares.",
+          "asterisk": null,
+          "divided_at": "printed_line"
         },
         {
           "number": 16,
