@@ -462,6 +462,35 @@ class FinanceReportTests(unittest.TestCase):
         self.assertNotIn("Question 5", text)
         self.assertIn("Watch list", text)
 
+    def test_parts_left_out_are_not_printed_and_the_rest_are_numbered_again(self):
+        self.assertEqual(self.build("2026-08")[1], 0)
+        path = self.board / "2026-08/report.json"
+        report = json.loads(path.read_text())
+        self.assertNotIn("leave_out", report)
+        report["leave_out"] = ["bills", "years", "watch"]
+        path.write_text(json.dumps(report))
+        result, code, err = self.render("2026-08")
+        self.assertEqual(code, 0, err)
+        self.assertLessEqual(result["checks"]["pages"], 2)
+        text = page_text(self.church, "2026-08")
+        self.assertIn("Five questions", text)
+        for gone in ("Can we pay our bills?", "How have whole years gone?", "Next step", "Question 6", "Question 7"):
+            self.assertNotIn(gone, text)
+        self.assertLess(text.index("Question 1"), text.index("Are we on plan?"))
+        self.assertLess(text.index("Question 4"), text.index("Is our cash growing or shrinking?"))
+        self.assertIn("Question 5 &middot; updated yearly", text)
+        self.assertIn("The longer view", text)
+
+    def test_an_unknown_part_to_leave_out_stops_the_render(self):
+        self.assertEqual(self.build("2026-08")[1], 0)
+        path = self.board / "2026-08/report.json"
+        report = json.loads(path.read_text())
+        report["leave_out"] = ["sermon"]
+        path.write_text(json.dumps(report))
+        _, code, err = self.render("2026-08")
+        self.assertNotEqual(code, 0)
+        self.assertIn("leave_out", err)
+
     def test_nonpositive_spending_builds_and_renders_with_reconciled_sources(self):
         original = fixture.month_values
         for mode in ("zero", "empty", "credits", "reversal"):

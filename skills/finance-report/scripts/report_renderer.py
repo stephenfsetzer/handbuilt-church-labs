@@ -881,9 +881,24 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     <p class="answer">{esc(pr['answer'])}</p>{chart_pressure(d, pr)}
     <div class="keyline">{keys}</div><p class="note">{esc(pr.get('note', ''))}</p></div>"""
 
-        return f"""{q5}<div class="row"><div>{q6}</div><div>{q7}</div></div>"""
+        return {"cash": q5, "years": q6, "pressure": q7}
 
-    longer = "" if short_history else longer_view()
+    # Parts the person left out of this month's report (report.json `leave_out`); the questions
+    # still printed keep their order and are numbered again from 1.
+    leave = set(report.get("leave_out") or [])
+    parts = {"bills": q1, "plan": q2, "income": q3, "spending": q4, **({} if short_history else longer_view())}
+    kept = [key for key in QUESTION_ORDER if key in parts and key not in leave]
+    for new, key in enumerate(kept, 1):
+        parts[key] = parts[key].replace(f"Question {QUESTION_ORDER.index(key) + 1}", f"Question {new}", 1)
+    shown = {key: parts[key] for key in kept}
+
+    def pair(left, right):
+        both = [shown[k] for k in (left, right) if k in shown]
+        return f'<div class="row"><div>{both[0]}</div><div>{both[1]}</div></div>' if len(both) == 2 else "".join(both)
+
+    longer = shown.get("cash", "") + pair("years", "pressure")
+    if "watch" in leave:
+        watch = ""
     sources = "; ".join(f"{esc(s['name'])} ({esc(s['method'])}, {esc(s['pulled'])})" for s in report["sources"])
     recon = ""
     if meta.get("reconstructed"):
@@ -897,13 +912,18 @@ Bank cash counts our everyday bank accounts, not the endowment. {caveats} <b>Sou
 
     footer_txt = f"{church.get('name', '')} · {meta['report']} through {meta['through']} · {vocab['body']}, {meta['meeting_date']}"
     short_answer = f'<div class="short">{esc(report["short_answer"])}</div>'
-    page1 = f"""{header(t, church, brand, meta, vocab, 'Four' if short_history else 'Seven')}{short_answer}
-{tiles}<div class="row"><div>{q1}</div><div>{q2}</div></div>{q3}{q4}"""
-    page2 = f"""<div class="page2"><div class="band"><div class="title">Watch list and the longer view</div>
+    page1 = f"""{header(t, church, brand, meta, vocab, COUNT_WORDS[len(kept)])}{short_answer}
+{tiles}{pair('bills', 'plan')}{shown.get('income', '')}{shown.get('spending', '')}"""
+    band_title = ("Watch list and the longer view" if watch and longer else "Watch list" if watch
+                  else "The longer view" if longer else "How to read this report")
+    page2 = f"""<div class="page2"><div class="band"><div class="title">{band_title}</div>
 <div class="eyebrow">What to follow from month to month</div></div>{watch}{longer}{how}</div>"""
     return (f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Where We Stand</title>'
             f'<style>{css(t, fonts, theme.get("scale", 1.0), footer_txt)}</style></head><body>{page1}{page2}</body></html>')
 
+
+QUESTION_ORDER = ["bills", "plan", "income", "spending", "cash", "years", "pressure"]
+COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"]
 
 MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August",
                "September", "October", "November", "December"]
