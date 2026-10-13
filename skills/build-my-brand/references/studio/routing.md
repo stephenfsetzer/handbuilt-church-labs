@@ -17,8 +17,9 @@ designers who write its briefs.
 
 ## Image services
 
-`draw` defaults to OpenAI's image model (`gpt-image-1`, or the model named
-in `HANDBUILT_OPENAI_IMAGE_MODEL`); `--provider gemini` uses Gemini's image
+`draw` defaults to OpenAI's newest image model (`gpt-image-2.5-sunburst`,
+falling back to `gpt-image-2`, then `gpt-image-1`, when the account cannot use
+it yet), or the model named in `HANDBUILT_OPENAI_IMAGE_MODEL`; `--provider gemini` uses Gemini's image
 model (`HANDBUILT_GEMINI_IMAGE_MODEL`), and `--provider recraft` uses Recraft
 (`HANDBUILT_RECRAFT_IMAGE_MODEL`). `edit` uses OpenAI, or Gemini with
 `--provider gemini`. Use Gemini when it is the only drawing key on the
