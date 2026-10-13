@@ -25,6 +25,15 @@ composition the pastor can read; this round sets the fidelity bar for
 everything after it, and the interface will not let a later presentation
 show less.
 
+Photographs of people stay true to life: natural color or plain black and
+white. A strong palette color laid over a photo (a duotone, a heavy tint)
+hides faces and makes the board hard to judge, so put the color beside or
+behind the photo instead. Shapes and type never cover a face.
+
+The creative director presents the round and opens it "Creative director ·
+Your direction". The researcher builds each direction's reference board, and
+the board says so, so the pastor sees who did what.
+
 Website screens, signage plans and print layouts are not applications of
 the brand round. They come after approval, as their own work, and the
 interface refuses a board that shows one.

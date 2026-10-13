@@ -87,7 +87,9 @@ These came from a full run, and each one cost a pastor a round:
   Check what other workflows already fix before designing a piece they own.
 - **Never judges pictures alone.** Photo treatments come after the shapes
   are settled and are shown on real pieces: a Sunday post, an announcement
-  and a people card. Shapes never cover a face.
+  and a people card. Shapes never cover a face, and a photo of people is
+  never washed in a strong palette color; it stays natural or black and
+  white, with the color beside it.
 
 ## 0. Confirm the runtime and orient
 
