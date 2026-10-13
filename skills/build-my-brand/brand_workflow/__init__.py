@@ -62,9 +62,9 @@ STAGE_DECIDES = {
     "roadmap": "Nothing yet. Read the plan and ask anything about it.",
     "fork": "Keep your current mark and redesign around it, or start new.",
     "discover": "Nothing yet. This is what a designer sees today.",
-    "interview": "Your answers to seven questions only you can answer.",
+    "interview": "Your answers to eight questions only you can answer.",
     "identity": "Whether programs and ministries live inside one identity.",
-    "direction": "Which of two or three directions is the church you are trying to be.",
+    "direction": "Your reactions to each direction, then which idea (or blend) to develop.",
     "develop": "Which developed version of your direction to carry forward.",
     "refine-1": "Your reactions to the tightened system.",
     "refine-2": "Your reactions, and the mark that goes on everything.",
@@ -88,8 +88,12 @@ LEGACY_STAGES = {
     "mark": "The mark round was replaced by direction development and two refinements; the chosen mark is recorded with refine-2",
 }
 FORK_CHOICES = ("refresh", "new")
+# The studio's roles, by job title. The pastor meets the team by title.
+SPEAKERS = ("creative director", "senior designer", "researcher", "maker", "writer", "producer")
+# Stages one role must present.
+STAGE_SPEAKER = {"voice": "writer"}
 INTERVIEW_KEYS = (
-    "prompt", "audience", "success", "name", "preserve", "operator", "constraints",
+    "prompt", "audience", "success", "name", "preserve", "admired", "operator", "constraints",
 )
 INTERVIEW_LABELS = {
     "prompt": "What prompted this now",
@@ -97,6 +101,7 @@ INTERVIEW_LABELS = {
     "success": "What would tell you it worked",
     "name": "The name on the wordmark",
     "preserve": "What must be preserved",
+    "admired": "Work you admire",
     "operator": "Who runs it week to week",
     "constraints": "Constraints",
 }
@@ -107,9 +112,9 @@ ROADMAP_PHASE_KEYS = ("title", "stages", "you_see", "you_decide", "time")
 APPLICATION_LABELS = {
     "bulletin_cover": "the bulletin cover",
     "test_announcement": "the church's own test announcement",
-    "website_screen": "the website's first screen",
     "sign": "the sign at street distance",
     "social_avatar": "the social avatar at real size",
+    "social_post": "a social post in the feed",
     "poster": "a poster",
     "partner_pairing": "the mark beside a stand-in partner mark",
     "letterhead": "the letterhead",
@@ -117,14 +122,24 @@ APPLICATION_LABELS = {
     "lockup_example": "one program lockup",
     "favicon": "the favicon",
 }
-DIRECTION_APPLICATIONS = ("bulletin_cover", "test_announcement", "website_screen")
+DIRECTION_APPLICATIONS = ("bulletin_cover", "test_announcement", "social_post")
 DEVELOP_APPLICATIONS = DIRECTION_APPLICATIONS + ("sign", "social_avatar")
+# Website, signage and print design come after the brand is approved, as
+# their own work. A brand presentation that shows them is refused, so the
+# phases stay apart.
+LATER_PHASE_APPLICATIONS = {
+    "website_screen": "the website's first screen",
+    "website_page": "a website page",
+    "signage_plan": "a signage plan",
+    "print_layout": "a print layout",
+}
 APPLICATION_KEY = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
 
 APPROVAL_STAGE = "prove"
 STATE_DIR = Path(".handbuilt") / "build-my-brand"
 SCRATCH_DIR = STATE_DIR / "scratch"
 GUIDE_FILE = Path("brand") / "guide.md"
+BOOK_FILE = Path("brand") / "book.html"
 BRIEF_FILE = Path("brand") / "brief.md"
 STAGING_DIR = Path("brand") / "staging"
 EXPLORATIONS_DIR = STAGING_DIR / "explorations"
@@ -260,7 +275,7 @@ def _church_identity(root: Path) -> dict[str, str]:
 
 
 def _label(application: str) -> str:
-    return APPLICATION_LABELS.get(application, application.replace("_", " "))
+    return APPLICATION_LABELS.get(application) or LATER_PHASE_APPLICATIONS.get(application) or application.replace("_", " ")
 
 
 # ---------------------------------------------------------------- state
@@ -299,7 +314,7 @@ def _migrate(state: dict[str, Any]) -> dict[str, Any]:
     direction = stages.get("direction")
     if isinstance(direction, dict) and direction.get("recorded_at") and not direction.get("applications"):
         direction["applications"] = list(DIRECTION_APPLICATIONS)
-        direction["applications_source"] = "Migration baseline: the direction boards showed a bulletin cover, the test announcement, and a website screen"
+        direction["applications_source"] = "Migration baseline: the direction minimum, a bulletin cover, the test announcement, and a social post"
     state["migrated_from"] = version
     state["migrated_at"] = _now()
     state["schema_version"] = STATE_SCHEMA_VERSION
@@ -353,7 +368,8 @@ def _fidelity_floor(state: dict[str, Any], stage: str) -> tuple[list[str], str |
     if stage == "direction":
         return list(DIRECTION_APPLICATIONS), None
     previous = PRESENTATION_STAGES[PRESENTATION_STAGES.index(stage) - 1]
-    shown = list((state["stages"].get(previous) or {}).get("applications") or DIRECTION_APPLICATIONS)
+    shown = [a for a in (state["stages"].get(previous) or {}).get("applications") or DIRECTION_APPLICATIONS
+             if a not in LATER_PHASE_APPLICATIONS]
     minimum = DEVELOP_APPLICATIONS if stage != "direction" else DIRECTION_APPLICATIONS
     floor = list(shown)
     for key in minimum:
@@ -426,7 +442,10 @@ def _roadmap_table(phases: list[dict[str, Any]]) -> list[str]:
 
 
 def _section(state: dict[str, Any], stage: str, body: str, metadata: dict[str, Any]) -> str:
-    lines = [f"<!-- stage:{stage} -->", f"## {STAGE_TITLES[stage]}", "", *_wayfinding(state, stage), "", body.strip(), ""]
+    lines = [f"<!-- stage:{stage} -->", f"## {STAGE_TITLES[stage]}", ""]
+    if metadata.get("speaker"):
+        lines.extend([f"**{metadata['speaker'].capitalize()} · {STAGE_TITLES[stage]}**", ""])
+    lines.extend([*_wayfinding(state, stage), "", body.strip(), ""])
     if stage == "roadmap":
         lines.extend(_roadmap_table(metadata.get("phases") or []))
         lines.append("")
@@ -435,6 +454,10 @@ def _section(state: dict[str, Any], stage: str, body: str, metadata: dict[str, A
         if options:
             lines.append("**Options considered:** " + "; ".join(str(o) for o in options))
             lines.append("")
+        built_from = metadata.get("built_from") or []
+        if built_from and len(built_from) == len(options):
+            lines.append("**Built from:** " + "; ".join(f"{o}: {b}" for o, b in zip(options, built_from)))
+            lines.append("")
         applications = metadata.get("applications") or []
         if applications:
             lines.append("**Shown on:** " + "; ".join(_label(a) for a in applications))
@@ -442,9 +465,15 @@ def _section(state: dict[str, Any], stage: str, body: str, metadata: dict[str, A
         if metadata.get("recommendation"):
             lines.append(f"**Recommended:** {metadata['recommendation']}")
             lines.append("")
+            if metadata.get("follows"):
+                lines.append(f"**It follows your earlier pick:** {metadata['follows']}")
+                lines.append("")
         lines.append(f"**Decision:** {metadata['decision']}")
         lines.append("")
         lines.append(f"**Why:** {metadata['rationale']}")
+        lines.append("")
+    if metadata.get("handoff"):
+        lines.append(f"**Handoff:** {metadata['handoff']}")
         lines.append("")
     lines.append(f"<!-- /stage:{stage} -->")
     return "\n".join(lines) + "\n"
@@ -515,6 +544,9 @@ def _validate_applications(root: Path, state: dict[str, Any], stage: str, metada
     if not isinstance(applications, list) or not applications or not all(isinstance(a, str) and APPLICATION_KEY.fullmatch(a) for a in applications):
         raise WorkflowFailure("applications_required", f"The {STAGE_TITLES[stage]} record lists the applications the pastor was shown, as keys such as " + ", ".join(DEVELOP_APPLICATIONS), field="applications")
     shown = list(dict.fromkeys(applications))
+    later = [a for a in shown if a in LATER_PHASE_APPLICATIONS]
+    if later:
+        raise WorkflowFailure("later_phase", "Website, signage and print design come after the brand is approved, as their own work. Take these off the boards: " + ", ".join(LATER_PHASE_APPLICATIONS[a] for a in later), field="applications", detail={"later_phase": later})
     missing = [a for a in floor if a not in shown]
     if missing:
         seen = f"what the pastor saw at {STAGE_TITLES[previous]}" if previous else "the direction's minimum"
@@ -578,6 +610,16 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
     if stage == "fork":
         if record["decision"] not in FORK_CHOICES:
             raise WorkflowFailure("invalid_fork", "The fork decision must be refresh or new", field="decision")
+    if stage in DECISION_STAGES or metadata.get("speaker") is not None:
+        speaker = _require_text(metadata.get("speaker"), "speaker").casefold()
+        if speaker not in SPEAKERS:
+            raise WorkflowFailure("invalid_speaker", "speaker is the job title of who presented this stage: " + ", ".join(SPEAKERS), field="speaker")
+        required = STAGE_SPEAKER.get(stage)
+        if required and speaker != required:
+            raise WorkflowFailure("invalid_speaker", f"The {required} presents {STAGE_TITLES[stage]}", field="speaker")
+        record["speaker"] = speaker
+    if metadata.get("handoff") is not None:
+        record["handoff"] = _require_text(metadata.get("handoff"), "handoff")
     if stage == "discover":
         sources = metadata.get("sources")
         if not isinstance(sources, list) or not sources:
@@ -594,10 +636,25 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
         if missing:
             raise WorkflowFailure("answers_required", "Unanswered interview question: " + ", ".join(missing), field="answers")
         record["answers"] = {k: answers[k].strip() for k in INTERVIEW_KEYS}
+    if stage == "direction":
+        # Directions start from work the pastor admires plus one wild card,
+        # so the round does not settle on the studio's average taste.
+        built_from = metadata.get("built_from")
+        options = record.get("options") or []
+        if (not isinstance(built_from, list) or len(built_from) != len(options)
+                or not all(isinstance(b, str) and b.strip() for b in built_from)):
+            raise WorkflowFailure("built_from_required", "Each direction names what it was built from, in the order of options: the pastor's admired work, or 'wild card: ...'", field="built_from")
+        wild = [b for b in built_from if b.strip().casefold().startswith("wild card")]
+        if len(wild) != 1:
+            raise WorkflowFailure("wild_card_required", "Exactly one direction is the studio's wild card ('wild card: ...'); the others build on work the pastor admires", field="built_from")
+        record["built_from"] = [b.strip() for b in built_from]
     if stage in PRESENTATION_STAGES:
         _validate_applications(root, state, stage, metadata, record)
-    if stage == "develop":
+    if stage == "develop" or (stage in OPTION_STAGES and metadata.get("recommendation") is not None):
+        # A recommendation says which of the pastor's earlier picks it follows,
+        # so the studio recommends from the pastor's taste, not its own.
         record["recommendation"] = _require_text(metadata.get("recommendation"), "recommendation")
+        record["follows"] = _require_text(metadata.get("follows"), "follows")
     if stage == "refine-2":
         mark = metadata.get("mark")
         if isinstance(mark, str):
@@ -738,14 +795,55 @@ def record(church_folder: str | Path, stage: str, content: str, metadata: dict[s
                 if _recorded(state, later):
                     state["stages"][later]["stale"] = True
         _save_state(root, state)
+        book = _write_book(root)
         receipt = _receipt(root, f"stage-{stage}", {
             "stage": stage, "replace": already, "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
             "guide": GUIDE_FILE.as_posix(), "guide_sha256": _sha256(guide), "record": entry,
         })
         warnings = ["Later stages are now marked stale and should be revisited"] if already else []
-        return {"status": "recorded", "stage": stage, "title": STAGE_TITLES[stage], "guide": str(guide),
+        return {"status": "recorded", "stage": stage, "title": STAGE_TITLES[stage], "guide": str(guide), "book": str(book),
                 "brief": str(root / BRIEF_FILE) if stage == "interview" else None,
                 "receipt": str(receipt), "next_stage": _next_stage(state), "warnings": warnings}
+    except Exception as exc:  # noqa: BLE001
+        return _failure(exc)
+
+
+# ---------------------------------------------------------------- the brand book
+
+BOOK_SCREEN_CSS = """
+@media screen {
+  body { max-width: 8.5in; margin: 0 auto; padding: 0 0.4in 1in 0.4in; }
+  .cover { height: auto; min-height: 4in; position: relative; margin: 0 -0.4in 0.4in -0.4in; }
+  h2 { page-break-before: auto; margin-top: 0.5in; }
+}
+"""
+
+
+def _write_book(root: Path) -> Path:
+    """The brand book: one page that fills in as each decision lands.
+
+    It is the guide set in the church's current brand (approved, staged, or
+    neutral), rewritten after every recorded stage and at approval, so the
+    pastor and anyone in the room look at the same page throughout.
+    """
+    from . import guide as guide_renderer  # noqa: WPS433
+    guide = root / GUIDE_FILE
+    _source, document = guide_renderer.build_html(root, guide.read_text(encoding="utf-8"))
+    # Image paths in the guide are relative to the church folder.
+    document = document.replace("<head>", '<head><base href="../">', 1)
+    document = document.replace("</style>", BOOK_SCREEN_CSS + "</style>", 1)
+    target = root / BOOK_FILE
+    _write_text(target, document)
+    return target
+
+
+def book(church_folder: str | Path) -> dict[str, Any]:
+    try:
+        root = _church_root(church_folder)
+        if not (root / GUIDE_FILE).is_file():
+            raise WorkflowFailure("guide_missing", "No brand guide exists yet; record the first stage")
+        target = _write_book(root)
+        return {"status": "written", "book": str(target), "next_action": "Open the brand book and keep it on screen while you work."}
     except Exception as exc:  # noqa: BLE001
         return _failure(exc)
 
@@ -1072,7 +1170,7 @@ def _after_approval(root: Path, raw: str) -> Path | None:
     return current if current.is_file() else None
 
 
-def approve(church_folder: str | Path, *, approved_by: str = "pastor") -> dict[str, Any]:
+def approve(church_folder: str | Path, *, approved_by: str = "pastor", dry_run: bool = False) -> dict[str, Any]:
     try:
         root = _church_root(church_folder)
         state = _load_state(root)
@@ -1112,6 +1210,21 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor") -> dict[s
         for key, raw in {**live_logo, **patch.get("logo", {})}.items():
             if isinstance(raw, str) and raw.strip() and _after_approval(root, raw) is None:
                 raise WorkflowFailure("missing_file", f"brand.json logo.{key} would point to a file that is not there after approval: {raw}", field=f"logo.{key}")
+        if dry_run:
+            # The exact list the pastor approves: what goes in, what it
+            # replaces, and what is archived. Nothing moves.
+            staging = root / STAGING_DIR
+            goes_in = [f"brand/{c.name}" for c in sorted(staging.iterdir())
+                       if c.name != STAGED_SYSTEM_FILE.name and not c.is_symlink()]
+            staged_files = sorted(p.relative_to(root).as_posix() for p in staging.rglob("*")
+                                  if p.is_file() and p.name != STAGED_SYSTEM_FILE.name)
+            replaced = [f for f in goes_in if (root / f).exists()]
+            archived = ["brand.json"] + [f"brand/{i}" for i in ARCHIVED_LIVE_ITEMS
+                                         if (root / "brand" / i).exists() and f"brand/{i}" not in replaced]
+            return {"status": "ready_to_approve", "goes_in": goes_in, "staged_files": staged_files,
+                    "replaces": replaced, "archived": archived,
+                    "brand_json_changes": ["brand_system"] + sorted(patch),
+                    "next_action": "Show the pastor this list in plain words. Approve only when they say so."}
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
         archive = root / ARCHIVE_DIR / stamp
         old_brand = (root / "brand.json").read_bytes()
@@ -1182,8 +1295,14 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor") -> dict[s
             raise
         if not any(staging.iterdir()):
             staging.rmdir()
+        warnings = []
+        try:
+            _write_book(root)
+        except Exception as exc:  # noqa: BLE001
+            warnings.append(f"The brand is approved, but the brand book was not rewritten: {exc}. Run book.")
         return {"status": "approved", "archive": str(archive), "installed": installed, "live_brand_ready": live.get("ready"),
-                "receipt": str(receipt), "next_action": "Record how the brand travels, then the handoff."}
+                "receipt": str(receipt), "book": str(root / BOOK_FILE), "warnings": warnings,
+                "next_action": "Record how the brand travels, then the handoff."}
     except Exception as exc:  # noqa: BLE001
         return _failure(exc)
 

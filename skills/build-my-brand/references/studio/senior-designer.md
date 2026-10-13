@@ -17,13 +17,14 @@ sheets the creative director points you at.
 ## Direction development
 
 Make two or three developed versions of the direction. Each version is a
-whole composition, made the way the direction boards were made: a real
-layout the pastor can read, not a grid of parts. Each shows, at least:
+whole, finished composition, the first time the pastor sees real finish
+(the direction boards were deliberately rough): a real layout the pastor
+can read, not a grid of parts. Each shows, at least:
 
 - the bulletin cover,
 - the church's own test announcement (the program image an agent would be
   asked for on a Tuesday),
-- the website's first screen,
+- a social post in the feed,
 - the sign at street distance,
 - the social avatar at real size,
 
@@ -49,10 +50,11 @@ python3 "<church-folder>/handbuilt.py" build-my-brand record --stage develop \
 ```
 
 `develop.json` carries `options` (one line per version), `applications`
-(keys such as `bulletin_cover`, `test_announcement`, `website_screen`,
+(keys such as `bulletin_cover`, `test_announcement`, `social_post`,
 `sign`, `social_avatar`, `partner_pairing`, `poster`), `boards` (the board
 images), `recommendation`, and after the pastor chooses, `decision` and
-`rationale` in the pastor's words. `references` may list the named work
+`rationale` in the pastor's words, and `follows`: the earlier pick the
+recommendation follows, in one line. `references` may list the named work
 the version learns from, each with `name`, `learn`, and a `url`.
 
 ## Refinement, twice

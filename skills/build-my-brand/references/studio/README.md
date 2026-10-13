@@ -13,11 +13,28 @@ otherwise.
 |---|---|---|---|
 | Creative director | [creative-director.md](creative-director.md) | judgment, with vision; the host session | The direction, every presentation, the kill decision on any internal round, the recommendation |
 | Senior designer | [senior-designer.md](senior-designer.md) | judgment, with vision | Direction development and refinement: whole compositions in context, mark and system together |
-| Researcher | [researcher.md](researcher.md) | judgment | A reference board of named real work, plus saved reference images in a private scratch path the makers can see |
+| Researcher | [researcher.md](researcher.md) | judgment | Before direction: the pastor's admired work and one wild card. After: a reference board of named real work, plus saved reference images in a private scratch path the makers can see |
 | Makers | [maker.md](maker.md) | making, with an image model | Logo designers who write one editorial brief per concept and run draw, edit, and vectorize; wide internal exploration, including non-literal constructions; never the source of a presentation on their own |
+| Writer | [writer.md](writer.md) | judgment | Every word on a board, the voice round, and the writing rules, all drawn from the church's own words |
 | Producer | [producer.md](producer.md) | making | Clean vectors on a grid, the mark family, the small variant, exports, the sub-brand generator, the survival checks |
 
 Tiers are mapped to models per host in [routing.md](routing.md).
+
+## Who is speaking
+
+The pastor meets the team by job title, never by a made-up name, a model or
+a tool. Every record carries `speaker`, one of `creative director`,
+`senior designer`, `researcher`, `maker`, `writer` or `producer`, and the
+guide and the brand book open that stage with the speaker and the stage,
+for example "Creative director · Your direction". Open each message to the
+pastor the same way. The creative director opens and closes every phase and
+is the only one who asks for a decision; the writer presents the voice
+round.
+
+When one role hands work to the next, record `handoff`: one or two
+sentences the pastor reads, such as "The direction is set. Over to the
+senior designer, who'll come back with two versions." The guide prints it
+at the end of the stage.
 
 ## The phases after direction
 

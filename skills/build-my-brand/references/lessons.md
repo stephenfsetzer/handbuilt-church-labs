@@ -37,11 +37,13 @@ logo and not a color; it is the answer to "what is this church, said in one
 line, that a stranger could feel from across the street." Without it, the
 mark, the palette, and the type get chosen separately and never add up.
 
-Directions are built from what the brief and discovery said, not from
-adjectives. Each direction has a name, a one-paragraph story, a palette with
-jobs, a type territory, a reference board, and real applications in that
-type and color: the bulletin cover, the church's own test announcement, and
-the website's first screen, with a plain placeholder where the mark goes.
+Directions are built from the work the pastor admires and from what the
+brief and discovery said, not from adjectives: two grow from the pastor's
+references and one is the studio's wild card. Each direction is a rough mood
+board: a name, a one-paragraph story, a palette with jobs, a type territory,
+its references, and sketches of the bulletin cover, the church's own test
+announcement, and a social post, with a plain placeholder where the mark
+goes.
 No mark is shown; on the refresh path the kept mark appears unmodified. Two
 or three directions is right; more than three splits attention.
 
@@ -49,9 +51,10 @@ Say plainly what the pick commits and what it leaves open: the idea, and the
 territory color and type will explore, not these layouts, colors, or
 typefaces. The pastor asked exactly this on the proof run.
 
-The choice: pick the direction. The pastor may borrow one element from
-another direction; record that as part of the decision and explain what it
-costs in coherence, if anything.
+The choice: first a like and a dislike on each board, then the idea to
+develop. The pastor may blend directions; record the blend as the decision,
+say what comes from each, and explain what it costs in coherence, if
+anything. If none is right, the next round starts from the reactions.
 
 ## Round 3: `develop`. A system is developed as a whole
 
@@ -64,9 +67,9 @@ however carefully it is drawn. So the direction is developed whole, by the
 designer who made its board.
 
 What the pastor sees: two or three developed versions of their direction,
-each a real composition on the same applications as the direction boards
-and more, now with a mark inside the system: the bulletin cover, the test
-announcement, the website screen, the sign at street distance, the social
+each a finished composition (the direction boards were rough on purpose)
+on the same applications as the direction boards and more, now with a mark inside the system: the bulletin cover, the test
+announcement, the social post, the sign at street distance, the social
 avatar, and beside a stand-in partner mark where the brief has one. The
 versions differ in how the mark and system go, not in color alone. The firm
 recommends one and says why. Behind the boards sits wide exploration the
@@ -133,8 +136,10 @@ newsletter, and the social posts sounding like the same people. They are
 short: how the church names itself, how it addresses a stranger, what it
 never says, how long a sentence runs, whether it uses humor and where.
 
-Take three real samples from discovery (a website line, a post, a bulletin
-announcement) and rewrite each two or three ways. The pastor picks the
+The writer presents this round (see [the writer](studio/writer.md)). Take
+three real samples from discovery (a website line, a post, a bulletin
+announcement) and rewrite each two or three ways, in every language the
+church publishes in. The pastor picks the
 rewrite that sounds like the church. The rules are derived from the picks,
 not invented.
 

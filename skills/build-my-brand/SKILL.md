@@ -23,14 +23,31 @@ Read a reference only when its stage is reached:
 
 - [The plan](references/roadmap.md): the one-page engagement plan shown first.
 - [Discovery](references/discovery.md): how to audit the current image.
-- [Interview](references/interview.md): the seven questions and how to ask them.
+- [Interview](references/interview.md): the eight questions and how to ask them.
 - [Lessons](references/lessons.md): the teach-and-choose rounds.
 - [Direction proposals](references/direction-proposals.md): how to build and show directions.
-- [The studio](references/studio/README.md): the firm's roles, the phases after direction, and [model routing](references/studio/routing.md).
+- [The studio](references/studio/README.md): the firm's six roles, who speaks when, the phases after direction, and [model routing](references/studio/routing.md).
 - [Image briefs](references/image-briefs.md): the editorial brief an image model needs for each concept.
 - [Brand system](references/brand-system.md): what build stages, the schema, the survival checks, and the templates.
 - [Guide format](references/guide-format.md): how each guide section is written.
 - [Small operations](references/small-operations.md): lockups, announcement images, posters, seasonal color, on-brand checks after the workflow.
+
+## The brand book
+
+`brand/book.html` is the one page the pastor looks at. The interface rewrites
+it after every recorded stage and at approval, set in the church's current
+brand: every lesson, what was shown, and each decision with its why. Keep it
+open beside the conversation, and in a working session put it on the shared
+screen so everyone looks at the same page. `build-my-brand book` rewrites it
+by hand.
+
+Show it with the host's own viewer, and keep that step thin: in Claude,
+publish the file as a private artifact and share the link; in Codex, open
+the file in its preview or browser; with no viewer, give the pastor the
+file path. The file is the brand book in every host; the viewer only shows
+it. Boards the pastor reacts to are saved as images under
+`brand/staging/explorations/` and appear in the book, so every round puts
+a real design in front of the pastor.
 
 ## Four rules that never bend
 
@@ -47,6 +64,32 @@ Read a reference only when its stage is reached:
    the direction shows at least what the pastor saw last time, more real.
    The interface refuses a record that shows less. A round that passes
    every rule and produces generic work is a failed round; redirect it.
+
+## What the studio never does
+
+These came from a full run, and each one cost a pastor a round:
+
+- **Never shows a later phase.** Website screens, signage plans and print
+  layouts come after approval, as their own work. The interface refuses a
+  brand board that shows one.
+- **Never slips in a new element.** A look the pastor has not picked (an
+  atmosphere layer, a texture, a photo style) is shown as an option with a
+  recommendation, never added to the kit on its own.
+- **Never drops the direction's core idea.** After the direction is picked,
+  name its core idea in one line and restate it at the top of every
+  presentation. A round that loses it is redirected before the pastor sees it.
+- **Never recommends from its own taste.** A recommendation names the
+  earlier pick it follows (`follows`); the interface refuses one without it.
+  When the pastor rejects a round without a reason, the next question asks
+  for one line on what is off.
+- **Never designs over another workflow.** Bulletin covers come from the
+  bulletin skill; the brand supplies the mark, the name and the accent.
+  Check what other workflows already fix before designing a piece they own.
+- **Never judges pictures alone.** Photo treatments come after the shapes
+  are settled and are shown on real pieces: a Sunday post, an announcement
+  and a people card. Shapes never cover a face, and a photo of people is
+  never washed in a strong palette color; it stays natural or black and
+  white, with the color beside it.
 
 ## 0. Confirm the runtime and orient
 
@@ -120,10 +163,10 @@ listing each thing inspected (`label`, `kind`, and `location` where useful).
 
 ## 4. Interview, only what the pastor alone knows
 
-Ask the seven questions in [Interview](references/interview.md), one at a
+Ask the eight questions in [Interview](references/interview.md), one at a
 time, each framed as a decision with its consequences. Capture the answers
 verbatim where you can. The content file is the brief itself, written for
-`brand/brief.md`; the metadata carries `answers` keyed by the seven question
+`brand/brief.md`; the metadata carries `answers` keyed by the eight question
 ids. The brief is the source of truth for why the brand exists. If it and a
 design file ever disagree, the brief wins and the design file gets fixed.
 
@@ -138,14 +181,28 @@ shown; the interface appends the options, what it was shown on, the
 recommendation, the decision, and why in a fixed block so the record is
 complete even if the prose is thin.
 
-### Direction: one idea, shown in context
+### Direction: directions, not designs
 
 Build directions per [Direction proposals](references/direction-proposals.md).
-Each is a whole composition: the bulletin cover, the church's own test
-announcement, the website's first screen, set in the direction's type and
-palette with a placeholder where the mark goes. No mark is shown; on the
-refresh path the kept mark appears unmodified. Record `applications` and
-`boards`. These boards set the fidelity bar for everything after them.
+Before any board, the researcher works from the work the pastor admires
+(the interview's `admired` answer): what each piece does and what to take
+from it. Two directions grow from the pastor's own references; the third is
+the studio's wild card, related to the brief but deliberately different, and
+labeled as the wild card. A studio with no references from the church
+drifts to the average church brand. Record `built_from`, one entry per
+option in order, with exactly one starting "wild card:".
+Each board is a mood board, deliberately loose: the idea in a line, the
+reference work it learns from, palette swatches, a type specimen, and rough
+sketches of the bulletin cover, the church's own test announcement and a
+social post, with a placeholder where the mark goes. Nothing on it should
+look finished, so the pastor reacts to an idea instead of judging a design.
+Open by saying what is asked: "These are directions, not designs. Tell me
+what pulls you and what doesn't on each." Take likes and dislikes per board,
+then the pick, which may combine boards. The pick commits only an idea,
+not a logo or a layout; say so. If no board is right, take the reactions
+and build a new round instead of forcing a pick. No mark is shown; on the refresh
+path the kept mark appears unmodified. Record `applications` and `boards`.
+Finish starts at develop, which is always more real than these boards.
 
 ### Direction development and refinement: the firm, not a sketch
 
@@ -174,7 +231,14 @@ ALONE. Never spawn agents."
    records the chosen mark's SVG under `mark.primary`.
 
 Color and type are confirmed on the developed system in their own rounds.
-Voice is derived from the pastor's picks among rewrites.
+Voice is derived from the pastor's picks among rewrites, and the writer
+presents it. The writer also supplies every word on every board, from the
+church's own words.
+
+Every decision record carries `speaker`, the job title of who presented it
+(`creative director` for most rounds, `writer` for voice), and `handoff`
+when work passes to the next role. The guide and the brand book open each
+stage with the speaker.
 
 ### The image studio: where the symbol comes from
 
@@ -250,9 +314,12 @@ a brand file that points at the staged assets; do not hand-edit the live
 `brand.json`. Put the pages in the guide section side by side. Record `prove`
 with `before`, `after`, and `announcement` paths. Then show the pastor and
 ask for approval in plain words: this replaces the live brand, and the old
-one is kept under `brand/archive/`.
+one is kept under `brand/archive/`. First list exactly what goes in, what it
+replaces, and what is archived, from the dry run, so the pastor approves a
+list and not an impression:
 
 ```bash
+python3 "<church-folder>/handbuilt.py" build-my-brand approve --dry-run
 python3 "<church-folder>/handbuilt.py" build-my-brand approve --approved-by "<pastor's name>"
 ```
 

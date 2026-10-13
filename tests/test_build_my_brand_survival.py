@@ -33,9 +33,11 @@ def _metadata(stage: str) -> dict:
     if stage == "roadmap":
         meta["phases"] = PHASES
     if stage in {"fork", "identity", "direction"}:
-        meta.update({"decision": "new" if stage == "fork" else f"{stage} choice", "rationale": "why"})
+        meta.update({"decision": "new" if stage == "fork" else f"{stage} choice", "rationale": "why",
+                     "speaker": "writer" if stage == "voice" else "creative director"})
     if stage == "direction":
-        meta.update({"options": ["A", "B"], "applications": list(DIRECTION_APPLICATIONS)})
+        meta.update({"options": ["A", "B"], "applications": list(DIRECTION_APPLICATIONS),
+                     "built_from": ["admired: a neighborhood bakery sign", "wild card: a transit map"]})
     if stage == "discover":
         meta["sources"] = [{"label": "site", "kind": "website"}]
     if stage == "interview":

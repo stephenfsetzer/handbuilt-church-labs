@@ -13,7 +13,7 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_DIR))
 
 from brand_workflow import (  # noqa: E402
-    LEGACY_STAGES, STAGES, approve, check_marks, explore, orient, record, redirect, render_guide, restart, stage_brand,
+    LEGACY_STAGES, STAGES, approve, book, check_marks, explore, orient, record, redirect, render_guide, restart, stage_brand,
 )
 from brand_workflow import images  # noqa: E402
 
@@ -110,6 +110,10 @@ def _parser() -> argparse.ArgumentParser:
     item = sub.add_parser("approve", help="Replace the live brand with the staged one; archives the old")
     item.add_argument("--church-folder", required=True)
     item.add_argument("--approved-by", default="pastor")
+    item.add_argument("--dry-run", action="store_true", help="List what approval would install, replace and archive; change nothing")
+
+    item = sub.add_parser("book", help="Rewrite the brand book page from the decisions so far")
+    item.add_argument("--church-folder", required=True)
 
     item = sub.add_parser("render-guide", help="Render the brand guide to PDF in the church's own brand")
     item.add_argument("--church-folder", required=True)
@@ -156,7 +160,9 @@ def main() -> int:
     elif args.command == "stage-brand":
         result = stage_brand(args.church_folder, json.loads(Path(args.patch_file).read_text(encoding="utf-8")))
     elif args.command == "approve":
-        result = approve(args.church_folder, approved_by=args.approved_by)
+        result = approve(args.church_folder, approved_by=args.approved_by, dry_run=args.dry_run)
+    elif args.command == "book":
+        result = book(args.church_folder)
     elif args.command == "restart":
         result = restart(args.church_folder, reason=args.reason)
     else:
