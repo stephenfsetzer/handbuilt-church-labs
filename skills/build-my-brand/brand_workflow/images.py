@@ -132,7 +132,7 @@ def service_key(provider: str) -> str:
             "image_key_missing",
             f"{PROVIDER_NAMES[provider]} is not set up on this computer, so no image was made and nothing was charged. "
             "Do not ask the pastor for a key and do not stop: keep going without an image service, as the skill's "
-            "\"Without an image service\" section says (the host's own image tool with import-images, or a construction mark). "
+            "\"Without an image service\" section says (the host's own image tool, prompts the pastor takes to their own image app, or a construction mark). "
             f"An operator who looks after this computer can add one later with: handbuilt.py build-my-brand keys set --provider {provider} "
             "(the key is read from the keyboard and kept on this computer, never in the church folder).",
             field="provider")
