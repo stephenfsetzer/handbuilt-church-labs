@@ -628,7 +628,9 @@ def render(root, data):
     af = loudness_filter(levels)
     video = data["video"]
     w, h = video["width"], video["height"]
-    encoding = ["-c:v", "libx264", "-preset", "fast", "-crf", "21", "-threads", "4", "-pix_fmt", "yuv420p",
+    # "veryfast" encodes a sermon more than twice as fast as "fast" at the same quality setting, and ffmpeg picks the
+    # thread count from the machine. A long sermon otherwise takes about as long to encode as to watch.
+    encoding = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
                 "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", "48000", "-ac", "2", "-video_track_timescale", "90000"]
     panel_end = video["lower_start"] + video["lower_duration"]
     fade = min(.4, video["lower_duration"] / 3)
