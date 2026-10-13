@@ -23,7 +23,7 @@ Read a reference only when its stage is reached:
 
 - [The plan](references/roadmap.md): the one-page engagement plan shown first.
 - [Discovery](references/discovery.md): how to audit the current image.
-- [Interview](references/interview.md): the seven questions and how to ask them.
+- [Interview](references/interview.md): the eight questions and how to ask them.
 - [Lessons](references/lessons.md): the teach-and-choose rounds.
 - [Direction proposals](references/direction-proposals.md): how to build and show directions.
 - [The studio](references/studio/README.md): the firm's six roles, who speaks when, the phases after direction, and [model routing](references/studio/routing.md).
@@ -163,10 +163,10 @@ listing each thing inspected (`label`, `kind`, and `location` where useful).
 
 ## 4. Interview, only what the pastor alone knows
 
-Ask the seven questions in [Interview](references/interview.md), one at a
+Ask the eight questions in [Interview](references/interview.md), one at a
 time, each framed as a decision with its consequences. Capture the answers
 verbatim where you can. The content file is the brief itself, written for
-`brand/brief.md`; the metadata carries `answers` keyed by the seven question
+`brand/brief.md`; the metadata carries `answers` keyed by the eight question
 ids. The brief is the source of truth for why the brand exists. If it and a
 design file ever disagree, the brief wins and the design file gets fixed.
 
@@ -184,6 +184,13 @@ complete even if the prose is thin.
 ### Direction: directions, not designs
 
 Build directions per [Direction proposals](references/direction-proposals.md).
+Before any board, the researcher works from the work the pastor admires
+(the interview's `admired` answer): what each piece does and what to take
+from it. Two directions grow from the pastor's own references; the third is
+the studio's wild card, related to the brief but deliberately different, and
+labeled as the wild card. A studio with no references from the church
+drifts to the average church brand. Record `built_from`, one entry per
+option in order, with exactly one starting "wild card:".
 Each board is a mood board, deliberately loose: the idea in a line, the
 reference work it learns from, palette swatches, a type specimen, and rough
 sketches of the bulletin cover, the church's own test announcement and a
@@ -191,7 +198,9 @@ social post, with a placeholder where the mark goes. Nothing on it should
 look finished, so the pastor reacts to an idea instead of judging a design.
 Open by saying what is asked: "These are directions, not designs. Tell me
 what pulls you and what doesn't on each." Take likes and dislikes per board,
-then the pick, which may combine boards. No mark is shown; on the refresh
+then the pick, which may combine boards. The pick commits only an idea,
+not a logo or a layout; say so. If no board is right, take the reactions
+and build a new round instead of forcing a pick. No mark is shown; on the refresh
 path the kept mark appears unmodified. Record `applications` and `boards`.
 Finish starts at develop, which is always more real than these boards.
 

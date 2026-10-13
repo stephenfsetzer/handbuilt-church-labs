@@ -13,7 +13,7 @@ otherwise.
 |---|---|---|---|
 | Creative director | [creative-director.md](creative-director.md) | judgment, with vision; the host session | The direction, every presentation, the kill decision on any internal round, the recommendation |
 | Senior designer | [senior-designer.md](senior-designer.md) | judgment, with vision | Direction development and refinement: whole compositions in context, mark and system together |
-| Researcher | [researcher.md](researcher.md) | judgment | A reference board of named real work, plus saved reference images in a private scratch path the makers can see |
+| Researcher | [researcher.md](researcher.md) | judgment | Before direction: the pastor's admired work and one wild card. After: a reference board of named real work, plus saved reference images in a private scratch path the makers can see |
 | Makers | [maker.md](maker.md) | making, with an image model | Logo designers who write one editorial brief per concept and run draw, edit, and vectorize; wide internal exploration, including non-literal constructions; never the source of a presentation on their own |
 | Writer | [writer.md](writer.md) | judgment | Every word on a board, the voice round, and the writing rules, all drawn from the church's own words |
 | Producer | [producer.md](producer.md) | making | Clean vectors on a grid, the mark family, the small variant, exports, the sub-brand generator, the survival checks |

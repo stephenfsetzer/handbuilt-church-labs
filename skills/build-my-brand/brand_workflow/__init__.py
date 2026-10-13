@@ -62,9 +62,9 @@ STAGE_DECIDES = {
     "roadmap": "Nothing yet. Read the plan and ask anything about it.",
     "fork": "Keep your current mark and redesign around it, or start new.",
     "discover": "Nothing yet. This is what a designer sees today.",
-    "interview": "Your answers to seven questions only you can answer.",
+    "interview": "Your answers to eight questions only you can answer.",
     "identity": "Whether programs and ministries live inside one identity.",
-    "direction": "Which of two or three directions is the church you are trying to be.",
+    "direction": "Your reactions to each direction, then which idea (or blend) to develop.",
     "develop": "Which developed version of your direction to carry forward.",
     "refine-1": "Your reactions to the tightened system.",
     "refine-2": "Your reactions, and the mark that goes on everything.",
@@ -93,7 +93,7 @@ SPEAKERS = ("creative director", "senior designer", "researcher", "maker", "writ
 # Stages one role must present.
 STAGE_SPEAKER = {"voice": "writer"}
 INTERVIEW_KEYS = (
-    "prompt", "audience", "success", "name", "preserve", "operator", "constraints",
+    "prompt", "audience", "success", "name", "preserve", "admired", "operator", "constraints",
 )
 INTERVIEW_LABELS = {
     "prompt": "What prompted this now",
@@ -101,6 +101,7 @@ INTERVIEW_LABELS = {
     "success": "What would tell you it worked",
     "name": "The name on the wordmark",
     "preserve": "What must be preserved",
+    "admired": "Work you admire",
     "operator": "Who runs it week to week",
     "constraints": "Constraints",
 }
@@ -453,6 +454,10 @@ def _section(state: dict[str, Any], stage: str, body: str, metadata: dict[str, A
         if options:
             lines.append("**Options considered:** " + "; ".join(str(o) for o in options))
             lines.append("")
+        built_from = metadata.get("built_from") or []
+        if built_from and len(built_from) == len(options):
+            lines.append("**Built from:** " + "; ".join(f"{o}: {b}" for o, b in zip(options, built_from)))
+            lines.append("")
         applications = metadata.get("applications") or []
         if applications:
             lines.append("**Shown on:** " + "; ".join(_label(a) for a in applications))
@@ -631,6 +636,18 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
         if missing:
             raise WorkflowFailure("answers_required", "Unanswered interview question: " + ", ".join(missing), field="answers")
         record["answers"] = {k: answers[k].strip() for k in INTERVIEW_KEYS}
+    if stage == "direction":
+        # Directions start from work the pastor admires plus one wild card,
+        # so the round does not settle on the studio's average taste.
+        built_from = metadata.get("built_from")
+        options = record.get("options") or []
+        if (not isinstance(built_from, list) or len(built_from) != len(options)
+                or not all(isinstance(b, str) and b.strip() for b in built_from)):
+            raise WorkflowFailure("built_from_required", "Each direction names what it was built from, in the order of options: the pastor's admired work, or 'wild card: ...'", field="built_from")
+        wild = [b for b in built_from if b.strip().casefold().startswith("wild card")]
+        if len(wild) != 1:
+            raise WorkflowFailure("wild_card_required", "Exactly one direction is the studio's wild card ('wild card: ...'); the others build on work the pastor admires", field="built_from")
+        record["built_from"] = [b.strip() for b in built_from]
     if stage in PRESENTATION_STAGES:
         _validate_applications(root, state, stage, metadata, record)
     if stage == "develop" or (stage in OPTION_STAGES and metadata.get("recommendation") is not None):

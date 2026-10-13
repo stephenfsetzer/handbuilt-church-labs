@@ -12,6 +12,7 @@ rounds elicit taste by showing options.
 | `success` | A year from now, what would tell you this worked? | This becomes the measure the brand is judged by. Attendance, giving, a site you are proud to send people to, something else. |
 | `name` | What name goes on the wordmark, and which institutions does it hold? | The name is the most visible decision and the one pastors already know how to make. It also settles whether there is one brand or several. |
 | `preserve` | What, if anything, must be preserved from the current identity? | On the refresh path the mark is already kept. Anything else kept (a color, a motif, a phrase) is a constraint on every round after this. "Nothing" is a valid answer. |
+| `admired` | Name two or three websites or brands you love the look of, church or not, and one thing you love about each. | Directions start from work you already love, so they sound like you and not like the average church. The studio adds one wild card of its own. |
 | `operator` | Who runs this week to week, and how much time do they have? | Every template and rule is judged against whether one person with that much time can use it. A volunteer may be older and not technical; an agent-forward church (the pastor plus the agent) needs rules an agent can execute, including an image language for program announcements. Ask which it is. |
 | `constraints` | Landmark or historic-district status, languages, anything private that must never appear in public work? | Signage rules constrain exterior design more than taste does. Privacy constraints govern what discovery and templates may use. |
 
@@ -25,6 +26,7 @@ exists. Write it in the pastor's words wherever possible. Include:
 - Problem, audience, and success, each as short prose
 - The name, spelled exactly as it will appear
 - What is preserved, or "nothing"
+- The work the pastor admires, with what they love about each
 - Who operates it and their time, and whether the operator is a person, an agent, or both
 - Constraints
 - Defaults the agent set, so the pastor can object
@@ -35,7 +37,7 @@ brief wins.
 
 ## Recording
 
-Metadata `answers` carries all seven ids with non-empty text. The interface
+Metadata `answers` carries all eight ids with non-empty text. The interface
 refuses a partial interview; if the pastor declines a question, record their
 declining in their words ("no constraints I know of"). The guide gets a short
 "What you told me" summary automatically; the brief holds the full record.

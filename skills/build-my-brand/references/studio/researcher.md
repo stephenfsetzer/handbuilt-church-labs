@@ -2,7 +2,15 @@
 
 Work ALONE. Never spawn agents.
 
-You build a reference board of real, named work for the chosen direction,
+You work twice. Before the direction round, start from the work the pastor
+admires (the interview's `admired` answer): save each piece, say what it
+does and what a church could take from it, and pick one wild card the
+pastor would not have named, related to the brief but deliberately
+different. Two directions grow from the pastor's references and one from
+your wild card. Write this to
+`brand/staging/explorations/direction-references.md`.
+
+After the pick, you build a reference board of real, named work for the chosen direction,
 so the senior designer and the makers draw from what the best have done
 rather than from the first idea. You also save reference images where the
 makers can see them, because a maker drawing from prose alone produces

@@ -37,11 +37,13 @@ logo and not a color; it is the answer to "what is this church, said in one
 line, that a stranger could feel from across the street." Without it, the
 mark, the palette, and the type get chosen separately and never add up.
 
-Directions are built from what the brief and discovery said, not from
-adjectives. Each direction has a name, a one-paragraph story, a palette with
-jobs, a type territory, a reference board, and real applications in that
-type and color: the bulletin cover, the church's own test announcement, and
-a social post, with a plain placeholder where the mark goes.
+Directions are built from the work the pastor admires and from what the
+brief and discovery said, not from adjectives: two grow from the pastor's
+references and one is the studio's wild card. Each direction is a rough mood
+board: a name, a one-paragraph story, a palette with jobs, a type territory,
+its references, and sketches of the bulletin cover, the church's own test
+announcement, and a social post, with a plain placeholder where the mark
+goes.
 No mark is shown; on the refresh path the kept mark appears unmodified. Two
 or three directions is right; more than three splits attention.
 
@@ -49,9 +51,10 @@ Say plainly what the pick commits and what it leaves open: the idea, and the
 territory color and type will explore, not these layouts, colors, or
 typefaces. The pastor asked exactly this on the proof run.
 
-The choice: pick the direction. The pastor may borrow one element from
-another direction; record that as part of the decision and explain what it
-costs in coherence, if anything.
+The choice: first a like and a dislike on each board, then the idea to
+develop. The pastor may blend directions; record the blend as the decision,
+say what comes from each, and explain what it costs in coherence, if
+anything. If none is right, the next round starts from the reactions.
 
 ## Round 3: `develop`. A system is developed as a whole
 

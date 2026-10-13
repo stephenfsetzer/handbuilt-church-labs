@@ -55,6 +55,7 @@ def _metadata(stage: str) -> dict:
         meta["answers"] = {k: f"answer for {k}" for k in INTERVIEW_KEYS}
     if stage == "direction":
         meta["applications"] = list(DIRECTION_APPLICATIONS)
+        meta["built_from"] = ["admired: the pastor's favorite bookshop site", "wild card: a riverside ferry timetable"]
     if stage in {"develop", "refine-1", "refine-2"}:
         meta["applications"] = list(DEVELOP_APPLICATIONS)
         meta["boards"] = ["brand/staging/explorations/board.png"]
@@ -178,12 +179,32 @@ class BuildMyBrandTest(unittest.TestCase):
         legacy = record(self.church, "mark", "lesson", {"decision": "x", "rationale": "y"})
         self.assertEqual(legacy["errors"][0]["code"], "stage_replaced")
 
+    def test_directions_build_on_admired_work_plus_one_wild_card(self):
+        self._record_through("identity")
+        missing = _metadata("direction")
+        del missing["built_from"]
+        self.assertEqual(record(self.church, "direction", "lesson", missing)["errors"][0]["code"], "built_from_required")
+        short = _metadata("direction")
+        short["built_from"] = ["wild card: a ferry timetable"]
+        self.assertEqual(record(self.church, "direction", "lesson", short)["errors"][0]["code"], "built_from_required")
+        no_wild = _metadata("direction")
+        no_wild["built_from"] = ["admired: a bookshop site", "admired: a bakery sign"]
+        self.assertEqual(record(self.church, "direction", "lesson", no_wild)["errors"][0]["code"], "wild_card_required")
+        two_wild = _metadata("direction")
+        two_wild["built_from"] = ["wild card: a ferry timetable", "Wild card: a seed catalog"]
+        self.assertEqual(record(self.church, "direction", "lesson", two_wild)["errors"][0]["code"], "wild_card_required")
+        self.assertEqual(record(self.church, "direction", "lesson", _metadata("direction"))["status"], "recorded")
+
+    def test_interview_asks_for_admired_work(self):
+        self.assertIn("admired", INTERVIEW_KEYS)
+
     def test_every_section_opens_with_where_the_pastor_is(self):
         self._record_through("direction")
         guide = (self.church / "brand" / "guide.md").read_text()
         self.assertIn("# Public Test Parish Brand Guide", guide)
         self.assertIn("**Where you are:** step 6 of 16, Your direction, in the phase \"The idea\".", guide)
-        self.assertIn("**You decide today:** Which of two or three directions is the church you are trying to be.", guide)
+        self.assertIn("**You decide today:** Your reactions to each direction, then which idea (or blend) to develop.", guide)
+        self.assertIn("**Built from:** Option A: admired: the pastor's favorite bookshop site; Option B: wild card: a riverside ferry timetable", guide)
         self.assertIn("**Next you will see:** Your direction, developed.", guide)
         self.assertIn("**Shown on:** the bulletin cover; the church's own test announcement; a social post in the feed", guide)
         self.assertIn("**Decision:** direction choice", guide)

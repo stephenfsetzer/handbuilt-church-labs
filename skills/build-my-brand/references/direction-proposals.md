@@ -2,8 +2,14 @@
 
 ## Building directions
 
-Build two or three directions from the brief, the discovery audit, and the
-church's tradition. Each direction is a whole idea the pastor can compare:
+Build two or three directions from the work the pastor admires, the brief,
+the discovery audit, and the church's tradition. Two directions each grow
+from one or two of the pastor's references, named on the board. The third
+is the studio's wild card: one reference the researcher picks that the
+pastor would not have named, related to the brief but deliberately
+different, labeled "Wild card" on the board. Directions built only from the
+studio's own knowledge regress to the average church brand; the pastor's
+references are what keep them specific. Each direction is a whole idea the pastor can compare:
 
 - **Name.** Two or three words that hold the idea.
 - **Story.** One paragraph a stranger could feel from across the street. Draw
@@ -68,7 +74,9 @@ from their reactions and pick, or from the brief, and record it.
 
 ## Recording
 
-Metadata carries `options` (one line per direction), `applications` (the
+Metadata carries `options` (one line per direction), `built_from` (one entry
+per option, in order: the admired work it grew from, or "wild card: ..."
+for exactly one), `applications` (the
 keys shown on every board, at least `bulletin_cover`, `test_announcement`,
 `social_post`), `boards` (the board images under `brand/`), the
 `decision`, and the `rationale` in the pastor's words. `references` may
