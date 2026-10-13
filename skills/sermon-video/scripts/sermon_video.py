@@ -379,6 +379,13 @@ def read_platform_captions(path):
                                                   "status": "draft for parish review"}}
 
 
+def spaced(word):
+    """A transcription word as Whisper writes it, with its leading space. Some word-timed transcriptions strip
+    that space; joined as they come, a cue would read "InthenameoftheFather". Punctuation stays attached."""
+    word = str(word)
+    return word if not word or word[0].isspace() or word[0] in ",.;:!?)]}'\u2019\u201d%" else " " + word
+
+
 def caption_cues(data, transcription, origin):
     start, end = data["sermon"]["start"], data["sermon"]["end"]
     offset = data["video"]["intro_seconds"]
@@ -393,7 +400,7 @@ def caption_cues(data, transcription, origin):
             if b <= a:
                 continue
             if start <= a and b <= end:
-                words.append({"start": a - start + offset, "end": b - start + offset, "word": item["word"]})
+                words.append({"start": a - start + offset, "end": b - start + offset, "word": spaced(item["word"])})
     words.sort(key=lambda w: w["start"])
     if not words:
         raise ValueError("No word timestamps fall inside the sermon.")
