@@ -43,7 +43,8 @@ def _metadata(stage: str) -> dict:
     if stage == "roadmap":
         meta["phases"] = json.loads(json.dumps(PHASES))
     if stage in DECISION_STAGES:
-        meta.update({"decision": f"{stage} choice", "rationale": f"Because the {stage} lesson showed why."})
+        meta.update({"decision": f"{stage} choice", "rationale": f"Because the {stage} lesson showed why.",
+                     "speaker": "writer" if stage == "voice" else "creative director"})
         if stage == "fork":
             meta["decision"] = "new"
         elif stage in {"direction", "develop", "color", "type", "voice"}:
@@ -171,7 +172,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(record(self.church, "interview", "brief", {"answers": {k: "a" for k in INTERVIEW_KEYS}})["status"], "recorded")
         no_rationale = record(self.church, "identity", "lesson", {"decision": "one mark"})
         self.assertEqual(no_rationale["errors"][0]["field"], "rationale")
-        self.assertEqual(record(self.church, "identity", "lesson", {"decision": "one mark", "rationale": "drift"})["status"], "recorded")
+        self.assertEqual(record(self.church, "identity", "lesson", {"decision": "one mark", "rationale": "drift", "speaker": "creative director"})["status"], "recorded")
         few_options = record(self.church, "direction", "lesson", {"decision": "A", "rationale": "why", "options": ["A"], "applications": list(DIRECTION_APPLICATIONS)})
         self.assertEqual(few_options["errors"][0]["code"], "options_required")
         legacy = record(self.church, "mark", "lesson", {"decision": "x", "rationale": "y"})
@@ -284,6 +285,26 @@ class BuildMyBrandTest(unittest.TestCase):
         color_pick = _metadata("voice")
         color_pick["recommendation"] = "Option B"
         self.assertEqual(record(self.church, "voice", "voice", color_pick)["errors"][0]["field"], "follows")
+
+    def test_every_decision_names_who_presented_it_and_the_writer_presents_voice(self):
+        self._record_through("roadmap")
+        silent = _metadata("fork")
+        silent.pop("speaker")
+        self.assertEqual(record(self.church, "fork", "text", silent)["errors"][0]["field"], "speaker")
+        named = dict(_metadata("fork"), speaker="Ruth")
+        self.assertEqual(record(self.church, "fork", "text", named)["errors"][0]["code"], "invalid_speaker")
+        handed = dict(_metadata("fork"), handoff="Keeping your mark. Over to the researcher, who will look at how you appear today.")
+        self.assertEqual(record(self.church, "fork", "Refresh or new.", handed)["status"], "recorded")
+        guide = (self.church / "brand" / "guide.md").read_text()
+        self.assertIn("**Creative director · Refresh or start new**", guide)
+        self.assertIn("**Handoff:** Keeping your mark. Over to the researcher", guide)
+        self._record_through_from("discover", "type")
+        voice = dict(_metadata("voice"), speaker="creative director")
+        refused = record(self.church, "voice", "voice", voice)
+        self.assertEqual(refused["errors"][0]["code"], "invalid_speaker")
+        self.assertIn("writer", refused["errors"][0]["message"])
+        self.assertEqual(record(self.church, "voice", "voice", _metadata("voice"))["status"], "recorded")
+        self.assertIn("**Writer · Your voice**", (self.church / "brand" / "book.html").read_text().replace("<strong>", "**").replace("</strong>", "**"))
 
     def _record_through_from(self, first: str, last: str) -> None:
         for stage in STAGES[STAGES.index(first): STAGES.index(last) + 1]:

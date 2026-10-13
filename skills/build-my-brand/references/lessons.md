@@ -133,8 +133,10 @@ newsletter, and the social posts sounding like the same people. They are
 short: how the church names itself, how it addresses a stranger, what it
 never says, how long a sentence runs, whether it uses humor and where.
 
-Take three real samples from discovery (a website line, a post, a bulletin
-announcement) and rewrite each two or three ways. The pastor picks the
+The writer presents this round (see [the writer](studio/writer.md)). Take
+three real samples from discovery (a website line, a post, a bulletin
+announcement) and rewrite each two or three ways, in every language the
+church publishes in. The pastor picks the
 rewrite that sounds like the church. The rules are derived from the picks,
 not invented.
 

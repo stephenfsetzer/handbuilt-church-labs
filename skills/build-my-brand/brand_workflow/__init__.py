@@ -88,6 +88,10 @@ LEGACY_STAGES = {
     "mark": "The mark round was replaced by direction development and two refinements; the chosen mark is recorded with refine-2",
 }
 FORK_CHOICES = ("refresh", "new")
+# The studio's roles, by job title. The pastor meets the team by title.
+SPEAKERS = ("creative director", "senior designer", "researcher", "maker", "writer", "producer")
+# Stages one role must present.
+STAGE_SPEAKER = {"voice": "writer"}
 INTERVIEW_KEYS = (
     "prompt", "audience", "success", "name", "preserve", "operator", "constraints",
 )
@@ -437,7 +441,10 @@ def _roadmap_table(phases: list[dict[str, Any]]) -> list[str]:
 
 
 def _section(state: dict[str, Any], stage: str, body: str, metadata: dict[str, Any]) -> str:
-    lines = [f"<!-- stage:{stage} -->", f"## {STAGE_TITLES[stage]}", "", *_wayfinding(state, stage), "", body.strip(), ""]
+    lines = [f"<!-- stage:{stage} -->", f"## {STAGE_TITLES[stage]}", ""]
+    if metadata.get("speaker"):
+        lines.extend([f"**{metadata['speaker'].capitalize()} · {STAGE_TITLES[stage]}**", ""])
+    lines.extend([*_wayfinding(state, stage), "", body.strip(), ""])
     if stage == "roadmap":
         lines.extend(_roadmap_table(metadata.get("phases") or []))
         lines.append("")
@@ -459,6 +466,9 @@ def _section(state: dict[str, Any], stage: str, body: str, metadata: dict[str, A
         lines.append(f"**Decision:** {metadata['decision']}")
         lines.append("")
         lines.append(f"**Why:** {metadata['rationale']}")
+        lines.append("")
+    if metadata.get("handoff"):
+        lines.append(f"**Handoff:** {metadata['handoff']}")
         lines.append("")
     lines.append(f"<!-- /stage:{stage} -->")
     return "\n".join(lines) + "\n"
@@ -595,6 +605,16 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
     if stage == "fork":
         if record["decision"] not in FORK_CHOICES:
             raise WorkflowFailure("invalid_fork", "The fork decision must be refresh or new", field="decision")
+    if stage in DECISION_STAGES or metadata.get("speaker") is not None:
+        speaker = _require_text(metadata.get("speaker"), "speaker").casefold()
+        if speaker not in SPEAKERS:
+            raise WorkflowFailure("invalid_speaker", "speaker is the job title of who presented this stage: " + ", ".join(SPEAKERS), field="speaker")
+        required = STAGE_SPEAKER.get(stage)
+        if required and speaker != required:
+            raise WorkflowFailure("invalid_speaker", f"The {required} presents {STAGE_TITLES[stage]}", field="speaker")
+        record["speaker"] = speaker
+    if metadata.get("handoff") is not None:
+        record["handoff"] = _require_text(metadata.get("handoff"), "handoff")
     if stage == "discover":
         sources = metadata.get("sources")
         if not isinstance(sources, list) or not sources:

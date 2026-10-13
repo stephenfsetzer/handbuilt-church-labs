@@ -26,7 +26,7 @@ Read a reference only when its stage is reached:
 - [Interview](references/interview.md): the seven questions and how to ask them.
 - [Lessons](references/lessons.md): the teach-and-choose rounds.
 - [Direction proposals](references/direction-proposals.md): how to build and show directions.
-- [The studio](references/studio/README.md): the firm's roles, the phases after direction, and [model routing](references/studio/routing.md).
+- [The studio](references/studio/README.md): the firm's six roles, who speaks when, the phases after direction, and [model routing](references/studio/routing.md).
 - [Image briefs](references/image-briefs.md): the editorial brief an image model needs for each concept.
 - [Brand system](references/brand-system.md): what build stages, the schema, the survival checks, and the templates.
 - [Guide format](references/guide-format.md): how each guide section is written.
@@ -207,7 +207,14 @@ ALONE. Never spawn agents."
    records the chosen mark's SVG under `mark.primary`.
 
 Color and type are confirmed on the developed system in their own rounds.
-Voice is derived from the pastor's picks among rewrites.
+Voice is derived from the pastor's picks among rewrites, and the writer
+presents it. The writer also supplies every word on every board, from the
+church's own words.
+
+Every decision record carries `speaker`, the job title of who presented it
+(`creative director` for most rounds, `writer` for voice), and `handoff`
+when work passes to the next role. The guide and the brand book open each
+stage with the speaker.
 
 ### The image studio: where the symbol comes from
 

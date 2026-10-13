@@ -10,7 +10,7 @@ designers who write its briefs.
 
 | Tier | Needs | Roles |
 |---|---|---|
-| `judgment` | The most capable model available, with vision | Creative director, senior designer, researcher, and every decision the pastor will see |
+| `judgment` | The most capable model available, with vision | Creative director, senior designer, researcher, writer, and every decision the pastor will see |
 | `making` | A capable model that writes a precise editorial brief, judges images against the direction board, and writes clean construction SVG | Makers (logo designers who write image briefs and run draw, edit, and vectorize), producer |
 | `image` | An image model, reached through the image studio or the host's own image tool | The symbol itself: every round of form-finding and every precise edit |
 | `script` | No model. Deterministic tools in the workflow interface | Flattening onto white, vectorizing and folding to one path, rendering, contact sheets, survival checks, validation, receipts |
@@ -37,7 +37,7 @@ The host session is the creative director and, by default, the senior
 designer, because the person who made the direction boards develops the
 direction. Spawn workers with the Agent tool for the researcher, the makers
 (one per territory, in parallel, each writing briefs and running the
-image studio), and the producer. Set `model` per tier
+image studio), the writer, and the producer. Set `model` per tier
 from the session's available models: `judgment` on the session's top model,
 `making` on a capable model. Each worker prompt starts with "Work ALONE.
 Never spawn agents." and names the role file to read, the church folder,
@@ -46,7 +46,7 @@ and the round.
 ## Codex
 
 The host session is the creative director and senior designer. Run the
-researcher, makers, and producer as bounded `codex exec` processes with the
+researcher, makers, writer, and producer as bounded `codex exec` processes with the
 role file's content as the prompt and the church folder as the working
 directory. Choose the model and reasoning effort per tier: `judgment` on the
 most capable model at high effort; `making` on the coding model at medium
