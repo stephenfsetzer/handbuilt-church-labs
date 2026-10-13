@@ -170,6 +170,12 @@ class CaptionTests(unittest.TestCase):
         self.assertAlmostEqual(end, 2.4 + 2.5)
         self.assertEqual(text, "Grace to you.")
 
+    def test_words_without_their_leading_space_still_read_as_words(self):
+        words = [(1.0, 1.4, "Grace"), (1.5, 1.9, "to"), (2.0, 2.4, "you"), (2.4, 2.5, "."), (2.6, 3.0, "Jordan's"),
+                 (3.1, 3.5, "here.")]
+        cues = video.caption_cues(self.DATA, self.transcription(words), origin=100.0)
+        self.assertEqual(" ".join(cue[2] for cue in cues), "Grace to you. Jordan's here.")
+
     def test_words_outside_the_sermon_are_left_out(self):
         words = [(-5.0, -4.5, " Before"), (1.0, 1.4, " Inside"), (40.0, 40.5, " After")]
         cues = video.caption_cues(self.DATA, self.transcription(words), origin=100.0)
