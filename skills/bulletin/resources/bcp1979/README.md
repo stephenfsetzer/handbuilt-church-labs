@@ -27,8 +27,9 @@ an update. Do not refresh manifest hashes merely to bypass a failed check.
 Line wrapping is folded to spaces. Collect and preface alternatives retain
 separate identifiers; bracketed source choices must be resolved for the day.
 Psalm verses preserve numbers and printed asterisk divisions. Eleven verses
-have no printed asterisk, represented by `asterisk: null` and an empty second
-half. Their words are preserved without an invented split.
+have no printed asterisk but still set their second half on its own indented
+line. They are divided at that printed line, with `asterisk: null` and
+`divided_at: "printed_line"`, so a responsive psalm gives the people their half.
 
 Fixed files are prepared selections. Source comments document omitted optional
 names, selected alternatives, and editorial speaker labels. Short Eucharistic
