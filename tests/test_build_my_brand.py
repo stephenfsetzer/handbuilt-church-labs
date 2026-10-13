@@ -422,6 +422,94 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertFalse(waived & {"one_color", "reversal"})
         self.assertEqual(json.loads((self.church / "brand" / "staging" / "brand-system.json").read_text())["waivers"][0]["reason"], reason)
 
+    def _ready_to_approve(self, patch: dict | None = None) -> None:
+        self._record_through("voice")
+        staged = stage_brand(self.church, patch or self._stage_files())
+        self.assertEqual(staged["status"], "staged", staged)
+        self.assertEqual(record(self.church, "build", "Built.", {"staged_files": ["brand/staging/marks/mark.svg"]})["status"], "recorded")
+        (self.church / "before.pdf").write_bytes(b"%PDF-1.4 before")
+        (self.church / "after.pdf").write_bytes(b"%PDF-1.4 after")
+        Image.new("RGB", (10, 10), "blue").save(self.church / "announcement.png")
+        proof = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf", "announcement": "announcement.png"})
+        self.assertEqual(proof["status"], "recorded", proof)
+
+    def _set_live_logo(self, **logo: str) -> None:
+        path = self.church / "brand.json"
+        brand = json.loads(path.read_text())
+        brand.setdefault("logo", {}).update(logo)
+        path.write_text(json.dumps(brand))
+
+    def _snapshot(self) -> dict:
+        # Approval re-runs the survival checks, which rewrites their report.
+        return {p.relative_to(self.church).as_posix(): p.read_bytes()
+                for p in sorted(self.church.rglob("*")) if p.is_file() and not {"receipts", "checks"} & set(p.parts)}
+
+    def test_approval_keeps_a_social_avatar_already_in_the_live_brand(self):
+        self._needs_renderer()
+        (self.church / "images").mkdir()
+        Image.new("RGB", (32, 32), "white").save(self.church / "images" / "avatar.png")
+        self._set_live_logo(social="images/avatar.png")
+        self._ready_to_approve()
+        approved = approve(self.church)
+        self.assertEqual(approved["status"], "approved", approved)
+        brand = json.loads((self.church / "brand.json").read_text())
+        self.assertEqual(brand["logo"]["social"], "images/avatar.png")
+        self.assertEqual(brand["logo"]["banner"], "brand/marks/banner.png")
+        self.assertEqual(brand["colors"]["accent"], "#224466")
+        self.assertTrue(brand_setup.status(self.church)["ready"])
+
+    def test_approval_installs_a_staged_social_avatar(self):
+        self._needs_renderer()
+        patch = self._stage_files()
+        Image.new("RGB", (32, 32), "white").save(self.church / "brand" / "staging" / "marks" / "avatar.png")
+        patch["logo"]["social"] = "brand/staging/marks/avatar.png"
+        self._ready_to_approve(patch)
+        approved = approve(self.church)
+        self.assertEqual(approved["status"], "approved", approved)
+        brand = json.loads((self.church / "brand.json").read_text())
+        self.assertEqual(brand["logo"]["social"], "brand/marks/avatar.png")
+        self.assertTrue((self.church / "brand" / "marks" / "avatar.png").is_file())
+
+    def test_approval_checks_the_live_logo_before_anything_moves(self):
+        self._needs_renderer()
+        self._ready_to_approve()
+        for logo in ({"poster": "images/poster.png"}, {"social": "brand/marks/old-avatar.png"}):
+            self._set_live_logo(**logo)
+            before = self._snapshot()
+            blocked = approve(self.church)
+            self.assertEqual(blocked["status"], "blocked", blocked)
+            self.assertEqual(self._snapshot(), before)
+            self.assertFalse((self.church / "brand" / "archive").exists())
+            path = self.church / "brand.json"
+            brand = json.loads(path.read_text())
+            brand["logo"].pop(next(iter(logo)))
+            path.write_text(json.dumps(brand))
+
+    def test_a_failed_approval_puts_every_file_back(self):
+        self._needs_renderer()
+        (self.church / "brand" / "marks").mkdir()
+        (self.church / "brand" / "marks" / "old.svg").write_text(MARK)
+        self._ready_to_approve()
+        before = self._snapshot()
+        import brand_workflow  # noqa: PLC0415
+        original = brand_workflow._receipt
+
+        def fail_on_approval(root, kind, payload):
+            if kind == "approval":
+                raise OSError("disk full")
+            return original(root, kind, payload)
+
+        brand_workflow._receipt = fail_on_approval
+        try:
+            failed = approve(self.church)
+        finally:
+            brand_workflow._receipt = original
+        self.assertEqual(failed["status"], "failed", failed)
+        self.assertEqual(self._snapshot(), before)
+        self.assertFalse((self.church / "brand" / "archive").exists())
+        self.assertIsNone(json.loads((self.church / ".handbuilt" / "build-my-brand" / "state.json").read_text())["approved"])
+        self.assertEqual(approve(self.church)["status"], "approved")
+
     def test_restart_archives_the_run_and_begins_again_at_the_plan(self):
         self.assertEqual(restart(self.church)["errors"][0]["code"], "nothing_to_restart")
         self._record_through("interview")

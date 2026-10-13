@@ -1008,8 +1008,8 @@ def _validate_renderer_patch(root: Path, patch: dict[str, Any], *, under: Path) 
         result["colors"] = dict(colors)
     logo = patch.get("logo")
     if logo is not None:
-        if not isinstance(logo, dict) or not logo or set(logo) - {"banner", "mark", "episcopal_shield"}:
-            raise WorkflowFailure("invalid_logo", "logo may set banner, mark, and episcopal_shield paths", field="logo")
+        if not isinstance(logo, dict) or not logo or set(logo) - _brand_setup().LOGO_FIELDS:
+            raise WorkflowFailure("invalid_logo", "logo may set banner, mark, episcopal_shield, and social paths", field="logo")
         result["logo"] = {k: _existing(root, v, f"logo.{k}", under=under).as_posix() for k, v in logo.items()}
     return result
 
@@ -1053,6 +1053,25 @@ def _rewrite(value: Any) -> Any:
     return value
 
 
+def _after_approval(root: Path, raw: str) -> Path | None:
+    """The file that will sit at a brand.json path once approval installs the staged brand.
+
+    Staged paths become brand/ paths. A live brand/ item the staging replaces
+    or archives is gone afterward, so a path into it only survives when the
+    staged item carries the same file.
+    """
+    rel = Path(_rewrite_path(raw))
+    parts = rel.parts
+    if len(parts) >= 2 and parts[0] == "brand":
+        staged = root / STAGING_DIR / Path(*parts[1:])
+        if (root / STAGING_DIR / parts[1]).exists():
+            return staged if staged.is_file() else None
+        if parts[1] in ARCHIVED_LIVE_ITEMS:
+            return None
+    current = root / rel
+    return current if current.is_file() else None
+
+
 def approve(church_folder: str | Path, *, approved_by: str = "pastor") -> dict[str, Any]:
     try:
         root = _church_root(church_folder)
@@ -1075,64 +1094,95 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor") -> dict[s
         if not report["passed"]:
             raise WorkflowFailure("survival_failed", "The staged marks changed and now fail survival checks; stage the system again", detail={"report": report["file"], "failures": report["failures"]})
         setup = _brand_setup()
-        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
-        archive = root / ARCHIVE_DIR / stamp
-        archive.mkdir(parents=True, exist_ok=False)
-        archived: list[str] = []
-        shutil.copy2(root / "brand.json", archive / "brand.json")
-        archived.append("brand.json")
-        for item in ARCHIVED_LIVE_ITEMS:
-            live = root / "brand" / item
-            if live.exists() and not live.is_symlink():
-                shutil.move(str(live), str(archive / item))
-                archived.append(f"brand/{item}")
-        moved: list[str] = []
-        staging = root / STAGING_DIR
-        for child in sorted(staging.iterdir()):
-            if child.name == STAGED_SYSTEM_FILE.name or child.is_symlink():
-                continue
-            target = root / "brand" / child.name
-            if target.exists():
-                shutil.move(str(target), str(archive / f"{child.name}.replaced"))
-                archived.append(f"brand/{child.name}")
-            shutil.move(str(child), str(target))
-            moved.append(f"brand/{child.name}")
-        shutil.move(str(staging / STAGED_SYSTEM_FILE.name), str(archive / "staged-brand-system.json"))
-        if not any(staging.iterdir()):
-            staging.rmdir()
-        system = _rewrite(system)
-        system["approved_on"] = stamp[:10]
-        system["approved_by"] = approved_by
-        system["survival"] = {"report": _rewrite_path(report["file"]), "checked_at": report["checked_at"], "waivers": waivers}
-        brand = setup._read(root)
-        brand["brand_system"] = system
+        # Check everything the new brand.json will hold before anything moves.
         patch: dict[str, Any] = {}
         if renderer.get("colors"):
             patch["colors"] = renderer["colors"]
             patch["colors_status"] = "confirmed"
+        live_logo = setup._read(root).get("logo")
+        live_logo = dict(live_logo) if isinstance(live_logo, dict) else {}
+        unknown = sorted(set(live_logo) - setup.LOGO_FIELDS)
+        if unknown:
+            raise WorkflowFailure("invalid_logo", f"brand.json logo has a field this plugin does not know: {unknown[0]}", field="logo")
         if renderer.get("logo"):
             patch["logo"] = {k: _rewrite_path(v) for k, v in renderer["logo"].items()}
             patch["logo_status"] = "provided"
-            for key in ("banner", "mark", "episcopal_shield"):
-                if key not in patch["logo"]:
-                    brand.setdefault("logo", {})[key] = ""
-        setup._write(root / "brand.json", brand)
-        if patch:
+            for key in setup.COVER_LOGO_FIELDS - set(patch["logo"]):
+                live_logo[key] = ""
+        for key, raw in {**live_logo, **patch.get("logo", {})}.items():
+            if isinstance(raw, str) and raw.strip() and _after_approval(root, raw) is None:
+                raise WorkflowFailure("missing_file", f"brand.json logo.{key} would point to a file that is not there after approval: {raw}", field=f"logo.{key}")
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
+        archive = root / ARCHIVE_DIR / stamp
+        old_brand = (root / "brand.json").read_bytes()
+        old_state = json.loads(json.dumps(state))
+        moves: list[tuple[Path, Path]] = []
+        receipt: Path | None = None
+
+        def move(source: Path, target: Path) -> None:
+            shutil.move(str(source), str(target))
+            moves.append((source, target))
+
+        archive_root_existed = (root / ARCHIVE_DIR).exists()
+        archive.mkdir(parents=True, exist_ok=False)
+        try:
+            archived: list[str] = []
+            shutil.copy2(root / "brand.json", archive / "brand.json")
+            archived.append("brand.json")
+            for item in ARCHIVED_LIVE_ITEMS:
+                live = root / "brand" / item
+                if live.exists() and not live.is_symlink():
+                    move(live, archive / item)
+                    archived.append(f"brand/{item}")
+            installed: list[str] = []
+            staging = root / STAGING_DIR
+            for child in sorted(staging.iterdir()):
+                if child.name == STAGED_SYSTEM_FILE.name or child.is_symlink():
+                    continue
+                target = root / "brand" / child.name
+                if target.exists():
+                    move(target, archive / f"{child.name}.replaced")
+                    archived.append(f"brand/{child.name}")
+                move(child, target)
+                installed.append(f"brand/{child.name}")
+            move(staging / STAGED_SYSTEM_FILE.name, archive / "staged-brand-system.json")
+            system = _rewrite(system)
+            system["approved_on"] = stamp[:10]
+            system["approved_by"] = approved_by
+            system["survival"] = {"report": _rewrite_path(report["file"]), "checked_at": report["checked_at"], "waivers": waivers}
+            brand = setup._read(root)
+            brand["brand_system"] = system
+            brand["logo"] = live_logo
             try:
-                setup.update(root, patch)
+                brand = setup._validate_patch(root, patch, brand) if patch else brand
             except ValueError as exc:
                 raise WorkflowFailure("brand_write_failed", str(exc)) from exc
-        live = setup.status(root)
-        state["approved"] = {"at": _now(), "by": approved_by, "archive": (ARCHIVE_DIR / stamp).as_posix()}
-        _save_state(root, state)
-        files = {p: _sha256(root / p) for p in sorted({*moved} | {"brand.json"}) if (root / p).is_file()}
-        receipt = _receipt(root, "approval", {
-            "approved_by": approved_by, "archive": (ARCHIVE_DIR / stamp).as_posix(), "archived": archived,
-            "installed": moved, "brand_json_sha256": _sha256(root / "brand.json"), "files": files,
-            "proof": state["stages"][APPROVAL_STAGE].get("after"), "announcement": state["stages"][APPROVAL_STAGE].get("announcement"),
-            "survival": system["survival"],
-        })
-        return {"status": "approved", "archive": str(archive), "installed": moved, "live_brand_ready": live.get("ready"),
+            setup._write(root / "brand.json", brand)
+            live = setup.status(root)
+            state["approved"] = {"at": _now(), "by": approved_by, "archive": (ARCHIVE_DIR / stamp).as_posix()}
+            _save_state(root, state)
+            files = {p: _sha256(root / p) for p in sorted({*installed} | {"brand.json"}) if (root / p).is_file()}
+            receipt = _receipt(root, "approval", {
+                "approved_by": approved_by, "archive": (ARCHIVE_DIR / stamp).as_posix(), "archived": archived,
+                "installed": installed, "brand_json_sha256": _sha256(root / "brand.json"), "files": files,
+                "proof": state["stages"][APPROVAL_STAGE].get("after"), "announcement": state["stages"][APPROVAL_STAGE].get("announcement"),
+                "survival": system["survival"],
+            })
+        except BaseException:
+            # Put every file back where it was, so a failed approval leaves the
+            # live brand and the staged one exactly as they were.
+            for source, target in reversed(moves):
+                source.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(target), str(source))
+            (root / "brand.json").write_bytes(old_brand)
+            _write_json(_state_path(root), old_state)
+            if receipt is not None and receipt.exists():
+                receipt.unlink()
+            shutil.rmtree(archive if archive_root_existed else root / ARCHIVE_DIR, ignore_errors=True)
+            raise
+        if not any(staging.iterdir()):
+            staging.rmdir()
+        return {"status": "approved", "archive": str(archive), "installed": installed, "live_brand_ready": live.get("ready"),
                 "receipt": str(receipt), "next_action": "Record how the brand travels, then the handoff."}
     except Exception as exc:  # noqa: BLE001
         return _failure(exc)

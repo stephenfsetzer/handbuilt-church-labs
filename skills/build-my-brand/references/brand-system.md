@@ -105,8 +105,13 @@ Rules the check enforces:
   built from the imagery rules; the church's own test announcement is part
   of the proof.
 - `colors`, if supplied, gives all five renderer colors. `logo`, if supplied,
-  points at staged marks the bulletin cover can use. Supply both so the
-  bulletin renders in the new brand on approval.
+  points at staged marks the bulletin cover can use (`banner`, `mark`,
+  `episcopal_shield`) and may add `social`, the social avatar. Supply both so
+  the bulletin renders in the new brand on approval.
+- Approval checks the new `brand.json` before it moves anything. A logo path
+  already in the live `brand.json` carries forward when the approved brand
+  still has its file. If approval fails partway, every file goes back where it
+  was and nothing is archived.
 
 The `brand_system` object is additive. It lives beside the fields onboarding
 and the bulletin already use in `brand.json`, and the renderer ignores it.
