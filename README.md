@@ -253,7 +253,7 @@ Cowork, and the **Code** tab.
 5. Confirm. Then open the **Discover** tab, find **Handbuilt Church Labs**,
    and choose **Add**.
 6. Open **Your plugins** and confirm that Handbuilt Church Labs shows version
-   0.8.8, seven skills, and **Enable plugin** on.
+   0.8.8, eight skills, and **Enable plugin** on.
 
 Start a new session or task, and ask, “Set up my Church Command Center.” The
 **Code** tab or Cowork is the right place for church work, because it keeps

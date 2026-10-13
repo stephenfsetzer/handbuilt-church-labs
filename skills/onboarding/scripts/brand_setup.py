@@ -18,7 +18,11 @@ class BrandSetupError(ValueError):
     """A safe, actionable brand setup error."""
 
 
-LOGO_FIELDS = {"banner", "mark", "episcopal_shield"}
+# The bulletin cover draws from the cover fields. The social avatar is a
+# brand image too, so it is checked like a logo, but it never counts as a
+# cover logo and stays when a church chooses no cover logo.
+COVER_LOGO_FIELDS = {"banner", "mark", "episcopal_shield"}
+LOGO_FIELDS = COVER_LOGO_FIELDS | {"social"}
 COLOR_FIELDS = {"ink", "accent", "accent_deep", "paper", "rubric_red"}
 LOGO_STATUSES = {"pending", "provided", "none"}
 COLOR_STATUSES = {"pending", "confirmed", "neutral"}
@@ -169,18 +173,18 @@ def _validate_patch(root: Path, patch: Any, current: dict[str, Any]) -> dict[str
     # A supplied, validated local asset is an obvious choice. Palette values
     # still require an explicit confirmed or neutral choice.
     if "logo_status" not in patch and "logo" in patch:
-        if any(isinstance(v, str) and v.strip() for v in (result.get("logo") or {}).values()):
+        if any(isinstance(v, str) and v.strip() for k, v in (result.get("logo") or {}).items() if k in COVER_LOGO_FIELDS):
             result["logo_status"] = "provided"
     if result.get("logo_status") == "provided":
         logo = result.get("logo")
-        paths = [v for v in (logo or {}).values() if isinstance(v, str) and v.strip()]
+        paths = [v for k, v in (logo or {}).items() if k in COVER_LOGO_FIELDS and isinstance(v, str) and v.strip()]
         if not paths:
             raise BrandSetupError("logo_status=provided requires a local logo path")
         for field, raw in (logo or {}).items():
             if isinstance(raw, str) and raw.strip():
                 _asset(root, raw, f"brand.logo.{field}")
     elif result.get("logo_status") == "none":
-        if any(isinstance(v, str) and v.strip() for v in (result.get("logo") or {}).values()):
+        if any(isinstance(v, str) and v.strip() for k, v in (result.get("logo") or {}).items() if k in COVER_LOGO_FIELDS):
             raise BrandSetupError("logo_status=none cannot keep a logo path")
     if isinstance(result.get("colors_status"), str) and result.get("colors_status") in {"confirmed", "neutral"}:
         colors = result.get("colors")
@@ -201,17 +205,17 @@ def _logo_state(root: Path, brand: dict[str, Any]) -> dict[str, Any]:
     if explicit not in (None, *LOGO_STATUSES):
         return {"status": "pending", "ready": False, "unresolved": [{"field": "logo_status", "reason": "Choose pending, provided, or none"}]}
     if explicit == "none":
-        if any(v not in (None, "") for v in logo.values()):
+        if any(v not in (None, "") for k, v in logo.items() if k in COVER_LOGO_FIELDS):
             return {"status": "none", "ready": False, "unresolved": [{"field": "logo", "reason": "Remove configured logo paths when choosing no logo"}]}
         return {"status": "none", "ready": True, "unresolved": []}
-    if explicit == "provided" or (explicit is None and paths):
+    if explicit == "provided" or (explicit is None and any(field in COVER_LOGO_FIELDS for field, _ in paths)):
         errors = []
         for field, raw in paths:
             try:
                 _asset(root, raw, f"brand.logo.{field}")
             except BrandSetupError as exc:
                 errors.append({"field": f"logo.{field}", "reason": str(exc)})
-        if not paths:
+        if not any(field in COVER_LOGO_FIELDS for field, _ in paths):
             errors.append({"field": "logo", "reason": "Supply a local logo or explicitly choose no logo"})
         return {"status": "provided", "ready": not errors, "unresolved": errors}
     return {"status": "pending", "ready": False, "unresolved": [{"field": "logo_status", "reason": "Supply a local logo or explicitly choose no logo"}]}

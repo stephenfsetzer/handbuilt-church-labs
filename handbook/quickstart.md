@@ -17,7 +17,7 @@
      the offered URL option. Make sure **Sync automatically** is on, so each new
      version reaches you, then confirm. In **Discover**, choose **Add** for
      Handbuilt Church Labs. Open **Your plugins** and confirm version 0.8.8,
-     seven skills, and **Enable plugin** on. If turning on sync asks for GitHub
+     eight skills, and **Enable plugin** on. If turning on sync asks for GitHub
      permissions you do not have, finish with it off and also ask your agent to
      install Handbuilt, which turns on its own updates.
    - **Ask your agent:** In the Code tab, paste the request from the

@@ -43,6 +43,20 @@ class BrandSetupTest(unittest.TestCase):
         self.assertEqual(saved["texts"], {"welcome": "Custom"})
         self.assertEqual(saved["qr"]["connect"]["url"], "https://example.test")
 
+    def test_social_avatar_is_checked_but_is_not_a_cover_logo(self):
+        avatar = self.church / "brand" / "avatar.png"
+        avatar.parent.mkdir()
+        Image.new("RGB", (20, 20), "white").save(avatar)
+        result = brand_setup.update(self.church, {"logo": {"social": "brand/avatar.png"}, "colors_status": "neutral"})
+        self.assertEqual(result["readiness"]["logo"]["status"], "pending")
+        result = brand_setup.update(self.church, {"logo_status": "none"})
+        self.assertTrue(result["readiness"]["ready"])
+        self.assertEqual(json.loads((self.church / "brand.json").read_text())["logo"]["social"], "brand/avatar.png")
+        with self.assertRaises(brand_setup.BrandSetupError):
+            brand_setup.update(self.church, {"logo_status": "provided"})
+        with self.assertRaises(brand_setup.BrandSetupError):
+            brand_setup.update(self.church, {"logo": {"social": "brand/missing.png"}})
+
     def test_bad_logo_and_escape_fail_without_writes(self):
         path = self.church / "brand.json"
         before = path.read_bytes()
