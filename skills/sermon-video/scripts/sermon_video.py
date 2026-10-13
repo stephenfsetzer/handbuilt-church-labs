@@ -220,7 +220,7 @@ def artwork(root, data):
               "scripture": escape(visible(data, "scripture")),
               "sunday": escape(visible(data, "sunday")),
               "date": escape(visible(data, "service_date"))}
-    brand = {"background": "#193a48", "accent": "#d8ac68", "foreground": "#fffaf0",
+    brand = {"background": "#ffffff", "accent": "#44546a", "foreground": "#1b1f24",
              "heading_font": "Georgia", "body_font": "Arial", **data.get("brand", {})}
     for key in ("background", "accent", "foreground"):
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", brand[key]):
