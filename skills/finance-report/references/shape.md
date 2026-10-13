@@ -59,3 +59,12 @@ Both keys are absent by default, and a report built without them is unchanged.
   spending stay based on everyday money only. An account may not be in both
   `bank_accounts` and `set_aside_accounts`, and an account missing from the
   balance sheet stops the build.
+
+## Parts left out of one month (added in 0.8.20)
+
+`report.json` may carry `"leave_out"`, a list of parts the person chose not to
+print this month: `bills`, `plan`, `income`, `spending`, `cash`, `years`,
+`pressure`, or `watch`. It is set per month, never in the church's config, and
+is absent by default. The renderer skips each named part; the questions still
+printed keep their order and are numbered again from 1, and the header counts
+them. An unknown name stops the render. No figure changes.
