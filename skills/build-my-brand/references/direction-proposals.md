@@ -20,10 +20,14 @@ church's tradition. Each direction is a whole idea the pastor can compare:
   kept mark limits the idea on the refresh path.
 
 Directions must differ in idea, not only in color. If two directions would
-feel the same to a stranger, replace one. Make each board as one finished
-composition the pastor can read; this round sets the fidelity bar for
-everything after it, and the interface will not let a later presentation
-show less.
+feel the same to a stranger, replace one.
+
+Each board is a mood board, not a design. Keep it visibly rough: label the
+pieces "sketch", use loose type and flat placeholders, and leave out
+polish such as finished photo treatment and pixel-perfect layout. A board
+that looks finished makes the pastor judge everything at once; this round
+only asks which idea is right. Finish starts at develop, and the interface
+will not let a later presentation show fewer pieces than these boards.
 
 Photographs of people stay true to life: natural color or plain black and
 white. A strong palette color laid over a photo (a duotone, a heavy tint)
@@ -49,14 +53,18 @@ never required. Save every board the pastor sees under
 
 ## Showing options
 
-Put the options side by side in one place. For each, say in one line what it
-says about the church. Say what the pick commits (the idea) and what stays
-open (color and type are explored inside that idea). Then ask for the pick.
-Do not ask "which do you like"; ask "which of these is the church you are
-trying to be," which is a decision the pastor can make.
+Put the options side by side in one place, under one line that says what is
+asked: "These are directions, not designs. Tell me what pulls you and what
+doesn't on each." For each, say in one line what it says about the church.
+First ask for reactions, a like and a dislike per board. Then say what the
+pick commits (the idea) and what stays open (color, type and finish are
+worked out inside that idea), and ask "which of these is the church you are
+trying to be," not "which do you like."
 
-When the pastor picks, ask for nothing more. Write the rationale from what
-they said when they picked, or from the brief, and record it.
+The pick may combine boards ("B's voice with C's people"). Record the
+combination as the decision, say in one line what comes from each board,
+and confirm that line with the pastor before develop. Write the rationale
+from their reactions and pick, or from the brief, and record it.
 
 ## Recording
 

@@ -181,14 +181,19 @@ shown; the interface appends the options, what it was shown on, the
 recommendation, the decision, and why in a fixed block so the record is
 complete even if the prose is thin.
 
-### Direction: one idea, shown in context
+### Direction: directions, not designs
 
 Build directions per [Direction proposals](references/direction-proposals.md).
-Each is a whole composition: the bulletin cover, the church's own test
-announcement, and a social post, set in the direction's type and
-palette with a placeholder where the mark goes. No mark is shown; on the
-refresh path the kept mark appears unmodified. Record `applications` and
-`boards`. These boards set the fidelity bar for everything after them.
+Each board is a mood board, deliberately loose: the idea in a line, the
+reference work it learns from, palette swatches, a type specimen, and rough
+sketches of the bulletin cover, the church's own test announcement and a
+social post, with a placeholder where the mark goes. Nothing on it should
+look finished, so the pastor reacts to an idea instead of judging a design.
+Open by saying what is asked: "These are directions, not designs. Tell me
+what pulls you and what doesn't on each." Take likes and dislikes per board,
+then the pick, which may combine boards. No mark is shown; on the refresh
+path the kept mark appears unmodified. Record `applications` and `boards`.
+Finish starts at develop, which is always more real than these boards.
 
 ### Direction development and refinement: the firm, not a sketch
 

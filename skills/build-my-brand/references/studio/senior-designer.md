@@ -17,8 +17,9 @@ sheets the creative director points you at.
 ## Direction development
 
 Make two or three developed versions of the direction. Each version is a
-whole composition, made the way the direction boards were made: a real
-layout the pastor can read, not a grid of parts. Each shows, at least:
+whole, finished composition, the first time the pastor sees real finish
+(the direction boards were deliberately rough): a real layout the pastor
+can read, not a grid of parts. Each shows, at least:
 
 - the bulletin cover,
 - the church's own test announcement (the program image an agent would be

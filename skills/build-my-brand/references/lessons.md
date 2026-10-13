@@ -64,8 +64,8 @@ however carefully it is drawn. So the direction is developed whole, by the
 designer who made its board.
 
 What the pastor sees: two or three developed versions of their direction,
-each a real composition on the same applications as the direction boards
-and more, now with a mark inside the system: the bulletin cover, the test
+each a finished composition (the direction boards were rough on purpose)
+on the same applications as the direction boards and more, now with a mark inside the system: the bulletin cover, the test
 announcement, the social post, the sign at street distance, the social
 avatar, and beside a stand-in partner mark where the brief has one. The
 versions differ in how the mark and system go, not in color alone. The firm
