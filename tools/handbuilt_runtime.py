@@ -8,6 +8,8 @@ per-user support directory. Native-tool setup uses an explicit host operation.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import uuid
 import json
 import os
 import platform
@@ -19,6 +21,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 SCHEMA_VERSION = 1
 MINIMUM_PYTHON = (3, 10)
@@ -96,6 +100,39 @@ def runtime_paths(root: Path, *, system: Optional[str] = None) -> RuntimePaths:
         else environment / "bin" / "python"
     )
     return RuntimePaths(root=root, environment=environment, python=python)
+
+
+def dependency_fingerprint(requirements: Path, system: str | None = None, python_version=None) -> str:
+    """Strict pinned input plus interpreter ABI/platform; comments do not matter."""
+    lines = []
+    for raw in requirements.read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?==[A-Za-z0-9_.+!-]+", line):
+            raise ValueError("Managed startup requires exactly pinned package versions")
+        lines.append(line)
+    if not lines:
+        raise ValueError("Managed startup requires a nonempty pinned package list")
+    payload = {"requirements": sorted(lines), "python": list((python_version or sys.version_info)[:2]),
+               "implementation": sys.implementation.name, "system": system or platform.system(),
+               "machine": platform.machine()}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def selected_runtime(store: Path, fingerprint: str) -> Path | None:
+    """Read a published generation without discovering or modifying runtimes."""
+    parent = (store / "environments" / fingerprint).resolve()
+    try:
+        value = json.loads((parent / "selected.json").read_text())
+        root = Path(value["root"])
+        if (value.get("schema_version") != 1 or value.get("fingerprint") != fingerprint
+                or not root.is_absolute() or root.is_symlink()
+                or root.resolve().parent != parent / "generations" or not root.is_dir()):
+            return None
+        return root.resolve()
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 class RuntimeManager:
@@ -397,6 +434,77 @@ class RuntimeManager:
             })
         return report
 
+    def ensure(self, *, capability: str = "bulletin") -> dict[str, object]:
+        try:
+            report = self._ensure(capability=capability)
+        except OSError as exc:
+            report = self._failure(operation="ensure", message="Handbuilt could not prepare its private tools. Check the host's filesystem or download permissions.", detail=str(exc), changed=False)
+        if report["status"] != "ready" and report.get("code") != "invalid_requirements" and self.paths.python.is_file():
+            # Migration must not strand an offline user whose legacy runtime
+            # still satisfies this release. Check it read-only; never repair it.
+            previous = self.verify() if capability == "bulletin" else self.doctor(capability="workspace")
+            if previous["status"] == "ready":
+                return dict(previous, operation="ensure", runtime_fallback="legacy",
+                            preparation="deferred")
+        return report
+
+    def _ensure(self, *, capability: str = "bulletin") -> dict[str, object]:
+        """Prepare a new generation; never pip-install into a published runtime.
+
+        Venvs stay at their original paths (scripts contain absolute shebangs).
+        Only the small selection record moves atomically after verification.
+        """
+        from tools.workflow_updates import file_lock, _atomic_json
+        if capability not in {"workspace", "bulletin"}:
+            raise ValueError("Unknown runtime capability")
+        bootstrap = self._resolved_bootstrap()
+        python_version, error = self._probe_version(bootstrap) if bootstrap else (None, "Python unavailable")
+        if error and self.paths.python.is_file():
+            fallback_version, fallback_error = self._probe_version(str(self.paths.python))
+            if not fallback_error:
+                bootstrap, python_version, error = str(self.paths.python), fallback_version, None
+        if error:
+            return dict(self.doctor(capability=capability), operation="ensure")
+        self.bootstrap_python = bootstrap
+        try:
+            identity = dependency_fingerprint(self.requirements, self.system, python_version)
+        except (OSError, ValueError) as exc:
+            return dict(self._failure(operation="ensure", message="Handbuilt's package list needs maintainer attention.", detail=str(exc), changed=False), code="invalid_requirements")
+        store = self.paths.root / "environments" / identity
+        with file_lock(store / "prepare.lock") as acquired:
+            if not acquired:
+                return self._failure(operation="ensure", message="Another task is preparing Handbuilt's private tools. Try again shortly.", detail="runtime_preparation_busy", changed=False)
+            selected = selected_runtime(self.paths.root, identity)
+            if selected:
+                manager = self._generation(selected)
+                report = manager.verify() if capability == "bulletin" else manager.doctor(capability="workspace")
+                if report["status"] == "ready":
+                    return dict(report, operation="ensure", dependency_fingerprint=identity)
+                # OS prerequisites cannot be repaired by reinstalling Python packages.
+                if report["python_packages"]["ready"]:
+                    return dict(report, operation="ensure", dependency_fingerprint=identity)
+                # Preserve damaged generations for existing tasks and diagnosis.
+            generation = (store / "generations" / uuid.uuid4().hex).resolve()
+            manager = self._generation(generation)
+            report = manager.setup()
+            if not report["python_packages"]["ready"]:
+                return dict(report, operation="ensure", dependency_fingerprint=identity)
+            report = manager.verify() if capability == "bulletin" else manager.doctor(capability="workspace")
+            if report["status"] != "ready":
+                return dict(report, operation="ensure", dependency_fingerprint=identity)
+            # Published generations are never modified by ensure. An interrupted
+            # build has no selection record and is ignored on the next attempt.
+            if identity != dependency_fingerprint(self.requirements, self.system, python_version):
+                return self._failure(operation="ensure", message="Handbuilt changed while preparing its tools. Start again.", detail="requirements_changed", changed=True)
+            _atomic_json(store / "selected.json", {"schema_version": 1, "fingerprint": identity,
+                         "root": str(generation.resolve())})
+            return dict(report, operation="ensure", changed=True, dependency_fingerprint=identity)
+
+    def _generation(self, root: Path) -> "RuntimeManager":
+        return RuntimeManager(repo_root=self.repo_root, runtime_root=root,
+                              bootstrap_python=self.bootstrap_python, system=self.system,
+                              runner=self.runner, which=self.which)
+
     def create_environment(self) -> dict[str, object]:
         """Create or repair the venv, but never install repository packages."""
         bootstrap = self._resolved_bootstrap()
@@ -596,6 +704,7 @@ def build_parser() -> argparse.ArgumentParser:
     for operation, help_text in (
         ("doctor", "Check runtime readiness without changing anything."),
         ("verify", "Render and inspect a temporary sample PDF without installing anything."),
+        ("ensure", "Prepare verified private tools without changing existing runtimes."),
         ("setup", "Create and install the private runtime, then verify it."),
         ("native-install", "Install native PDF tools through a detected package manager."),
         ("create", "Create the private Python environment without installing packages."),
@@ -605,7 +714,7 @@ def build_parser() -> argparse.ArgumentParser:
         child.add_argument("--format", choices=("human", "json"), default="human")
         child.add_argument("--runtime-root", type=Path)
         child.add_argument("--bootstrap-python", default=os.environ.get("HANDBUILT_BOOTSTRAP_PYTHON", sys.executable))
-        if operation == "doctor":
+        if operation in {"doctor", "ensure"}:
             child.add_argument("--capability", choices=("workspace", "bulletin"), default="bulletin")
     return parser
 
@@ -619,7 +728,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         runtime_root=root,
         bootstrap_python=args.bootstrap_python,
     )
-    if args.operation == "doctor":
+    if args.operation == "ensure":
+        result = manager.ensure(capability=args.capability)
+    elif args.operation == "doctor":
         result = manager.doctor(capability=args.capability)
     elif args.operation == "verify":
         result = manager.verify()
@@ -639,7 +750,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if result["status"] == "install-failed":
         return 20
-    if args.operation in {"doctor", "verify"} and result["status"] != "ready":
+    if args.operation in {"doctor", "verify", "ensure"} and result["status"] != "ready":
         return 2
     return 0
 

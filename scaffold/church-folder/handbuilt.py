@@ -28,7 +28,9 @@ def main():
             "detail": str(exc),
         }, indent=2))
         return 2
-    sys.argv = [str(entry), "--church-folder", str(church), *sys.argv[1:]]
+    runtime = (["--runtime-root", connection["runtime_root"]]
+               if connection.get("runtime_root") else [])
+    sys.argv = [str(entry), "--church-folder", str(church), *runtime, *sys.argv[1:]]
     runpy.run_path(str(entry), run_name="__main__")
     return 0
 
