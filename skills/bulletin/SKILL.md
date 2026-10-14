@@ -301,6 +301,10 @@ deep-merges it with the prior source-safe config, then renders a temporary
 staged config. The saved `bulletin-config.json` retains church-relative music
 and private liturgy source paths for the next revision.
 
+A pastor naming a heading means the large line printed at the top of that
+part, not the small label beside it. To reword the psalm's heading, revise
+`readings.psalm.heading`.
+
 The replacement is rendered and verified before the prior package moves to a
 recoverable `.revisions/` folder. The new receipt links the predecessor run,
 receipt hash, archive location, and source-config digest. Repeating the same

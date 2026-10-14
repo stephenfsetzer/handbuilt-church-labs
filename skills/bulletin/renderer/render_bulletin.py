@@ -730,10 +730,15 @@ def psalm_block(psalm):
         "unison": "Read together.",
         "plain": "Read aloud.",
     }[mode]
-    latin_html = f' <span class="tune">({esc(latin)})</span>' if latin else ""
+    heading = str(psalm.get("heading") or "").strip()
+    if heading:
+        citation = inline_md(heading)
+    else:
+        latin_html = f' <span class="tune">({esc(latin)})</span>' if latin else ""
+        citation = f"Psalm {esc(str(num))}{latin_html}"
     return (f'<div class="section">'
             + section_head("The Psalm")
-            + f'<p class="citation">Psalm {esc(str(num))}{latin_html}</p>'
+            + f'<p class="citation">{citation}</p>'
             + f'<p class="rubric">{rubric}</p>'
             + "\n".join(rows) + "</div>")
 

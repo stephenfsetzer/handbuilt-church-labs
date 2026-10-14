@@ -17,7 +17,7 @@ The agent builds one private JSON object:
 | --- | --- |
 | `template` | The saved `classic` or `modern` choice, at the top level. |
 | `service` | `date` (YYYY-MM-DD), `occasion`, `proper`, `lectionary_track`, `preacher`, `celebrant`, and `liturgical_color`. Verify calendar facts; resolve people from saved context or ask about that week's assignments. |
-| `readings` | Enabled `first` and/or `second` lessons, plus `psalm` and `gospel`. Each supplied reading has full verified `text` and a `source` object containing `label`, `location`, and `verified_on`. Use `citation` for Bible readings and `number` for the psalm. The resolved `liturgy.include_first_reading` and `include_second_reading` flags control which lesson slots are required and printed. At least one non-Gospel lesson remains required. |
+| `readings` | Enabled `first` and/or `second` lessons, plus `psalm` and `gospel`. Each supplied reading has full verified `text` and a `source` object containing `label`, `location`, and `verified_on`. Use `citation` for Bible readings and `number` for the psalm. The psalm prints a small "The Psalm" label and a larger heading, `Psalm <number> (<latin_title>)`; an optional psalm `heading` replaces that larger line when the pastor asks for different wording. The resolved `liturgy.include_first_reading` and `include_second_reading` flags control which lesson slots are required and printed. At least one non-Gospel lesson remains required. |
 | `collect_of_day` | Verified text for the selected occasion. Prefer the bundled Sunday library. |
 | `proper_preface` | The verified selected preface when required by the prayer. |
 | `liturgy` | The `liturgy` object returned by worship resolution, including its service plan and profile reference. |
