@@ -1394,8 +1394,13 @@ def _stage_effective_brand(
             return [absolutize(child) for child in value]
         if isinstance(value, str):
             candidate = Path(value)
-            if not candidate.is_absolute() and (root / candidate).is_file():
-                return str((root / candidate).resolve())
+            # Brand text such as a long sentence is not a path; asking the
+            # file system about it can raise "File name too long".
+            try:
+                if not candidate.is_absolute() and (root / candidate).is_file():
+                    return str((root / candidate).resolve())
+            except (OSError, ValueError):
+                pass
         return value
 
     effective = absolutize(effective)
