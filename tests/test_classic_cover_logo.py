@@ -106,3 +106,19 @@ class ClassicCoverLogoTests(unittest.TestCase):
             request['template'] = 'modern'
             result = produce(church, request)
             self.assertIn('church_logo_unavailable', json.dumps(result))
+
+
+class LongBrandTextTests(unittest.TestCase):
+    def test_a_long_sentence_in_the_brand_system_never_stops_the_bulletin(self):
+        # 2026-10-16: a 262-character brand sentence was tried as a file name ("File name too long").
+        for template in ('classic', 'modern'):
+            with tempfile.TemporaryDirectory() as tmp:
+                church = make_church(Path(tmp))
+                brand_file = church / 'brand.json'
+                brand = json.loads(brand_file.read_text())
+                brand['brand_system'] = {'story': 'A long brand sentence that goes on and on ' * 8}
+                brand_file.write_text(json.dumps(brand))
+                request = bulletin_input()
+                request['template'] = template
+                result = produce(church, request)
+                self.assertEqual(result['status'], 'ready_for_review', result)
