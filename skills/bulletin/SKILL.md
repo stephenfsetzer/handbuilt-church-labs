@@ -40,7 +40,7 @@ python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
 
 The launcher renders and checks a temporary sample PDF. If it does not report
 `ready`, stop before production and follow the reported repair detail in
-`handbook/runtime-setup.md`. Use `setup` for missing managed packages; repair
+`handbook/runtime-setup.md`. Startup prepares missing private packages automatically. Repair
 native tools or rendering libraries when those failed. Repeat `start bulletin`
 after repair. Do not ask the pastor to manage packages or use global Python.
 Passing this computer check does not replace the actual bulletin's checks.
