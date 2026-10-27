@@ -13,8 +13,6 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    env:
-      HANDBUILT_RUNTIME_HOME: ${{ runner.temp }}/handbuilt-runtime
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -28,6 +26,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes poppler-utils
       - name: Prepare the verified private runtime
         run: |
+          export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt-runtime"
+          printf 'HANDBUILT_RUNTIME_HOME=%s\n' "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
           python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/runtime-setup.json"
           python - <<'PY'
           import json, os
