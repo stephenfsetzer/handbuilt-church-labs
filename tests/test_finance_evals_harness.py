@@ -40,6 +40,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertFalse((self.plugin / "tests").exists())
         self.assertFalse((self.plugin / ".git").exists())
         self.assertTrue((self.plugin / "skills/finance-onboarding/SKILL.md").is_file())
+        self.assertTrue((self.plugin / "requirements.lock").is_file())
 
     def test_files_cannot_escape_to_host_or_plugin_writes(self):
         outside = self.base / "private.json"

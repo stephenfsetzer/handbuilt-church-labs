@@ -37,6 +37,7 @@ class RuntimeSecurityPolicyTests(unittest.TestCase):
                 "pypdf": "6.21.2",
             },
         )
+        self.assertEqual(pins["zopfli"], "0.4.3")
         self.assertEqual(security.PIP_VERSION, "26.2.2")
 
     def test_reviewed_python_floor_is_accepted_and_previous_patch_is_rejected(self):
@@ -56,6 +57,18 @@ class RuntimeSecurityPolicyTests(unittest.TestCase):
     def test_python_310_and_unreviewed_future_branch_are_rejected(self):
         self.assertIsNotNone(security.python_security_error((3, 10, 22)))
         self.assertIsNotNone(security.python_security_error((3, 16, 0)))
+
+    def test_runtime_support_stops_at_py_yaml_wheel_coverage(self):
+        self.assertEqual(
+            security.SUPPORTED_RUNTIME_BRANCHES,
+            ((3, 11), (3, 12), (3, 13), (3, 14)),
+        )
+        for version in ((3, 11, 18), (3, 12, 16), (3, 13, 18), (3, 14, 10)):
+            with self.subTest(version=version):
+                self.assertIsNone(security.python_runtime_error(version))
+        self.assertIsNone(security.python_security_error((3, 15, 2)))
+        self.assertIn("not yet supported", security.python_runtime_error((3, 15, 2)))
+        self.assertIn("not yet supported", security.python_runtime_error((3, 15, 3)))
 
     def test_prerelease_and_unknown_release_levels_are_rejected(self):
         VersionInfo = namedtuple("VersionInfo", "major minor micro releaselevel serial")

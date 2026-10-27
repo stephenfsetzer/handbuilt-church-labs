@@ -27,6 +27,12 @@ class RuntimeSecurityTests(unittest.TestCase):
             with self.subTest(version=version):
                 self.assertIsNotNone(runtime_security.python_security_error(version))
 
+    def test_3_15_security_floor_does_not_enable_missing_wheel_runtime(self):
+        self.assertIsNone(runtime_security.python_security_error((3, 15, 2)))
+        self.assertIn("not yet supported", runtime_security.python_runtime_error((3, 15, 2)))
+        self.assertIn("PyYAML", runtime_security.PYTHON_RUNTIME_SUPPORT_URL)
+        self.assertIsNone(runtime_security.python_runtime_error((3, 14, 10)))
+
     def test_prerelease_and_unknown_release_level_fail_closed(self):
         VersionInfo = namedtuple("VersionInfo", "major minor micro releaselevel serial")
         self.assertIsNotNone(runtime_security.python_security_error(VersionInfo(3, 15, 2, "alpha", 1)))

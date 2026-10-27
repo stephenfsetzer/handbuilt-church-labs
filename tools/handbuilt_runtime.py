@@ -27,6 +27,7 @@ from typing import Callable, Mapping, Optional, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools import runtime_security
+from tools.runtime_lock import RuntimeLockError, validate_runtime_lock
 
 
 SCHEMA_VERSION = 1
@@ -50,6 +51,8 @@ ACTIVE_RUNTIME_POINTER = "active-runtime.json"
 POINTER_SCHEMA_VERSION = 1
 MAX_POINTER_BYTES = 4096
 MAX_PIP_WHEEL_BYTES = 4 * 1024 * 1024
+MAX_RUNTIME_LOCK_BYTES = 1024 * 1024
+GENERATION_MARKER = ".handbuilt-runtime-generation.json"
 PIP_WHEEL_TIMEOUT = 30
 PIP_INSTALL_INDEX = "https://pypi.org/simple"
 DOWNLOAD_SCRIPT = r'''import json,os,ssl,sys,urllib.parse,urllib.request
@@ -260,6 +263,10 @@ class RuntimeManager:
     def requirements(self) -> Path:
         return self.repo_root / "requirements.txt"
 
+    @property
+    def requirements_lock(self) -> Path:
+        return self.repo_root / "requirements.lock"
+
     def _resolved_bootstrap(self) -> Optional[str]:
         return self.which(self.bootstrap_python)
 
@@ -296,7 +303,7 @@ class RuntimeManager:
                 raise ValueError("The Python release level is invalid.")
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             return None, "The Python version check returned an invalid response."
-        return version, runtime_security.python_security_error((*version, releaselevel))
+        return version, runtime_security.python_runtime_error((*version, releaselevel))
 
     def _probe_packages(self) -> tuple[list[str], Optional[str]]:
         requirements = self._requirements()
@@ -419,6 +426,11 @@ class RuntimeManager:
         managed_version: Optional[list[int]] = None
         managed_error: Optional[str] = None
         package_error: Optional[str] = None
+        try:
+            validate_runtime_lock(self.requirements, self.requirements_lock)
+        except RuntimeLockError as error:
+            package_error = str(error)
+        lock_error = package_error
 
         if managed_python_exists:
             managed_version, managed_error = self._probe_version(str(self.paths.python))
@@ -427,7 +439,7 @@ class RuntimeManager:
                 package_error = managed_error
 
         self._last_package_details = {"installed": {}, "mismatched": []}
-        if managed_python_exists:
+        if managed_python_exists and not lock_error:
             missing_packages, probe_error = self._probe_packages()
             package_error = probe_error or package_error
         else:
@@ -444,8 +456,10 @@ class RuntimeManager:
             message = "Handbuilt cannot use a supported, security-patched Python runtime."
             reason = managed_error if environment_exists and managed_error else bootstrap_error
             next_action = (
-                f"Use a supported, security-patched Python {MINIMUM_PYTHON[0]}.x interpreter "
-                f"with --bootstrap-python, then run setup. {reason or ''}"
+                f"Use Python {'.'.join(map(str, MINIMUM_PYTHON))} through "
+                f"{'.'.join(map(str, max(runtime_security.SUPPORTED_RUNTIME_BRANCHES)))} "
+                "at the patch levels in tools/runtime_security.py with --bootstrap-python, "
+                f"then run setup. {reason or ''}"
             ).strip()
         elif missing_packages or mismatched_packages or package_error:
             status = "python-package-missing"
@@ -454,6 +468,9 @@ class RuntimeManager:
             else:
                 message = "Handbuilt's private bulletin runtime has not been prepared yet."
             next_action = "The host agent should create the private runtime, then explicitly install its requirements."
+            if lock_error:
+                message = "Handbuilt could not verify its private tools' installation record."
+                next_action = "Repair the installed plugin's requirements and locked wheel hashes before preparing its private tools."
         elif missing_native_tools and capability == "bulletin":
             status = "native-tool-missing"
             message = "Handbuilt's PDF tools need preparation before PDF import or bulletin work."
@@ -667,6 +684,10 @@ class RuntimeManager:
         return final_url
 
     def _candidate_install(self, generation_root: Path, bootstrap: str) -> dict[str, object]:
+        try:
+            locked_requirements = validate_runtime_lock(self.requirements, self.requirements_lock)
+        except RuntimeLockError as error:
+            raise RuntimeSetupError(str(error)) from error
         environment = generation_root / "python"
         completed = self._run(
             (bootstrap, "-I", "-S", "-m", "venv", "--without-pip", str(environment)),
@@ -690,6 +711,16 @@ class RuntimeManager:
 
         wheel = generation_root / ".bootstrap" / "pip-26.2.2-py3-none-any.whl"
         wheel.parent.mkdir()
+        candidate_lock = wheel.parent / "requirements.lock"
+        with locked_requirements.open("rb") as locked_file:
+            locked_bytes = locked_file.read(MAX_RUNTIME_LOCK_BYTES + 1)
+        if len(locked_bytes) > MAX_RUNTIME_LOCK_BYTES:
+            raise RuntimeSetupError("The runtime wheel lock exceeds its size limit.")
+        candidate_lock.write_bytes(locked_bytes)
+        try:
+            validate_runtime_lock(self.requirements, candidate_lock)
+        except RuntimeLockError as error:
+            raise RuntimeSetupError(str(error)) from error
         self._download_pip_wheel(bootstrap, wheel)
         clean_env = {
             key: value for key, value in os.environ.items()
@@ -711,8 +742,9 @@ class RuntimeManager:
             (
                 str(candidate_paths.python), "-I", "-m", "pip", "--isolated",
                 "install", "--disable-pip-version-check", "--no-input", "--no-cache-dir",
+                "--require-hashes", "--only-binary=:all:",
                 "--index-url", PIP_INSTALL_INDEX, "--upgrade",
-                "--requirement", str(self.requirements),
+                "--requirement", str(candidate_lock),
             ),
             timeout=900,
             env=clean_env,
@@ -720,6 +752,7 @@ class RuntimeManager:
         if completed is None or completed.returncode != 0:
             raise RuntimeSetupError(_command_detail(completed))
         wheel.unlink(missing_ok=True)
+        candidate_lock.unlink(missing_ok=True)
         wheel.parent.rmdir()
 
         report = candidate_manager.doctor(capability="workspace")
@@ -732,6 +765,12 @@ class RuntimeManager:
                 raise RuntimeSetupError(str(report.get("technical_detail", report.get("next_action"))))
         else:
             report = candidate_manager.doctor(capability="workspace")
+        marker = generation_root / GENERATION_MARKER
+        with marker.open("x", encoding="utf-8") as output:
+            json.dump({"schema_version": 1, "owner": "handbuilt-church-labs",
+                       "environment": "python", "wheel_lock_sha256": hashlib.sha256(locked_bytes).hexdigest()}, output)
+        report["installation_policy"] = {"binary_only": True, "require_hashes": True,
+                                         "wheel_lock_sha256": hashlib.sha256(locked_bytes).hexdigest()}
         return report
 
     def _stage_and_activate(self, *, operation: str) -> dict[str, object]:
@@ -757,6 +796,12 @@ class RuntimeManager:
                 detail=str(self.requirements),
                 changed=False,
             )
+        try:
+            validate_runtime_lock(self.requirements, self.requirements_lock)
+        except RuntimeLockError as error:
+            return self._failure(operation=operation,
+                                 message="Handbuilt cannot verify its locked runtime requirements.",
+                                 detail=str(error), changed=False)
 
         root = self.paths.root
         root.mkdir(parents=True, exist_ok=True)
@@ -788,7 +833,7 @@ class RuntimeManager:
             if self.paths.environment.exists():
                 previous = self.paths.environment
             generation_root.mkdir()
-            self._candidate_install(generation_root, bootstrap)
+            prepared = self._candidate_install(generation_root, bootstrap)
             new_pointer = self._pointer_value(generation_root / "python", previous)
             activation_attempted = True
             self._write_pointer_bytes(new_pointer)
@@ -806,6 +851,7 @@ class RuntimeManager:
                 "retained_previous": str(previous) if previous is not None and previous.exists() else None,
             }
             selected["migration"] = receipt
+            selected["installation_policy"] = prepared["installation_policy"]
             selected["changed"] = True
             return selected
         except (OSError, RuntimePointerError, RuntimeSetupError) as error:
@@ -1005,6 +1051,10 @@ class RuntimeManager:
                     "retained_previous": str(current), "recovery_required": recovery_required,
                 }
                 return result
+
+
+
+
 
     def native_install(self) -> dict[str, object]:
         """Install Poppler through a detected platform package manager."""

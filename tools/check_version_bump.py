@@ -36,7 +36,7 @@ SHIPPED_PREFIXES = (
     ".agents/",
     ".claude/skills/",
 )
-SHIPPED_FILES = ("requirements.txt",)
+SHIPPED_FILES = ("requirements.txt", "requirements.lock")
 
 
 def shipped(paths: Iterable[str]) -> list[str]:

@@ -24,7 +24,7 @@ with tempfile.TemporaryDirectory(prefix='handbuilt-update-smoke-') as tmp:
     host = base / 'host'
     for relative in ('tools', 'skills', 'scaffold', 'handbook', '.codex-plugin', '.claude-plugin'):
         shutil.copytree(bridge.ROOT / relative, host / relative, ignore=shutil.ignore_patterns('__pycache__'))
-    for name in ('requirements.txt', 'LICENSE'):
+    for name in ('requirements.txt', 'requirements.lock', 'LICENSE'):
         shutil.copy(bridge.ROOT / name, host)
     host_version = updates.package_version(host)
     major, minor, patch = updates.version(host_version)

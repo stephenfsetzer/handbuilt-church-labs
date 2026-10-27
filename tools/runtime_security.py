@@ -2,7 +2,7 @@
 
 This module is policy data only. It does not access the network or install
 software. Reviewed against the official Python release notice and PyPI release
-metadata on 2026-10-26.
+metadata on 2026-10-27.
 
 Primary sources:
 - Python expedited security releases:
@@ -22,6 +22,14 @@ Primary sources:
   https://pypi.org/project/pypdf/6.21.2/
 - Brotli 1.2.1 release metadata:
   https://pypi.org/project/Brotli/1.2.1/
+- PyYAML 6.0.3 release metadata and platform wheel files:
+  https://pypi.org/project/PyYAML/6.0.3/
+- PyYAML 6.0.3 source build requirements:
+  https://github.com/yaml/pyyaml/blob/6.0.3/pyproject.toml
+- zopfli 0.4.3 stable ABI wheel metadata:
+  https://pypi.org/project/zopfli/0.4.3/
+- cffi 2.0.0 supported-branch wheel metadata:
+  https://pypi.org/project/cffi/2.0.0/
 """
 
 from __future__ import annotations
@@ -29,7 +37,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 
-POLICY_AS_OF = "2026-10-26"
+POLICY_AS_OF = "2026-10-27"
 MINIMUM_PYTHON = (3, 11)
 PYTHON_SECURITY_FLOORS = {
     (3, 11): (3, 11, 18),
@@ -38,6 +46,8 @@ PYTHON_SECURITY_FLOORS = {
     (3, 14): (3, 14, 10),
     (3, 15): (3, 15, 2),
 }
+SUPPORTED_RUNTIME_BRANCHES = ((3, 11), (3, 12), (3, 13), (3, 14))
+PYTHON_RUNTIME_SUPPORT_URL = "https://pypi.org/project/PyYAML/6.0.3/"
 
 PIP_VERSION = "26.2.2"
 PIP_WHEEL_URL = (
@@ -106,4 +116,27 @@ def python_security_error(version: object) -> str | None:
         required = ".".join(str(part) for part in floor)
         installed = ".".join(str(part) for part in parts)
         return f"Python {installed} is below the security minimum {required}."
+    return None
+
+
+def python_runtime_error(version: object) -> str | None:
+    """Return why a Python version cannot run the managed plugin runtime.
+
+    Security-reviewed Python 3.15 is deliberately not enabled until every
+    pinned dependency has a compatible PyPI wheel. PyYAML 6.0.3, which is
+    required by the plugin, does not publish CPython 3.15 wheels. The
+    installer uses binary-only dependencies and must not fall back to an
+    unpinned source build.
+    """
+    security_error = python_security_error(version)
+    if security_error is not None:
+        return security_error
+
+    branch = (version[0], version[1])
+    if branch not in SUPPORTED_RUNTIME_BRANCHES:
+        return (
+            f"Python {branch[0]}.{branch[1]} is not yet supported by the managed "
+            f"runtime because a required dependency has no compatible wheel; "
+            f"see {PYTHON_RUNTIME_SUPPORT_URL}"
+        )
     return None

@@ -36,6 +36,7 @@ class FakeRunner:
         self.package_probe_counts = {}
         self.runtime_probe_counts = {}
         self.installed = set()
+        self.installed_lock_text = None
 
     def _requirements(self):
         values = {}
@@ -54,6 +55,7 @@ class FakeRunner:
             python = environment / "bin" / "python"
             python.parent.mkdir(parents=True, exist_ok=True)
             python.write_bytes(b"synthetic interpreter")
+            (environment / "pyvenv.cfg").write_text("home = /synthetic/python\n")
             self.package_versions[str(python)] = {}
             return subprocess.CompletedProcess(command, 0, "", "")
         if runtime.VERSION_PROBE in command:
@@ -69,6 +71,7 @@ class FakeRunner:
             self.installed.add(command[0])
             return subprocess.CompletedProcess(command, 0, "", "")
         if len(command) > 5 and command[1:5] == ["-I", "-m", "pip", "--isolated"]:
+            self.installed_lock_text = Path(command[command.index("--requirement") + 1]).read_text()
             if self.fail_stage == "requirements-install":
                 return subprocess.CompletedProcess(command, 1, "", "synthetic requirements failure")
             self.package_versions[command[0]] = self._requirements()
@@ -121,8 +124,22 @@ class RuntimeManagerTests(unittest.TestCase):
         self.repo.mkdir()
         self.requirements = self.repo / "requirements.txt"
         self.requirements.write_text(REQUIREMENTS, encoding="utf-8")
+        self.lock = self.repo / "requirements.lock"
+        self.write_test_lock()
         self.support = self.base / "user-support" / "runtime"
         self.bootstrap = "/synthetic/python3"
+
+    def write_test_lock(self, pip_hash=None):
+        pip_hash = pip_hash or runtime.runtime_security.PIP_WHEEL_SHA256
+        lines = []
+        for line in self.requirements.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            name = line.split("==", 1)[0].split("[", 1)[0].lower()
+            digest = pip_hash if name == "pip" else hashlib.sha256(("synthetic " + line).encode()).hexdigest()
+            lines.append(line + " --hash=sha256:" + digest)
+        self.lock.write_text("\n".join(lines) + "\n")
 
     def which(self, missing=()):
         missing = set(missing)
@@ -137,6 +154,7 @@ class RuntimeManagerTests(unittest.TestCase):
         return resolve
 
     def downloader(self, data=WHEEL_BYTES, final_url=None):
+        self.write_test_lock(hashlib.sha256(WHEEL_BYTES).hexdigest())
         calls = []
 
         def download(url, destination, max_bytes, timeout):
@@ -161,6 +179,7 @@ class RuntimeManagerTests(unittest.TestCase):
         python = self.support / "python" / "bin" / "python"
         python.parent.mkdir(parents=True)
         python.write_bytes(b"keep this legacy interpreter")
+        (python.parent.parent / "pyvenv.cfg").write_text("home = /synthetic/python\n")
         return python
 
     def test_doctor_is_read_only_when_runtime_is_absent(self):
@@ -325,6 +344,7 @@ class RuntimeManagerTests(unittest.TestCase):
     def test_doctor_reports_pip_version_mismatch(self):
         self.make_legacy_runtime()
         (self.repo / "requirements.txt").write_text("pip==26.2.2\n", encoding="utf-8")
+        self.write_test_lock()
 
         class PipRunner(FakeRunner):
             def __call__(self, command, **kwargs):
@@ -417,6 +437,13 @@ class RuntimeManagerTests(unittest.TestCase):
         pip_install = next(command for command, kwargs in runner.commands if len(command) > 5 and command[1:5] == ["-I", "-m", "pip", "--isolated"])
         options = next(kwargs for command, kwargs in runner.commands if command == pip_install)
         self.assertIn("--index-url", pip_install)
+        self.assertIn("--require-hashes", pip_install)
+        self.assertIn("--only-binary=:all:", pip_install)
+        self.assertTrue(pip_install[pip_install.index("--requirement") + 1].endswith("/.bootstrap/requirements.lock"))
+        self.assertIn("--hash=sha256:", runner.installed_lock_text)
+        self.assertTrue((Path(receipt["current_environment"]).parent / runtime.GENERATION_MARKER).is_file())
+        self.assertEqual(result["installation_policy"], {"binary_only": True, "require_hashes": True,
+                         "wheel_lock_sha256": hashlib.sha256(runner.installed_lock_text.encode()).hexdigest()})
         self.assertEqual(options["env"]["PIP_CONFIG_FILE"], runtime.os.devnull)
         self.assertNotIn("PIP_INDEX_URL", options["env"])
 
@@ -663,6 +690,42 @@ class RuntimeManagerTests(unittest.TestCase):
             result,
             home / "Library" / "Application Support" / "Handbuilt Church Labs" / "runtime",
         )
+
+    def test_missing_or_invalid_wheel_lock_cannot_start_an_installer(self):
+        self.make_legacy_runtime()
+        for content in (None, "--extra-index-url https://example.invalid/simple\n", "pip==26.2.2\n"):
+            with self.subTest(content=content):
+                self.write_test_lock()
+                if content is None:
+                    self.lock.unlink()
+                else:
+                    self.lock.write_text(content)
+                runner = FakeRunner(self.requirements)
+                manager = self.manager(runner)
+                self.assertFalse(manager.doctor()["ready"])
+                result = manager.setup()
+                self.assertEqual(result["status"], "install-failed")
+                self.assertFalse(result["changed"])
+                self.assertFalse(any("venv" in command or runtime.INSTALL_PIP_SCRIPT in command
+                                     for command, _ in runner.commands))
+
+    def test_unsupported_binary_runtime_and_patch_levels_have_clear_host_guidance(self):
+        runner = FakeRunner(self.requirements)
+        runner.versions[self.bootstrap] = (3, 13, 17, "final")
+        report = self.manager(runner).doctor()
+        self.assertIn("Python 3.11 through 3.14", report["next_action"])
+        self.assertIn("3.13.18", report["next_action"])
+        runner.versions[self.bootstrap] = (3, 15, 2, "final")
+        report = self.manager(runner).doctor()
+        self.assertEqual(report["status"], "python-unavailable")
+        self.assertIn("not yet supported", report["python"]["error"])
+
+
+
+
+
+
+
 
     def test_statuses_and_manifest_main_dependencies_are_stable(self):
         self.assertEqual(runtime.runtime_security.PIP_VERSION, "26.2.2")

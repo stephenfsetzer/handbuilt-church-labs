@@ -24,9 +24,11 @@ workspace does not mean PDF work is ready. Existing working installations
 should continue without reinstalling anything or asking extra questions.
 
 Use a supported final Python release that meets the reviewed security floor
-in `tools/runtime_security.py`. The October 26, 2026 floors are 3.11.18,
-3.12.16, 3.13.18, 3.14.10 and 3.15.2. Python 3.10 and unreviewed branches are
-rejected. These floors must be reviewed as upstream security guidance changes.
+in `tools/runtime_security.py`. This release supports Python 3.11 through 3.14,
+with patch floors 3.11.18, 3.12.16, 3.13.18 and 3.14.10. The known Python 3.15
+security floor remains policy data, but runtime setup refuses that branch until
+PyYAML has a compatible binary wheel. Python 3.10 and unreviewed branches are
+rejected. Review both security floors and wheel coverage when changing support.
 The check inspects the managed interpreter itself. Updating another Python on
 the computer does not update an existing private environment.
 
@@ -45,8 +47,12 @@ python3 tools/handbuilt_runtime.py setup --format json
 It uses the inspected patched interpreter to download the published pip wheel
 from its approved HTTPS host and checks the pinned SHA-256 before executing
 that wheel. The first pip install is offline and has no dependencies. Package
-installation then uses patched pip, the explicit PyPI index and the tested
-requirements. Inherited pip configuration and package-cache writes are disabled.
+installation then uses patched pip, the explicit PyPI index and `requirements.lock`,
+which records the SHA-256 hashes of the reviewed wheels for every exact dependency.
+The installer uses `--require-hashes --only-binary=:all:` and verifies a private
+snapshot of the lock before using it. A missing compatible wheel stops setup;
+there is no fallback to source compilation or an unpinned build environment.
+Inherited pip configuration and package-cache writes are disabled.
 No command installs into global site-packages or the church's private folder.
 
 The existing runtime remains untouched while the replacement is prepared.
@@ -71,6 +77,24 @@ Rollback verifies the previous environment against the current security policy
 and requirements. It refuses a downgrade to an affected or incomplete runtime.
 The `migration` receipt identifies the selected and retained environments.
 The plugin does not remove retained generations as part of setup or rollback.
+
+## Maintain the wheel lock
+
+`doctor` validates the lock offline and checks its pins against `requirements.txt`.
+Missing, malformed or changed lock inputs block readiness and setup. Updating a
+pin requires reviewing the official release and refreshing the paired lock
+through an inspected security-patched interpreter:
+
+```bash
+"<patched-python>" -m tools.lock_runtime_requirements --output requirements.lock
+```
+
+This maintainer command reads exact-version PyPI metadata and includes wheel
+hashes only. It never runs during pastor setup. Recheck supported interpreter
+and platform wheel coverage, run the tests and rehearse setup before shipping.
+New installation receipts record the binary-only policy and wheel-lock digest.
+
+## Finish computer preparation
 
 If the result is `native-tool-missing`, read the `native_install` plan from the
 JSON result. Explain that this is a computer-level PDF tool, ask for approval,

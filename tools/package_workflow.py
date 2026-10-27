@@ -19,17 +19,20 @@ import zipfile
 PLUGIN_NAME = "handbuilt-church-labs"
 VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 MANIFESTS = (".codex-plugin/plugin.json", ".claude-plugin/plugin.json")
-EXACT_FILES = ("requirements.txt", "LICENSE", "THIRD-PARTY-NOTICES.md", "README.md", "AGENTS.md", "CLAUDE.md", *MANIFESTS)
+EXACT_FILES = ("requirements.txt", "requirements.lock", "LICENSE", "THIRD-PARTY-NOTICES.md", "README.md", "AGENTS.md", "CLAUDE.md", *MANIFESTS)
 REQUIRED_FILES = (
     "tools/church_workflow.py",
     "tools/handbuilt_runtime.py",
     "tools/runtime_security.py",
+    "tools/runtime_lock.py",
     "tools/image_limits.py",
+    "tools/limited_process.py",
     "tools/workflow_updates.py",
     "tools/plugin_identity.py",
     "tools/instruction_recovery.py",
     "handbook/instruction-recovery.md",
     "requirements.txt",
+    "requirements.lock",
     "LICENSE",
     "scaffold/church-folder/handbuilt.py",
     "skills/bulletin/SKILL.md",
