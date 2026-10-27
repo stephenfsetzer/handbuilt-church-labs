@@ -23,6 +23,8 @@ EXACT_FILES = ("requirements.txt", "LICENSE", "THIRD-PARTY-NOTICES.md", "README.
 REQUIRED_FILES = (
     "tools/church_workflow.py",
     "tools/handbuilt_runtime.py",
+    "tools/runtime_security.py",
+    "tools/image_limits.py",
     "tools/workflow_updates.py",
     "tools/plugin_identity.py",
     "tools/instruction_recovery.py",

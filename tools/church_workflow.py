@@ -190,8 +190,14 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
         else:
             try:
                 validate(selected)
-            except (ValueError, OSError):
-                selected = saved_root
+            except (ValueError, OSError) as error:
+                return {
+                    "status": "blocked", "code": "runtime_upgrade_required", "identity": identity,
+                    "runtime_repair": _runtime_repair_plan(),
+                    "message": "Handbuilt's updated private tools must pass their check before work can continue.",
+                    "technical_detail": str(error)[-800:],
+                    "next_action": "Prepare the updated private tools and retry. The church connection was preserved.",
+                }, 2
     elif not pinned and saved_root != selected and saved_root.is_dir():
         # An explicitly saved host installation can also be newer than this app.
         saved_identity = inspect_installation(saved_root, church)
@@ -278,6 +284,13 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
 
     updates = select_release(selected, store, validate, force=True)
     selected = Path(updates["selected_root"])
+    if updates["status"] == "deferred" and "runtime" in str(updates.get("reason", "")).lower():
+        return {
+            "status": "blocked", "code": "runtime_upgrade_required", "updates": updates,
+            "identity": identity, "runtime_repair": _runtime_repair_plan(),
+            "message": "Handbuilt kept the current workflow because its private tools need an update.",
+            "next_action": "The host should prepare the updated private tools, verify them, and retry the workflow update. Preserve the current church connection.",
+        }, 2
     if selected != ROOT.resolve():
         process = subprocess.run(
             [sys.executable, str(selected / "tools/church_workflow.py"),
@@ -306,16 +319,27 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
     return result, 0 if updates["status"] in {"current", "updated"} else 1
 
 
+def _runtime_repair_plan() -> dict:
+    """Give the host an explicit repair operation without running an install."""
+    return {
+        "command": [sys.executable, str(ROOT / "tools/handbuilt_runtime.py"), "setup", "--format", "json"],
+        "bootstrap_option": "--bootstrap-python",
+        "requires_security_patched_bootstrap": True,
+        "preserves_previous_runtime": True,
+    }
+
+
 def _doctor(workflow: str = "bulletin") -> dict:
     # Keep PDF dependencies and their working check on the workflows that make PDFs.
     # Workspace and sermon tools still require the existing managed packages.
     arguments = (["verify"] if workflow in PDF_WORKFLOWS
                  else ["doctor", "--capability", "workspace"])
     result = subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
-                             *arguments, "--format", "json"], capture_output=True, text=True)
+                             *arguments, "--format", "json"], capture_output=True, text=True, timeout=90)
     report = json.loads(result.stdout)
     if report.get("status") != "ready":
         return {"status": "blocked", "code": "runtime_not_ready", "runtime_check": report,
+                "runtime_repair": _runtime_repair_plan(),
                 "next_action": report.get("next_action", "Follow the runtime check's repair plan, then check again.")}
     return report
 
@@ -598,8 +622,9 @@ def main() -> int:
     print_check = sub.add_parser("check-print", help="Check saved bulletins against the church's print check list")
     print_check.add_argument("--format", choices=("table", "json"), default="table")
     runtime = sub.add_parser("runtime")
-    runtime.add_argument("operation", choices=("doctor", "verify", "setup", "native-install"))
+    runtime.add_argument("operation", choices=("doctor", "verify", "setup", "rollback", "native-install"))
     runtime.add_argument("--capability", choices=("workspace", "bulletin"))
+    runtime.add_argument("--bootstrap-python", help="Use an inspected, security-patched host interpreter for setup")
     for name in WORKFLOWS:
         command = sub.add_parser(name)
         command.add_argument("operation", choices=sorted(OPERATIONS[name]))
@@ -613,6 +638,8 @@ def main() -> int:
             if args.capability and args.operation != "doctor":
                 raise ValueError("Choose a capability only for runtime doctor; verify always checks all PDF tools")
             arguments = (["--capability", args.capability] if args.capability else [])
+            if args.bootstrap_python:
+                arguments += ["--bootstrap-python", args.bootstrap_python]
             return subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
                                    args.operation, *arguments, "--format", "json"]).returncode
         elif args.command == "updates":

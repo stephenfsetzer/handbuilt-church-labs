@@ -11,9 +11,15 @@ from __future__ import annotations
 import html
 import json
 import re
+import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
+
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+if str(PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT))
+from tools.image_limits import MAX_IMAGE_BYTES
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 BUNDLED_FONTS = SKILL_DIR.parent / "bulletin" / "renderer" / "fonts"
@@ -30,6 +36,7 @@ UNORDERED = re.compile(r"^\s*[-*]\s+(.*)$")
 TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
 DECISION_LABELS = ("**Options considered:**", "**Shown on:**", "**Recommended:**", "**Decision:**", "**Why:**")
 WAYFINDING_LABELS = ("**Where you are:**", "**You decide today:**", "**Next you will see:**")
+MAX_GUIDE_BYTES = 1024 * 1024
 
 
 def _inline(text: str) -> str:
@@ -171,8 +178,16 @@ def _font_faces(root: Path, system: dict[str, Any]) -> tuple[str, str, str]:
         if entry and isinstance(entry.get("files"), dict):
             family = entry["family"]
             for face, rel in entry["files"].items():
+                original_path = root / rel
+                if original_path.is_symlink():
+                    raise ValueError(f"Font file for {role}.{face} must be a regular file inside the church folder")
+                font_path = original_path.resolve()
+                if root.resolve() not in font_path.parents or not font_path.is_file():
+                    raise ValueError(f"Font file for {role}.{face} must stay inside the church folder")
+                if font_path.stat().st_size > MAX_IMAGE_BYTES:
+                    raise ValueError(f"Font file for {role}.{face} exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB limit")
                 weight, style = weights.get(face, ("normal", "normal"))
-                src = (root / rel).resolve().as_uri()
+                src = font_path.as_uri()
                 css.append(f'@font-face {{ font-family: "{family}"; src: url("{src}"); font-weight: {weight}; font-style: {style}; }}')
             families[role] = family
     if "display" not in families:
@@ -298,6 +313,8 @@ a {{ color: {pal['accent']}; text-decoration: none; }}
 
 
 def render(root: Path, guide: Path, target: Path) -> dict[str, Any]:
+    if guide.stat().st_size > MAX_GUIDE_BYTES:
+        raise ValueError(f"Brand guide exceeds the {MAX_GUIDE_BYTES // (1024 * 1024)} MiB render limit")
     source, document = build_html(root, guide.read_text(encoding="utf-8"))
     try:
         from weasyprint import HTML  # noqa: WPS433

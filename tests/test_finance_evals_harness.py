@@ -89,15 +89,8 @@ class WorkspaceTests(unittest.TestCase):
             process.assert_not_called()
 
     def test_real_adapter_and_launcher_roundtrip_with_only_local_tools(self):
-        # CI installs the pinned requirements into its test interpreter but need
-        # not create a per-user production runtime. Supply that interpreter at
-        # the managed-runtime seam without installing anything or using network.
-        runtime = self.base / "runtime"
-        runtime.mkdir()
-        (runtime / "python").symlink_to(sys.prefix, target_is_directory=True)
-        environment = patch.dict(os.environ, {"HANDBUILT_RUNTIME_HOME": str(runtime)})
-        environment.start()
-        self.addCleanup(environment.stop)
+        # Run with the verified managed runtime required by the repository's
+        # test recipe. The launcher checks it read-only; this test never installs.
         start = self.server.command(shlex.join([sys.executable, str(self.plugin / "tools/church_workflow.py"),
                                                 "--church-folder", str(self.root), "start", "finance-onboarding"]))
         self.assertEqual(start["exit_code"], 0, start)

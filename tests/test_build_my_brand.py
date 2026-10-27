@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "skills" / "build-my-brand"))
 sys.path.insert(0, str(ROOT / "skills" / "onboarding" / "scripts"))
 
 import brand_setup  # noqa: E402
+import brand_workflow as brand_workflow_module  # noqa: E402
 from brand_workflow import (  # noqa: E402
     DECISION_STAGES, DEVELOP_APPLICATIONS, DIRECTION_APPLICATIONS, INTERVIEW_KEYS, STAGES,
     approve, orient, record, render_guide, restart, stage_brand,
@@ -347,7 +348,7 @@ class BuildMyBrandTest(unittest.TestCase):
     def test_the_brand_book_fills_in_after_every_decision(self):
         first = record(self.church, "roadmap", "Here is the whole engagement on one page.", _metadata("roadmap"))
         book_path = self.church / "brand" / "book.html"
-        self.assertEqual(first["book"], str(book_path))
+        self.assertEqual(Path(first["book"]).resolve(), book_path.resolve())
         page = book_path.read_text()
         self.assertIn('<base href="../">', page)
         self.assertIn("The plan", page)
@@ -645,6 +646,41 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(state["next_stage"], "roadmap")
         self.assertFalse(state["brief"])
         self.assertEqual(record(self.church, "roadmap", "Again.", _metadata("roadmap"))["status"], "recorded")
+
+    def test_brand_system_rejects_font_files_over_byte_limit(self):
+        patch = self._stage_files()
+        staging = self.church / "brand" / "staging"
+        (staging / "marks" / "mark.svg").write_text(MARK)
+        (staging / "marks" / "mark-small.svg").write_text(SMALL)
+        font = staging / "type" / "Display-Regular.ttf"
+        with font.open("wb") as handle:
+            handle.truncate(16 * 1024 * 1024 + 1)
+        with self.assertRaises(brand_workflow_module.WorkflowFailure) as caught:
+            brand_workflow_module._validate_brand_system(
+                self.church.resolve(), patch["brand_system"], under=Path("brand/staging"))
+        self.assertEqual(caught.exception.code, "invalid_type")
+        self.assertIn("font file limit", str(caught.exception))
+
+    def test_brand_guide_rejects_oversized_custom_font_before_render(self):
+        from brand_workflow.guide import _font_faces
+        fonts = self.church / "brand" / "oversized.ttf"
+        fonts.parent.mkdir(parents=True, exist_ok=True)
+        with fonts.open("wb") as handle:
+            handle.truncate(16 * 1024 * 1024 + 1)
+        system = {"type": {"display": {"family": "Test", "files": {"regular": "brand/oversized.ttf"}}}}
+        with self.assertRaisesRegex(ValueError, "Font file.*limit"):
+            _font_faces(self.church.resolve(), system)
+
+    def test_brand_guide_rejects_custom_font_symlinks_before_resolving(self):
+        from brand_workflow.guide import _font_faces
+        external = Path(self.temp.name) / "outside.ttf"
+        external.write_bytes(b"synthetic font")
+        linked = self.church / "brand" / "linked.ttf"
+        linked.parent.mkdir(parents=True, exist_ok=True)
+        linked.symlink_to(external)
+        system = {"type": {"display": {"family": "Test", "files": {"regular": "brand/linked.ttf"}}}}
+        with self.assertRaisesRegex(ValueError, "regular file inside"):
+            _font_faces(self.church.resolve(), system)
 
     # ------------------------------------------------------------ the guide and the command line
 

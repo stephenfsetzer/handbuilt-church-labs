@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -23,6 +24,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+if str(PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT))
+from tools.image_limits import MAX_IMAGE_BYTES
 
 from . import survival
 
@@ -1080,6 +1086,8 @@ def _validate_brand_system(root: Path, system: Any, *, under: Path) -> dict[str,
             rel = _existing(root, raw, f"type.{role}.files.{face}", under=under)
             if rel.suffix.casefold() not in FONT_SUFFIXES:
                 raise WorkflowFailure("invalid_type", f"type.{role}.files.{face} must be a font file", field=f"type.{role}.files.{face}")
+            if (root / rel).stat().st_size > MAX_IMAGE_BYTES:
+                raise WorkflowFailure("invalid_type", f"type.{role}.files.{face} exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB font file limit", field=f"type.{role}.files.{face}")
     palette = system.get("palette")
     if not isinstance(palette, dict) or not palette:
         raise WorkflowFailure("invalid_brand_system", "brand_system.palette needs at least one named color", field="palette")

@@ -8,10 +8,16 @@ import copy
 import json
 import os
 import re
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
+
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+if str(PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT))
+from tools.image_limits import MAX_IMAGE_BYTES, open_raster
 
 
 class BrandSetupError(ValueError):
@@ -105,6 +111,8 @@ def _asset(root: Path, raw: Any, field: str, *, require_valid: bool = True) -> s
         raise BrandSetupError(f"{field} must point to a regular file inside the church folder")
     if require_valid:
         try:
+            if path.stat().st_size > MAX_IMAGE_BYTES:
+                raise ValueError(f"image file exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB limit")
             if path.suffix.casefold() == ".svg":
                 text = path.read_text(encoding="utf-8")
                 lowered = text.casefold()
@@ -120,9 +128,8 @@ def _asset(root: Path, raw: Any, field: str, *, require_valid: bool = True) -> s
                 if element.tag.rsplit("}", 1)[-1].casefold() != "svg":
                     raise ValueError("not an SVG")
             else:
-                from PIL import Image
-                with Image.open(path) as image:
-                    image.verify()
+                with open_raster(path):
+                    pass
         except Exception as exc:
             raise BrandSetupError(f"{field} is not a readable image: {raw}") from exc
     return raw.strip()

@@ -97,18 +97,23 @@ class WorkflowStartTests(unittest.TestCase):
         self.assertEqual(result['installation']['plugin_version'], '0.6.0')
         self.assertEqual(self.connection()['plugin_root'], str(self.new))
 
-    def test_newer_host_with_failed_runtime_falls_back_to_saved_release(self):
+    def test_newer_host_with_failed_runtime_blocks_instead_of_starting_saved_release(self):
         with mock.patch.object(bridge, 'ROOT', self.new):
             bridge.connect(self.church)
         self.change_version(self.host, '0.7.0')
+        paths = [self.church / 'handbuilt.py', self.church / '.handbuilt/installation.json']
+        before = {path: path.read_bytes() for path in paths}
         def dispatch(command, **kwargs):
             if Path(command[1]) == self.host / 'tools/handbuilt_runtime.py':
-                return subprocess.CompletedProcess(command, 2, json.dumps({'status': 'blocked'}), '')
-            return self.dispatch(command, **kwargs)
-        with mock.patch.object(updates, 'select_release', side_effect=lambda root, *_: {'selected_root': str(root), 'status': 'deferred'}), mock.patch.object(bridge.subprocess, 'run', side_effect=dispatch):
+                return subprocess.CompletedProcess(command, 2, json.dumps({'status': 'python-unavailable',
+                    'python': {'managed_version': [3, 14, 6]}}), '')
+            self.fail('A failed security check must not start the saved older workflow')
+        with mock.patch.object(updates, 'select_release') as select, mock.patch.object(bridge.subprocess, 'run', side_effect=dispatch):
             result, code = bridge._start(self.church, 'bulletin')
-        self.assertEqual(code, 0)
-        self.assertEqual(result['installation']['plugin_version'], '0.6.0')
+        self.assertEqual((code, result['code']), (2, 'runtime_upgrade_required'))
+        select.assert_not_called()
+        self.assertEqual(result['runtime_repair']['command'][2], 'setup')
+        self.assertEqual(before, {path: path.read_bytes() for path in paths})
 
     def test_newer_saved_host_installation_is_kept_when_old_app_starts(self):
         cached = self.base / 'other-host-cache'
@@ -185,6 +190,20 @@ class WorkflowStartTests(unittest.TestCase):
         self.assertEqual(ensured['status'], 'updated')
         self.assertEqual(self.connection()['plugin_version'], '0.6.0')
         self.assertEqual(self.connection()['update_policy'], 'stable')
+
+    def test_runtime_upgrade_deferral_preserves_the_church_connection(self):
+        bridge.connect(self.church, update_policy='pinned')
+        paths = [self.church / 'handbuilt.py', self.church / '.handbuilt/installation.json']
+        before = {path: path.read_bytes() for path in paths}
+        deferred = {'status': 'deferred', 'selected_root': str(self.host),
+                    'reason': 'The new workflow needs a runtime change; the current workflow was kept.'}
+        with mock.patch.object(updates, 'select_release', return_value=deferred), \
+                mock.patch.object(bridge.subprocess, 'run') as run:
+            result, code = bridge._ensure_latest(self.church)
+        self.assertEqual((code, result['code']), (2, 'runtime_upgrade_required'))
+        self.assertEqual(result['runtime_repair']['command'][2], 'setup')
+        run.assert_not_called()
+        self.assertEqual(before, {path: path.read_bytes() for path in paths})
 
     def test_ensure_latest_refuses_to_replace_development_checkout(self):
         (self.host / '.git').mkdir()

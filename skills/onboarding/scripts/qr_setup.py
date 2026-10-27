@@ -6,11 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-from PIL import Image
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+if str(PLUGIN_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_ROOT))
+from tools.image_limits import open_raster
 
 
 KINDS = ("connect", "give")
@@ -31,8 +35,9 @@ def _source_image(raw: str | None) -> Path | None:
     path = Path(raw).expanduser().resolve()
     if not path.is_file() or path.suffix.lower() not in RASTER_SUFFIXES:
         raise ValueError("Supplied QR image must be an existing PNG, JPG, or WEBP file")
-    with Image.open(path) as image:
-        image.verify()
+    expected = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}[path.suffix.lower()]
+    with open_raster(path, allowed_formats=frozenset({expected})):
+        pass
     return path
 
 

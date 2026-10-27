@@ -21,6 +21,36 @@ class ChurchConnectionTests(unittest.TestCase):
         self.church = make_church(self.base)
         self.doctor = {"status": "ready", "runtime": {"python": sys.executable}}
 
+    def test_runtime_setup_forwards_the_inspected_bootstrap_without_global_install(self):
+        arguments = ["church_workflow.py", "--church-folder", str(self.church),
+                     "runtime", "setup", "--bootstrap-python", "/synthetic/patched-python"]
+        with mock.patch.object(sys, "argv", arguments), \
+                mock.patch.object(bridge.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(bridge.main(), 0)
+        command = run.call_args.args[0]
+        self.assertEqual(command[1], str(bridge.ROOT / "tools/handbuilt_runtime.py"))
+        self.assertEqual(command[2], "setup")
+        self.assertIn("--bootstrap-python", command)
+        self.assertIn("/synthetic/patched-python", command)
+        self.assertNotIn("pip", command)
+
+    def test_runtime_rollback_uses_the_same_managed_runtime_interface(self):
+        arguments = ["church_workflow.py", "--church-folder", str(self.church), "runtime", "rollback"]
+        with mock.patch.object(sys, "argv", arguments), \
+                mock.patch.object(bridge.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(bridge.main(), 0)
+        self.assertEqual(run.call_args.args[0][2], "rollback")
+
+    def test_failed_runtime_check_gives_a_repair_plan_without_installing(self):
+        failure = {"status": "python-unavailable", "next_action": "Use an inspected patched Python."}
+        with mock.patch.object(bridge.subprocess, "run", return_value=subprocess.CompletedProcess([], 2, json.dumps(failure))) as run:
+            result = bridge._doctor("sermon-research")
+        self.assertEqual(result["code"], "runtime_not_ready")
+        self.assertEqual(result["runtime_repair"]["command"][2], "setup")
+        self.assertTrue(result["runtime_repair"]["requires_security_patched_bootstrap"])
+        self.assertEqual(run.call_count, 1)
+        self.assertNotIn("setup", run.call_args.args[0])
+
     def test_create_connects_new_folder_and_returning_run_preserves_work(self):
         setup = bridge._load_setup()
         created = setup.create(self.base, "new-church")

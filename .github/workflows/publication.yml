@@ -13,6 +13,8 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    env:
+      HANDBUILT_RUNTIME_HOME: ${{ runner.temp }}/handbuilt-runtime
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -21,19 +23,31 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14.10"
       - name: Install Poppler
         run: sudo apt-get update && sudo apt-get install --yes poppler-utils
-      - name: Install Python dependencies
-        run: python -m pip install --requirement requirements.txt
+      - name: Prepare the verified private runtime
+        run: |
+          python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/runtime-setup.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ['RUNNER_TEMP']) / 'runtime-setup.json').read_text())
+          if report.get('status') != 'ready' or not report.get('ready'):
+              raise SystemExit('The private runtime did not pass setup and verification')
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              print('HANDBUILT_TEST_PYTHON=' + report['runtime']['python'], file=output)
+          PY
       - name: Run synthetic regression suite
-        run: python -m unittest discover -s tests -p 'test_*.py'
+        run: '"$HANDBUILT_TEST_PYTHON" -m unittest discover -s tests -p ''test_*.py'''
       - name: Prepare the private runtime for the upgrade rehearsal
         run: |
-          python tools/handbuilt_runtime.py setup --format json
-          python tools/handbuilt_runtime.py verify --format json
+          "$HANDBUILT_TEST_PYTHON" tools/handbuilt_runtime.py doctor --format json
+          "$HANDBUILT_TEST_PYTHON" tools/handbuilt_runtime.py verify --format json
       - name: Rehearse a packaged upgrade with church customizations
-        run: python tests/smoke_managed_updates.py
+        run: '"$HANDBUILT_TEST_PYTHON" tests/smoke_managed_updates.py'
+      - name: Rehearse runtime migration and recovery
+        run: '"$HANDBUILT_TEST_PYTHON" tests/smoke_runtime_migration.py'
       - name: Run public-tree hygiene check
         env:
           PRIVATE_DENYLIST: ${{ secrets.HANDBUILT_PRIVATE_DENYLIST }}
@@ -68,12 +82,12 @@ jobs:
             printf '%s\n\n%s\n' "$RELEASE_NAME" "$RELEASE_BODY" > "$RUNNER_TEMP/release-notes.txt"
             text_args="--text $RUNNER_TEMP/release-notes.txt"
           fi
-          python tools/pii_check.py $text_args
+          "$HANDBUILT_TEST_PYTHON" tools/pii_check.py $text_args
       - name: Build the verified workflow distribution
-        run: python tools/package_workflow.py --output-dir "$RUNNER_TEMP/handbuilt-release"
+        run: '"$HANDBUILT_TEST_PYTHON" tools/package_workflow.py --output-dir "$RUNNER_TEMP/handbuilt-release"'
       - name: Verify the packaged entrypoint
         run: |
-          python - <<'PY'
+          "$HANDBUILT_TEST_PYTHON" - <<'PY'
           import hashlib, os, subprocess, sys
           from pathlib import Path
           from tools.workflow_updates import unpack_verified, package_version, verify_installed

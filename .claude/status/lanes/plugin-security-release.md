@@ -4,13 +4,14 @@ Opened: 2026-10-26 19:37 EDT
 Branch: lane/plugin-security-release
 Owner: Plugin security implementation parent
 Reason: Implement the authorized security release against PRD-plugin-install-and-updates and the reviewed security findings.
-Territory: tools/handbuilt_runtime.py tools/church_workflow.py tools/workflow_updates.py requirements.txt tests/test_handbuilt_runtime.py tests/test_runtime_security.py tests/test_workflow_updates.py tests/smoke_managed_updates.py handbook/runtime-setup.md .github/workflows/publication.yml plugin manifests and integrated PDF/image limit changes
+Territory: runtime security helpers and launcher, package manifest, requirements, related regression tests and migration/font rehearsals, runtime and input-limit handbook pages, publication CI, plugin manifests and integrated PDF/image limit changes. Fixture updates cover the new required package files and the verified runtime test recipe.
 Base: fa64adddac47842a11908ee4b8ba5004d95e1406 (origin/main)
 Retirement plan: Open a reviewed PR to main; preserve this lane until Stephen merges and ownership and recovery checks permit retirement.
 
 ## Ownership log
 
 - 2026-10-26 19:37 EDT: opened by Plugin security implementation parent.
+- 2026-10-26: Integrated reviewed worker changes. Full suite, targeted parser checks, real runtime migration and rollback, workflow upgrade rehearsal, public-data guard and package verification passed. Production installation remains unchanged; this lane is retained for pull request review.
 
 Record a transfer as: `- <date>: from <owner> to <owner> at <commit>; must not touch: <ports, data roots, files>`.
 

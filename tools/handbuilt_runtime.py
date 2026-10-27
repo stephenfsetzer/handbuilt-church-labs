@@ -8,20 +8,29 @@ per-user support directory. Native-tool setup uses an explicit host operation.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools import runtime_security
 
 
 SCHEMA_VERSION = 1
-MINIMUM_PYTHON = (3, 10)
+MINIMUM_PYTHON = runtime_security.MINIMUM_PYTHON
 STATUSES = (
     "ready",
     "python-unavailable",
@@ -36,8 +45,50 @@ PACKAGE_IMPORTS = {
     "PyYAML": "yaml",
     "qrcode[pil]": "qrcode",
 }
-SAFE_PIP_REQUIREMENT = "pip==26.2.1"
 NATIVE_TOOLS = ("pdftoppm", "pdfinfo", "pdffonts", "pdftotext")
+ACTIVE_RUNTIME_POINTER = "active-runtime.json"
+POINTER_SCHEMA_VERSION = 1
+MAX_POINTER_BYTES = 4096
+MAX_PIP_WHEEL_BYTES = 4 * 1024 * 1024
+PIP_WHEEL_TIMEOUT = 30
+PIP_INSTALL_INDEX = "https://pypi.org/simple"
+DOWNLOAD_SCRIPT = r'''import json,os,ssl,sys,urllib.parse,urllib.request
+url,destination,limit,timeout=sys.argv[1],sys.argv[2],int(sys.argv[3]),int(sys.argv[4])
+allowed_host="files.pythonhosted.org"
+def valid(value):
+    parsed=urllib.parse.urlsplit(value)
+    return (parsed.scheme=="https" and parsed.hostname==allowed_host
+            and parsed.username is None and parsed.password is None
+            and parsed.port in (None,443))
+class SafeRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,request,fp,code,message,headers,newurl):
+        if not valid(newurl):
+            raise ValueError("Pip wheel redirect left the approved HTTPS host.")
+        return super().redirect_request(request,fp,code,message,headers,newurl)
+if not valid(url):
+    raise ValueError("Pip wheel URL is not on the approved HTTPS host.")
+opener=urllib.request.build_opener(
+    SafeRedirect,
+    urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+)
+request=urllib.request.Request(url,headers={"User-Agent":"Handbuilt-Runtime-Setup"})
+with opener.open(request,timeout=timeout) as response:
+    final_url=response.geturl()
+    if not valid(final_url):
+        raise ValueError("Pip wheel final URL left the approved HTTPS host.")
+    data=response.read(limit+1)
+if len(data)>limit:
+    raise ValueError("Pip wheel download exceeded its size limit.")
+with open(destination,"xb") as output:
+    output.write(data)
+print(json.dumps({"final_url":final_url,"size":len(data)}))
+'''
+INSTALL_PIP_SCRIPT = r'''import runpy,sys
+wheel=sys.argv[1]
+sys.path.insert(0,wheel)
+sys.argv=["pip","--isolated","install","--no-index","--no-deps","--no-cache-dir","--disable-pip-version-check",wheel]
+runpy.run_module("pip",run_name="__main__")
+'''
 
 
 def _normalize_distribution(name: str) -> str:
@@ -45,7 +96,7 @@ def _normalize_distribution(name: str) -> str:
 
 VERSION_PROBE = (
     "import json,sys; "
-    "print(json.dumps({'version': list(sys.version_info[:3])}))"
+    "print(json.dumps({'version': list(sys.version_info[:3]), 'releaselevel': sys.version_info.releaselevel}))"
 )
 PACKAGE_PROBE = (
     "import importlib.metadata,importlib.util,json,sys; "
@@ -55,6 +106,7 @@ PACKAGE_PROBE = (
 
 Runner = Callable[..., subprocess.CompletedProcess]
 Which = Callable[[str], Optional[str]]
+Downloader = Callable[[str, Path, int, int], str]
 
 
 @dataclass(frozen=True)
@@ -62,6 +114,8 @@ class RuntimePaths:
     root: Path
     environment: Path
     python: Path
+    previous_environment: Optional[Path] = None
+    pointer_error: Optional[str] = None
 
 
 def default_runtime_root(
@@ -89,13 +143,95 @@ def default_runtime_root(
 
 def runtime_paths(root: Path, *, system: Optional[str] = None) -> RuntimePaths:
     system = system or platform.system()
-    environment = root / "python"
+    root = root.expanduser().resolve()
+    try:
+        environment, previous_environment = _active_environment(root)
+        pointer_error = None
+    except RuntimePointerError as error:
+        environment = root / ".invalid-active-runtime"
+        previous_environment = None
+        pointer_error = str(error)
     python = (
         environment / "Scripts" / "python.exe"
         if system == "Windows"
         else environment / "bin" / "python"
     )
-    return RuntimePaths(root=root, environment=environment, python=python)
+    return RuntimePaths(
+        root=root,
+        environment=environment,
+        python=python,
+        previous_environment=previous_environment,
+        pointer_error=pointer_error,
+    )
+
+
+class RuntimePointerError(ValueError):
+    """The active runtime pointer is malformed or escapes its support root."""
+
+
+class RuntimeSetupError(RuntimeError):
+    """A staged runtime failed preparation or validation."""
+
+
+def _safe_environment_relative(value: object, *, allow_none: bool = False) -> Optional[Path]:
+    if value is None and allow_none:
+        return None
+    if not isinstance(value, str) or "\\" in value:
+        raise RuntimePointerError("The active runtime pointer contains an invalid environment path.")
+    relative = PurePosixPath(value)
+    if (relative.is_absolute() or ".." in relative.parts or "." in relative.parts
+            or str(relative) != value):
+        raise RuntimePointerError("The active runtime pointer contains an unsafe environment path.")
+    if value == "python":
+        return Path("python")
+    if (len(relative.parts) == 3 and relative.parts[0] == "generations"
+            and re.fullmatch(r"g-[0-9a-f]{32}", relative.parts[1])
+            and relative.parts[2] == "python"):
+        return Path(*relative.parts)
+    raise RuntimePointerError("The active runtime pointer names an unrecognized environment.")
+
+
+def _check_no_symlink_components(root: Path, relative: Path) -> None:
+    current = root
+    for part in relative.parts:
+        current = current / part
+        try:
+            if current.is_symlink():
+                raise RuntimePointerError("The active runtime path contains a symbolic link.")
+        except OSError as error:
+            raise RuntimePointerError("The active runtime path cannot be inspected safely.") from error
+
+
+def _active_environment(root: Path) -> tuple[Path, Optional[Path]]:
+    pointer = root / ACTIVE_RUNTIME_POINTER
+    if not pointer.exists() and not pointer.is_symlink():
+        relative = Path("python")
+        _check_no_symlink_components(root, relative)
+        return root / relative, None
+    if pointer.is_symlink():
+        raise RuntimePointerError("The active runtime pointer must not be a symbolic link.")
+    try:
+        info = pointer.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_POINTER_BYTES:
+            raise RuntimePointerError("The active runtime pointer is not a bounded regular file.")
+        value = json.loads(pointer.read_bytes().decode("utf-8"))
+    except RuntimePointerError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimePointerError("The active runtime pointer cannot be read safely.") from error
+    if not isinstance(value, dict) or value.get("schema_version") != POINTER_SCHEMA_VERSION:
+        raise RuntimePointerError("The active runtime pointer has an unsupported format.")
+    relative = _safe_environment_relative(value.get("environment"))
+    previous_relative = _safe_environment_relative(value.get("previous_environment"), allow_none=True)
+    assert relative is not None
+    _check_no_symlink_components(root, relative)
+    if previous_relative is not None:
+        _check_no_symlink_components(root, previous_relative)
+    environment = root / relative
+    previous_environment = root / previous_relative if previous_relative is not None else None
+    if previous_environment == environment:
+        raise RuntimePointerError("The active and previous runtime paths must differ.")
+    return environment, previous_environment
 
 
 class RuntimeManager:
@@ -110,6 +246,7 @@ class RuntimeManager:
         system: Optional[str] = None,
         runner: Runner = subprocess.run,
         which: Which = shutil.which,
+        downloader: Optional[Downloader] = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.system = system or platform.system()
@@ -117,6 +254,7 @@ class RuntimeManager:
         self.bootstrap_python = bootstrap_python
         self.runner = runner
         self.which = which
+        self.downloader = downloader
 
     @property
     def requirements(self) -> Path:
@@ -126,7 +264,8 @@ class RuntimeManager:
         return self.which(self.bootstrap_python)
 
     def _run(
-        self, command: Sequence[str], *, timeout: int
+        self, command: Sequence[str], *, timeout: int,
+        env: Optional[Mapping[str, str]] = None,
     ) -> Optional[subprocess.CompletedProcess]:
         try:
             return self.runner(
@@ -136,6 +275,7 @@ class RuntimeManager:
                 text=True,
                 timeout=timeout,
                 check=False,
+                env=dict(env) if env is not None else None,
             )
         except (OSError, subprocess.SubprocessError):
             return None
@@ -143,7 +283,7 @@ class RuntimeManager:
     def _probe_version(
         self, python: str
     ) -> tuple[Optional[list[int]], Optional[str]]:
-        completed = self._run((python, "-I", "-B", "-c", VERSION_PROBE), timeout=20)
+        completed = self._run((python, "-I", "-S", "-B", "-c", VERSION_PROBE), timeout=20)
         if completed is None:
             return None, "The Python process could not start."
         if completed.returncode != 0:
@@ -151,11 +291,12 @@ class RuntimeManager:
         try:
             value = json.loads(completed.stdout)
             version = [int(part) for part in value["version"]]
+            releaselevel = value["releaselevel"]
+            if not isinstance(releaselevel, str):
+                raise ValueError("The Python release level is invalid.")
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             return None, "The Python version check returned an invalid response."
-        if tuple(version[:2]) < MINIMUM_PYTHON:
-            return version, f"Python {MINIMUM_PYTHON[0]}.{MINIMUM_PYTHON[1]} or newer is required."
-        return version, None
+        return version, runtime_security.python_security_error((*version, releaselevel))
 
     def _probe_packages(self) -> tuple[list[str], Optional[str]]:
         requirements = self._requirements()
@@ -266,7 +407,9 @@ class RuntimeManager:
         bootstrap = self._resolved_bootstrap()
         bootstrap_version: Optional[list[int]] = None
         bootstrap_error: Optional[str] = None
-        if bootstrap is None:
+        if self.paths.pointer_error:
+            bootstrap_error = self.paths.pointer_error
+        elif bootstrap is None:
             bootstrap_error = "No usable Python 3 interpreter was found."
         else:
             bootstrap_version, bootstrap_error = self._probe_version(bootstrap)
@@ -274,6 +417,7 @@ class RuntimeManager:
         environment_exists = self.paths.environment.is_dir()
         managed_python_exists = self.paths.python.is_file()
         managed_version: Optional[list[int]] = None
+        managed_error: Optional[str] = None
         package_error: Optional[str] = None
 
         if managed_python_exists:
@@ -294,12 +438,15 @@ class RuntimeManager:
         native_install = self.native_install_plan()
 
         mismatched_packages = self._last_package_details.get("mismatched", [])
-        if (not environment_exists and bootstrap_error) or (
-            environment_exists and not managed_python_exists
-        ):
+        if (self.paths.pointer_error or (environment_exists and not managed_python_exists)
+                or (not environment_exists and bootstrap_error)):
             status = "python-unavailable"
-            message = "Handbuilt cannot find a usable Python 3 runtime."
-            next_action = f"Use an available Python {MINIMUM_PYTHON[0]}.{MINIMUM_PYTHON[1]} or newer interpreter with --bootstrap-python, then run the check again."
+            message = "Handbuilt cannot use a supported, security-patched Python runtime."
+            reason = managed_error if environment_exists and managed_error else bootstrap_error
+            next_action = (
+                f"Use a supported, security-patched Python {MINIMUM_PYTHON[0]}.x interpreter "
+                f"with --bootstrap-python, then run setup. {reason or ''}"
+            ).strip()
         elif missing_packages or mismatched_packages or package_error:
             status = "python-package-missing"
             if environment_exists:
@@ -338,6 +485,11 @@ class RuntimeManager:
                 "python": str(self.paths.python),
                 "environment_exists": environment_exists,
                 "managed_python_exists": managed_python_exists,
+                "previous_environment": (
+                    str(self.paths.previous_environment)
+                    if self.paths.previous_environment is not None else None
+                ),
+                "pointer_error": self.paths.pointer_error,
             },
             "python": {
                 "bootstrap": bootstrap,
@@ -345,6 +497,7 @@ class RuntimeManager:
                 "managed_version": managed_version,
                 "minimum_version": ".".join(str(part) for part in MINIMUM_PYTHON),
                 "error": bootstrap_error,
+                "managed_error": managed_error,
             },
             "python_packages": {
                 "required": list(self._requirements()),
@@ -397,30 +550,339 @@ class RuntimeManager:
             })
         return report
 
-    def create_environment(self) -> dict[str, object]:
-        """Create or repair the venv, but never install repository packages."""
-        bootstrap = self._resolved_bootstrap()
-        if bootstrap is None:
-            return self.doctor(operation="create")
-        _, error = self._probe_version(bootstrap)
-        if error:
-            return self.doctor(operation="create")
+    def _runtime_lock(self):
+        from tools.workflow_updates import file_lock
 
-        self.paths.root.mkdir(parents=True, exist_ok=True)
+        return file_lock(self.paths.root / "runtime.lock")
+
+    def _read_pointer_bytes(self) -> Optional[bytes]:
+        pointer = self.paths.root / ACTIVE_RUNTIME_POINTER
+        if not pointer.exists() and not pointer.is_symlink():
+            return None
+        if pointer.is_symlink():
+            raise RuntimePointerError("The active runtime pointer must not be a symbolic link.")
+        info = pointer.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_POINTER_BYTES:
+            raise RuntimePointerError("The active runtime pointer is not a bounded regular file.")
+        return pointer.read_bytes()
+
+    def _write_pointer_bytes(self, data: Optional[bytes]) -> None:
+        root = self.paths.root
+        root.mkdir(parents=True, exist_ok=True)
+        pointer = root / ACTIVE_RUNTIME_POINTER
+        if pointer.is_symlink():
+            raise RuntimePointerError("The active runtime pointer must not be a symbolic link.")
+        if data is None:
+            pointer.unlink(missing_ok=True)
+            return
+        if len(data) > MAX_POINTER_BYTES:
+            raise RuntimePointerError("The active runtime pointer exceeds its size limit.")
+        if pointer.exists():
+            info = pointer.lstat()
+            if not stat.S_ISREG(info.st_mode):
+                raise RuntimePointerError("The active runtime pointer must be a regular file.")
+        descriptor, temporary_name = tempfile.mkstemp(prefix=".active-runtime-", dir=root)
+        try:
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "wb") as temporary:
+                temporary.write(data)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            os.replace(temporary_name, pointer)
+            try:
+                directory = os.open(root, os.O_RDONLY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+            except OSError:
+                pass
+        finally:
+            Path(temporary_name).unlink(missing_ok=True)
+
+    def _pointer_value(self, current: Optional[Path], previous: Optional[Path]) -> bytes:
+        def relative(path: Optional[Path]) -> Optional[str]:
+            if path is None:
+                return None
+            try:
+                value = path.resolve(strict=True).relative_to(self.paths.root.resolve()).as_posix()
+            except (OSError, ValueError) as error:
+                raise RuntimePointerError("A runtime generation is outside its support directory.") from error
+            _safe_environment_relative(value)
+            _check_no_symlink_components(self.paths.root, Path(value))
+            return value
+
+        payload = {
+            "schema_version": POINTER_SCHEMA_VERSION,
+            "environment": relative(current),
+            "previous_environment": relative(previous),
+        }
+        return (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+    def _download_pip_wheel(self, bootstrap: str, destination: Path) -> str:
+        if self.downloader is not None:
+            final_url = self.downloader(
+                runtime_security.PIP_WHEEL_URL,
+                destination,
+                MAX_PIP_WHEEL_BYTES,
+                PIP_WHEEL_TIMEOUT,
+            )
+        else:
+            completed = self._run(
+                (
+                    bootstrap, "-I", "-S", "-c", DOWNLOAD_SCRIPT,
+                    runtime_security.PIP_WHEEL_URL, str(destination),
+                    str(MAX_PIP_WHEEL_BYTES), str(PIP_WHEEL_TIMEOUT),
+                ),
+                timeout=PIP_WHEEL_TIMEOUT + 5,
+            )
+            if completed is None or completed.returncode != 0:
+                raise RuntimeSetupError(_command_detail(completed))
+            try:
+                final_url = json.loads(completed.stdout)["final_url"]
+            except (TypeError, KeyError, json.JSONDecodeError) as error:
+                raise RuntimeSetupError("The pip wheel downloader returned an invalid response.") from error
+
+        from urllib.parse import urlsplit
+
+        try:
+            source = urlsplit(runtime_security.PIP_WHEEL_URL)
+            final = urlsplit(final_url) if isinstance(final_url, str) else None
+        except ValueError as error:
+            raise RuntimeSetupError("The pip wheel download returned an invalid URL.") from error
+        if (source.scheme != "https" or source.hostname != "files.pythonhosted.org"
+                or source.username is not None or source.password is not None
+                or final is None or final.scheme != "https"
+                or final.hostname != "files.pythonhosted.org" or final.username is not None
+                or final.password is not None or final.port not in (None, 443)):
+            raise RuntimeSetupError("The pip wheel download did not stay on the approved HTTPS host.")
+        if not destination.is_file() or destination.is_symlink():
+            raise RuntimeSetupError("The pip wheel downloader did not create a regular file.")
+        if destination.stat().st_size <= 0 or destination.stat().st_size > MAX_PIP_WHEEL_BYTES:
+            raise RuntimeSetupError("The pip wheel download has an invalid size.")
+        digest = hashlib.sha256(destination.read_bytes()).hexdigest()
+        if digest != runtime_security.PIP_WHEEL_SHA256:
+            raise RuntimeSetupError("The pip wheel failed its SHA-256 check.")
+        return final_url
+
+    def _candidate_install(self, generation_root: Path, bootstrap: str) -> dict[str, object]:
+        environment = generation_root / "python"
         completed = self._run(
-            (bootstrap, "-m", "venv", str(self.paths.environment)),
+            (bootstrap, "-I", "-S", "-m", "venv", "--without-pip", str(environment)),
             timeout=180,
         )
         if completed is None or completed.returncode != 0:
+            raise RuntimeSetupError(_command_detail(completed))
+        candidate_paths = runtime_paths(generation_root, system=self.system)
+        candidate_manager = RuntimeManager(
+            repo_root=self.repo_root,
+            runtime_root=generation_root,
+            bootstrap_python=bootstrap,
+            system=self.system,
+            runner=self.runner,
+            which=self.which,
+            downloader=self.downloader,
+        )
+        _, candidate_error = candidate_manager._probe_version(str(candidate_paths.python))
+        if candidate_error:
+            raise RuntimeSetupError(candidate_error)
+
+        wheel = generation_root / ".bootstrap" / "pip-26.2.2-py3-none-any.whl"
+        wheel.parent.mkdir()
+        self._download_pip_wheel(bootstrap, wheel)
+        clean_env = {
+            key: value for key, value in os.environ.items()
+            if not key.upper().startswith("PIP_")
+        }
+        clean_env["PIP_CONFIG_FILE"] = os.devnull
+        completed = self._run(
+            (
+                str(candidate_paths.python), "-I", "-c", INSTALL_PIP_SCRIPT,
+                str(wheel),
+            ),
+            timeout=180,
+            env=clean_env,
+        )
+        if completed is None or completed.returncode != 0:
+            raise RuntimeSetupError(_command_detail(completed))
+
+        completed = self._run(
+            (
+                str(candidate_paths.python), "-I", "-m", "pip", "--isolated",
+                "install", "--disable-pip-version-check", "--no-input", "--no-cache-dir",
+                "--index-url", PIP_INSTALL_INDEX, "--upgrade",
+                "--requirement", str(self.requirements),
+            ),
+            timeout=900,
+            env=clean_env,
+        )
+        if completed is None or completed.returncode != 0:
+            raise RuntimeSetupError(_command_detail(completed))
+        wheel.unlink(missing_ok=True)
+        wheel.parent.rmdir()
+
+        report = candidate_manager.doctor(capability="workspace")
+        if report["status"] != "ready":
+            raise RuntimeSetupError(str(report.get("next_action", "The candidate runtime failed its package check.")))
+        missing_native = report.get("native_tools", {}).get("missing", [])
+        if not missing_native:
+            report = candidate_manager.verify()
+            if report["status"] != "ready":
+                raise RuntimeSetupError(str(report.get("technical_detail", report.get("next_action"))))
+        else:
+            report = candidate_manager.doctor(capability="workspace")
+        return report
+
+    def _stage_and_activate(self, *, operation: str) -> dict[str, object]:
+        if self.paths.pointer_error:
             return self._failure(
-                operation="create",
-                message="Handbuilt could not create its private bulletin runtime.",
-                detail=_command_detail(completed),
+                operation=operation,
+                message="Handbuilt could not safely read the active runtime selection.",
+                detail=self.paths.pointer_error,
+                changed=False,
             )
-        return self.doctor(operation="create", changed=True)
+        bootstrap = self._resolved_bootstrap()
+        if bootstrap is None:
+            return self._failure(operation=operation, message="Handbuilt needs a patched Python to prepare a replacement runtime.",
+                                 detail="Use --bootstrap-python with an inspected, supported interpreter.", changed=False)
+        bootstrap_version, bootstrap_error = self._probe_version(bootstrap)
+        if bootstrap_error:
+            return self._failure(operation=operation, message="Handbuilt cannot use this Python to prepare a replacement runtime.",
+                                 detail=bootstrap_error, changed=False)
+        if not self.requirements.is_file():
+            return self._failure(
+                operation=operation,
+                message="Handbuilt cannot find its runtime requirements file.",
+                detail=str(self.requirements),
+                changed=False,
+            )
+
+        root = self.paths.root
+        root.mkdir(parents=True, exist_ok=True)
+        generations = root / "generations"
+        if generations.is_symlink():
+            return self._failure(
+                operation=operation,
+                message="Handbuilt cannot safely create a runtime generation.",
+                detail="The generations directory must not be a symbolic link.",
+                changed=False,
+            )
+        generations.mkdir(exist_ok=True)
+        generation_root = generations / f"g-{uuid.uuid4().hex}"
+        old_pointer: Optional[bytes] = None
+        previous = None
+        activation_attempted = False
+        if not generation_root.parent.resolve().is_relative_to(root.resolve()):
+            return self._failure(
+                operation=operation,
+                message="Handbuilt could not safely create a runtime generation.",
+                detail="The generations directory is outside the runtime support directory.",
+                changed=False,
+            )
+        try:
+            old_pointer = self._read_pointer_bytes()
+            self.paths = runtime_paths(root, system=self.system)
+            if self.paths.pointer_error:
+                raise RuntimePointerError(self.paths.pointer_error)
+            if self.paths.environment.exists():
+                previous = self.paths.environment
+            generation_root.mkdir()
+            self._candidate_install(generation_root, bootstrap)
+            new_pointer = self._pointer_value(generation_root / "python", previous)
+            activation_attempted = True
+            self._write_pointer_bytes(new_pointer)
+            self.paths = runtime_paths(root, system=self.system)
+            selected = self.doctor(operation=operation)
+            if selected["status"] not in {"ready", "native-tool-missing"}:
+                self._write_pointer_bytes(old_pointer)
+                self.paths = runtime_paths(root, system=self.system)
+                raise RuntimeSetupError(str(selected.get("next_action", "The selected runtime did not pass verification.")))
+            receipt = {
+                "previous_environment": str(previous) if previous is not None else None,
+                "current_environment": str(self.paths.environment),
+                "changed": True,
+                "verified": True,
+                "retained_previous": str(previous) if previous is not None and previous.exists() else None,
+            }
+            selected["migration"] = receipt
+            selected["changed"] = True
+            return selected
+        except (OSError, RuntimePointerError, RuntimeSetupError) as error:
+            recovery_required = False
+            try:
+                current, _ = _active_environment(root)
+                if activation_attempted and current == generation_root / "python":
+                    try:
+                        self._write_pointer_bytes(old_pointer)
+                        if self._read_pointer_bytes() != old_pointer:
+                            recovery_required = True
+                    except (OSError, RuntimePointerError):
+                        recovery_required = True
+                if activation_attempted:
+                    current_after_restore, _ = _active_environment(root)
+                    if (current_after_restore == generation_root / "python"
+                            or self._read_pointer_bytes() != old_pointer):
+                        recovery_required = True
+            except (OSError, RuntimePointerError):
+                recovery_required = activation_attempted
+            self.paths = runtime_paths(root, system=self.system)
+            if (not recovery_required and generation_root.exists()
+                    and not generation_root.is_symlink()):
+                shutil.rmtree(generation_root, ignore_errors=True)
+            detail = str(error)[-800:]
+            if recovery_required:
+                detail = (detail + " Prior runtime restoration could not be verified. ")[-800:]
+            result = self._failure(
+                operation=operation,
+                message=("Handbuilt could not restore the prior runtime selection; the candidate was retained for recovery."
+                         if recovery_required else
+                         "Handbuilt could not prepare and verify a replacement private runtime."),
+                detail=detail,
+                changed=recovery_required,
+            )
+            result["migration"] = {
+                "previous_environment": str(previous) if previous is not None else None,
+                "current_environment": str(self.paths.environment),
+                "changed": recovery_required,
+                "verified": False,
+                "retained_previous": str(previous) if previous is not None and previous.exists() else None,
+                "recovery_required": recovery_required,
+            }
+            return result
+
+    def create_environment(self) -> dict[str, object]:
+        """Create an empty legacy venv only when its path is absent."""
+        self.paths.root.mkdir(parents=True, exist_ok=True)
+        with self._runtime_lock() as acquired:
+            if not acquired:
+                return self._failure(operation="create", message="Runtime setup is already in progress.",
+                                     detail="Retry after the active runtime operation finishes.", changed=False)
+            self.paths = runtime_paths(self.paths.root, system=self.system)
+            if self.paths.pointer_error:
+                return self._failure(operation="create", message="The active runtime selection is invalid.",
+                                     detail=self.paths.pointer_error, changed=False)
+            if self.paths.environment.exists() or self.paths.python.exists():
+                return self._failure(operation="create", message="An existing private runtime was preserved.",
+                                     detail="Create does not overwrite an existing runtime. Use setup to prepare a replacement.",
+                                     changed=False)
+            bootstrap = self._resolved_bootstrap()
+            if bootstrap is None or self._probe_version(bootstrap)[1]:
+                return self.doctor(operation="create")
+            completed = self._run(
+                (bootstrap, "-I", "-S", "-m", "venv", "--without-pip", str(self.paths.environment)),
+                timeout=180,
+            )
+            if completed is None or completed.returncode != 0:
+                return self._failure(operation="create", message="Handbuilt could not create its private runtime.",
+                                     detail=_command_detail(completed), changed=False)
+            return self.doctor(operation="create", changed=True)
 
     def install_requirements(self) -> dict[str, object]:
-        """Install requirements into an existing managed venv only."""
+        """Safely stage and activate requirements for an existing environment."""
+        self.paths = runtime_paths(self.paths.root, system=self.system)
+        if self.paths.pointer_error:
+            return self._failure(operation="install", message="The active runtime selection is invalid.",
+                                 detail=self.paths.pointer_error, changed=False)
         if not self.paths.python.is_file():
             return self._failure(
                 operation="install",
@@ -428,53 +890,120 @@ class RuntimeManager:
                 detail="Run the create operation before the install operation.",
                 changed=False,
             )
-        if not self.requirements.is_file():
-            return self._failure(
-                operation="install",
-                message="Handbuilt cannot find its runtime requirements file.",
-                detail=str(self.requirements),
-                changed=False,
-            )
-
-        completed = self._run(
-            (
-                str(self.paths.python),
-                "-m",
-                "pip",
-                "install",
-                "--disable-pip-version-check",
-                "--upgrade",
-                "--requirement",
-                str(self.requirements),
-            ),
-            timeout=900,
-        )
-        if completed is None or completed.returncode != 0:
-            return self._failure(
-                operation="install",
-                message="Handbuilt could not finish preparing its private bulletin runtime.",
-                detail=_command_detail(completed),
-                changed=True,
-            )
-        return self.doctor(operation="install", changed=True)
+        self.paths.root.mkdir(parents=True, exist_ok=True)
+        with self._runtime_lock() as acquired:
+            if not acquired:
+                return self._failure(operation="install", message="Runtime setup is already in progress.",
+                                     detail="Retry after the active runtime operation finishes.", changed=False)
+            self.paths = runtime_paths(self.paths.root, system=self.system)
+            if self.paths.pointer_error:
+                return self._failure(operation="install", message="The active runtime selection is invalid.",
+                                     detail=self.paths.pointer_error, changed=False)
+            if not self.paths.python.is_file():
+                return self._failure(operation="install", message="Handbuilt's private runtime is missing.",
+                                     detail="Run setup to create a replacement runtime.", changed=False)
+            return self._stage_and_activate(operation="install")
 
     def setup(self) -> dict[str, object]:
-        """Prepare the private runtime, then verify the complete host setup."""
+        """Stage, verify, and select a patched runtime without replacing the old one."""
         current = self.doctor(operation="setup")
-        if str(current["status"]) in {"ready", "native-tool-missing"}:
+        if current["status"] in {"ready", "native-tool-missing"}:
             return current
-        if str(current["status"]) != "python-package-missing":
+        if current.get("runtime", {}).get("pointer_error"):
             return current
+        if current["status"] == "python-unavailable" and current.get("python", {}).get("error"):
+            bootstrap = self._resolved_bootstrap()
+            if bootstrap is None or self._probe_version(bootstrap)[1]:
+                return current
+        self.paths.root.mkdir(parents=True, exist_ok=True)
+        with self._runtime_lock() as acquired:
+            if not acquired:
+                return self._failure(operation="setup", message="Runtime setup is already in progress.",
+                                     detail="Retry after the active runtime operation finishes.", changed=False)
+            self.paths = runtime_paths(self.paths.root, system=self.system)
+            current = self.doctor(operation="setup")
+            if current["status"] in {"ready", "native-tool-missing"}:
+                return current
+            return self._stage_and_activate(operation="setup")
 
-        if not self.paths.python.is_file():
-            created = self.create_environment()
-            if str(created["status"]) in {"python-unavailable", "install-failed"}:
-                created["operation"] = "setup"
-                return created
-
-        installed = self.install_requirements()
-        installed["operation"] = "setup"
-        return installed
+    def rollback(self) -> dict[str, object]:
+        """Select the retained previous generation only if it meets current policy."""
+        self.paths.root.mkdir(parents=True, exist_ok=True)
+        with self._runtime_lock() as acquired:
+            if not acquired:
+                return self._failure(operation="rollback", message="Runtime setup is already in progress.",
+                                     detail="Retry after the active runtime operation finishes.", changed=False)
+            self.paths = runtime_paths(self.paths.root, system=self.system)
+            if self.paths.pointer_error:
+                return self._failure(operation="rollback", message="The active runtime selection is invalid.",
+                                     detail=self.paths.pointer_error, changed=False)
+            previous = self.paths.previous_environment
+            if previous is None or not previous.is_dir():
+                return self._failure(operation="rollback", message="No retained runtime is available for rollback.",
+                                     detail="The previous runtime directory is missing.", changed=False)
+            previous_manager = RuntimeManager(
+                repo_root=self.repo_root,
+                runtime_root=previous.parent,
+                bootstrap_python=self.bootstrap_python,
+                system=self.system,
+                runner=self.runner,
+                which=self.which,
+                downloader=self.downloader,
+            )
+            previous_manager.paths = RuntimePaths(
+                root=self.paths.root,
+                environment=previous,
+                python=(previous / "Scripts" / "python.exe" if self.system == "Windows"
+                        else previous / "bin" / "python"),
+            )
+            previous_report = previous_manager.doctor(capability="workspace")
+            if previous_report["status"] == "ready" and not previous_report["native_tools"]["missing"]:
+                previous_report = previous_manager.verify()
+            if previous_report["status"] != "ready":
+                return self._failure(
+                    operation="rollback",
+                    message="The retained runtime does not meet the current security policy.",
+                    detail=str(previous_report.get("next_action", previous_report.get("python", {}).get("managed_error"))),
+                    changed=False,
+                )
+            old_pointer = self._read_pointer_bytes()
+            current = self.paths.environment
+            try:
+                self._write_pointer_bytes(self._pointer_value(previous, current))
+                self.paths = runtime_paths(self.paths.root, system=self.system)
+                selected = self.doctor(operation="rollback")
+                if selected["status"] not in {"ready", "native-tool-missing"}:
+                    raise RuntimeSetupError(str(selected.get("next_action", "Rollback verification failed.")))
+                selected["changed"] = True
+                selected["migration"] = {
+                    "previous_environment": str(current),
+                    "current_environment": str(previous),
+                    "changed": True,
+                    "verified": True,
+                    "retained_previous": str(current),
+                }
+                return selected
+            except (OSError, RuntimePointerError, RuntimeSetupError) as error:
+                recovery_required = False
+                try:
+                    self._write_pointer_bytes(old_pointer)
+                    recovery_required = self._read_pointer_bytes() != old_pointer
+                except (OSError, RuntimePointerError):
+                    recovery_required = True
+                self.paths = runtime_paths(self.paths.root, system=self.system)
+                result = self._failure(
+                    operation="rollback",
+                    message=("Handbuilt could not restore the prior selection after a failed rollback; both runtimes were retained."
+                             if recovery_required else "Handbuilt could not verify the rollback."),
+                    detail=str(error)[-800:], changed=recovery_required,
+                )
+                result["migration"] = {
+                    "previous_environment": str(current),
+                    "current_environment": str(self.paths.environment),
+                    "changed": recovery_required, "verified": False,
+                    "retained_previous": str(current), "recovery_required": recovery_required,
+                }
+                return result
 
     def native_install(self) -> dict[str, object]:
         """Install Poppler through a detected platform package manager."""
@@ -600,6 +1129,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("native-install", "Install native PDF tools through a detected package manager."),
         ("create", "Create the private Python environment without installing packages."),
         ("install", "Install repository requirements into the existing private environment."),
+        ("rollback", "Restore the retained runtime after validating it against current security policy."),
     ):
         child = subparsers.add_parser(operation, help=help_text)
         child.add_argument("--format", choices=("human", "json"), default="human")
@@ -629,6 +1159,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         result = manager.native_install()
     elif args.operation == "create":
         result = manager.create_environment()
+    elif args.operation == "rollback":
+        result = manager.rollback()
     else:
         result = manager.install_requirements()
 
@@ -639,7 +1171,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if result["status"] == "install-failed":
         return 20
-    if args.operation in {"doctor", "verify"} and result["status"] != "ready":
+    if args.operation in {"doctor", "verify", "setup", "install", "rollback"} and result["status"] not in (
+            {"ready", "native-tool-missing"} if args.operation in {"setup", "install", "rollback"}
+            else {"ready"}):
         return 2
     return 0
 
