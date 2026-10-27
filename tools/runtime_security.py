@@ -13,6 +13,9 @@ Primary sources:
   https://pypi.org/project/pip/26.2.2/
 - certifi 2026.10.19 release and provenance:
   https://pypi.org/project/certifi/2026.10.19/
+- setuptools legacy Windows wheel-installation fix and release:
+  https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w
+  https://pypi.org/project/setuptools/84.1.0/
 - Pillow 13.0.0 release metadata:
   https://pypi.org/project/Pillow/13.0.0/
 - pypdf 6.21.2 release metadata:

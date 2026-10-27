@@ -7,7 +7,7 @@ PyYAML==6.0.3
 qrcode[pil]==8.2
 pip==26.2.2
 certifi==2026.10.19
-setuptools==83.0.0
+setuptools==84.1.0
 brotli==1.2.1
 cffi==2.0.0
 cssselect2==0.8.0

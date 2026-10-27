@@ -27,12 +27,13 @@ class RuntimeSecurityPolicyTests(unittest.TestCase):
     def test_manifest_has_the_verified_security_pins(self):
         pins = read_requirement_pins()
         self.assertEqual(
-            {name: pins[name] for name in ("pip", "certifi", "brotli", "pillow", "pypdf")},
+            {name: pins[name] for name in ("pip", "certifi", "setuptools", "brotli", "pillow", "pypdf")},
             {
                 "pip": security.PIP_VERSION,
                 "certifi": security.CERTIFI_MINIMUM,
                 "brotli": "1.2.1",
                 "pillow": "13.0.0",
+                "setuptools": "84.1.0",
                 "pypdf": "6.21.2",
             },
         )
