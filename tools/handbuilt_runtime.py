@@ -53,6 +53,8 @@ MAX_POINTER_BYTES = 4096
 MAX_PIP_WHEEL_BYTES = 4 * 1024 * 1024
 MAX_RUNTIME_LOCK_BYTES = 1024 * 1024
 GENERATION_MARKER = ".handbuilt-runtime-generation.json"
+MAX_PRUNE_GENERATIONS = 1000
+MAX_PRUNE_TREE_ENTRIES = 100_000
 PIP_WHEEL_TIMEOUT = 30
 PIP_INSTALL_INDEX = "https://pypi.org/simple"
 DOWNLOAD_SCRIPT = r'''import json,os,ssl,sys,urllib.parse,urllib.request
@@ -1052,9 +1054,186 @@ class RuntimeManager:
                 }
                 return result
 
+    def _prune_tree_safe(self, target: Path) -> bool:
+        """Refuse mounted trees, junctions, and oversized directory walks."""
+        root_device = self.paths.root.stat().st_dev
+        mounts: set[Path] = set()
+        if sys.platform.startswith("linux"):
+            try:
+                with open("/proc/self/mountinfo", "rb") as source:
+                    mount_data = source.read(1024 * 1024 + 1)
+                if len(mount_data) > 1024 * 1024:
+                    return False
+                for line in mount_data.splitlines():
+                    fields = line.split()
+                    if len(fields) < 6:
+                        return False
+                    name = re.sub(rb"\\([0-7]{3})", lambda match: bytes([int(match[1], 8)]), fields[4])
+                    mounts.add(Path(os.fsdecode(name)))
+            except (OSError, ValueError):
+                return False
+        pending = [target]
+        inspected = 0
+        while pending:
+            path = pending.pop()
+            inspected += 1
+            if inspected > MAX_PRUNE_TREE_ENTRIES:
+                return False
+            info = path.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                continue
+            if (info.st_dev != root_device or path in mounts or os.path.ismount(path)
+                    or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)):
+                return False
+            if stat.S_ISDIR(info.st_mode):
+                with os.scandir(path) as entries:
+                    for entry in entries:
+                        if inspected + len(pending) >= MAX_PRUNE_TREE_ENTRIES:
+                            return False
+                        pending.append(Path(entry.path))
+        return True
 
+    def _prune_candidate_error(self, target: Path, environment: Path, *, legacy: bool) -> Optional[str]:
+        if target.is_symlink() or environment.is_symlink() or not environment.is_dir():
+            return "not_an_owned_environment"
+        config = environment / "pyvenv.cfg"
+        if config.is_symlink() or not config.is_file():
+            return "unrecognized_environment"
+        if not legacy:
+            marker = target / GENERATION_MARKER
+            try:
+                info = marker.lstat()
+                if marker.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_size > 2048:
+                    return "unrecognized_generation"
+                with marker.open("rb") as source:
+                    data = source.read(2049)
+                if len(data) > 2048:
+                    return "unrecognized_generation"
+                payload = json.loads(data)
+                if (not isinstance(payload, dict) or payload.get("schema_version") != 1
+                        or payload.get("owner") != "handbuilt-church-labs"
+                        or payload.get("environment") != "python"
+                        or re.fullmatch(r"[0-9a-f]{64}", str(payload.get("wheel_lock_sha256", ""))) is None):
+                    return "unrecognized_generation"
+            except (OSError, ValueError):
+                return "unrecognized_generation"
+        if not self._prune_tree_safe(target):
+            return "mounted_or_uninspectable_tree"
+        return None
 
+    def _prune_candidates(self) -> tuple[list[Path], list[dict[str, str]]]:
+        """Recognize obsolete owned environments without following links."""
+        root = self.paths.root
+        protected = {self.paths.environment, self.paths.previous_environment}
+        candidates: list[Path] = []
+        skipped: list[dict[str, str]] = []
 
+        def inspect(target: Path, environment: Path, *, legacy: bool = False) -> None:
+            if environment in protected:
+                return
+            reason = self._prune_candidate_error(target, environment, legacy=legacy)
+            if reason is not None:
+                skipped.append({"path": str(target), "reason": reason})
+            else:
+                candidates.append(target)
+
+        legacy = root / "python"
+        if legacy.exists() or legacy.is_symlink():
+            inspect(legacy, legacy, legacy=True)
+        generations = root / "generations"
+        if generations.is_symlink():
+            raise RuntimePointerError("The generations directory must not be a symbolic link.")
+        if generations.exists():
+            if not generations.is_dir():
+                raise RuntimePointerError("The generations path must be a directory.")
+            for count, target in enumerate(generations.iterdir(), start=1):
+                if count > MAX_PRUNE_GENERATIONS:
+                    raise RuntimePointerError("Too many runtime directories to inspect in one cleanup.")
+                if re.fullmatch(r"g-[0-9a-f]{32}", target.name) is None:
+                    skipped.append({"path": str(target), "reason": "unrecognized_directory"})
+                    continue
+                inspect(target, target / "python")
+        return sorted(candidates), skipped
+
+    def prune(self, *, apply: bool = False, workflows_stopped: bool = False) -> dict[str, object]:
+        """Preview obsolete runtimes; remove only after explicit host quiescence."""
+        root = self.paths.root
+        if apply and not workflows_stopped:
+            return self._failure(operation="prune", changed=False,
+                                 message="Pause all Handbuilt workflows before removing old private tools.",
+                                 detail="Prune requires --apply and --workflows-stopped. Setup never removes older runtimes automatically.")
+        if not root.exists():
+            report = self.doctor(operation="prune", capability="workspace")
+            report["prune"] = {"applied": False, "candidates": [], "removed": [], "skipped": []}
+            return report
+        if not root.is_dir():
+            return self._failure(operation="prune", changed=False,
+                                 message="Handbuilt cannot safely inspect its runtime folder.",
+                                 detail="The runtime root is not a directory.")
+        with self._runtime_lock() as acquired:
+            if not acquired:
+                return self._failure(operation="prune", changed=False,
+                                     message="Another private-tool operation is in progress.",
+                                     detail="Retry cleanup after the active operation finishes.")
+            self.paths = runtime_paths(root, system=self.system)
+            if self.paths.pointer_error:
+                return self._failure(operation="prune", changed=False,
+                                     message="Repair the runtime selection before cleanup.",
+                                     detail=self.paths.pointer_error)
+            try:
+                pointer_before = self._read_pointer_bytes()
+                candidates, skipped = self._prune_candidates()
+            except (OSError, RuntimePointerError) as error:
+                return self._failure(operation="prune", changed=False,
+                                     message="Handbuilt could not safely inspect old private tools.", detail=str(error))
+            report = self.doctor(operation="prune", capability="workspace")
+            if apply and report["status"] == "ready" and not report["native_tools"]["missing"]:
+                report = self.verify()
+                report["operation"] = "prune"
+            removed: list[str] = []
+            errors: list[dict[str, str]] = []
+            partial_removal_possible = False
+            if apply:
+                if report["status"] != "ready":
+                    report.update({"message": "Repair and verify the selected private tools before cleanup.",
+                                   "next_action": "Run setup and verify before retrying runtime prune."})
+                    report["prune"] = {"applied": False, "candidates": [str(path) for path in candidates],
+                                       "removed": [], "skipped": skipped}
+                    return report
+                for target in candidates:
+                    try:
+                        if self._read_pointer_bytes() != pointer_before:
+                            raise RuntimePointerError("The runtime selection changed during cleanup.")
+                        # Reinspect ownership and confinement immediately before removal.
+                        legacy = target == root / "python"
+                        environment = target if legacy else target / "python"
+                        if (environment in {self.paths.environment, self.paths.previous_environment}
+                                or self._prune_candidate_error(target, environment, legacy=legacy) is not None):
+                            raise RuntimePointerError("The cleanup candidate changed during inspection.")
+                        try:
+                            shutil.rmtree(target)
+                        except OSError:
+                            partial_removal_possible = True
+                            raise
+                        removed.append(str(target))
+                    except (OSError, RuntimePointerError) as error:
+                        errors.append({"path": str(target), "error": str(error)[-800:]})
+                        break
+            report["changed"] = bool(removed)
+            report["prune"] = {"applied": apply, "candidates": [str(path) for path in candidates],
+                               "removed": removed, "skipped": skipped, "errors": errors,
+                               "partial_removal_possible": partial_removal_possible,
+                               "retained": [str(path) for path in (self.paths.environment, self.paths.previous_environment)
+                                            if path is not None]}
+            report["message"] = ("Old private-tool cleanup did not complete." if errors else
+                                 "Old private tools were removed; the selected and rollback runtimes were kept." if apply else
+                                 "This is a cleanup preview. No private tools were removed.")
+            report["next_action"] = ("Inspect the cleanup errors before retrying." if errors else
+                                     "Keep the cleanup receipt." if apply else
+                                     "Pause all Handbuilt workflows, then use prune --apply --workflows-stopped to remove the listed candidates.")
+            if errors:
+                report.update({"status": "install-failed", "ready": False})
+            return report
 
     def native_install(self) -> dict[str, object]:
         """Install Poppler through a detected platform package manager."""
@@ -1181,6 +1360,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("create", "Create the private Python environment without installing packages."),
         ("install", "Install repository requirements into the existing private environment."),
         ("rollback", "Restore the retained runtime after validating it against current security policy."),
+        ("prune", "Preview obsolete runtimes; removal requires paused workflows and explicit flags."),
     ):
         child = subparsers.add_parser(operation, help=help_text)
         child.add_argument("--format", choices=("human", "json"), default="human")
@@ -1188,6 +1368,9 @@ def build_parser() -> argparse.ArgumentParser:
         child.add_argument("--bootstrap-python", default=os.environ.get("HANDBUILT_BOOTSTRAP_PYTHON", sys.executable))
         if operation == "doctor":
             child.add_argument("--capability", choices=("workspace", "bulletin"), default="bulletin")
+        if operation == "prune":
+            child.add_argument("--apply", action="store_true")
+            child.add_argument("--workflows-stopped", action="store_true")
     return parser
 
 
@@ -1212,6 +1395,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         result = manager.create_environment()
     elif args.operation == "rollback":
         result = manager.rollback()
+    elif args.operation == "prune":
+        result = manager.prune(apply=args.apply, workflows_stopped=args.workflows_stopped)
     else:
         result = manager.install_requirements()
 
@@ -1222,7 +1407,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if result["status"] == "install-failed":
         return 20
-    if args.operation in {"doctor", "verify", "setup", "install", "rollback"} and result["status"] not in (
+    if args.operation in {"doctor", "verify", "setup", "install", "rollback", "prune"} and result["status"] not in (
             {"ready", "native-tool-missing"} if args.operation in {"setup", "install", "rollback"}
             else {"ready"}):
         return 2

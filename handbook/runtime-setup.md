@@ -78,6 +78,34 @@ and requirements. It refuses a downgrade to an affected or incomplete runtime.
 The `migration` receipt identifies the selected and retained environments.
 The plugin does not remove retained generations as part of setup or rollback.
 
+## Clean up obsolete runtime generations
+
+The host can preview obsolete owned environments with:
+
+```bash
+python3 tools/handbuilt_runtime.py prune --format json
+```
+
+Review `prune.candidates`, then pause all Handbuilt workflows before applying:
+
+```bash
+python3 tools/handbuilt_runtime.py prune --apply --workflows-stopped --format json
+```
+
+The host must establish that workflows have stopped. Older processes can still
+hold a generation path after an upgrade, so setup never deletes it automatically.
+Cleanup holds the runtime lock, verifies the selected tools, and always retains
+the selected and previous environments. It skips symlinks, mounted trees,
+junctions and unrecognized directories. Recognized obsolete generations have
+an ownership record and virtual-environment configuration; the legacy `python/`
+directory can be removed once it is outside the selected and previous pair.
+The receipt lists candidates, completed removals, skipped paths and errors.
+If deletion fails partway, `prune.partial_removal_possible` requires inspection.
+
+From a connected church folder, use `python3 handbuilt.py runtime prune`.
+The cleanup flags are host operations; present a plain-language
+maintenance plan to the pastor.
+
 ## Maintain the wheel lock
 
 `doctor` validates the lock offline and checks its pins against `requirements.txt`.

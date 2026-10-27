@@ -12,6 +12,7 @@ Retirement plan: Open a reviewed PR to main; preserve this lane until Stephen me
 
 - 2026-10-26 19:37 EDT: opened by Plugin security implementation parent.
 - 2026-10-26: Integrated reviewed worker changes. Full suite, targeted parser checks, real runtime migration and rollback, workflow upgrade rehearsal, public-data guard and package verification passed. Production installation remains unchanged; this lane is retained for pull request review.
+- 2026-10-27: Addressed review findings with structured updater failures, a wheel-only hash lock, complete artwork preflight and bounded native processes, explicit obsolete-runtime cleanup, and precise Python support guidance. Review workers use separate owned lanes; production runtime cleanup is outside this change's execution scope.
 
 Record a transfer as: `- <date>: from <owner> to <owner> at <commit>; must not touch: <ports, data roots, files>`.
 

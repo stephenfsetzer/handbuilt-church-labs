@@ -44,6 +44,8 @@ def main() -> None:
         prepared = manager.setup()
         assert prepared['status'] == 'ready', prepared
         assert prepared['migration']['verified'], prepared
+        assert prepared['installation_policy']['binary_only'], prepared
+        assert prepared['installation_policy']['require_hashes'], prepared
         assert prepared['migration']['retained_previous'] == str(legacy), prepared
         assert manager.paths.environment != legacy
         assert fingerprint(legacy) == before_legacy
@@ -75,11 +77,23 @@ def main() -> None:
         assert manager.paths.environment == selected
         assert manager.verify()['status'] == 'ready'
         assert fingerprint(legacy) == before_legacy
+        before_prune = pointer.read_bytes()
+        preview = manager.prune()
+        assert str(legacy) in preview['prune']['candidates'], preview
+        assert legacy.is_dir(), preview
+        pruned = manager.prune(apply=True, workflows_stopped=True)
+        assert pruned['status'] == 'ready', pruned
+        assert str(legacy) in pruned['prune']['removed'], pruned
+        assert not legacy.exists()
+        assert pointer.read_bytes() == before_prune
+        assert manager.verify()['status'] == 'ready'
         print(json.dumps({
             'status': 'passed', 'legacy_files_unchanged': True,
             'failed_install_kept_pointer': True,
             'rollback_to_incomplete_legacy_refused': True,
             'rollback_to_verified_generation': True,
+            'explicit_prune_removed_only_orphans': True,
+            'wheel_hash_and_binary_policy': prepared['installation_policy'],
             'python_version': prepared['python']['managed_version'],
         }, indent=2))
 

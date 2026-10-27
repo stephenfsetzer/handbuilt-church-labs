@@ -41,6 +41,20 @@ class ChurchConnectionTests(unittest.TestCase):
             self.assertEqual(bridge.main(), 0)
         self.assertEqual(run.call_args.args[0][2], "rollback")
 
+    def test_runtime_prune_forwards_only_explicit_cleanup_flags(self):
+        arguments = ["church_workflow.py", "--church-folder", str(self.church), "runtime", "prune"]
+        with mock.patch.object(sys, "argv", arguments), \
+                mock.patch.object(bridge.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(bridge.main(), 0)
+        self.assertNotIn("--apply", run.call_args.args[0])
+        arguments += ["--apply", "--workflows-stopped"]
+        with mock.patch.object(sys, "argv", arguments), \
+                mock.patch.object(bridge.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+            self.assertEqual(bridge.main(), 0)
+        self.assertEqual(run.call_args.args[0][2], "prune")
+        self.assertIn("--apply", run.call_args.args[0])
+        self.assertIn("--workflows-stopped", run.call_args.args[0])
+
     def test_failed_runtime_check_gives_a_repair_plan_without_installing(self):
         failure = {"status": "python-unavailable", "next_action": "Use an inspected patched Python."}
         with mock.patch.object(bridge.subprocess, "run", return_value=subprocess.CompletedProcess([], 2, json.dumps(failure))) as run:

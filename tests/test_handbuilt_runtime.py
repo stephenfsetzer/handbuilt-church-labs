@@ -720,12 +720,134 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertEqual(report["status"], "python-unavailable")
         self.assertIn("not yet supported", report["python"]["error"])
 
+    def prune_fixture(self):
+        environments = {}
+        for character in "abc":
+            generation = self.support / "generations" / ("g-" + character * 32)
+            environment = generation / "python"
+            executable = environment / "bin/python"
+            executable.parent.mkdir(parents=True)
+            executable.write_bytes(character.encode())
+            (environment / "pyvenv.cfg").write_text("home = /synthetic/python\n")
+            (generation / runtime.GENERATION_MARKER).write_text(json.dumps({
+                "schema_version": 1, "owner": "handbuilt-church-labs", "environment": "python",
+                "wheel_lock_sha256": "0" * 64}))
+            environments[character] = environment
+        legacy_python = self.make_legacy_runtime()
+        pointer = self.support / runtime.ACTIVE_RUNTIME_POINTER
+        pointer.write_text(json.dumps({"schema_version": 1,
+            "environment": environments["a"].relative_to(self.support).as_posix(),
+            "previous_environment": environments["b"].relative_to(self.support).as_posix()}))
+        return environments, legacy_python, pointer
 
+    def test_prune_previews_then_removes_only_obsolete_owned_runtimes(self):
+        environments, legacy_python, pointer = self.prune_fixture()
+        before = pointer.read_bytes()
+        outside = self.base / "outside"
+        outside.mkdir()
+        (outside / "keep.txt").write_text("Keep this outside directory")
+        linked = self.support / "generations" / ("g-" + "d" * 32)
+        linked.symlink_to(outside, target_is_directory=True)
+        unknown = self.support / "generations" / ("g-" + "e" * 32)
+        (unknown / "python").mkdir(parents=True)
+        manager = self.manager(FakeRunner(self.requirements))
+        preview = manager.prune()
+        self.assertFalse(preview["changed"])
+        self.assertEqual(set(preview["prune"]["candidates"]),
+                         {str(environments["c"].parent.resolve()), str(legacy_python.parent.parent.resolve())})
+        self.assertTrue(environments["c"].is_dir())
+        self.assertTrue(legacy_python.is_file())
+        result = manager.prune(apply=True, workflows_stopped=True)
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(set(result["prune"]["removed"]), set(preview["prune"]["candidates"]))
+        self.assertFalse(environments["c"].exists())
+        self.assertFalse(legacy_python.exists())
+        self.assertEqual((environments["a"] / "bin/python").read_bytes(), b"a")
+        self.assertEqual((environments["b"] / "bin/python").read_bytes(), b"b")
+        self.assertEqual(pointer.read_bytes(), before)
+        self.assertEqual((outside / "keep.txt").read_text(), "Keep this outside directory")
+        self.assertTrue(linked.is_symlink())
+        self.assertTrue(unknown.is_dir())
+        self.assertEqual(manager.prune(apply=True, workflows_stopped=True)["prune"]["removed"], [])
 
+    def test_prune_requires_quiescence_a_valid_pointer_and_a_ready_runtime(self):
+        environments, _legacy, pointer = self.prune_fixture()
+        before = pointer.read_bytes()
+        manager = self.manager(FakeRunner(self.requirements))
+        result = manager.prune(apply=True)
+        self.assertEqual(result["status"], "install-failed")
+        self.assertFalse(result["changed"])
+        self.assertTrue(environments["c"].is_dir())
+        broken = self.manager(FakeRunner(self.requirements, missing_modules=("pypdf",)))
+        result = broken.prune(apply=True, workflows_stopped=True)
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["prune"]["applied"])
+        self.assertEqual(pointer.read_bytes(), before)
+        pointer.write_text('{"schema_version":1,"environment":"../outside","previous_environment":null}')
+        result = manager.prune(apply=True, workflows_stopped=True)
+        self.assertEqual(result["status"], "install-failed")
+        self.assertTrue(environments["c"].is_dir())
 
+    def test_prune_stops_if_pointer_changes_and_refuses_a_busy_runtime_lock(self):
+        environments, _legacy, _pointer = self.prune_fixture()
+        manager = self.manager(FakeRunner(self.requirements))
+        original_read = manager._read_pointer_bytes
+        reads = 0
 
+        def changed_pointer():
+            nonlocal reads
+            reads += 1
+            return original_read() if reads == 1 else b"changed selection"
 
+        with mock.patch.object(manager, "_read_pointer_bytes", side_effect=changed_pointer):
+            result = manager.prune(apply=True, workflows_stopped=True)
+        self.assertEqual(result["status"], "install-failed")
+        self.assertTrue(environments["c"].is_dir())
+        from contextlib import contextmanager
 
+        @contextmanager
+        def busy():
+            yield False
+
+        with mock.patch.object(manager, "_runtime_lock", return_value=busy()):
+            result = manager.prune(apply=True, workflows_stopped=True)
+        self.assertFalse(result["changed"])
+        self.assertTrue(environments["c"].is_dir())
+
+    def test_prune_preview_does_not_create_a_missing_runtime_root(self):
+        manager = self.manager(FakeRunner(self.requirements))
+        result = manager.prune()
+        self.assertEqual(result["prune"]["candidates"], [])
+        self.assertFalse(self.support.exists())
+
+    def test_prune_skips_mounted_candidates_and_records_uncertain_removal_failures(self):
+        environments, legacy, pointer = self.prune_fixture()
+        manager = self.manager(FakeRunner(self.requirements))
+        before = pointer.read_bytes()
+        original_mount = os.path.ismount
+        candidate = environments["c"].parent.resolve()
+        with mock.patch.object(runtime.os.path, "ismount", side_effect=lambda path: Path(path) == candidate or original_mount(path)):
+            preview = manager.prune()
+        self.assertNotIn(str(candidate), preview["prune"]["candidates"])
+        self.assertIn({"path": str(candidate), "reason": "mounted_or_uninspectable_tree"}, preview["prune"]["skipped"])
+        with mock.patch.object(runtime.shutil, "rmtree", side_effect=PermissionError("synthetic cleanup denial")):
+            result = manager.prune(apply=True, workflows_stopped=True)
+        self.assertEqual(result["status"], "install-failed")
+        self.assertFalse(result["changed"])
+        self.assertTrue(result["prune"]["partial_removal_possible"])
+        self.assertTrue(candidate.is_dir())
+        self.assertTrue(legacy.is_file())
+        self.assertEqual(pointer.read_bytes(), before)
+
+    def test_prune_keeps_backups_when_native_verification_fails(self):
+        environments, legacy, pointer = self.prune_fixture()
+        before = pointer.read_bytes()
+        manager = self.manager(FakeRunner(self.requirements, fail_stage="runtime-probe"))
+        result = manager.prune(apply=True, workflows_stopped=True)
+        self.assertFalse(result["prune"]["applied"])
+        self.assertTrue(environments["c"].is_dir())
+        self.assertTrue(legacy.is_file())
+        self.assertEqual(pointer.read_bytes(), before)
 
     def test_statuses_and_manifest_main_dependencies_are_stable(self):
         self.assertEqual(runtime.runtime_security.PIP_VERSION, "26.2.2")

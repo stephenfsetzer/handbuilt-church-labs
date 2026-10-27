@@ -622,9 +622,11 @@ def main() -> int:
     print_check = sub.add_parser("check-print", help="Check saved bulletins against the church's print check list")
     print_check.add_argument("--format", choices=("table", "json"), default="table")
     runtime = sub.add_parser("runtime")
-    runtime.add_argument("operation", choices=("doctor", "verify", "setup", "rollback", "native-install"))
+    runtime.add_argument("operation", choices=("doctor", "verify", "setup", "rollback", "prune", "native-install"))
     runtime.add_argument("--capability", choices=("workspace", "bulletin"))
     runtime.add_argument("--bootstrap-python", help="Use an inspected, security-patched host interpreter for setup")
+    runtime.add_argument("--apply", action="store_true", help="Remove the obsolete runtimes listed by prune")
+    runtime.add_argument("--workflows-stopped", action="store_true", help="Confirm all Handbuilt workflows have stopped before pruning")
     for name in WORKFLOWS:
         command = sub.add_parser(name)
         command.add_argument("operation", choices=sorted(OPERATIONS[name]))
@@ -637,9 +639,15 @@ def main() -> int:
         elif args.command == "runtime":
             if args.capability and args.operation != "doctor":
                 raise ValueError("Choose a capability only for runtime doctor; verify always checks all PDF tools")
+            if (args.apply or args.workflows_stopped) and args.operation != "prune":
+                raise ValueError("Cleanup flags apply only to runtime prune")
             arguments = (["--capability", args.capability] if args.capability else [])
             if args.bootstrap_python:
                 arguments += ["--bootstrap-python", args.bootstrap_python]
+            if args.apply:
+                arguments.append("--apply")
+            if args.workflows_stopped:
+                arguments.append("--workflows-stopped")
             return subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
                                    args.operation, *arguments, "--format", "json"]).returncode
         elif args.command == "updates":
