@@ -158,7 +158,7 @@ def claude_update_settings() -> dict | None:
 def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:
     from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
-    from tools.workflow_updates import select_release, package_version, verify_installed, version
+    from tools.workflow_updates import RuntimeUpgradeRequired, select_release, package_version, verify_installed, version
     identity = inspect_installation(ROOT, church)
     metadata = _private_file(church, ".handbuilt/installation.json")
     saved = json.loads(metadata.read_text()) if metadata.exists() else {}
@@ -179,10 +179,10 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
         try:
             check = subprocess.run(command + ["--format", "json"], capture_output=True, text=True, timeout=90)
             report = json.loads(check.stdout)
-        except (subprocess.SubprocessError, ValueError) as exc:
-            raise ValueError("The new workflow could not complete its runtime check.") from exc
-        if check.returncode or report.get("status") != "ready":
-            raise ValueError("The new workflow needs a runtime change; the current workflow was kept.")
+        except (OSError, subprocess.SubprocessError, TypeError, ValueError) as exc:
+            raise RuntimeUpgradeRequired("The new workflow could not complete its runtime check.") from exc
+        if check.returncode or not isinstance(report, dict) or report.get("status") != "ready":
+            raise RuntimeUpgradeRequired("The new workflow needs a runtime change; the current workflow was kept.")
     if not pinned and saved_root != selected and saved_root.is_relative_to((store / "releases").resolve()):
         saved_version = verify_installed(saved_root)
         if version(saved_version) >= version(package_version(selected)):
@@ -245,7 +245,7 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
     """Force a stable release check without replacing a development checkout."""
     from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
-    from tools.workflow_updates import select_release, package_version, verify_installed, version
+    from tools.workflow_updates import RuntimeUpgradeRequired, select_release, package_version, verify_installed, version
 
     identity = inspect_installation(ROOT, church)
     metadata = _private_file(church, ".handbuilt/installation.json")
@@ -277,14 +277,14 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
         try:
             check = subprocess.run(command, capture_output=True, text=True, timeout=90)
             report = json.loads(check.stdout)
-        except (subprocess.SubprocessError, ValueError) as exc:
-            raise ValueError("The new workflow could not complete its runtime check.") from exc
-        if check.returncode or report.get("status") != "ready":
-            raise ValueError("The new workflow needs a runtime change; the current workflow was kept.")
+        except (OSError, subprocess.SubprocessError, TypeError, ValueError) as exc:
+            raise RuntimeUpgradeRequired("The new workflow could not complete its runtime check.") from exc
+        if check.returncode or not isinstance(report, dict) or report.get("status") != "ready":
+            raise RuntimeUpgradeRequired("The new workflow needs a runtime change; the current workflow was kept.")
 
     updates = select_release(selected, store, validate, force=True)
     selected = Path(updates["selected_root"])
-    if updates["status"] == "deferred" and "runtime" in str(updates.get("reason", "")).lower():
+    if updates["status"] == "deferred" and updates.get("reason") == "runtime_upgrade_required":
         return {
             "status": "blocked", "code": "runtime_upgrade_required", "updates": updates,
             "identity": identity, "runtime_repair": _runtime_repair_plan(),

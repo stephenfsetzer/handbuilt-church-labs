@@ -32,6 +32,10 @@ REQUIRED = ('tools/church_workflow.py', 'tools/handbuilt_runtime.py',
             'skills/sermon-research/SKILL.md')
 
 
+class RuntimeUpgradeRequired(ValueError):
+    """The candidate release needs a runtime change before it can be used."""
+
+
 def version(value):
     if not isinstance(value, str) or not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', value):
         raise ValueError('Expected a stable release version.')
@@ -281,6 +285,8 @@ def select_release(current_root, store, validate, *, download=fetch, now=time.ti
             validate(destination)
             return dict(result, status='updated', selected_root=str(destination),
                         selected_version=latest['version'])
+    except RuntimeUpgradeRequired as exc:
+        return dict(result, status='deferred', reason='runtime_upgrade_required', detail=str(exc))
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, zipfile.BadZipFile) as exc:
         # The working release survives network, extraction and validation failures.
         return dict(result, status='deferred', reason='update_unavailable', detail=str(exc))
