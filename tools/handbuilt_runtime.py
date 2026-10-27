@@ -583,7 +583,8 @@ class RuntimeManager:
                 raise RuntimePointerError("The active runtime pointer must be a regular file.")
         descriptor, temporary_name = tempfile.mkstemp(prefix=".active-runtime-", dir=root)
         try:
-            os.fchmod(descriptor, 0o600)
+            # mkstemp creates a private file, including on older Windows Python
+            # releases that do not provide os.fchmod.
             with os.fdopen(descriptor, "wb") as temporary:
                 temporary.write(data)
                 temporary.flush()

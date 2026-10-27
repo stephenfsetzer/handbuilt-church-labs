@@ -628,6 +628,16 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertTrue(result["python_packages"]["ready"])
         self.assertTrue(result["migration"]["verified"])
 
+    def test_pointer_write_supports_platforms_without_fchmod(self):
+        manager = self.manager(FakeRunner(self.requirements))
+        data = b'{"schema_version":1,"environment":"python","previous_environment":null}\n'
+        with mock.patch.object(runtime.os, "fchmod", None, create=True):
+            manager._write_pointer_bytes(data)
+        self.assertEqual(manager._read_pointer_bytes(), data)
+        if runtime.os.name != "nt":
+            pointer = self.support / runtime.ACTIVE_RUNTIME_POINTER
+            self.assertEqual(pointer.stat().st_mode & 0o777, 0o600)
+
     def test_concurrent_runtime_operation_blocks_without_changing_pointer(self):
         runner = FakeRunner(self.requirements)
         old_python = self.make_legacy_runtime()
