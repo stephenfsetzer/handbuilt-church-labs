@@ -19,9 +19,12 @@ import multiprocessing
 import os
 import re
 import shutil
+import signal
 import subprocess
+import sys
 import tempfile
 import threading
+import time
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -50,6 +53,9 @@ MAX_IMAGES_PER_PAGE = 100
 MAX_IMAGES_PER_PDF = 1000
 MAX_XOBJECTS_PER_PAGE = 500
 MAX_FORM_DEPTH = 32
+MAX_PDF_GRAPH_NODES_PER_PAGE = 4000
+MAX_CONTENT_OPERATIONS_PER_PAGE = 100_000
+MAX_DECODED_CONTENT_BYTES_PER_PAGE = 64 * 1024 * 1024
 MAX_IMAGE_PIXELS = 25_000_000
 MAX_IMAGE_OUTPUT_BYTES = 256 * 1024 * 1024
 PDF_PARSE_TIMEOUT_SECONDS = 30
@@ -136,9 +142,35 @@ def _native_tool(name: str) -> str:
     return found
 
 
+def _limited_process_args(args: list[str]) -> list[str]:
+    """Apply POSIX resource limits in a tiny exec wrapper, never preexec_fn.
+
+    On Windows the parent still enforces wall-clock and output limits. POSIX
+    deployments also cap Poppler CPU and each output file, plus address
+    space where the platform supports it reliably.
+    """
+    if os.name != "posix":
+        return args
+    helper = Path(__file__).resolve().parents[2] / "tools" / "limited_process.py"
+    return [sys.executable, "-I", "-S", "-B", str(helper), "--cpu-seconds", "25", "--memory-bytes", str(2 * 1024**3),
+            "--file-bytes", str(256 * 1024**2), "--", *args]
+
+
+def _terminate_process(process: subprocess.Popen[Any]) -> None:
+    """Stop the child and any descendants that inherited its output pipe."""
+    try:
+        if os.name == "posix" and isinstance(getattr(process, "pid", None), int):
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+    except ProcessLookupError:
+        pass
+
+
 def _run(args: list[str], *, timeout: int = POPPLER_TIMEOUT_SECONDS) -> None:
     try:
-        process = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        process = subprocess.Popen(_limited_process_args(args), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                   start_new_session=(os.name == "posix"))
     except OSError as exc:
         raise BulletinImportError(f"Could not start {Path(args[0]).name}: {exc}") from exc
     tail = bytearray()
@@ -154,17 +186,28 @@ def _run(args: list[str], *, timeout: int = POPPLER_TIMEOUT_SECONDS) -> None:
                 del tail[:-MAX_TOOL_DIAGNOSTIC_BYTES]
 
     reader = threading.Thread(target=collect_diagnostic, daemon=True)
+    deadline = time.monotonic() + timeout
     reader.start()
     try:
-        returncode = process.wait(timeout=timeout)
+        returncode = process.wait(timeout=max(0, deadline - time.monotonic()))
     except subprocess.TimeoutExpired as exc:
-        process.kill()
-        process.wait()
-        reader.join()
+        _terminate_process(process)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+        reader.join(timeout=5)
         if process.stderr is not None:
             process.stderr.close()
         raise BulletinImportError(f"{Path(args[0]).name} exceeded its {timeout}-second time limit") from exc
-    reader.join()
+    reader.join(timeout=max(0, deadline - time.monotonic()))
+    if reader.is_alive():
+        _terminate_process(process)
+        reader.join(timeout=5)
+        if process.stderr is not None:
+            process.stderr.close()
+        raise BulletinImportError(f"{Path(args[0]).name} exceeded its {timeout}-second time limit while draining diagnostics")
     if process.stderr is not None:
         process.stderr.close()
     if returncode != 0:
@@ -177,7 +220,8 @@ def _run(args: list[str], *, timeout: int = POPPLER_TIMEOUT_SECONDS) -> None:
 def _run_text(args: list[str], *, timeout: int, max_bytes: int) -> bytes:
     """Capture stdout in memory with a hard byte cap and a wall-clock limit."""
     try:
-        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        process = subprocess.Popen(_limited_process_args(args), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                   start_new_session=(os.name == "posix"))
     except OSError as exc:
         raise BulletinImportError(f"Could not start {Path(args[0]).name}: {exc}") from exc
     output = bytearray()
@@ -194,22 +238,33 @@ def _run_text(args: list[str], *, timeout: int, max_bytes: int) -> bytes:
                 if remaining > 0:
                     output.extend(chunk[:remaining])
                 exceeded.set()
-                process.kill()
+                _terminate_process(process)
             elif not exceeded.is_set():
                 output.extend(chunk)
 
     reader = threading.Thread(target=collect_output, daemon=True)
+    deadline = time.monotonic() + timeout
     reader.start()
     try:
-        returncode = process.wait(timeout=timeout)
+        returncode = process.wait(timeout=max(0, deadline - time.monotonic()))
     except subprocess.TimeoutExpired as exc:
-        process.kill()
-        process.wait()
-        reader.join()
+        _terminate_process(process)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+        reader.join(timeout=5)
         if process.stdout is not None:
             process.stdout.close()
         raise BulletinImportError(f"{Path(args[0]).name} exceeded its {timeout}-second time limit") from exc
-    reader.join()
+    reader.join(timeout=max(0, deadline - time.monotonic()))
+    if reader.is_alive():
+        _terminate_process(process)
+        reader.join(timeout=5)
+        if process.stdout is not None:
+            process.stdout.close()
+        raise BulletinImportError(f"{Path(args[0]).name} exceeded its {timeout}-second time limit while draining output")
     if process.stdout is not None:
         process.stdout.close()
     if exceeded.is_set():
@@ -270,6 +325,8 @@ def _resolved_pdf_object(value: Any) -> Any:
 
 
 def _pdf_object_identity(original: Any, resolved: Any) -> Any:
+    if hasattr(original, "idnum") and hasattr(original, "generation"):
+        return ("ref", original.idnum, original.generation)
     reference = getattr(original, "indirect_reference", None) or getattr(resolved, "indirect_reference", None)
     if reference is not None:
         return ("ref", getattr(reference, "idnum", None), getattr(reference, "generation", None))
@@ -291,30 +348,48 @@ def _raw_image_dimensions(image: Any) -> tuple[int, int]:
     return width, height
 
 
-def _preflight_content_stream(content: Any, reader: Any, counts: dict[str, int]) -> None:
+def _record_image_dimensions(image: Any, state: dict[str, Any]) -> None:
+    width, height = _raw_image_dimensions(image)
+    state["image_output_bytes"] += width * height * 4
+    if state["image_output_bytes"] > MAX_IMAGE_OUTPUT_BYTES:
+        raise BulletinImportError("Embedded artwork exceeds the document image-output limit")
+
+
+def _preflight_content_stream(content: Any, reader: Any, state: dict[str, Any]) -> None:
     if content is None:
         return
     try:
+        get_data = getattr(content, "get_data", None)
+        if callable(get_data):
+            decoded_size = len(get_data())
+            state["decoded_bytes"] += decoded_size
+            if state["decoded_bytes"] > MAX_DECODED_CONTENT_BYTES_PER_PAGE:
+                raise BulletinImportError("The PDF has too much decoded artwork content to inspect safely")
         stream = content if hasattr(content, "operations") else ContentStream(content, reader)
         operations = stream.operations
+        state["operations"] += len(operations)
+        if state["operations"] > MAX_CONTENT_OPERATIONS_PER_PAGE:
+            raise BulletinImportError("The PDF has too many content operations to inspect safely")
+    except BulletinImportError:
+        raise
     except Exception as exc:
         raise BulletinImportError("Could not safely inspect a PDF content stream") from exc
     for operands, operator in operations:
         if operator != b"INLINE IMAGE":
             continue
-        counts["inline"] += 1
-        counts["images"] += 1
-        if counts["inline"] > MAX_IMAGES_PER_PAGE or counts["images"] > MAX_IMAGES_PER_PAGE:
+        state["inline"] += 1
+        state["images"] += 1
+        if state["inline"] > MAX_IMAGES_PER_PAGE or state["images"] > MAX_IMAGES_PER_PAGE:
             raise BulletinImportError("A page has too many embedded images to import safely")
         settings = operands.get("settings", {})
         normalized = {
             "/Width": settings.get("/Width", settings.get("/W")),
             "/Height": settings.get("/Height", settings.get("/H")),
         }
-        _raw_image_dimensions(normalized)
+        _record_image_dimensions(normalized, state)
 
 
-def _preflight_image_masks(image: Any, counts: dict[str, int], active: set[Any]) -> None:
+def _preflight_image_masks(image: Any, reader: Any, state: dict[str, Any], depth: int) -> None:
     for key in ("/SMask", "/Mask"):
         raw_mask = image.get(key)
         if raw_mask is None:
@@ -322,66 +397,138 @@ def _preflight_image_masks(image: Any, counts: dict[str, int], active: set[Any])
         mask = _resolved_pdf_object(raw_mask)
         if not isinstance(mask, dict) or "/Width" not in mask or "/Height" not in mask:
             continue
-        marker = _pdf_object_identity(raw_mask, mask)
-        if marker in active:
-            continue
-        active.add(marker)
-        counts["images"] += 1
-        if counts["images"] > MAX_IMAGES_PER_PAGE:
-            raise BulletinImportError("A page has too many embedded images to import safely")
-        _raw_image_dimensions(mask)
-        _preflight_image_masks(mask, counts, active)
-        active.remove(marker)
+        _preflight_graph_node(raw_mask, reader, state, depth + 1, fallback_resources=None)
 
 
-def _preflight_resources(resources: Any, reader: Any, counts: dict[str, int],
-                         active: set[Any], depth: int = 0) -> None:
+def _charge_graph_node(state: dict[str, Any], depth: int) -> bool:
     if depth > MAX_FORM_DEPTH:
-        raise BulletinImportError("The supplied bulletin has too many nested XObject resources")
+        raise BulletinImportError("The supplied bulletin has too many nested artwork resources")
+    marker = state["current_marker"]
+    if marker in state["active"]:
+        return False
+    if marker in state["visited"]:
+        return False
+    state["nodes"] += 1
+    if state["nodes"] > MAX_PDF_GRAPH_NODES_PER_PAGE:
+        raise BulletinImportError("The PDF has too many artwork resources to inspect safely")
+    state["visited"].add(marker)
+    state["active"].add(marker)
+    return True
+
+
+def _preflight_graph_node(raw: Any, reader: Any, state: dict[str, Any], depth: int,
+                          fallback_resources: Any = None, parse_stream: bool = False) -> None:
+    resolved = _resolved_pdf_object(raw)
+    marker = _pdf_object_identity(raw, resolved)
+    state["current_marker"] = marker
+    if not _charge_graph_node(state, depth):
+        return
+    try:
+        if hasattr(resolved, "get_data"):
+            subtype = str(resolved.get("/Subtype", ""))
+            if subtype == "/Image":
+                state["images"] += 1
+                if state["images"] > MAX_IMAGES_PER_PAGE:
+                    raise BulletinImportError("A page has too many embedded images to import safely")
+                _record_image_dimensions(resolved, state)
+                _preflight_image_masks(resolved, reader, state, depth)
+                return
+            if not parse_stream and subtype != "/Form":
+                return
+            _preflight_content_stream(resolved, reader, state)
+            resources = resolved.get("/Resources", fallback_resources)
+            if resources is not None:
+                _preflight_resources(resources, reader, state, depth + 1)
+            return
+        if isinstance(resolved, dict):
+            # Appearance dictionaries and font character-procedure maps hold
+            # nested streams; walk their values with a shared cycle budget.
+            for value in resolved.values():
+                _preflight_graph_node(value, reader, state, depth + 1, fallback_resources, parse_stream)
+        elif isinstance(resolved, (list, tuple)):
+            for value in resolved:
+                _preflight_graph_node(value, reader, state, depth + 1, fallback_resources, parse_stream)
+    finally:
+        state["active"].discard(marker)
+
+
+def _preflight_resources(resources: Any, reader: Any, state: dict[str, Any], depth: int = 0) -> None:
     resource_dict = _resolved_pdf_object(resources)
     if not isinstance(resource_dict, dict):
+        raise BulletinImportError("Could not safely inspect a PDF resource dictionary")
+    marker = _pdf_object_identity(resources, resource_dict)
+    if marker in state["active"] or marker in state["visited"]:
         return
-    xobjects = _resolved_pdf_object(resource_dict.get("/XObject"))
-    if not isinstance(xobjects, dict):
-        return
-    for raw_xobject in xobjects.values():
-        counts["xobjects"] += 1
-        if counts["xobjects"] > MAX_XOBJECTS_PER_PAGE:
-            raise BulletinImportError("A page has too many PDF image and form resources")
-        xobject = _resolved_pdf_object(raw_xobject)
-        if not isinstance(xobject, dict):
-            continue
-        marker = _pdf_object_identity(raw_xobject, xobject)
-        subtype = str(xobject.get("/Subtype", ""))
-        if subtype == "/Image":
-            counts["images"] += 1
-            if counts["images"] > MAX_IMAGES_PER_PAGE:
-                raise BulletinImportError("A page has too many embedded images to import safely")
-            _raw_image_dimensions(xobject)
-            _preflight_image_masks(xobject, counts, active | {marker})
-            continue
-        if marker in active:
-            continue
-        if subtype == "/Form":
-            _preflight_content_stream(xobject, reader, counts)
-        if "/Resources" in xobject:
-            active.add(marker)
-            try:
-                _preflight_resources(xobject.get("/Resources"), reader, counts, active, depth + 1)
-            finally:
-                active.remove(marker)
+    state["nodes"] += 1
+    if state["nodes"] > MAX_PDF_GRAPH_NODES_PER_PAGE or depth > MAX_FORM_DEPTH:
+        raise BulletinImportError("The PDF has too many artwork resources to inspect safely")
+    state["visited"].add(marker)
+    state["active"].add(marker)
+    try:
+        for resource_type in ("/XObject", "/Pattern", "/Font", "/ExtGState"):
+            raw_entries = resource_dict.get(resource_type)
+            if raw_entries is None:
+                continue
+            entries = _resolved_pdf_object(raw_entries)
+            if not isinstance(entries, dict):
+                raise BulletinImportError("Could not safely inspect a PDF resource dictionary")
+            for raw_entry in entries.values():
+                state["xobjects"] += 1
+                if state["xobjects"] > MAX_XOBJECTS_PER_PAGE:
+                    raise BulletinImportError("A page has too many PDF artwork resources")
+                entry = _resolved_pdf_object(raw_entry)
+                if not isinstance(entry, dict):
+                    continue
+                subtype = str(entry.get("/Subtype", ""))
+                if resource_type == "/Font" and subtype == "/Type3":
+                    font_resources = entry.get("/Resources", resources)
+                    _preflight_resources(font_resources, reader, state, depth + 1)
+                    charprocs = _resolved_pdf_object(entry.get("/CharProcs", {}))
+                    if not isinstance(charprocs, dict):
+                        raise BulletinImportError("Could not safely inspect a Type3 font")
+                    for charproc in charprocs.values():
+                        _preflight_graph_node(charproc, reader, state, depth + 1, font_resources, True)
+                elif resource_type == "/ExtGState":
+                    soft_mask = _resolved_pdf_object(entry.get("/SMask"))
+                    if isinstance(soft_mask, dict) and soft_mask.get("/G") is not None:
+                        _preflight_graph_node(soft_mask["/G"], reader, state, depth + 1, resources, True)
+                elif resource_type == "/Pattern":
+                    if entry.get("/PatternType") == 1 or str(entry.get("/PatternType")) == "1":
+                        _preflight_graph_node(raw_entry, reader, state, depth + 1, resources, True)
+                else:
+                    _preflight_graph_node(raw_entry, reader, state, depth + 1, resources)
+    finally:
+        state["active"].discard(marker)
 
 
 def _preflight_page_images(page: Any) -> dict[str, int]:
-    counts = {"images": 0, "inline": 0, "xobjects": 0}
+    state: dict[str, Any] = {
+        "images": 0, "inline": 0, "xobjects": 0, "nodes": 0,
+        "operations": 0, "decoded_bytes": 0, "image_output_bytes": 0,
+        "visited": set(), "active": set(),
+    }
     try:
-        _preflight_content_stream(page.get_contents(), page.pdf, counts)
-        _preflight_resources(page.get_inherited("/Resources", {}), page.pdf, counts, set())
+        resources = page.get_inherited("/Resources", {})
+        _preflight_content_stream(page.get_contents(), page.pdf, state)
+        _preflight_resources(resources, page.pdf, state)
+        annotations = _resolved_pdf_object(page.get("/Annots", []))
+        if not isinstance(annotations, (list, tuple)):
+            raise BulletinImportError("Could not safely inspect PDF annotations")
+        for raw_annotation in annotations:
+            state["nodes"] += 1
+            if state["nodes"] > MAX_PDF_GRAPH_NODES_PER_PAGE:
+                raise BulletinImportError("The PDF has too many artwork resources to inspect safely")
+            annotation = _resolved_pdf_object(raw_annotation)
+            if not isinstance(annotation, dict):
+                continue
+            appearance = annotation.get("/AP")
+            if appearance is not None:
+                _preflight_graph_node(appearance, page.pdf, state, 0, resources, True)
     except BulletinImportError:
         raise
     except Exception as exc:
         raise BulletinImportError("Could not safely inspect embedded images on this page") from exc
-    return counts
+    return {key: state[key] for key in ("images", "inline", "xobjects", "image_output_bytes")}
 
 
 def _inspect_pdf(source: Path, assets_dir: Path, dpi: int) -> dict[str, Any]:
@@ -400,22 +547,34 @@ def _inspect_pdf(source: Path, assets_dir: Path, dpi: int) -> dict[str, Any]:
         if total_pixels > MAX_TOTAL_RENDER_PIXELS or total_pixels * 4 > MAX_RENDER_OUTPUT_BYTES:
             raise BulletinImportError("The supplied bulletin would exceed the total page-rendering limit")
         page_geometry.append({"width": width, "height": height, "pixels": pixels})
-    page_assets = []
-    total_image_bytes = 0
-    total_image_count = 0
+    has_preflight_error = False
     preflight_image_count = 0
-    estimated_image_output = [0]
+    total_preflight_image_bytes = 0
     for page_number, page in enumerate(pdf_pages, start=1):
         try:
             preflight = _preflight_page_images(page)
             preflight_image_count += preflight["images"]
             if preflight_image_count > MAX_IMAGES_PER_PDF:
                 raise BulletinImportError(f"A bulletin may contain no more than {MAX_IMAGES_PER_PDF} embedded images")
+            total_preflight_image_bytes += preflight["image_output_bytes"]
+            if total_preflight_image_bytes > MAX_IMAGE_OUTPUT_BYTES:
+                raise BulletinImportError("Embedded artwork exceeds the document image-output limit")
         except BulletinImportError as exc:
             # Poppler must not decode artwork that failed the same preflight.
             page_geometry[page_number - 1]["image_preflight_error"] = str(exc)[:MAX_TOOL_DIAGNOSTIC_BYTES]
-            page_assets.append([{"error": f"Could not safely extract page images: {str(exc)[:MAX_TOOL_DIAGNOSTIC_BYTES]}"}])
-            continue
+            has_preflight_error = True
+    if has_preflight_error:
+        page_assets = []
+        for geometry in page_geometry:
+            message = geometry.get("image_preflight_error")
+            page_assets.append([{"error": f"Could not safely extract page images: {message}"}] if message else [])
+        return {"page_count": page_count, "geometry": page_geometry, "images": page_assets}
+
+    page_assets = []
+    total_image_bytes = 0
+    total_image_count = 0
+    estimated_image_output = [0]
+    for page_number, page in enumerate(pdf_pages, start=1):
         images = _extract_page_assets(page, page_number, assets_dir, estimated_image_output)
         total_image_count += len(images)
         if total_image_count > MAX_IMAGES_PER_PDF:
@@ -441,7 +600,7 @@ def _pdf_worker(source: str, assets_dir: str, dpi: int, result_path: str) -> Non
             cpu_soft, cpu_hard = resource.getrlimit(resource.RLIMIT_CPU)
             cpu_limit = min(25, cpu_hard) if cpu_hard != resource.RLIM_INFINITY else 25
             resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit))
-            if hasattr(resource, "RLIMIT_AS"):
+            if sys.platform != "darwin" and hasattr(resource, "RLIMIT_AS"):
                 memory_soft, memory_hard = resource.getrlimit(resource.RLIMIT_AS)
                 memory_limit = min(2 * 1024**3, memory_hard) if memory_hard != resource.RLIM_INFINITY else 2 * 1024**3
                 resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_hard))

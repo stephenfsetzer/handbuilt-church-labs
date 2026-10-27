@@ -17,8 +17,10 @@ from weasyprint import HTML
 
 from skills.onboarding.bulletin_import import (
     MAX_PDF_BYTES, MAX_PDF_PAGES, MAX_RENDER_OUTPUT_BYTES, MAX_TOTAL_RENDER_PIXELS,
+    MAX_PDF_GRAPH_NODES_PER_PAGE,
+    MAX_CONTENT_OPERATIONS_PER_PAGE, MAX_DECODED_CONTENT_BYTES_PER_PAGE,
     BulletinImportError, _add_bounded_output, _bounded_pdf_inspection, _extract_page_assets,
-    _hash_file_bounded, _inspect_pdf, _read_source_pdf, _render_geometry,
+    _hash_file_bounded, _inspect_pdf, _preflight_page_images, _read_source_pdf, _render_geometry,
     _run, _run_text, _validate_render_dpi, import_bulletin, list_imports, read_manifest,
 )
 from tests.helpers import make_church
@@ -352,6 +354,197 @@ class BulletinImportTests(unittest.TestCase):
         decoder.assert_not_called()
         self.assertIn("Could not safely extract page images", inspection["images"][0][0]["error"])
         self.assertIn("invalid or oversized dimensions", inspection["images"][0][0]["error"])
+
+    def _write_unsafe_graph_pdf(self, kind: str) -> Path:
+        writer = PdfWriter()
+        page = writer.add_blank_page(width=612, height=792)
+        image = DecodedStreamObject()
+        image.set_data(b"\x00")
+        image.update({NameObject("/Type"): NameObject("/XObject"),
+                      NameObject("/Subtype"): NameObject("/Image"),
+                      NameObject("/Width"): NumberObject(5001),
+                      NameObject("/Height"): NumberObject(5000),
+                      NameObject("/BitsPerComponent"): NumberObject(1),
+                      NameObject("/ColorSpace"): NameObject("/DeviceGray")})
+        image_ref = writer._add_object(image)
+        form = DecodedStreamObject()
+        form.set_data(b"q /Im0 Do Q")
+        form.update({NameObject("/Type"): NameObject("/XObject"),
+                     NameObject("/Subtype"): NameObject("/Form"),
+                     NameObject("/BBox"): ArrayObject([NumberObject(0), NumberObject(0),
+                                                        NumberObject(10), NumberObject(10)]),
+                     NameObject("/Resources"): DictionaryObject({
+                         NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): image_ref})})})
+        form_ref = writer._add_object(form)
+        resources = DictionaryObject()
+        if kind == "annotation":
+            appearance = DictionaryObject({NameObject("/N"): form_ref, NameObject("/R"): form_ref,
+                                           NameObject("/D"): form_ref})
+            annot = DictionaryObject({NameObject("/Type"): NameObject("/Annot"),
+                                      NameObject("/Subtype"): NameObject("/Stamp"),
+                                      NameObject("/Rect"): ArrayObject([NumberObject(0), NumberObject(0),
+                                                                         NumberObject(20), NumberObject(20)]),
+                                      NameObject("/AP"): appearance})
+            page[NameObject("/Annots")] = ArrayObject([writer._add_object(annot)])
+        elif kind == "pattern":
+            pattern = DecodedStreamObject()
+            pattern.set_data(b"/Im0 Do")
+            pattern.update({NameObject("/Type"): NameObject("/Pattern"),
+                            NameObject("/PatternType"): NumberObject(1),
+                            NameObject("/BBox"): ArrayObject([NumberObject(0), NumberObject(0),
+                                                               NumberObject(10), NumberObject(10)]),
+                            NameObject("/XStep"): NumberObject(10), NameObject("/YStep"): NumberObject(10),
+                            NameObject("/Resources"): DictionaryObject({
+                                NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): image_ref})})})
+            resources[NameObject("/Pattern")] = DictionaryObject({NameObject("/P1"): writer._add_object(pattern)})
+        elif kind == "type3":
+            charproc = DecodedStreamObject()
+            charproc.set_data(b"/Im0 Do")
+            font = DictionaryObject({NameObject("/Type"): NameObject("/Font"),
+                                     NameObject("/Subtype"): NameObject("/Type3"),
+                                     NameObject("/FontBBox"): ArrayObject([NumberObject(0), NumberObject(0),
+                                                                            NumberObject(10), NumberObject(10)]),
+                                     NameObject("/FontMatrix"): ArrayObject([NumberObject(1), NumberObject(0),
+                                                                             NumberObject(0), NumberObject(1),
+                                                                             NumberObject(0), NumberObject(0)]),
+                                     NameObject("/CharProcs"): DictionaryObject({
+                                         NameObject("/g"): writer._add_object(charproc)}),
+                                     NameObject("/Resources"): DictionaryObject({
+                                         NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): image_ref})}),
+                                     NameObject("/Encoding"): DictionaryObject({NameObject("/Differences"): ArrayObject([])}),
+                                     NameObject("/FirstChar"): NumberObject(0), NameObject("/LastChar"): NumberObject(0),
+                                     NameObject("/Widths"): ArrayObject([NumberObject(10)])})
+            resources[NameObject("/Font")] = DictionaryObject({NameObject("/F3"): writer._add_object(font)})
+        elif kind == "soft-mask-group":
+            resources[NameObject("/ExtGState")] = DictionaryObject({NameObject("/GS1"): DictionaryObject({
+                NameObject("/Type"): NameObject("/ExtGState"),
+                NameObject("/SMask"): DictionaryObject({NameObject("/S"): NameObject("/Alpha"),
+                                                        NameObject("/G"): form_ref})})})
+        page[NameObject("/Resources")] = resources
+        path = self.tmp / f"unsafe-{kind}.pdf"
+        with path.open("wb") as handle:
+            writer.write(handle)
+        return path
+
+    def test_annotation_pattern_type3_and_soft_mask_images_are_preflighted(self):
+        for kind in ("annotation", "pattern", "type3", "soft-mask-group"):
+            with self.subTest(kind=kind):
+                pdf = self._write_unsafe_graph_pdf(kind)
+                with patch.object(PageObject, "images", new_callable=PropertyMock,
+                                  side_effect=AssertionError("page.images must not be touched")) as images_property, \
+                        patch("pypdf.generic._image_xobject._xobj_to_image",
+                              side_effect=AssertionError("image decoder must not run")) as decoder:
+                    inspection = _inspect_pdf(pdf, self.tmp / f"assets-{kind}", 150)
+                images_property.assert_not_called()
+                decoder.assert_not_called()
+                self.assertIn("invalid or oversized dimensions", inspection["geometry"][0]["image_preflight_error"])
+                with patch("skills.onboarding.bulletin_import._run") as render, \
+                        patch("skills.onboarding.bulletin_import._run_text") as extract:
+                    with self.assertRaisesRegex(BulletinImportError, "artwork that cannot be processed safely"):
+                        import_bulletin(self.church, pdf)
+                render.assert_not_called()
+                extract.assert_not_called()
+
+    def test_safe_cyclic_and_shared_resources_finish_preflight(self):
+        writer = PdfWriter()
+        page = writer.add_blank_page(width=612, height=792)
+        image = DecodedStreamObject()
+        image.set_data(b"\x00")
+        image.update({NameObject("/Subtype"): NameObject("/Image"),
+                      NameObject("/Width"): NumberObject(1), NameObject("/Height"): NumberObject(1)})
+        image_ref = writer._add_object(image)
+        resources = DictionaryObject({NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): image_ref})})
+        form = DecodedStreamObject()
+        form.set_data(b"q Q")
+        form.update({NameObject("/Subtype"): NameObject("/Form"),
+                     NameObject("/Resources"): resources})
+        form_ref = writer._add_object(form)
+        resources["/XObject"][NameObject("/Fm0")] = form_ref
+        page[NameObject("/Resources")] = resources
+        # The writer's direct object graph is enough to exercise the cycle
+        # without asking pypdf or Poppler to decode any image.
+        self.assertEqual(_preflight_page_images(page)["images"], 1)
+
+    def test_graph_node_budget_fails_closed(self):
+        writer = PdfWriter()
+        page = writer.add_blank_page(width=612, height=792)
+        annotations = ArrayObject()
+        for _ in range(MAX_PDF_GRAPH_NODES_PER_PAGE // 2 + 1):
+            appearance = DecodedStreamObject()
+            appearance.set_data(b"q Q")
+            appearance_ref = writer._add_object(appearance)
+            annotation = DictionaryObject({NameObject("/AP"): DictionaryObject({NameObject("/N"): appearance_ref})})
+            annotations.append(writer._add_object(annotation))
+        page[NameObject("/Annots")] = annotations
+        with self.assertRaisesRegex(BulletinImportError, "too many artwork resources"):
+            _preflight_page_images(page)
+
+    def test_content_operation_and_decoded_byte_budgets_fail_closed(self):
+        writer = PdfWriter()
+        page = writer.add_blank_page(width=612, height=792)
+        content = DecodedStreamObject()
+        content.set_data(b"q Q q Q")
+        page[NameObject("/Contents")] = writer._add_object(content)
+        with patch("skills.onboarding.bulletin_import.MAX_CONTENT_OPERATIONS_PER_PAGE", 2):
+            with self.assertRaisesRegex(BulletinImportError, "too many content operations"):
+                _preflight_page_images(page)
+        with patch("skills.onboarding.bulletin_import.MAX_DECODED_CONTENT_BYTES_PER_PAGE", 2):
+            with self.assertRaisesRegex(BulletinImportError, "too much decoded artwork content"):
+                _preflight_page_images(page)
+
+    def test_annotation_images_and_masks_share_document_output_budget_before_decode(self):
+        writer = PdfWriter()
+        for page_number in range(2):
+            page = writer.add_blank_page(width=612, height=792)
+            mask = DecodedStreamObject()
+            mask.set_data(b"\x00")
+            mask.update({NameObject("/Subtype"): NameObject("/Image"),
+                         NameObject("/Width"): NumberObject(5000),
+                         NameObject("/Height"): NumberObject(5000),
+                         NameObject("/BitsPerComponent"): NumberObject(1),
+                         NameObject("/ColorSpace"): NameObject("/DeviceGray")})
+            mask_ref = writer._add_object(mask)
+            image = DecodedStreamObject()
+            image.set_data(b"\x00")
+            image.update({NameObject("/Subtype"): NameObject("/Image"),
+                          NameObject("/Width"): NumberObject(5000),
+                          NameObject("/Height"): NumberObject(5000),
+                          NameObject("/BitsPerComponent"): NumberObject(8),
+                          NameObject("/ColorSpace"): NameObject("/DeviceGray"),
+                          NameObject("/SMask"): mask_ref})
+            image_ref = writer._add_object(image)
+            form = DecodedStreamObject()
+            form.set_data(b"/Im0 Do")
+            form.update({NameObject("/Subtype"): NameObject("/Form"),
+                         NameObject("/BBox"): ArrayObject([NumberObject(0), NumberObject(0),
+                                                            NumberObject(10), NumberObject(10)]),
+                         NameObject("/Resources"): DictionaryObject({
+                             NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): image_ref})})})
+            form_ref = writer._add_object(form)
+            annotation = DictionaryObject({NameObject("/Subtype"): NameObject("/Stamp"),
+                                           NameObject("/Rect"): ArrayObject([NumberObject(0), NumberObject(0),
+                                                                              NumberObject(20), NumberObject(20)]),
+                                           NameObject("/AP"): DictionaryObject({NameObject("/N"): form_ref})})
+            page[NameObject("/Annots")] = ArrayObject([writer._add_object(annotation)])
+        pdf = self.tmp / "annotation-image-budget.pdf"
+        with pdf.open("wb") as handle:
+            writer.write(handle)
+
+        with patch.object(PageObject, "images", new_callable=PropertyMock,
+                          side_effect=AssertionError("page.images must not be touched")) as images_property, \
+                patch("pypdf.generic._image_xobject._xobj_to_image",
+                      side_effect=AssertionError("image decoder must not run")) as decoder:
+            inspection = _inspect_pdf(pdf, self.tmp / "budget-assets", 150)
+        images_property.assert_not_called()
+        decoder.assert_not_called()
+        self.assertNotIn("image_preflight_error", inspection["geometry"][0])
+        self.assertIn("document image-output limit", inspection["geometry"][1]["image_preflight_error"])
+        with patch("skills.onboarding.bulletin_import._run") as render, \
+                patch("skills.onboarding.bulletin_import._run_text") as extract:
+            with self.assertRaisesRegex(BulletinImportError, "artwork that cannot be processed safely"):
+                import_bulletin(self.church, pdf)
+        render.assert_not_called()
+        extract.assert_not_called()
 
     def test_source_hash_is_recorded_and_readable(self):
         pdf_path = _pdf_from_html("<html><body><p>Hashed content.</p></body></html>", self.tmp / "hashed.pdf")

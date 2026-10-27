@@ -13,20 +13,27 @@ ask for a smaller or simpler copy. Do not turn limits off to force an import.
 - Rendered page output: at most 400 MiB in total.
 - Embedded images: at most 100 per page and 1,000 per document, with a
   25 million pixel per-image limit and a 256 MiB aggregate output budget.
-  Raw images, masks and inline images are checked before decoding. Resource
-  traversal stops at 500 objects per page or 32 nested forms. Unsafe artwork
-  blocks the import before Poppler rendering; ask for a simpler source copy.
+  Raw images, masks and inline images are checked before decoding. The walk
+  includes annotation appearances, tiling patterns, Type3 font programs and
+  transparency groups. All pages pass preflight before image extraction begins.
+  The estimated decoded artwork budget is also 256 MiB across the document.
+  Unsafe artwork blocks the import before Poppler rendering; ask for a simpler copy.
+- Per-page artwork inspection stops at 4,000 graph nodes, 500 resource entries,
+  32 nesting levels, 100,000 content operations or 64 MiB of decoded content streams.
 - Extracted text: at most 1 MiB per page and 16 MiB in total.
 - PDF inspection runs in a separate process with a 30 second wall limit.
-  Where POSIX resource limits are available, it also has a 25 second CPU
-  budget and a 2 GiB address-space budget.
-- Each Poppler operation has a 30 second wall limit. Captured diagnostics are
-  bounded to 4 KiB; extracted text is streamed with a byte cap.
+  POSIX hosts also have a 25 second CPU budget. Linux hosts with address-space
+  limits have a 2 GiB parser memory budget.
+- Each Poppler operation has a 30 second wall limit, including pipe draining.
+  POSIX hosts also limit CPU to 25 seconds and individual output files to 256 MiB;
+  Linux hosts with address-space limits cap memory at 2 GiB. Limits are applied
+  in an isolated exec helper. A timeout terminates the POSIX process group.
+  Captured diagnostics stay within 4 KiB; extracted text is streamed with a byte cap.
 
-Platforms without POSIX resource limits retain process termination and the
-file, page, pixel, output and wall limits. They do not have an OS-enforced
-parser memory limit. Existing path confinement, source snapshots and per-image
-failure reporting still apply.
+Windows retains file, page, pixel, output and wall limits. macOS also has the
+POSIX CPU and file-size limits. Neither platform has an OS-enforced parser
+address-space limit in this release. Existing path confinement, source snapshots
+and per-image failure reporting still apply.
 
 ## Images and fonts
 
