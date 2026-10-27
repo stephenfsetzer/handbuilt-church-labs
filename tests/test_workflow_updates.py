@@ -91,6 +91,7 @@ class WorkflowUpdateTests(unittest.TestCase):
         offline = mock.Mock(side_effect=OSError('offline'))
         result = self.select(download=offline)
         self.assertEqual((result['status'], result['selected_root']), ('deferred', str(self.current)))
+        self.assertEqual(result['reason'], 'update_unavailable')
         self.select(download=offline)
         self.assertEqual(offline.call_count, 1)
         self.assertEqual(result['freshness'], 'unknown')
@@ -118,10 +119,29 @@ class WorkflowUpdateTests(unittest.TestCase):
 
     def test_failed_runtime_validation_cannot_select_candidate(self):
         def broken(root):
-            raise ValueError('missing runtime package')
+            raise updates.RuntimeUpgradeRequired('runtime check is not ready')
         result = self.select(validate=broken)
         self.assertEqual(result['selected_root'], str(self.current))
+        self.assertEqual((result['status'], result['reason']), ('deferred', 'runtime_upgrade_required'))
+        self.assertEqual(result['detail'], 'runtime check is not ready')
         self.assertFalse(list((self.store / 'releases').glob('0.6.0-*')))
+
+    def test_cached_candidate_runtime_validation_has_structured_reason(self):
+        installed = self.select(validate=lambda root: None)
+        self.calls.clear()
+
+        def broken(root):
+            raise updates.RuntimeUpgradeRequired('cached runtime check is not ready')
+
+        result = updates.select_release(self.current, self.store, broken, download=self.download,
+                                        now=lambda: 100010)
+        self.assertEqual(result['selected_root'], str(self.current))
+        self.assertEqual((result['status'], result['reason']), ('deferred', 'runtime_upgrade_required'))
+        self.assertEqual(result['detail'], 'cached runtime check is not ready')
+        self.assertEqual(result['freshness'], 'cached')
+        self.assertNotIn(updates.LATEST_URL, self.calls)
+        self.assertNotIn(self.urls[updates.PACKAGE], self.calls)
+        self.assertTrue(Path(installed['selected_root']).exists())
 
     def test_missing_assets_and_prereleases_are_not_installed(self):
         for changes in ({'assets': []}, {'prerelease': True}, {'tag_name': 'v0.6.0-rc1'}, {'assets': [None]}):

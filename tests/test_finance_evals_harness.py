@@ -40,6 +40,7 @@ class WorkspaceTests(unittest.TestCase):
         self.assertFalse((self.plugin / "tests").exists())
         self.assertFalse((self.plugin / ".git").exists())
         self.assertTrue((self.plugin / "skills/finance-onboarding/SKILL.md").is_file())
+        self.assertTrue((self.plugin / "requirements.lock").is_file())
 
     def test_files_cannot_escape_to_host_or_plugin_writes(self):
         outside = self.base / "private.json"
@@ -89,15 +90,8 @@ class WorkspaceTests(unittest.TestCase):
             process.assert_not_called()
 
     def test_real_adapter_and_launcher_roundtrip_with_only_local_tools(self):
-        # CI installs the pinned requirements into its test interpreter but need
-        # not create a per-user production runtime. Supply that interpreter at
-        # the managed-runtime seam without installing anything or using network.
-        runtime = self.base / "runtime"
-        runtime.mkdir()
-        (runtime / "python").symlink_to(sys.prefix, target_is_directory=True)
-        environment = patch.dict(os.environ, {"HANDBUILT_RUNTIME_HOME": str(runtime)})
-        environment.start()
-        self.addCleanup(environment.stop)
+        # Run with the verified managed runtime required by the repository's
+        # test recipe. The launcher checks it read-only; this test never installs.
         start = self.server.command(shlex.join([sys.executable, str(self.plugin / "tools/church_workflow.py"),
                                                 "--church-folder", str(self.root), "start", "finance-onboarding"]))
         self.assertEqual(start["exit_code"], 0, start)

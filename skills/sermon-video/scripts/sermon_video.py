@@ -21,6 +21,9 @@ from string import Template
 
 SKILL = Path(__file__).resolve().parents[1]
 PLUGIN = SKILL.parents[1]
+if str(PLUGIN) not in sys.path:
+    sys.path.insert(0, str(PLUGIN))
+from tools.image_limits import ImageInputError, MAX_IMAGE_BYTES, open_raster
 OBSERVATIONS = ("desktop_playback", "mobile_playback", "seeking", "opening_complete",
                 "ending_complete", "caption_panel_clear", "thumbnail_readable")
 # Measured on a 12 minute sermon with two different ffmpeg builds (7.1 and 8.1.1). At 192 kbps the audio
@@ -163,39 +166,79 @@ def knock_out_light_background(source, target):
     was converted and saved to target, and False when it is left alone (already transparent, no light
     background, or Pillow is unavailable). Written without numpy, which the managed runtime does not have."""
     try:
-        from PIL import Image, UnidentifiedImageError
+        from PIL import Image
     except ImportError:
         return False
+    image_context = open_raster(source)
     try:
-        image = Image.open(source)
-    except UnidentifiedImageError:       # a vector logo (SVG) is drawn by the browser as it is
-        return False
-    if image.mode in ("RGBA", "LA", "P") and image.convert("RGBA").getchannel("A").getextrema()[0] < 250:
-        return False
-    rgb = image.convert("RGB")
-    width, height = rgb.size
-    edge = [rgb.getpixel(point) for x in (0, width // 2, width - 1) for point in ((x, 0), (x, height - 1))]
-    edge += [rgb.getpixel(point) for y in (height // 2,) for point in ((0, y), (width - 1, y))]
-    if not all(min(pixel) >= 240 for pixel in edge):
-        return False
-    pixels = list(rgb.get_flattened_data() if hasattr(rgb, "get_flattened_data") else rgb.getdata())   # getdata is going away in Pillow 14
-    darkest = min(min(pixel) for pixel in pixels)          # the mark's own ink, so a gray mark stays fully opaque
-    if darkest > 200:
-        return False
-    span = 255 - darkest
-    converted = []
-    for red, green, blue in pixels:
-        alpha = min(1.0, (255 - min(red, green, blue)) / span)
-        if alpha < .03:
-            converted.append((0, 0, 0, 0))
-            continue
-        converted.append(tuple(max(0, min(255, round((value - 255 * (1 - alpha)) / alpha))) for value in (red, green, blue))
-                         + (round(alpha * 255),))
-    result = Image.new("RGBA", rgb.size)
-    result.putdata(converted)
-    bounds = result.getchannel("A").getbbox()
-    (result.crop(bounds) if bounds else result).save(target)
-    return True
+        with image_context as image:
+            if image.mode in ("RGBA", "LA", "P"):
+                rgba = image.convert("RGBA")
+                try:
+                    if rgba.getchannel("A").getextrema()[0] < 250:
+                        return False
+                finally:
+                    rgba.close()
+            rgb = image.convert("RGB")
+            try:
+                width, height = rgb.size
+                edge = [rgb.getpixel(point) for x in (0, width // 2, width - 1) for point in ((x, 0), (x, height - 1))]
+                edge += [rgb.getpixel(point) for y in (height // 2,) for point in ((0, y), (width - 1, y))]
+                if not all(min(pixel) >= 240 for pixel in edge):
+                    return False
+                darkest = min(channel[0] for channel in rgb.getextrema())
+                if darkest > 200:
+                    return False
+                span = 255 - darkest
+                result = Image.new("RGBA", rgb.size)
+                tile_size = 128
+                try:
+                    for top in range(0, height, tile_size):
+                        bottom = min(top + tile_size, height)
+                        for left in range(0, width, tile_size):
+                            right = min(left + tile_size, width)
+                            chunk = rgb.crop((left, top, right, bottom))
+                            try:
+                                converted = []
+                                raw = chunk.tobytes()
+                                for offset in range(0, len(raw), 3):
+                                    red, green, blue = raw[offset], raw[offset + 1], raw[offset + 2]
+                                    alpha = min(1.0, (255 - min(red, green, blue)) / span)
+                                    if alpha < .03:
+                                        converted.append((0, 0, 0, 0))
+                                        continue
+                                    converted.append(tuple(max(0, min(255, round((value - 255 * (1 - alpha)) / alpha)))
+                                                           for value in (red, green, blue)) + (round(alpha * 255),))
+                                tile = Image.new("RGBA", chunk.size)
+                                try:
+                                    tile.putdata(converted)
+                                    result.paste(tile, (left, top))
+                                finally:
+                                    tile.close()
+                            finally:
+                                chunk.close()
+                    alpha_channel = result.getchannel("A")
+                    try:
+                        bounds = alpha_channel.getbbox()
+                    finally:
+                        alpha_channel.close()
+                    if bounds:
+                        cropped = result.crop(bounds)
+                        try:
+                            cropped.save(target)
+                        finally:
+                            cropped.close()
+                    else:
+                        result.save(target)
+                    return True
+                finally:
+                    result.close()
+            finally:
+                rgb.close()
+    except ImageInputError:
+        if Path(source).suffix.casefold() == ".svg":
+            return False
+        raise
 
 
 def thumbnail_title_size(title):
@@ -236,6 +279,15 @@ def artwork(root, data):
             source = local(root, name)
             if not source.is_file():
                 raise ValueError(f"Missing {key} asset.")
+            if source.suffix.casefold() == ".svg":
+                if key != "logo" or source.stat().st_size > MAX_IMAGE_BYTES:
+                    raise ValueError(f"Invalid {key} image asset.")
+            else:
+                try:
+                    with open_raster(source):
+                        pass
+                except (OSError, ValueError) as exc:
+                    raise ValueError(f"Invalid {key} image asset: {exc}") from exc
             target = assets / ("review-" + key + source.suffix.lower())
             if key == "logo" and knock_out_light_background(source, assets / "review-logo.png"):
                 target = assets / "review-logo.png"

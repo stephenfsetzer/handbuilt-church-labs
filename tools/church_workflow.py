@@ -158,7 +158,7 @@ def claude_update_settings() -> dict | None:
 def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:
     from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
-    from tools.workflow_updates import select_release, package_version, verify_installed, version
+    from tools.workflow_updates import RuntimeUpgradeRequired, select_release, package_version, verify_installed, version
     identity = inspect_installation(ROOT, church)
     metadata = _private_file(church, ".handbuilt/installation.json")
     saved = json.loads(metadata.read_text()) if metadata.exists() else {}
@@ -179,10 +179,10 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
         try:
             check = subprocess.run(command + ["--format", "json"], capture_output=True, text=True, timeout=90)
             report = json.loads(check.stdout)
-        except (subprocess.SubprocessError, ValueError) as exc:
-            raise ValueError("The new workflow could not complete its runtime check.") from exc
-        if check.returncode or report.get("status") != "ready":
-            raise ValueError("The new workflow needs a runtime change; the current workflow was kept.")
+        except (OSError, subprocess.SubprocessError, TypeError, ValueError) as exc:
+            raise RuntimeUpgradeRequired("The new workflow could not complete its runtime check.") from exc
+        if check.returncode or not isinstance(report, dict) or report.get("status") != "ready":
+            raise RuntimeUpgradeRequired("The new workflow needs a runtime change; the current workflow was kept.")
     if not pinned and saved_root != selected and saved_root.is_relative_to((store / "releases").resolve()):
         saved_version = verify_installed(saved_root)
         if version(saved_version) >= version(package_version(selected)):
@@ -190,8 +190,14 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
         else:
             try:
                 validate(selected)
-            except (ValueError, OSError):
-                selected = saved_root
+            except (ValueError, OSError) as error:
+                return {
+                    "status": "blocked", "code": "runtime_upgrade_required", "identity": identity,
+                    "runtime_repair": _runtime_repair_plan(),
+                    "message": "Handbuilt's updated private tools must pass their check before work can continue.",
+                    "technical_detail": str(error)[-800:],
+                    "next_action": "Prepare the updated private tools and retry. The church connection was preserved.",
+                }, 2
     elif not pinned and saved_root != selected and saved_root.is_dir():
         # An explicitly saved host installation can also be newer than this app.
         saved_identity = inspect_installation(saved_root, church)
@@ -239,7 +245,7 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
     """Force a stable release check without replacing a development checkout."""
     from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
-    from tools.workflow_updates import select_release, package_version, verify_installed, version
+    from tools.workflow_updates import RuntimeUpgradeRequired, select_release, package_version, verify_installed, version
 
     identity = inspect_installation(ROOT, church)
     metadata = _private_file(church, ".handbuilt/installation.json")
@@ -271,13 +277,20 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
         try:
             check = subprocess.run(command, capture_output=True, text=True, timeout=90)
             report = json.loads(check.stdout)
-        except (subprocess.SubprocessError, ValueError) as exc:
-            raise ValueError("The new workflow could not complete its runtime check.") from exc
-        if check.returncode or report.get("status") != "ready":
-            raise ValueError("The new workflow needs a runtime change; the current workflow was kept.")
+        except (OSError, subprocess.SubprocessError, TypeError, ValueError) as exc:
+            raise RuntimeUpgradeRequired("The new workflow could not complete its runtime check.") from exc
+        if check.returncode or not isinstance(report, dict) or report.get("status") != "ready":
+            raise RuntimeUpgradeRequired("The new workflow needs a runtime change; the current workflow was kept.")
 
     updates = select_release(selected, store, validate, force=True)
     selected = Path(updates["selected_root"])
+    if updates["status"] == "deferred" and updates.get("reason") == "runtime_upgrade_required":
+        return {
+            "status": "blocked", "code": "runtime_upgrade_required", "updates": updates,
+            "identity": identity, "runtime_repair": _runtime_repair_plan(),
+            "message": "Handbuilt kept the current workflow because its private tools need an update.",
+            "next_action": "The host should prepare the updated private tools, verify them, and retry the workflow update. Preserve the current church connection.",
+        }, 2
     if selected != ROOT.resolve():
         process = subprocess.run(
             [sys.executable, str(selected / "tools/church_workflow.py"),
@@ -306,16 +319,27 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
     return result, 0 if updates["status"] in {"current", "updated"} else 1
 
 
+def _runtime_repair_plan() -> dict:
+    """Give the host an explicit repair operation without running an install."""
+    return {
+        "command": [sys.executable, str(ROOT / "tools/handbuilt_runtime.py"), "setup", "--format", "json"],
+        "bootstrap_option": "--bootstrap-python",
+        "requires_security_patched_bootstrap": True,
+        "preserves_previous_runtime": True,
+    }
+
+
 def _doctor(workflow: str = "bulletin") -> dict:
     # Keep PDF dependencies and their working check on the workflows that make PDFs.
     # Workspace and sermon tools still require the existing managed packages.
     arguments = (["verify"] if workflow in PDF_WORKFLOWS
                  else ["doctor", "--capability", "workspace"])
     result = subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
-                             *arguments, "--format", "json"], capture_output=True, text=True)
+                             *arguments, "--format", "json"], capture_output=True, text=True, timeout=90)
     report = json.loads(result.stdout)
     if report.get("status") != "ready":
         return {"status": "blocked", "code": "runtime_not_ready", "runtime_check": report,
+                "runtime_repair": _runtime_repair_plan(),
                 "next_action": report.get("next_action", "Follow the runtime check's repair plan, then check again.")}
     return report
 
@@ -598,8 +622,11 @@ def main() -> int:
     print_check = sub.add_parser("check-print", help="Check saved bulletins against the church's print check list")
     print_check.add_argument("--format", choices=("table", "json"), default="table")
     runtime = sub.add_parser("runtime")
-    runtime.add_argument("operation", choices=("doctor", "verify", "setup", "native-install"))
+    runtime.add_argument("operation", choices=("doctor", "verify", "setup", "rollback", "prune", "native-install"))
     runtime.add_argument("--capability", choices=("workspace", "bulletin"))
+    runtime.add_argument("--bootstrap-python", help="Use an inspected, security-patched host interpreter for setup")
+    runtime.add_argument("--apply", action="store_true", help="Remove the obsolete runtimes listed by prune")
+    runtime.add_argument("--workflows-stopped", action="store_true", help="Confirm all Handbuilt workflows have stopped before pruning")
     for name in WORKFLOWS:
         command = sub.add_parser(name)
         command.add_argument("operation", choices=sorted(OPERATIONS[name]))
@@ -612,7 +639,15 @@ def main() -> int:
         elif args.command == "runtime":
             if args.capability and args.operation != "doctor":
                 raise ValueError("Choose a capability only for runtime doctor; verify always checks all PDF tools")
+            if (args.apply or args.workflows_stopped) and args.operation != "prune":
+                raise ValueError("Cleanup flags apply only to runtime prune")
             arguments = (["--capability", args.capability] if args.capability else [])
+            if args.bootstrap_python:
+                arguments += ["--bootstrap-python", args.bootstrap_python]
+            if args.apply:
+                arguments.append("--apply")
+            if args.workflows_stopped:
+                arguments.append("--workflows-stopped")
             return subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
                                    args.operation, *arguments, "--format", "json"]).returncode
         elif args.command == "updates":

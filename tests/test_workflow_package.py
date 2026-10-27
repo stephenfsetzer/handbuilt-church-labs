@@ -43,9 +43,14 @@ class WorkflowPackageTest(unittest.TestCase):
             self._write(relative, json.dumps(manifest) + "\n")
         for relative in (
             "requirements.txt",
+            "requirements.lock",
             "LICENSE",
             "tools/church_workflow.py",
             "tools/handbuilt_runtime.py",
+            "tools/runtime_security.py",
+            "tools/runtime_lock.py",
+            "tools/image_limits.py",
+            "tools/limited_process.py",
             "tools/workflow_updates.py",
             "tools/plugin_identity.py",
             "tools/instruction_recovery.py",
@@ -85,6 +90,7 @@ class WorkflowPackageTest(unittest.TestCase):
         with zipfile.ZipFile(result["zip"]) as archive:
             names = set(archive.namelist())
         self.assertIn("scaffold/church-folder/church.yaml", names)
+        self.assertIn("requirements.lock", names)
         self.assertNotIn("scaffold/church-folder/private-church-data/secret.yaml", names)
         self.assertNotIn("scaffold/church-folder/tests/fixture.txt", names)
 

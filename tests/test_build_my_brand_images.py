@@ -18,6 +18,8 @@ from unittest import mock
 from PIL import Image
 
 from tests.helpers import make_church
+from tests.test_image_limits import png_header
+from tools.image_limits import MAX_IMAGE_BYTES
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skills" / "build-my-brand"))
@@ -142,6 +144,113 @@ class ImageStudioTest(unittest.TestCase):
 
     def _receipt(self, result: dict) -> dict:
         return json.loads(Path(result["receipt"]).read_text())
+
+    def test_source_image_header_is_bounded_before_pixel_load_or_conversion(self):
+        path = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "references" / "oversized.png"
+        path.write_bytes(png_header(5000, 4000))
+        raw = path.relative_to(self.church).as_posix()
+        with mock.patch.object(Image.Image, "load", side_effect=AssertionError("pixels decoded")), \
+                mock.patch.object(Image.Image, "convert", side_effect=AssertionError("pixels converted")):
+            with self.assertRaises(WorkflowFailure):
+                images._image_input(self.church, raw, "reference")
+
+    def test_source_image_byte_cap_precedes_file_read(self):
+        path = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "references" / "oversized.png"
+        with path.open("wb") as handle:
+            handle.truncate(MAX_IMAGE_BYTES + 1)
+        raw = path.relative_to(self.church).as_posix()
+        with self.assertRaises(WorkflowFailure):
+            images._image_input(self.church, raw, "reference")
+
+    def test_reference_count_is_capped_before_file_read_or_provider_call(self):
+        self._through_direction()
+        fake = FakeImages()
+        references = [self.reference] * (images.MAX_IMAGES + 1)
+        with mock.patch.object(images, "_image_input", side_effect=AssertionError("reference read")):
+            result = images.draw(self.church, "door-1", self.brief, references=references, provider=fake)
+        self.assertEqual(result["errors"][0]["code"], "invalid_count")
+        self.assertEqual(fake.calls, [])
+
+    def test_import_count_is_capped_before_file_read_or_layout(self):
+        self._through_direction()
+        (self.briefs / "prompt.md").write_text(BRIEF)
+        files = [self.reference] * (images.MAX_IMAGES + 1)
+        with mock.patch.object(images, "_image_input", side_effect=AssertionError("image read")), \
+                mock.patch.object(images, "_lay_out", side_effect=AssertionError("layout")):
+            result = images.import_images(self.church, "host-1", files, self.brief, tool="Host image generator")
+        self.assertEqual(result["errors"][0]["code"], "invalid_count")
+
+    def test_import_total_byte_cap_stops_before_reading_next_image(self):
+        self._through_direction()
+        (self.briefs / "prompt.md").write_text(BRIEF)
+        directory = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "host"
+        directory.mkdir(parents=True)
+        first = directory / "first.png"
+        second = directory / "second.png"
+        payload = _transparent_png()
+        first.write_bytes(payload)
+        second.write_bytes(payload)
+        files = [first.relative_to(self.church).as_posix(), second.relative_to(self.church).as_posix()]
+        original_open = Path.open
+        reads_of_second = []
+
+        class ReadTracked:
+            def __init__(self, handle):
+                self.handle = handle
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.handle.close()
+
+            def fileno(self):
+                return self.handle.fileno()
+
+            def read(self, size=-1):
+                reads_of_second.append(size)
+                raise AssertionError("second image bytes were read")
+
+        def tracked_open(path, *args, **kwargs):
+            handle = original_open(path, *args, **kwargs)
+            if path == second:
+                return ReadTracked(handle)
+            return handle
+
+        with mock.patch.object(images, "MAX_IMAGE_BATCH_BYTES", len(payload) + 1), \
+                mock.patch.object(Path, "open", autospec=True, side_effect=tracked_open), \
+                mock.patch.object(images, "_lay_out", side_effect=AssertionError("layout")):
+            result = images.import_images(self.church, "host-1", files,
+                                          ".handbuilt/build-my-brand/scratch/briefs/prompt.md", tool="Host image generator")
+        self.assertEqual(result["errors"][0]["code"], "invalid_image")
+        self.assertEqual(reads_of_second, [])
+
+    def test_layout_checks_count_and_total_bytes_before_rendering(self):
+        with mock.patch.object(images, "MAX_IMAGE_BATCH_BYTES", 4), \
+                mock.patch.object(images, "flatten_on_white", side_effect=AssertionError("image rendered")):
+            with self.assertRaises(WorkflowFailure):
+                images._lay_out(self.church, "round", "import", [b"123", b"45"], maker="test", receipt={},
+                                brief_text="", brief_name="prompt")
+        with mock.patch.object(images, "flatten_on_white", side_effect=AssertionError("image rendered")):
+            with self.assertRaises(WorkflowFailure):
+                images._lay_out(self.church, "round", "import", [b""] * (images.MAX_IMAGES + 1), maker="test", receipt={},
+                                brief_text="", brief_name="prompt")
+
+    def test_prepared_reference_byte_cap_blocks_the_provider(self):
+        self._through_direction()
+        fake = FakeImages()
+        with mock.patch.object(images, "MAX_IMAGE_BATCH_BYTES", 4), \
+                mock.patch.object(images, "_image_input", return_value=(Path(self.reference), b"a")), \
+                mock.patch.object(images, "flatten_on_white", return_value=b"12345"):
+            result = images.draw(self.church, "door-1", self.brief, references=[self.reference], provider=fake)
+        self.assertEqual(result["errors"][0]["code"], "invalid_image")
+        self.assertEqual(fake.calls, [])
+
+    def test_base64_image_limit_is_checked_before_decode(self):
+        too_long = "A" * (((MAX_IMAGE_BYTES + 2) // 3) * 4 + 1)
+        with mock.patch("base64.b64decode", side_effect=AssertionError("base64 decoded before length check")):
+            with self.assertRaises(WorkflowFailure):
+                images._decode_limited_base64(too_long, field="synthetic result")
 
     def test_draw_saves_flattened_pngs_on_the_contact_sheet_with_a_receipt(self):
         fake = FakeImages()
@@ -296,8 +405,8 @@ class ImageStudioTest(unittest.TestCase):
             def __exit__(self, *exc):
                 return False
 
-            def read(self):
-                return self.body
+            def read(self, size=-1):
+                return self.body if size < 0 else self.body[:size]
 
         def fake_urlopen(request, timeout=None):
             seen["url"] = request.full_url
@@ -327,8 +436,9 @@ class ImageStudioTest(unittest.TestCase):
             def __exit__(self, *exc):
                 return False
 
-            def read(self):
-                return json.dumps({"data": [{"b64_json": payload}]}).encode()
+            def read(self, size=-1):
+                body = json.dumps({"data": [{"b64_json": payload}]}).encode()
+                return body if size < 0 else body[:size]
 
         def fake_urlopen(request, timeout=None):
             model = json.loads(request.data)["model"]
@@ -363,8 +473,9 @@ class ImageStudioTest(unittest.TestCase):
             def __exit__(self, *exc):
                 return False
 
-            def read(self):
-                return json.dumps({"data": [{"b64_json": payload}]}).encode()
+            def read(self, size=-1):
+                body = json.dumps({"data": [{"b64_json": payload}]}).encode()
+                return body if size < 0 else body[:size]
 
         def fake_urlopen(request, timeout=None):
             seen["url"] = request.full_url
@@ -391,8 +502,8 @@ class ImageStudioTest(unittest.TestCase):
             def __exit__(self, *exc):
                 return False
 
-            def read(self):
-                return self.body
+            def read(self, size=-1):
+                return self.body if size < 0 else self.body[:size]
 
         def fake_urlopen(request, timeout=None):
             seen.append({"url": request.full_url, "body": json.loads(request.data),

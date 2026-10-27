@@ -17,6 +17,9 @@ from pathlib import Path
 import tempfile
 import unittest
 import urllib.error
+from unittest import mock
+
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY = ROOT / "skills/sermon-video/scripts/sermon_video.py"
@@ -64,6 +67,38 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(providers, ["boxcast", "direct", "vimeo", "youtube"])
         direct = next(item for item in found if item["provider"] == "direct")
         self.assertEqual(direct["url"], "https://example.invalid/media/service.mp4")
+
+    def test_logo_background_removal_keeps_vector_logos_on_the_browser_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            logo = Path(tmp) / "mark.svg"
+            logo.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>')
+            self.assertFalse(video.knock_out_light_background(logo, Path(tmp) / "review.png"))
+
+    def test_logo_background_removal_uses_bounded_tiles_and_preserves_color(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "mark.png"
+            target = Path(tmp) / "transparent.png"
+            image = Image.new("RGB", (300, 260), "white")
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((20, 20, 279, 239), fill=(20, 40, 60))
+            image.putpixel((20, 20), (138, 148, 158))
+            image.save(source)
+            image.close()
+
+            original_tobytes = Image.Image.tobytes
+            areas = []
+
+            def bounded_tobytes(tile, *args, **kwargs):
+                areas.append(tile.width * tile.height)
+                self.assertLessEqual(areas[-1], 128 * 128)
+                return original_tobytes(tile, *args, **kwargs)
+
+            with mock.patch.object(Image.Image, "tobytes", bounded_tobytes):
+                self.assertTrue(video.knock_out_light_background(source, target))
+            self.assertGreater(len(areas), 1)
+            with Image.open(target) as result:
+                self.assertEqual(result.getpixel((0, 0)), (20, 40, 60, 127))
+                self.assertEqual(result.getpixel((1, 1)), (20, 40, 60, 255))
 
     def test_boxcast_channel_is_found_once_from_widget_and_script(self):
         found = video.discover_candidates(PAGE, PAGE_URL)

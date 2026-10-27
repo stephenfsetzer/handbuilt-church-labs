@@ -49,10 +49,12 @@ from . import (
     _brand_setup, _church_root, _existing, _exploration_open, _failure, _load_state,
     _receipt, _recorded, _relative, _sha256, _write_text, explore, survival,
 )
+from tools.image_limits import ImageInputError, MAX_IMAGE_BYTES, open_raster_bytes
 
 IMAGES_DIR = SCRATCH_DIR / "images"
 VECTOR_DIR = SCRATCH_DIR / "vectorize"
 MAX_IMAGES = 8
+MAX_IMAGE_BATCH_BYTES = 64 * 1024 * 1024
 DEFAULT_SIZE = "1024x1024"
 REQUEST_TIMEOUT = 300
 IMPORT_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
@@ -72,6 +74,9 @@ OPENAI_BASE = "https://api.openai.com/v1"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 RECRAFT_BASE = "https://external.api.recraft.ai/v1"
 RECRAFT_PROMPT_LIMIT = 1000
+MAX_PROVIDER_RESPONSE_BYTES = MAX_IMAGES * ((MAX_IMAGE_BYTES + 2) // 3 * 4) + 1024 * 1024
+MAX_ERROR_RESPONSE_BYTES = 64 * 1024
+IMAGE_FORMAT_BY_SUFFIX = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
 
 
 # ---------------------------------------------------------------- keys, kept on this computer only
@@ -261,10 +266,13 @@ def _http(service: str, url: str, *, key: str, payload: dict[str, Any] | None = 
         "Content-Type": content_type, "Accept": "application/json"})
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:  # noqa: S310 (fixed https endpoints)
-            return json.loads(response.read().decode("utf-8"))
+            body = response.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
+            if len(body) > MAX_PROVIDER_RESPONSE_BYTES:
+                raise WorkflowFailure("image_service_failed", f"{PROVIDER_NAMES.get(service, service)} returned a response that is too large")
+            return json.loads(body.decode("utf-8"))
     except urllib.error.HTTPError as exc:
         try:
-            detail = json.loads(exc.read().decode("utf-8", "replace"))
+            detail = json.loads(exc.read(MAX_ERROR_RESPONSE_BYTES).decode("utf-8", "replace"))
             message = (detail.get("error") or {}).get("message") if isinstance(detail.get("error"), dict) else detail.get("message") or detail.get("error")
         except (ValueError, AttributeError):
             message = None
@@ -282,18 +290,45 @@ def _fetch(url: str) -> bytes:
         raise WorkflowFailure("image_service_failed", "The image service returned a link that is not https")
     try:
         with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT) as response:  # noqa: S310
-            return response.read()
+            data = response.read(MAX_IMAGE_BYTES + 1)
+            if len(data) > MAX_IMAGE_BYTES:
+                raise WorkflowFailure("invalid_image", f"The image service result exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB limit")
+            return data
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise WorkflowFailure("image_service_unreachable", f"Could not download the result ({getattr(exc, 'reason', exc)})") from None
+
+
+def _decode_limited_base64(value: Any, *, field: str) -> bytes:
+    max_encoded = ((MAX_IMAGE_BYTES + 2) // 3) * 4
+    if not isinstance(value, str) or len(value) > max_encoded:
+        raise WorkflowFailure("invalid_image", f"{field} exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB image limit")
+    try:
+        data = base64.b64decode(value, validate=True)
+    except (ValueError, TypeError):
+        raise WorkflowFailure("invalid_image", f"{field} is not valid base64 image data") from None
+    if len(data) > MAX_IMAGE_BYTES:
+        raise WorkflowFailure("invalid_image", f"{field} exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB image limit")
+    return data
+
+
+def _validated_raster(data: bytes, *, name: str = "image") -> bytes:
+    try:
+        with open_raster_bytes(data, name=name):
+            pass
+    except (ImageInputError, OSError) as exc:
+        raise WorkflowFailure("invalid_image", f"{name} is not a safe raster image ({exc})") from None
+    return data
 
 
 def _decode_images(service: str, response: dict[str, Any]) -> list[bytes]:
     images = []
     for item in response.get("data") or []:
         if isinstance(item, dict) and item.get("b64_json"):
-            images.append(base64.b64decode(item["b64_json"]))
+            images.append(_validated_raster(_decode_limited_base64(item["b64_json"], field="Image service result")))
         elif isinstance(item, dict) and item.get("url"):
-            images.append(_fetch(item["url"]))
+            images.append(_validated_raster(_fetch(item["url"])))
+        if len(images) > MAX_IMAGES:
+            raise WorkflowFailure("image_service_failed", f"{PROVIDER_NAMES[service]} returned more than {MAX_IMAGES} images")
     if not images:
         raise WorkflowFailure("image_service_failed", f"{PROVIDER_NAMES[service]} returned no images")
     return images
@@ -397,7 +432,7 @@ class RecraftImages:
                          parts=[_Part("file", image, "source.png", "image/png"), _Part("response_format", b"b64_json")])
         item = response.get("image") if isinstance(response.get("image"), dict) else ((response.get("data") or [None])[0] or {})
         if item.get("b64_json"):
-            svg = base64.b64decode(item["b64_json"]).decode("utf-8")
+            svg = _decode_limited_base64(item["b64_json"], field="Vector service result").decode("utf-8")
         elif item.get("url"):
             svg = _fetch(item["url"]).decode("utf-8")
         else:
@@ -456,7 +491,9 @@ def _gemini_images(response: dict[str, Any]) -> list[bytes]:
         for part in ((candidate or {}).get("content") or {}).get("parts") or []:
             inline = (part or {}).get("inlineData") or (part or {}).get("inline_data")
             if isinstance(inline, dict) and inline.get("data"):
-                images.append(base64.b64decode(inline["data"]))
+                images.append(_validated_raster(_decode_limited_base64(inline["data"], field="Gemini image result")))
+                if len(images) > MAX_IMAGES:
+                    raise WorkflowFailure("image_service_failed", f"Gemini returned more than {MAX_IMAGES} images")
     if not images:
         reason = ((response.get("promptFeedback") or {}).get("blockReason")
                   or next((c.get("finishReason") for c in response.get("candidates") or [] if isinstance(c, dict)), None))
@@ -520,29 +557,72 @@ def flatten_on_white(data: bytes) -> bytes:
     """Any image as an opaque PNG on white. Transparent pixels read as white, never as black."""
     from PIL import Image  # noqa: WPS433
     try:
-        image = Image.open(io.BytesIO(data))
-        image.load()
-    except Exception as exc:  # noqa: BLE001
+        with open_raster_bytes(data) as image:
+            output_image = image
+            rgba = None
+            rgb = None
+            try:
+                if image.mode in {"RGBA", "LA", "PA"} or (image.mode == "P" and "transparency" in image.info):
+                    rgba = image.convert("RGBA")
+                    output_image = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+                    output_image.alpha_composite(rgba)
+                rgb = output_image.convert("RGB")
+                out = io.BytesIO()
+                rgb.save(out, format="PNG")
+                return out.getvalue()
+            finally:
+                if rgb is not None:
+                    rgb.close()
+                if output_image is not image:
+                    output_image.close()
+                if rgba is not None:
+                    rgba.close()
+    except (ImageInputError, OSError) as exc:
         raise WorkflowFailure("invalid_image", f"Not a readable image ({exc})") from None
-    if image.mode in {"RGBA", "LA", "PA"} or (image.mode == "P" and "transparency" in image.info):
-        rgba = image.convert("RGBA")
-        ground = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
-        ground.alpha_composite(rgba)
-        image = ground
-    out = io.BytesIO()
-    image.convert("RGB").save(out, format="PNG")
-    return out.getvalue()
 
 
-def _image_input(root: Path, raw: Any, field: str, suffixes: set[str] = frozenset({".png"})) -> tuple[Path, bytes]:
+def _image_input(root: Path, raw: Any, field: str, suffixes: set[str] = frozenset({".png"}),
+                 *, max_bytes: int = MAX_IMAGE_BYTES) -> tuple[Path, bytes]:
     rel = _church_file(root, raw, field)
     if rel.suffix.casefold() not in suffixes:
         raise WorkflowFailure("invalid_image", f"{field} must be one of " + ", ".join(sorted(suffixes)) + f": {rel.as_posix()}", field=field)
-    return rel, (root / rel).read_bytes()
+    allowed = {IMAGE_FORMAT_BY_SUFFIX[suffix] for suffix in suffixes if suffix in IMAGE_FORMAT_BY_SUFFIX}
+    suffix = rel.suffix.casefold()
+    if suffix not in IMAGE_FORMAT_BY_SUFFIX:
+        raise WorkflowFailure("invalid_image", f"{field} must be a PNG, JPG, or WEBP image", field=field)
+    path = root / rel
+    try:
+        with path.open("rb") as handle:
+            if max_bytes < 0 or os.fstat(handle.fileno()).st_size > min(MAX_IMAGE_BYTES, max_bytes):
+                raise ImageInputError("Image exceeds the remaining image batch byte limit" if max_bytes < MAX_IMAGE_BYTES else
+                                      f"Image file exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB limit: {rel.name}")
+            data = handle.read(min(MAX_IMAGE_BYTES, max_bytes) + 1)
+        if len(data) > min(MAX_IMAGE_BYTES, max_bytes):
+            raise ImageInputError("Image exceeds the remaining image batch byte limit" if max_bytes < MAX_IMAGE_BYTES else
+                                  f"Image file exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB limit: {rel.name}")
+        with open_raster_bytes(data, name=rel.name, allowed_formats=frozenset({IMAGE_FORMAT_BY_SUFFIX[suffix]} & allowed)):
+            pass
+    except (ImageInputError, OSError) as exc:
+        raise WorkflowFailure("invalid_image", f"{field} is not a safe raster image ({exc})", field=field) from None
+    return rel, data
 
 
 def _sha_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _check_image_count(images: list[Any], field: str) -> None:
+    if len(images) > MAX_IMAGES:
+        raise WorkflowFailure("invalid_count", f"Use at most {MAX_IMAGES} images in one request", field=field)
+
+
+def _check_image_batch_bytes(images: list[bytes]) -> int:
+    total = 0
+    for data in images:
+        total += len(data)
+        if total > MAX_IMAGE_BATCH_BYTES:
+            raise WorkflowFailure("invalid_image", f"Images exceed the {MAX_IMAGE_BATCH_BYTES // (1024 * 1024)} MiB total limit", field="images")
+    return total
 
 
 def _open_round(root: Path, round_label: str, n: int | None = None) -> str:
@@ -559,6 +639,8 @@ def _open_round(root: Path, round_label: str, n: int | None = None) -> str:
 def _lay_out(root: Path, key: str, operation: str, images: list[bytes], *, maker: str, receipt: dict[str, Any],
              brief_text: str, brief_name: str) -> dict[str, Any]:
     """Flatten each image on white, keep the originals privately, and add the round to the contact sheet."""
+    _check_image_count(images, "images")
+    _check_image_batch_bytes(images)
     call = uuid.uuid4().hex[:8]
     folder = root / IMAGES_DIR / key
     folder.mkdir(parents=True, exist_ok=True)
@@ -597,12 +679,22 @@ def draw(church_folder: str | Path, round_label: str, brief_file: str, *, n: int
         root = _church_root(church_folder)
         key = _open_round(root, round_label, n)
         brief_rel, brief_text = _read_text(root, brief_file, "brief_file")
+        reference_list = references or []
+        _check_image_count(reference_list, "reference")
         inputs = []
         reference_bytes = []
-        for raw in references or []:
-            rel, data = _image_input(root, raw, "reference")
+        total_bytes = 0
+        flattened_bytes = 0
+        for raw in reference_list:
+            remaining = MAX_IMAGE_BATCH_BYTES - total_bytes
+            rel, data = _image_input(root, raw, "reference", max_bytes=remaining)
+            total_bytes += len(data)
             inputs.append({"file": rel.as_posix(), "sha256": _sha_bytes(data), "role": "reference"})
-            reference_bytes.append(flatten_on_white(data))
+            flattened = flatten_on_white(data)
+            flattened_bytes += len(flattened)
+            if flattened_bytes > MAX_IMAGE_BATCH_BYTES:
+                raise WorkflowFailure("invalid_image", "Prepared references exceed the image batch byte limit", field="reference")
+            reference_bytes.append(flattened)
         service = provider_for(provider, model)
         result = service.draw(brief_text, n=n, references=reference_bytes, size=size)
         name = getattr(service, "name", str(provider))
@@ -644,10 +736,14 @@ def import_images(church_folder: str | Path, round_label: str, files: list[str],
             raise WorkflowFailure("missing_value", "Name the tool that made the images, for example the host's built-in image generator", field="tool")
         if not files:
             raise WorkflowFailure("files_required", "Name the image files to register", field="files")
+        _check_image_count(files, "files")
         prompt_rel, prompt = _read_text(root, prompt_file, "prompt_file")
         inputs, images = [], []
+        total_bytes = 0
         for raw in files:
-            rel, data = _image_input(root, raw, "files", IMPORT_SUFFIXES)
+            remaining = MAX_IMAGE_BATCH_BYTES - total_bytes
+            rel, data = _image_input(root, raw, "files", IMPORT_SUFFIXES, max_bytes=remaining)
+            total_bytes += len(data)
             inputs.append({"file": rel.as_posix(), "sha256": _sha_bytes(data), "role": "imported"})
             images.append(data)
         return _lay_out(root, key, "import", images, maker=f"import@{tool}", brief_text=prompt, brief_name="prompt", receipt={

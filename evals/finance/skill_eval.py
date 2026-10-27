@@ -109,7 +109,7 @@ def stage_plugin(destination: Path) -> None:
     for name in (".claude-plugin", ".codex-plugin"):
         (destination / name).mkdir(parents=True)
         shutil.copy2(LABS / name / "plugin.json", destination / name / "plugin.json")
-    for name in ("requirements.txt", "AGENTS.md"):
+    for name in ("requirements.txt", "requirements.lock", "AGENTS.md"):
         shutil.copy2(LABS / name, destination / name)
 
 

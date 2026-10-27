@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 
 from tests.helpers import make_church
+from tests.test_workflow_updates import release_bytes
 from tools import church_workflow as bridge
 from tools import workflow_updates as updates
 
@@ -97,18 +98,23 @@ class WorkflowStartTests(unittest.TestCase):
         self.assertEqual(result['installation']['plugin_version'], '0.6.0')
         self.assertEqual(self.connection()['plugin_root'], str(self.new))
 
-    def test_newer_host_with_failed_runtime_falls_back_to_saved_release(self):
+    def test_newer_host_with_failed_runtime_blocks_instead_of_starting_saved_release(self):
         with mock.patch.object(bridge, 'ROOT', self.new):
             bridge.connect(self.church)
         self.change_version(self.host, '0.7.0')
+        paths = [self.church / 'handbuilt.py', self.church / '.handbuilt/installation.json']
+        before = {path: path.read_bytes() for path in paths}
         def dispatch(command, **kwargs):
             if Path(command[1]) == self.host / 'tools/handbuilt_runtime.py':
-                return subprocess.CompletedProcess(command, 2, json.dumps({'status': 'blocked'}), '')
-            return self.dispatch(command, **kwargs)
-        with mock.patch.object(updates, 'select_release', side_effect=lambda root, *_: {'selected_root': str(root), 'status': 'deferred'}), mock.patch.object(bridge.subprocess, 'run', side_effect=dispatch):
+                return subprocess.CompletedProcess(command, 2, json.dumps({'status': 'python-unavailable',
+                    'python': {'managed_version': [3, 14, 6]}}), '')
+            self.fail('A failed security check must not start the saved older workflow')
+        with mock.patch.object(updates, 'select_release') as select, mock.patch.object(bridge.subprocess, 'run', side_effect=dispatch):
             result, code = bridge._start(self.church, 'bulletin')
-        self.assertEqual(code, 0)
-        self.assertEqual(result['installation']['plugin_version'], '0.6.0')
+        self.assertEqual((code, result['code']), (2, 'runtime_upgrade_required'))
+        select.assert_not_called()
+        self.assertEqual(result['runtime_repair']['command'][2], 'setup')
+        self.assertEqual(before, {path: path.read_bytes() for path in paths})
 
     def test_newer_saved_host_installation_is_kept_when_old_app_starts(self):
         cached = self.base / 'other-host-cache'
@@ -185,6 +191,46 @@ class WorkflowStartTests(unittest.TestCase):
         self.assertEqual(ensured['status'], 'updated')
         self.assertEqual(self.connection()['plugin_version'], '0.6.0')
         self.assertEqual(self.connection()['update_policy'], 'stable')
+
+    def test_runtime_upgrade_deferral_preserves_the_church_connection(self):
+        bridge.connect(self.church, update_policy='pinned')
+        paths = [self.church / 'handbuilt.py', self.church / '.handbuilt/installation.json']
+        before = {path: path.read_bytes() for path in paths}
+        archive = release_bytes('0.6.0')
+        digest = hashlib.sha256(archive).hexdigest()
+        urls = {name: f'https://github.com/{updates.REPOSITORY}/releases/download/v0.6.0/{name}'
+                for name in (updates.PACKAGE, updates.CHECKSUM)}
+        metadata = {'tag_name': 'v0.6.0', 'draft': False, 'prerelease': False,
+                    'assets': [{'name': name, 'browser_download_url': url} for name, url in urls.items()]}
+
+        def download(url, limit):
+            if url == updates.LATEST_URL:
+                return json.dumps(metadata).encode()
+            if url == urls[updates.CHECKSUM]:
+                return (digest + '  ' + updates.PACKAGE).encode()
+            if url == urls[updates.PACKAGE]:
+                return archive
+            raise AssertionError('Unexpected mocked release URL')
+
+        actual_select = updates.select_release
+
+        def select_release(current_root, store, validate, **kwargs):
+            return actual_select(current_root, store, validate, download=download,
+                                 now=lambda: 100000, **kwargs)
+
+        def failed_doctor(command, **kwargs):
+            return subprocess.CompletedProcess(command, 1, json.dumps({'status': 'blocked'}), '')
+
+        with mock.patch.object(updates, 'select_release', side_effect=select_release), \
+                mock.patch.object(bridge.subprocess, 'run', side_effect=failed_doctor) as run:
+            result, code = bridge._ensure_latest(self.church)
+        self.assertEqual((code, result['code']), (2, 'runtime_upgrade_required'))
+        self.assertEqual(result['updates']['reason'], 'runtime_upgrade_required')
+        self.assertIn('runtime change', result['updates']['detail'])
+        self.assertEqual(result['runtime_repair']['command'][2], 'setup')
+        run.assert_called_once()
+        self.assertEqual(before, {path: path.read_bytes() for path in paths})
+        self.assertEqual(self.connection()['update_policy'], 'pinned')
 
     def test_ensure_latest_refuses_to_replace_development_checkout(self):
         (self.host / '.git').mkdir()
