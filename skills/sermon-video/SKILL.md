@@ -155,6 +155,12 @@ the words and the photo, a little below the middle; `verify` rejects any line of
 text under it. The video opens on the thumbnail for the opening card's seconds,
 so whoever opens the file sees the same picture as the link before the sermon.
 
+Settle the artwork before you render the video. Look at the rendered thumbnail
+and cards at full size and at thumbnail size, and fix the colors, portrait and
+words now. The video carries the thumbnail and the cards, so a change to any of
+them after `render` means encoding the whole sermon again, which on a long
+sermon takes several minutes. Render once.
+
 The default name treatment is left-aligned near the bottom of the picture: white
 type over a soft dark gradient, with brief fades. Inspect a still or short sample on the actual footage
 before a full export when revising the design. Keep partial samples clearly
