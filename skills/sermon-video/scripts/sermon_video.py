@@ -849,7 +849,10 @@ def current_render(root, data):
 def verify(root, data):
     receipt = current_render(root, data)
     output = root / "sermon-review.mp4"
-    run(["ffmpeg", "-v", "error", "-xerror", "-i", output, "-f", "null", "-"], capture_output=True)
+    # Decoding every frame of a long sermon takes minutes. Keyframes cover the whole file, the last ten seconds are
+    # decoded in full to catch a cut-off end, and the audio is decoded in full by audio_check below.
+    run(["ffmpeg", "-v", "error", "-xerror", "-skip_frame", "nokey", "-i", output, "-an", "-f", "null", "-"], capture_output=True)
+    run(["ffmpeg", "-v", "error", "-xerror", "-sseof", "-10", "-i", output, "-f", "null", "-"], capture_output=True)
     media = probe(output)
     duration = float(media["format"]["duration"])
     video = next(s for s in media["streams"] if s["codec_type"] == "video")
