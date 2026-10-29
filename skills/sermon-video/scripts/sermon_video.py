@@ -639,7 +639,7 @@ def mark_published(root, data):
 
 
 def fingerprints(root, data):
-    names = ("intro.png", "outro.png", "lower-third.png")
+    names = ("thumbnail.png", "outro.png", "lower-third.png")
     render_plan = {key: data[key] for key in ("source", "sermon", "video")}
     result = {"plan": hashlib.sha256(json.dumps(render_plan, sort_keys=True).encode()).hexdigest(),
               "source": recorded_source_hash(root, data),
@@ -696,14 +696,15 @@ def render(root, data):
         command.extend(args)
         return sum(1 for item in command if item == "-i") - 1
 
-    def card(name, seconds):
-        picture = add_input("-loop", "1", "-framerate", "30", "-t", seconds, "-i", root / "assets" / (name + ".png"))
+    def card(name, seconds, image=None):
+        picture = add_input("-loop", "1", "-framerate", "30", "-t", seconds, "-i", root / "assets" / ((image or name) + ".png"))
         silence = add_input("-f", "lavfi", "-t", seconds, "-i", "anullsrc=channel_layout=stereo:sample_rate=48000")
         graph.append(f"[{picture}:v]scale={w}:{h},setsar=1,fps=30,format=yuv420p[{name}v];[{silence}:a]{uniform}[{name}a]")
         segments.append(f"[{name}v][{name}a]")
 
+    # The video opens on its thumbnail, so whoever opens the file sees the same picture as the link and then the sermon.
     if video["intro_seconds"] > 0:
-        card("intro", video["intro_seconds"])
+        card("intro", video["intro_seconds"], "thumbnail")
     recording = add_input("-ss", start, "-t", speech_duration, "-i", source)
     picture = f"[{recording}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30"
     if name_panel(data):

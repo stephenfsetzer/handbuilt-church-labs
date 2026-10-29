@@ -118,8 +118,11 @@ retain the evidence and omit the disputed derived label. A review can proceed
 with visible unresolved details; it must not present them as verified.
 
 Propose a short title faithful to the sermon and identify it as editorial unless
-the parish supplied it. Use the church's approved portrait, or a genuine frame
-when attribution is unclear. Preserve the photograph's identity.
+the parish supplied it. Use the church's approved portrait: a staff photo in
+the church folder, or, when the folder has none, the verified preacher's own
+photo on the church's website (its clergy or staff page), saved in `assets/`
+with its page as evidence. Use a genuine frame only when attribution is unclear
+or the church publishes no photo. Preserve the photograph's identity.
 
 ## Produce the review package
 
@@ -149,7 +152,8 @@ right half, running to the edges, with the church color fading into it. A large
 portrait looks best; a small one is enlarged and looks soft. The review page's
 player opens on the thumbnail, with its play button centered on the seam between
 the words and the photo, a little below the middle; `verify` rejects any line of
-text under it.
+text under it. The video opens on the thumbnail for the opening card's seconds,
+so whoever opens the file sees the same picture as the link before the sermon.
 
 The default name treatment is left-aligned near the bottom of the picture: white
 type over a soft dark gradient, with brief fades. Inspect a still or short sample on the actual footage
