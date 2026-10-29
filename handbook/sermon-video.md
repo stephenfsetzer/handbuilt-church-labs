@@ -31,8 +31,10 @@ Prepare this Sunday's sermon video.
    the recording, or you. It does not guess from a face. Anything it cannot
    confirm stays off the video and is marked on the review page.
 4. It proposes a short title and tells you it is a suggestion.
-5. It makes the opening card, the name panel, the closing card, and a
-   thumbnail, then puts the video together and checks the sound and picture.
+5. It makes the thumbnail, with the preacher's photo from your saved setup or
+   your website, then the name panel and the closing card. The video opens on
+   the thumbnail, so whoever opens it sees that first, then the sermon. It puts
+   the video together and checks the sound and picture.
 6. It drafts captions from the platform's own captions or a transcription.
    Captions are a draft until you read them.
 7. It opens a review page with the video, thumbnail, captions, and download
