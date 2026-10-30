@@ -56,7 +56,21 @@ Write `brand/staging/art-direction.md` with these headings, every time:
    each with what may fill it and how often it changes.
 8. **Decision rules.** "When ... do ..." lines an agent can follow without a
    designer: which color leads in each slot, what to do with no photo, what
-   wins when two rules conflict.
+   wins when two rules conflict. Always answer these five, because upkeep
+   meets them in the first month:
+   - the season's hero: which campaign look it wears, and who picks it;
+   - a changed date or time: it changes once in site data, and nothing is
+     redesigned;
+   - a new event with no campaign: the plain default (paper, ink, a true
+     number or type only, the signature color on its button), never a
+     borrowed campaign look;
+   - a volunteer's phone photo: how it is rated, treated or turned down,
+     and that it goes into the photo ledger first;
+   - a new page: where it sits, its color, and that it gets a score before
+     design.
+
+   Never write "defaults, not laws." An agent can't judge when a rule may
+   be broken. Only the slots change, and precedence settles conflicts.
 
 ## Campaign directions, in this format
 
@@ -75,6 +89,9 @@ one of lead, ground, scale or layout from the one before it, and every page
 has at least two big shifts, where two or more change at once. The contrast
 is planned before anyone draws, so the work can't drift into "make the next
 section look like this too."
+
+A device repeated down a page ("one break of the grid in every band") is
+itself a repetition. Write contrast into the score, not as a habit.
 
 ## Briefing a designer
 
