@@ -36,3 +36,4 @@ owns the product confirms it. One reaction is taste, not yet a rule.
 |---|---|
 | Photos already used on one page reappeared on another | Check the photo ledger before assigning a photo; near-duplicates count as used |
 | Three thin columns of photos made the church look like little happens there | Show abundance with a full mosaic or one large image |
+| A hero followed every rule and passed, but was well below the other approved heroes: a template half-and-half split, the mark shown twice with one copy as a big slab, and no headline idea | The critic judges quality against an approved piece of the same kind first, and redirects work with no single idea however well it follows the rules |
