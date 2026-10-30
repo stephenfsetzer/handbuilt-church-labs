@@ -32,23 +32,24 @@ from tools.image_limits import MAX_IMAGE_BYTES
 
 from . import survival
 
-IMPLEMENTATION_VERSION = "0.2.0"
+IMPLEMENTATION_VERSION = "0.3.0"
 RECEIPT_SCHEMA_VERSION = 1
 STATE_SCHEMA_VERSION = 2
-BRAND_SYSTEM_SCHEMA_VERSION = 2
+BRAND_SYSTEM_SCHEMA_VERSION = 3
 
 # Stage order is the workflow. A stage can be recorded only after every
 # earlier stage. Approval happens after "prove"; "connect" and "handoff"
 # follow approval.
 STAGES = (
-    "roadmap", "fork", "discover", "interview", "identity", "direction",
-    "develop", "refine-1", "refine-2", "color", "type", "voice",
+    "roadmap", "fork", "discover", "assets", "interview", "identity", "direction",
+    "develop", "refine-1", "refine-2", "color", "type", "voice", "art-direction",
     "build", "prove", "connect", "handoff",
 )
 STAGE_TITLES = {
     "roadmap": "The plan",
     "fork": "Refresh or start new",
     "discover": "How you look today",
+    "assets": "Your photos",
     "interview": "What you told me",
     "identity": "One identity, many uses",
     "direction": "Your direction",
@@ -58,6 +59,7 @@ STAGE_TITLES = {
     "color": "Your colors",
     "type": "Your type",
     "voice": "Your voice",
+    "art-direction": "How it looks everywhere",
     "build": "What was built",
     "prove": "The proof",
     "connect": "How your brand travels",
@@ -68,6 +70,7 @@ STAGE_DECIDES = {
     "roadmap": "Nothing yet. Read the plan and ask anything about it.",
     "fork": "Keep your current mark and redesign around it, or start new.",
     "discover": "Nothing yet. This is what a designer sees today.",
+    "assets": "Nothing yet. This is every photo you have, rated, and what is missing.",
     "interview": "Your answers to eight questions only you can answer.",
     "identity": "Whether programs and ministries live inside one identity.",
     "direction": "Your reactions to each direction, then which idea (or blend) to develop.",
@@ -77,15 +80,16 @@ STAGE_DECIDES = {
     "color": "The final palette, each color with a job.",
     "type": "The type pairing, with its license.",
     "voice": "The voice rules.",
+    "art-direction": "The house style for your website, shown on its homepage, then your reactions to five campaign looks.",
     "build": "Nothing yet. The system is being written into staging.",
     "prove": "Whether the new brand replaces the old one.",
     "connect": "Nothing. This shows where the brand travels.",
     "handoff": "Nothing. This is how to keep it.",
 }
 # Stages that put a choice to the pastor. Each needs a decision and a why.
-DECISION_STAGES = {"fork", "identity", "direction", "develop", "refine-1", "refine-2", "color", "type", "voice"}
+DECISION_STAGES = {"fork", "identity", "direction", "develop", "refine-1", "refine-2", "color", "type", "voice", "art-direction"}
 # Stages where the pastor picks from shown options, which the guide records.
-OPTION_STAGES = {"direction", "develop", "color", "type", "voice"}
+OPTION_STAGES = {"direction", "develop", "color", "type", "voice", "art-direction"}
 # Stages that present the system in context. Each must show at least what
 # the previous one showed: fidelity only rises.
 PRESENTATION_STAGES = ("direction", "develop", "refine-1", "refine-2")
@@ -95,9 +99,9 @@ LEGACY_STAGES = {
 }
 FORK_CHOICES = ("refresh", "new")
 # The studio's roles, by job title. The pastor meets the team by title.
-SPEAKERS = ("creative director", "senior designer", "researcher", "maker", "writer", "producer")
+SPEAKERS = ("creative director", "senior designer", "researcher", "maker", "writer", "producer", "art director", "critic")
 # Stages one role must present.
-STAGE_SPEAKER = {"voice": "writer"}
+STAGE_SPEAKER = {"voice": "writer", "art-direction": "creative director"}
 INTERVIEW_KEYS = (
     "prompt", "audience", "success", "name", "preserve", "admired", "operator", "constraints",
 )
@@ -127,6 +131,7 @@ APPLICATION_LABELS = {
     "newsletter": "the newsletter header",
     "lockup_example": "one program lockup",
     "favicon": "the favicon",
+    "homepage_hero": "the website's homepage hero, at desktop and phone width",
 }
 DIRECTION_APPLICATIONS = ("bulletin_cover", "test_announcement", "social_post")
 DEVELOP_APPLICATIONS = DIRECTION_APPLICATIONS + ("sign", "social_avatar")
@@ -141,6 +146,27 @@ LATER_PHASE_APPLICATIONS = {
 }
 APPLICATION_KEY = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
 
+# Stages added after runs were already under way. A run that recorded a later
+# stage without one of these owes it, and records it before going on.
+OWED_STAGES = ("roadmap", "assets")
+# The brand's web layer: the photo ledger and the art direction.
+WEB_LAYER_STAGES = ("assets", "art-direction")
+# Recording art direction late means the staged system and the proof predate
+# it: both are redone with the web house style.
+ART_DIRECTION_STALES = ("build", "prove")
+
+# The photo ledger: every photo the church has, rated for use, with consent.
+PHOTO_RATINGS = ("A", "B", "C")
+PHOTO_CONSENT = ("yes", "no", "ask")
+# Art direction: the house style lasts years; campaign looks are a wardrobe.
+ART_DIRECTION_HEADINGS = ("the idea", "references", "fixed bones", "photo treatment", "without photos", "never", "slots", "decision rules")
+CAMPAIGN_COUNT = 5
+CAMPAIGN_PROOF_MINIMUM = 3
+MAX_SLOTS = 3
+# Checks the website build runs; the brand kit names which apply.
+WEB_CHECKS = ("contrast_aa", "no_text_near_edge", "no_horizontal_scroll", "one_accent_per_viewport", "one_h1", "alt_text", "photo_ledger_consent", "no_reused_photos")
+PRECEDENCE = ("brief", "brand_kit", "house_style", "campaign", "page")
+
 APPROVAL_STAGE = "prove"
 STATE_DIR = Path(".handbuilt") / "build-my-brand"
 SCRATCH_DIR = STATE_DIR / "scratch"
@@ -152,6 +178,8 @@ EXPLORATIONS_DIR = STAGING_DIR / "explorations"
 CHECKS_DIR = STAGING_DIR / "checks"
 ARCHIVE_DIR = Path("brand") / "archive"
 STAGED_SYSTEM_FILE = STAGING_DIR / "brand-system.json"
+ART_DIRECTION_FILE = STAGING_DIR / "art-direction.md"
+PHOTO_LEDGER_FILE = Path("brand") / "photo-ledger.json"
 ARCHIVED_LIVE_ITEMS = ("marks", "type", "templates", "voice.md")
 FONT_SUFFIXES = {".ttf", ".otf", ".woff", ".woff2"}
 MARK_SUFFIXES = {".svg", ".png"}
@@ -353,18 +381,58 @@ def _stale_stages(state: dict[str, Any]) -> list[str]:
 
 
 def _owed_stages(state: dict[str, Any]) -> list[str]:
-    """Stages a migrated run skipped and must still record: only the plan so far."""
-    if not _recorded(state, "roadmap") and any(_recorded(state, s) for s in STAGES[1:]):
-        return ["roadmap"]
-    return []
+    """Stages a run passed because they did not exist yet, and must still record.
+
+    A late plan is owed at once. Photos are owed before the art direction,
+    so a run already past them keeps the pastor where they are until then.
+    A run that built its system before the web layer existed is not held
+    up by it at all (see _skipped_stages).
+    """
+    owed = []
+    for stage in OWED_STAGES:
+        later = STAGES[STAGES.index(stage) + 1:]
+        if not _recorded(state, stage) and any(_recorded(state, s) for s in later) and stage not in _skipped_stages(state):
+            owed.append(stage)
+    return owed
+
+
+def _skipped_stages(state: dict[str, Any]) -> list[str]:
+    """The web layer of a brand built before it existed.
+
+    The brand can finish without it. Build My Website asks for it, and the
+    brand workflow records it then, which marks the build and proof stale.
+    """
+    if not _recorded(state, "build"):
+        return []
+    return [s for s in WEB_LAYER_STAGES if not _recorded(state, s)]
+
+
+def _may_pass(state: dict[str, Any], earlier: str, stage: str) -> bool:
+    """Whether recording `stage` may go ahead while `earlier` is unrecorded."""
+    if earlier in _skipped_stages(state):
+        return stage not in WEB_LAYER_STAGES
+    if earlier in _owed_stages(state) and earlier != "roadmap":
+        return STAGES.index(stage) < STAGES.index(WEB_LAYER_STAGES[-1])
+    return False
+
+
+def _owed_failure(stage: str, before: str) -> WorkflowFailure:
+    if stage == "roadmap":
+        return WorkflowFailure("roadmap_required", f"This run began before the plan stage existed. Record {STAGE_TITLES[stage]} (roadmap) before {before}", field="stage")
+    return WorkflowFailure("stage_owed", f"This run began before {STAGE_TITLES[stage]} ({stage}) existed. Record it before {before}", field="stage")
 
 
 def _next_stage(state: dict[str, Any]) -> str | None:
+    # A late plan is recorded first but the pastor stays where they are.
+    # Owed photos come back just before the art direction that needs them.
     owed = set(_owed_stages(state))
+    passed = owed | set(_skipped_stages(state))
     for stage in STAGES:
-        if stage in owed:
+        if stage in passed:
             continue
         if not _recorded(state, stage):
+            if stage == "art-direction" and "assets" in owed:
+                return "assets"
             return stage
     return None
 
@@ -425,7 +493,7 @@ def _phase_for(state: dict[str, Any], stage: str) -> str | None:
 def _wayfinding(state: dict[str, Any], stage: str) -> list[str]:
     """The 'you are here' lines every section opens with."""
     index = STAGES.index(stage)
-    if stage == "roadmap" and _owed_stages(state):
+    if stage == "roadmap" and "roadmap" in _owed_stages(state):
         here = _next_stage(state) or "handoff"
         here_index = STAGES.index(here)
         where = (f"**Where you are:** this plan arrives with the work already under way. "
@@ -474,6 +542,13 @@ def _section(state: dict[str, Any], stage: str, body: str, metadata: dict[str, A
             if metadata.get("follows"):
                 lines.append(f"**It follows your earlier pick:** {metadata['follows']}")
                 lines.append("")
+        campaigns = metadata.get("campaigns") or []
+        if campaigns:
+            lines.append("**Campaign looks:** " + "; ".join(f"{c['name']}: {c['idea']}" for c in campaigns))
+            lines.append("")
+        if metadata.get("critic"):
+            lines.append(f"**The critic:** passed. {metadata['critic'].get('notes', '')}".rstrip())
+            lines.append("")
         lines.append(f"**Decision:** {metadata['decision']}")
         lines.append("")
         lines.append(f"**Why:** {metadata['rationale']}")
@@ -582,6 +657,205 @@ def _validate_applications(root: Path, state: dict[str, Any], stage: str, metada
             record["references"].append(entry)
 
 
+def _text_list(value: Any, field: str, *, minimum: int = 1) -> list[str]:
+    if not isinstance(value, list) or len(value) < minimum or not all(isinstance(v, str) and v.strip() for v in value):
+        raise WorkflowFailure("invalid_list", f"{field} is a list of at least {minimum} lines of text", field=field)
+    return [v.strip() for v in value]
+
+
+def _validate_assets(metadata: dict[str, Any]) -> dict[str, Any]:
+    """The photo ledger: every photo rated, consent noted, and what is missing.
+
+    Most small churches have few usable photos. Rating them before any design
+    means the art direction plans for what is really there, and a ledger of
+    where each photo is used stops the same photo appearing on two pages.
+    """
+    photos = metadata.get("photos")
+    if not isinstance(photos, list):
+        raise WorkflowFailure("photos_required", "The photo ledger lists every photo: file, rating (A, B or C), consent (yes, no or ask), and whether people are in it. An empty list is allowed when the church has none", field="photos")
+    cleaned = []
+    seen = set()
+    for index, item in enumerate(photos):
+        if not isinstance(item, dict):
+            raise WorkflowFailure("photos_required", f"photos[{index}] must be an object", field="photos")
+        file = _require_text(item.get("file"), f"photos[{index}].file")
+        if file in seen:
+            raise WorkflowFailure("photos_required", f"photos[{index}] lists {file} twice", field="photos")
+        seen.add(file)
+        rating = str(item.get("rating", "")).strip().upper()
+        if rating not in PHOTO_RATINGS:
+            raise WorkflowFailure("invalid_rating", f"photos[{index}].rating is A (carries a page), B (supports a section) or C (do not use)", field=f"photos[{index}].rating")
+        consent = str(item.get("consent", "")).strip().casefold()
+        if consent not in PHOTO_CONSENT:
+            raise WorkflowFailure("invalid_consent", f"photos[{index}].consent is yes, no or ask", field=f"photos[{index}].consent")
+        if not isinstance(item.get("people"), bool):
+            raise WorkflowFailure("photos_required", f"photos[{index}].people says whether anyone recognizable is in it (true or false)", field=f"photos[{index}].people")
+        entry = {"file": file, "rating": rating, "consent": consent, "people": item["people"], "used_in": []}
+        if item.get("note") is not None:
+            entry["note"] = _require_text(item.get("note"), f"photos[{index}].note")
+        cleaned.append(entry)
+    usable = [p for p in cleaned if p["rating"] in {"A", "B"}]
+    gaps = metadata.get("gaps")
+    if gaps is None and len(usable) < 3:
+        raise WorkflowFailure("gaps_required", "With fewer than three usable photos, list what is missing (gaps) so the art direction plans for it and the shot list can fill it", field="gaps")
+    record: dict[str, Any] = {"photos": cleaned, "gaps": _text_list(gaps, "gaps") if gaps is not None else [],
+                              "counts": {r: sum(1 for p in cleaned if p["rating"] == r) for r in PHOTO_RATINGS}}
+    if metadata.get("shot_list") is not None:
+        record["shot_list"] = _text_list(metadata.get("shot_list"), "shot_list")
+    return record
+
+
+def _validate_references(metadata: dict[str, Any], *, minimum: int) -> list[dict[str, str]]:
+    references = metadata.get("references")
+    if not isinstance(references, list) or len(references) < minimum:
+        raise WorkflowFailure("references_required", f"Cite at least {minimum} references from the taste library, each with name and learn (what to take from it)", field="references")
+    out = []
+    for index, item in enumerate(references):
+        if not isinstance(item, dict):
+            raise WorkflowFailure("references_required", f"references[{index}] must be an object with name and learn", field="references")
+        entry = {"name": _require_text(item.get("name"), f"references[{index}].name"), "learn": _require_text(item.get("learn"), f"references[{index}].learn")}
+        if item.get("url") is not None:
+            entry["url"] = _require_text(item.get("url"), f"references[{index}].url")
+        out.append(entry)
+    return out
+
+
+def _brand_image(root: Path, raw: Any, field: str) -> str:
+    rel = _existing(root, raw, field, under=Path("brand"))
+    if rel.suffix.casefold() not in survival.IMAGE_SUFFIXES:
+        raise WorkflowFailure("image_required", f"{field} must be an image or PDF under brand/", field=field)
+    return rel.as_posix()
+
+
+def _validate_campaigns(root: Path, raw: Any, *, field: str, proof_required: bool) -> list[dict[str, Any]]:
+    if not isinstance(raw, list) or len(raw) != CAMPAIGN_COUNT:
+        raise WorkflowFailure("campaigns_required", f"{field} holds exactly {CAMPAIGN_COUNT} campaign looks: a wardrobe for seasons and events, never the website's own look", field=field)
+    names = set()
+    out = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise WorkflowFailure("campaigns_required", f"{field}[{index}] must be an object", field=field)
+        entry = {k: _require_text(item.get(k), f"{field}[{index}].{k}") for k in ("name", "idea", "leads_with", "photo_approach")}
+        if entry["name"].casefold() in names:
+            raise WorkflowFailure("campaigns_required", f"Two campaign looks are both named {entry['name']}; each must look unlike the others", field=field)
+        names.add(entry["name"].casefold())
+        font = item.get("title_font")
+        if not isinstance(font, dict):
+            raise WorkflowFailure("campaigns_required", f"{field}[{index}].title_font names the family and its open license", field=f"{field}[{index}].title_font")
+        entry["title_font"] = {"family": _require_text(font.get("family"), f"{field}[{index}].title_font.family"),
+                               "license": _require_text(font.get("license"), f"{field}[{index}].title_font.license")}
+        if isinstance(font.get("files"), dict):
+            entry["title_font"]["files"] = {face: _existing(root, path, f"{field}[{index}].title_font.files.{face}").as_posix() for face, path in font["files"].items()}
+        for key in ("borrows_from_place",):
+            if item.get(key) is not None:
+                entry[key] = _require_text(item.get(key), f"{field}[{index}].{key}")
+        if item.get("never") is not None:
+            entry["never"] = _text_list(item.get("never"), f"{field}[{index}].never")
+        proof = item.get("proof")
+        if proof_required or proof is not None:
+            if not isinstance(proof, list) or len(proof) < CAMPAIGN_PROOF_MINIMUM:
+                raise WorkflowFailure("campaign_proof_required", f"{field}[{index}].proof shows the look on at least {CAMPAIGN_PROOF_MINIMUM} pieces: a feast, a community event and a plain notice", field=f"{field}[{index}].proof")
+            entry["proof"] = [_brand_image(root, p, f"{field}[{index}].proof") for p in proof]
+        out.append(entry)
+    return out
+
+
+def _art_direction_headings(path: Path) -> list[str]:
+    found = {line.lstrip("#").strip().casefold().rstrip(".") for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("#")}
+    return [h for h in ART_DIRECTION_HEADINGS if not any(f == h or f.endswith(h) or f.startswith(h) for f in found)]
+
+
+def _validate_art_direction(root: Path, metadata: dict[str, Any]) -> dict[str, Any]:
+    """The house style, shown on the homepage, and five campaign looks.
+
+    The brand meets the website here, before approval, so a lockup that is
+    unreadable in a header or a palette that cannot carry a page is found now
+    rather than after the site is built on it.
+    """
+    path = root / ART_DIRECTION_FILE
+    if not path.is_file():
+        raise WorkflowFailure("art_direction_required", f"Write the house style in {ART_DIRECTION_FILE.as_posix()} before recording the art direction", field="art_direction")
+    missing = _art_direction_headings(path)
+    if missing:
+        raise WorkflowFailure("art_direction_incomplete", "The house style is written in a fixed format so a critic and an agent can follow it. Missing headings: " + ", ".join(missing), field="art_direction", detail={"missing": missing})
+    applications = metadata.get("applications")
+    if not isinstance(applications, list) or "homepage_hero" not in applications:
+        raise WorkflowFailure("homepage_proof_required", "Show each house style on the website's homepage hero (applications: homepage_hero) at desktop and phone width", field="applications")
+    boards = metadata.get("boards")
+    if not isinstance(boards, list) or not boards:
+        raise WorkflowFailure("boards_required", "The art direction record names the board images the pastor saw (under brand/)", field="boards")
+    critic = metadata.get("critic")
+    if not isinstance(critic, dict) or str(critic.get("verdict", "")).strip().casefold() != "pass":
+        raise WorkflowFailure("critic_required", "The critic, in fresh context, passes the art direction before the pastor sees it (critic.verdict: pass, with notes)", field="critic")
+    return {
+        "art_direction": ART_DIRECTION_FILE.as_posix(),
+        "applications": list(dict.fromkeys(a for a in applications if isinstance(a, str))),
+        "boards": [_brand_image(root, b, f"boards[{i}]") for i, b in enumerate(boards)],
+        "references": _validate_references(metadata, minimum=2),
+        "campaigns": _validate_campaigns(root, metadata.get("campaigns"), field="campaigns", proof_required=True),
+        "critic": {"verdict": "pass", "notes": _require_text(critic.get("notes"), "critic.notes")},
+    }
+
+
+def _validate_web_proof(root: Path, raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise WorkflowFailure("web_proof_required", "The proof includes the web: web_proof with hero_desktop, hero_phone, and header (the lockup in the website header at 30 to 44 px tall)", field="web_proof")
+    header = raw.get("header")
+    if not isinstance(header, list) or not header:
+        raise WorkflowFailure("web_proof_required", "web_proof.header shows the lockup in the website header at 30 to 44 px tall, where a small second line can become unreadable", field="web_proof.header")
+    return {"hero_desktop": _brand_image(root, raw.get("hero_desktop"), "web_proof.hero_desktop"),
+            "hero_phone": _brand_image(root, raw.get("hero_phone"), "web_proof.hero_phone"),
+            "header": [_brand_image(root, h, "web_proof.header") for h in header]}
+
+
+def _validate_web(root: Path, raw: Any, *, under: Path) -> dict[str, Any]:
+    """The web house style as rules an agent can follow without a designer."""
+    if not isinstance(raw, dict):
+        raise WorkflowFailure("web_required", "brand_system.web holds the house style: idea, house_style, bones, photo_treatment, without_photos, never, slots, decision_rules and checks", field="web")
+    web: dict[str, Any] = {"idea": _require_text(raw.get("idea"), "web.idea"),
+                           "house_style": _existing(root, raw.get("house_style"), "web.house_style", under=under).as_posix()}
+    bones = raw.get("bones")
+    if not isinstance(bones, dict) or not bones:
+        raise WorkflowFailure("web_required", "web.bones fixes the grid, type scale and spacing", field="web.bones")
+    web["bones"] = bones
+    treatment = raw.get("photo_treatment")
+    if not isinstance(treatment, dict):
+        raise WorkflowFailure("web_required", "web.photo_treatment states the one rule for photos, with examples of right and wrong", field="web.photo_treatment")
+    web["photo_treatment"] = {"rule": _require_text(treatment.get("rule"), "web.photo_treatment.rule")}
+    examples = treatment.get("examples")
+    if examples is not None:
+        if not isinstance(examples, dict) or not examples.get("right") or not examples.get("wrong"):
+            raise WorkflowFailure("web_required", "web.photo_treatment.examples has right and wrong examples", field="web.photo_treatment.examples")
+        web["photo_treatment"]["examples"] = {k: [_existing(root, p, f"web.photo_treatment.examples.{k}", under=under).as_posix() for p in examples[k]] for k in ("right", "wrong")}
+    web["without_photos"] = _text_list(raw.get("without_photos"), "web.without_photos")
+    web["never"] = _text_list(raw.get("never"), "web.never")
+    slots = raw.get("slots")
+    if not isinstance(slots, dict) or not 1 <= len(slots) <= MAX_SLOTS:
+        raise WorkflowFailure("invalid_slots", f"web.slots names one to {MAX_SLOTS} places where the current season or week shows up; everything else stays in the house style", field="web.slots")
+    web["slots"] = {}
+    for name, slot in slots.items():
+        if not isinstance(slot, dict):
+            raise WorkflowFailure("invalid_slots", f"web.slots.{name} must be an object with changes and may_hold", field=f"web.slots.{name}")
+        web["slots"][name] = dict(slot, changes=_require_text(slot.get("changes"), f"web.slots.{name}.changes"),
+                                  may_hold=_text_list(slot.get("may_hold"), f"web.slots.{name}.may_hold"))
+    rules = raw.get("decision_rules")
+    if not isinstance(rules, list) or not rules:
+        raise WorkflowFailure("web_required", "web.decision_rules are 'when ... do ...' lines an agent can follow without a designer", field="web.decision_rules")
+    web["decision_rules"] = []
+    for index, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            raise WorkflowFailure("web_required", f"web.decision_rules[{index}] must be an object with when and do", field="web.decision_rules")
+        cleaned = {"when": _require_text(rule.get("when"), f"web.decision_rules[{index}].when"), "do": _require_text(rule.get("do"), f"web.decision_rules[{index}].do")}
+        if rule.get("never") is not None:
+            cleaned["never"] = _require_text(rule.get("never"), f"web.decision_rules[{index}].never")
+        web["decision_rules"].append(cleaned)
+    checks = raw.get("checks")
+    if not isinstance(checks, list) or not checks or any(c not in WEB_CHECKS for c in checks):
+        raise WorkflowFailure("invalid_checks", "web.checks names the checks the website build runs, from: " + ", ".join(WEB_CHECKS), field="web.checks")
+    web["checks"] = list(dict.fromkeys(checks))
+    return web
+
+
 def _validate_mark(root: Path, raw: Any, field: str) -> str:
     rel = _existing(root, raw, field, under=STAGING_DIR)
     if rel.suffix.casefold() != ".svg":
@@ -654,6 +928,10 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
         if len(wild) != 1:
             raise WorkflowFailure("wild_card_required", "Exactly one direction is the studio's wild card ('wild card: ...'); the others build on work the pastor admires", field="built_from")
         record["built_from"] = [b.strip() for b in built_from]
+    if stage == "assets":
+        record.update(_validate_assets(metadata))
+    if stage == "art-direction":
+        record.update(_validate_art_direction(root, metadata))
     if stage in PRESENTATION_STAGES:
         _validate_applications(root, state, stage, metadata, record)
     if stage == "develop" or (stage in OPTION_STAGES and metadata.get("recommendation") is not None):
@@ -679,6 +957,8 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
         record["before"] = _existing(root, metadata.get("before"), "before").as_posix()
         record["after"] = _existing(root, metadata.get("after"), "after").as_posix()
         record["announcement"] = _existing(root, metadata.get("announcement"), "announcement").as_posix()
+        if _recorded(state, "art-direction"):
+            record["web_proof"] = _validate_web_proof(root, metadata.get("web_proof"))
     if stage == "handoff":
         record["volunteer_card"] = _existing(root, metadata.get("volunteer_card"), "volunteer_card").as_posix()
     if stage in {"connect", "handoff"} and not state.get("approved"):
@@ -693,13 +973,13 @@ def _next_action(state: dict[str, Any], nxt: str | None, approved: Any) -> str:
     if nxt is None:
         return "The brand workflow is complete. Use it for small operations: lockups, posters, an announcement image, seasonal color, on-brand checks."
     if nxt == APPROVAL_STAGE and not approved:
-        return "Render the most recent bulletin and the test announcement with the staged brand, record the proof, then ask the pastor to approve it."
+        return "Render the most recent bulletin, the test announcement, the homepage hero at desktop and phone, and the lockup in the website header with the staged brand. Record the proof, then ask the pastor to approve it."
     if nxt in {"connect", "handoff"} and not approved:
         return "Ask the pastor to approve the proof. Approval replaces the live brand and archives the old one."
     if nxt == "roadmap":
         return "Write the one-page plan and record it. The pastor sees the whole engagement before any work."
     lead = ""
-    if owed:
+    if "roadmap" in owed:
         lead = f"This run began before the plan stage existed. Present and record the plan first, with the pastor at {STAGE_TITLES[nxt]}. Then: "
     if nxt in PRESENTATION_STAGES and nxt != "direction":
         floor, _previous = _fidelity_floor(state, nxt)
@@ -709,8 +989,14 @@ def _next_action(state: dict[str, Any], nxt: str | None, approved: Any) -> str:
             return lead + f"Develop the direction ({direction}) as a whole system, by the designer who made the boards. Show two or three versions, each on at least: {shown}. Recommend one."
         extra = " Record the chosen mark's SVG." if nxt == "refine-2" else ""
         return lead + f"Tighten the chosen version and show it on at least: {shown}. Ask for reactions, not adjectives.{extra}"
+    if nxt == "assets":
+        return lead + "Rate every photo the church has (A, B or C), note consent and who is in it, and list what is missing. Record the photo ledger; no questions for the pastor yet."
+    if nxt == "art-direction":
+        return lead + ("Write the house style in brand/staging/art-direction.md (read references/studio/art-director.md and the taste library first). "
+                       "Show two or three house styles on the website's homepage hero at desktop and phone, with a recommendation; then five campaign looks, each on three pieces. "
+                       "Have the critic pass it before the pastor sees it.")
     if nxt == "build":
-        return lead + "Build the system into staging: the mark family with a small variant, palette, type, image language, voice, templates. Run check-marks, then stage-brand, then record build."
+        return lead + "Build the system into staging: the mark family with a small variant, palette, type, image language, voice, templates, and the web house style with five campaign looks. Run check-marks, then stage-brand, then record build."
     return lead + f"Next round: {STAGE_TITLES[nxt]}. Teach first, then ask."
 
 
@@ -737,8 +1023,13 @@ def orient(church_folder: str | Path) -> dict[str, Any]:
         approved = state.get("approved")
         stale = _stale_stages(state)
         warnings = []
-        if owed:
-            warnings.append("This run began before the plan stage existed; record the plan before the next stage: " + ", ".join(STAGE_TITLES[s] for s in owed))
+        if "roadmap" in owed:
+            warnings.append("This run began before the plan stage existed; record the plan before the next stage: " + STAGE_TITLES["roadmap"])
+        if "assets" in owed:
+            warnings.append(f"This run began before {STAGE_TITLES['assets']} existed; it comes back just before the art direction")
+        skipped = _skipped_stages(state)
+        if skipped:
+            warnings.append("This brand was built before its web layer existed (" + ", ".join(STAGE_TITLES[s] for s in skipped) + "). The brand can finish without it; Build My Website asks for it")
         if stale:
             warnings.append("Earlier decisions changed after these stages were recorded; revisit them: " + ", ".join(stale))
         roadmap = state["stages"].get("roadmap") or {}
@@ -750,7 +1041,7 @@ def orient(church_folder: str | Path) -> dict[str, Any]:
         refine = state["stages"].get("refine-2") or {}
         return {
             "status": "ok", "church_folder": str(root), "church": _church_identity(root),
-            "fork": state.get("fork"), "stages": stages, "next_stage": nxt, "owed_stages": owed,
+            "fork": state.get("fork"), "stages": stages, "next_stage": nxt, "owed_stages": owed, "skipped_stages": _skipped_stages(state),
             "roadmap": {"recorded": bool(roadmap.get("recorded_at")), "phases": roadmap.get("phases") or [],
                         "you_are_here": {"stage": here, "title": STAGE_TITLES[here], "phase": _phase_for(state, here)}},
             "fidelity_floor": floor, "mark": refine.get("mark"),
@@ -777,11 +1068,11 @@ def record(church_folder: str | Path, stage: str, content: str, metadata: dict[s
         already = _recorded(state, stage)
         if already and not replace:
             raise WorkflowFailure("already_recorded", f"{STAGE_TITLES[stage]} is already recorded; pass --replace to revise it", field="stage")
-        owed = _owed_stages(state)
+        owed = _owed_stages(state) + _skipped_stages(state)
         for earlier in STAGES[: STAGES.index(stage)]:
-            if not _recorded(state, earlier):
+            if not _recorded(state, earlier) and not _may_pass(state, earlier, stage):
                 if earlier in owed:
-                    raise WorkflowFailure("roadmap_required", f"This run began before the plan stage existed. Record {STAGE_TITLES[earlier]} (roadmap) before {STAGE_TITLES[stage]}", field="stage")
+                    raise _owed_failure(earlier, STAGE_TITLES[stage])
                 raise WorkflowFailure("stage_out_of_order", f"Record {STAGE_TITLES[earlier]} before {STAGE_TITLES[stage]}", field="stage")
         entry = _validate_stage(root, state, stage, content, metadata)
         guide_body = content
@@ -800,6 +1091,13 @@ def record(church_folder: str | Path, stage: str, content: str, metadata: dict[s
             for later in STAGES[STAGES.index(stage) + 1:]:
                 if _recorded(state, later):
                     state["stages"][later]["stale"] = True
+        elif stage == "art-direction":
+            for later in ART_DIRECTION_STALES:
+                if _recorded(state, later):
+                    state["stages"][later]["stale"] = True
+                    state["stages"][later]["stale_reason"] = "Recorded before the art direction; restage the system with the web house style and prove it on the homepage"
+        if stage == "assets":
+            _write_json(root / PHOTO_LEDGER_FILE, {"photos": entry["photos"], "gaps": entry["gaps"], "shot_list": entry.get("shot_list", []), "recorded_at": _now()})
         _save_state(root, state)
         book = _write_book(root)
         receipt = _receipt(root, f"stage-{stage}", {
@@ -807,6 +1105,8 @@ def record(church_folder: str | Path, stage: str, content: str, metadata: dict[s
             "guide": GUIDE_FILE.as_posix(), "guide_sha256": _sha256(guide), "record": entry,
         })
         warnings = ["Later stages are now marked stale and should be revisited"] if already else []
+        if stage == "art-direction" and not already and any(state["stages"][s].get("stale") for s in ART_DIRECTION_STALES if _recorded(state, s)):
+            warnings.append("The build and the proof predate the art direction; restage the system with the web house style and prove it on the homepage")
         return {"status": "recorded", "stage": stage, "title": STAGE_TITLES[stage], "guide": str(guide), "book": str(book),
                 "brief": str(root / BRIEF_FILE) if stage == "interview" else None,
                 "receipt": str(receipt), "next_stage": _next_stage(state), "warnings": warnings}
@@ -1044,7 +1344,7 @@ def _validate_brand_system(root: Path, system: Any, *, under: Path) -> dict[str,
     if not isinstance(system, dict):
         raise WorkflowFailure("invalid_brand_system", "brand_system must be an object", field="brand_system")
     if system.get("schema_version") != BRAND_SYSTEM_SCHEMA_VERSION:
-        raise WorkflowFailure("invalid_brand_system", f"brand_system.schema_version must be {BRAND_SYSTEM_SCHEMA_VERSION}; version 2 adds marks.small and the imagery rules", field="schema_version")
+        raise WorkflowFailure("invalid_brand_system", f"brand_system.schema_version must be {BRAND_SYSTEM_SCHEMA_VERSION}; version 3 adds the web house style, five campaign looks, and the order of precedence", field="schema_version")
     name = system.get("name")
     if not isinstance(name, dict):
         raise WorkflowFailure("invalid_brand_system", "brand_system.name must be an object with wordmark and short", field="name")
@@ -1102,6 +1402,11 @@ def _validate_brand_system(root: Path, system: Any, *, under: Path) -> dict[str,
         raise WorkflowFailure("invalid_brand_system", "brand_system.templates lists the weekly templates that were built", field="templates")
     for key, raw in templates.items():
         _existing(root, raw, f"templates.{key}", under=under)
+    system["web"] = _validate_web(root, system.get("web"), under=under)
+    system["campaigns"] = _validate_campaigns(root, system.get("campaigns"), field="campaigns", proof_required=False)
+    precedence = system.get("precedence")
+    if precedence != list(PRECEDENCE):
+        raise WorkflowFailure("invalid_precedence", "brand_system.precedence is the order a lower layer can never override: " + ", ".join(PRECEDENCE), field="precedence")
     return system
 
 
@@ -1124,8 +1429,8 @@ def stage_brand(church_folder: str | Path, patch: dict[str, Any]) -> dict[str, A
     try:
         root = _church_root(church_folder)
         state = _load_state(root)
-        if not _recorded(state, "voice"):
-            raise WorkflowFailure("stage_out_of_order", "Stage the brand system after the voice round is recorded")
+        if not _recorded(state, "art-direction"):
+            raise WorkflowFailure("stage_out_of_order", "Stage the brand system after the art direction is recorded; it carries the web house style and the campaign looks")
         if not isinstance(patch, dict):
             raise WorkflowFailure("invalid_patch", "The staged brand must be an object")
         system = _validate_brand_system(root, patch.get("brand_system"), under=STAGING_DIR)
@@ -1183,10 +1488,12 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor", dry_run: 
         root = _church_root(church_folder)
         state = _load_state(root)
         owed = _owed_stages(state)
+        skipped = _skipped_stages(state)
         for stage in STAGES[: STAGES.index(APPROVAL_STAGE) + 1]:
-            if not _recorded(state, stage):
-                code = "roadmap_required" if stage in owed else "stage_out_of_order"
-                raise WorkflowFailure(code, f"Record {STAGE_TITLES[stage]} before approving")
+            if not _recorded(state, stage) and stage not in skipped:
+                if stage in owed:
+                    raise _owed_failure(stage, "approving")
+                raise WorkflowFailure("stage_out_of_order", f"Record {STAGE_TITLES[stage]} before approving")
         stale = _stale_stages(state)
         if stale:
             raise WorkflowFailure("stale_stages", "Revisit these stages before approving: " + ", ".join(stale))

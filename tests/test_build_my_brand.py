@@ -23,17 +23,19 @@ from brand_workflow import (  # noqa: E402
 )
 from brand_workflow.guide import markdown_to_html  # noqa: E402
 
+WEB_PROOF = {"hero_desktop": "brand/staging/campaigns/look-1-feast.png", "hero_phone": "brand/staging/campaigns/look-1-event.png",
+             "header": ["brand/staging/campaigns/look-1-notice.png"]}
 CLI = ROOT / "skills" / "build-my-brand" / "scripts" / "brand_workflow.py"
 MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor"><rect x="20" y="10" width="60" height="80"/></svg>'
 SMALL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor"><circle cx="50" cy="50" r="42"/></svg>'
 THIN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor"><rect x="49" y="10" width="2" height="80"/><rect x="10" y="49" width="80" height="2"/></svg>'
 PHASES = [
-    {"title": "Getting to know you", "stages": ["fork", "discover", "interview", "identity"],
+    {"title": "Getting to know you", "stages": ["fork", "discover", "assets", "interview", "identity"],
      "you_see": "How you look today and the brief", "you_decide": "Refresh or new; one identity", "time": "One sitting"},
     {"title": "The idea", "stages": ["direction", "develop", "refine-1", "refine-2"],
      "you_see": "Two or three directions, then one developed and tightened", "you_decide": "The direction, the version, the mark", "time": "Three short sessions"},
-    {"title": "The system", "stages": ["color", "type", "voice", "build", "prove"],
-     "you_see": "The palette, type, voice, and your bulletin in the new brand", "you_decide": "Each, then approval", "time": "Two sessions"},
+    {"title": "The system", "stages": ["color", "type", "voice", "art-direction", "build", "prove"],
+     "you_see": "The palette, type, voice, the homepage, and your bulletin in the new brand", "you_decide": "Each, then approval", "time": "Two sessions"},
     {"title": "Keeping it", "stages": ["connect", "handoff"],
      "you_see": "Where the brand travels and the volunteer card", "you_decide": "Nothing", "time": "Half an hour"},
 ]
@@ -48,7 +50,7 @@ def _metadata(stage: str) -> dict:
                      "speaker": "writer" if stage == "voice" else "creative director"})
         if stage == "fork":
             meta["decision"] = "new"
-        elif stage in {"direction", "develop", "color", "type", "voice"}:
+        elif stage in {"direction", "develop", "color", "type", "voice", "art-direction"}:
             meta["options"] = ["Option A", "Option B"]
     if stage == "discover":
         meta["sources"] = [{"label": "Public website", "kind": "website"}]
@@ -65,7 +67,35 @@ def _metadata(stage: str) -> dict:
         meta["follows"] = "The direction pick: the open door is the whole idea."
     if stage == "refine-2":
         meta["mark"] = {"primary": "brand/staging/marks/mark.svg"}
+    if stage == "assets":
+        meta["photos"] = [{"file": "photos/nave.jpg", "rating": "A", "consent": "yes", "people": False},
+                          {"file": "photos/choir.jpg", "rating": "C", "consent": "ask", "people": True}]
+        meta["gaps"] = ["No photo of the congregation at worship"]
+        meta["shot_list"] = ["The congregation at the peace, from the back"]
+    if stage == "art-direction":
+        meta["applications"] = ["homepage_hero"]
+        meta["boards"] = ["brand/staging/explorations/board.png"]
+        meta["recommendation"] = "Option A, because a quiet frame lets the seasons be loud."
+        meta["follows"] = "The voice pick: plain words, so a plain frame."
+        meta["references"] = [{"name": "A near-colorless site with loud series art", "learn": "Fixed bones, free campaigns"},
+                              {"name": "One color and a neutral", "learn": "Three brand colors are enough"}]
+        meta["campaigns"] = _campaigns(proof=True)
+        meta["critic"] = {"verdict": "pass", "notes": "Each section shifts; nothing within 24 px of an edge."}
     return meta
+
+
+def _campaigns(proof: bool = False) -> list:
+    out = []
+    for n in range(5):
+        item = {"name": f"Look {n + 1}", "idea": f"Idea {n + 1}", "title_font": {"family": f"Title {n + 1}", "license": "OFL"},
+                "leads_with": "primary", "photo_approach": "No photo; big type on the primary color."}
+        if proof:
+            item["proof"] = [f"brand/staging/campaigns/look-{n + 1}-{piece}.png" for piece in ("feast", "event", "notice")]
+        out.append(item)
+    return out
+
+
+ART_DIRECTION = "\n\n".join("## " + h for h in ("The idea", "References", "Fixed bones", "Photo treatment", "Without photos", "Never", "Slots", "Decision rules")) + "\n"
 
 
 class BuildMyBrandTest(unittest.TestCase):
@@ -78,6 +108,17 @@ class BuildMyBrandTest(unittest.TestCase):
         Image.new("RGB", (80, 40), "white").save(staging / "explorations" / "board.png")
         (staging / "marks" / "mark.svg").write_text(MARK)
         (staging / "marks" / "mark-small.svg").write_text(SMALL)
+        self._write_web_files()
+
+    def _write_web_files(self):
+        staging = self.church / "brand" / "staging"
+        (staging / "campaigns").mkdir(parents=True, exist_ok=True)
+        (staging / "explorations").mkdir(exist_ok=True)
+        Image.new("RGB", (80, 40), "white").save(staging / "explorations" / "board.png")
+        for n in range(5):
+            for piece in ("feast", "event", "notice"):
+                Image.new("RGB", (40, 40), "white").save(staging / "campaigns" / f"look-{n + 1}-{piece}.png")
+        (staging / "art-direction.md").write_text(ART_DIRECTION)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -109,7 +150,7 @@ class BuildMyBrandTest(unittest.TestCase):
         (staging / "templates" / "announcement.md").write_text("Announcement image template.\n")
         return {
             "brand_system": {
-                "schema_version": 2,
+                "schema_version": 3,
                 "name": {"wordmark": "Test Parish Church", "short": "Test Parish"},
                 "direction": {"name": "Open Door", "story": "A door that is always propped open."},
                 "marks": {"primary": "brand/staging/marks/mark.svg", "small": "brand/staging/marks/mark-small.svg", "wordmark": "brand/staging/marks/wordmark.svg"},
@@ -124,6 +165,20 @@ class BuildMyBrandTest(unittest.TestCase):
                             "forbidden": ["stock photography of crowds", "a second logo", "gradients"]},
                 "voice": "brand/staging/voice.md",
                 "templates": {"social_square": "brand/staging/templates/social-square.md", "announcement": "brand/staging/templates/announcement.md"},
+                "web": {
+                    "idea": "A quiet frame so the seasons can be loud.",
+                    "house_style": "brand/staging/art-direction.md",
+                    "bones": {"grid": "12 columns, 24 px gutters", "type_scale": [16, 20, 28, 44, 72]},
+                    "photo_treatment": {"rule": "True color in one warm grade, or plain black and white; never a brand-color print over people."},
+                    "without_photos": ["A number from the parish, set huge", "Big type on the primary color"],
+                    "never": ["Text within 24 px of an edge"],
+                    "slots": {"home_hero": {"changes": "Each season", "may_hold": ["the current campaign"]},
+                              "announcement_band": {"changes": "Weekly", "may_hold": ["this week's notice", "seasonal service times"]}},
+                    "decision_rules": [{"when": "no usable photo", "do": "lead with type on the primary color"}],
+                    "checks": ["contrast_aa", "no_text_near_edge", "one_h1"],
+                },
+                "campaigns": _campaigns(),
+                "precedence": ["brief", "brand_kit", "house_style", "campaign", "page"],
             },
             "colors": {"ink": "#111111", "accent": "#224466", "accent_deep": "#112233", "paper": "#fffdf8", "rubric_red": "#8b3a3a"},
             "logo": {"banner": "brand/staging/marks/banner.png"},
@@ -155,7 +210,7 @@ class BuildMyBrandTest(unittest.TestCase):
         guide = (self.church / "brand" / "guide.md").read_text()
         self.assertIn("| Phase | What you will see | What you decide | About how long |", guide)
         self.assertIn("| The idea |", guide)
-        self.assertIn("**Where you are:** step 1 of 16, The plan.", guide)
+        self.assertIn("**Where you are:** step 1 of 18, The plan.", guide)
         self.assertIn("**Next you will see:** Refresh or start new.", guide)
         state = orient(self.church)
         self.assertTrue(state["roadmap"]["recorded"])
@@ -171,6 +226,7 @@ class BuildMyBrandTest(unittest.TestCase):
         ok = record(self.church, "fork", "Refresh keeps the mark; new replaces it.", _metadata("fork"))
         self.assertEqual(ok["status"], "recorded")
         self.assertEqual(record(self.church, "discover", "audit", {"sources": [{"label": "site", "kind": "website"}]})["status"], "recorded")
+        self.assertEqual(record(self.church, "assets", "photos", _metadata("assets"))["status"], "recorded")
         self.assertEqual(record(self.church, "interview", "brief", {"answers": {k: "a" for k in INTERVIEW_KEYS}})["status"], "recorded")
         no_rationale = record(self.church, "identity", "lesson", {"decision": "one mark"})
         self.assertEqual(no_rationale["errors"][0]["field"], "rationale")
@@ -215,7 +271,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self._record_through("direction")
         guide = (self.church / "brand" / "guide.md").read_text()
         self.assertIn("# Public Test Parish Brand Guide", guide)
-        self.assertIn("**Where you are:** step 6 of 16, Your direction, in the phase \"The idea\".", guide)
+        self.assertIn("**Where you are:** step 7 of 18, Your direction, in the phase \"The idea\".", guide)
         self.assertIn("**You decide today:** Your reactions to each direction, then which idea (or blend) to develop.", guide)
         self.assertIn("**Built from:** Option A: admired: the pastor's favorite bookshop site; Option B: wild card: a riverside ferry timetable", guide)
         self.assertIn("**Next you will see:** Your direction, developed.", guide)
@@ -384,7 +440,7 @@ class BuildMyBrandTest(unittest.TestCase):
         state = orient(self.church)
         self.assertEqual(state["status"], "ok", state)
         self.assertEqual(state["next_stage"], "develop")
-        self.assertEqual(state["owed_stages"], ["roadmap"])
+        self.assertEqual(state["owed_stages"], ["roadmap", "assets"])
         self.assertEqual(state["migrated_from"], 1)
         self.assertIn("plan", state["warnings"][0])
         self.assertTrue(state["next_action"].startswith("This run began before the plan stage existed"))
@@ -398,8 +454,8 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(plan["status"], "recorded", plan)
         guide = (self.church / "brand" / "guide.md").read_text()
         self.assertLess(guide.index("<!-- stage:roadmap -->"), guide.index("<!-- stage:fork -->"))
-        self.assertIn("You are at step 7 of 16, Your direction, developed.", guide)
-        self.assertEqual(orient(self.church)["owed_stages"], [])
+        self.assertIn("You are at step 8 of 18, Your direction, developed.", guide)
+        self.assertEqual(orient(self.church)["owed_stages"], ["assets"])
         less = _metadata("develop")
         less["applications"] = ["bulletin_cover", "sign", "social_avatar"]
         fewer = record(self.church, "develop", "developed", less)
@@ -427,11 +483,104 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(saved["legacy_stages"]["mark"]["finalist"], "r3-01")
         self.assertIn("developed system", saved["stages"]["color"]["stale_reason"])
 
+    # ------------------------------------------------------------ the web layer
+
+    def test_the_photo_ledger_rates_every_photo_and_names_what_is_missing(self):
+        self._record_through("discover")
+        bad = _metadata("assets")
+        bad["photos"][0]["rating"] = "great"
+        self.assertEqual(record(self.church, "assets", "photos", bad)["errors"][0]["code"], "invalid_rating")
+        no_gaps = _metadata("assets")
+        no_gaps.pop("gaps")
+        self.assertEqual(record(self.church, "assets", "photos", no_gaps)["errors"][0]["code"], "gaps_required")
+        none = record(self.church, "assets", "No photos yet.", {"photos": [], "gaps": ["Every photo"]})
+        self.assertEqual(none["status"], "recorded", none)
+        ok = record(self.church, "assets", "One good photo.", _metadata("assets"), replace=True)
+        self.assertEqual(ok["status"], "recorded", ok)
+        ledger = json.loads((self.church / "brand" / "photo-ledger.json").read_text())
+        self.assertEqual([p["rating"] for p in ledger["photos"]], ["A", "C"])
+        self.assertEqual(ledger["photos"][0]["used_in"], [])
+        self.assertEqual(ledger["gaps"], ["No photo of the congregation at worship"])
+
+    def test_the_art_direction_is_shown_on_the_homepage_and_passed_by_the_critic(self):
+        self._record_through("voice")
+        ad = self.church / "brand" / "staging" / "art-direction.md"
+        ad.write_text("## The idea\n\n## Never\n")
+        thin = record(self.church, "art-direction", "lesson", _metadata("art-direction"))
+        self.assertEqual(thin["errors"][0]["code"], "art_direction_incomplete")
+        self.assertIn("decision rules", thin["errors"][0]["detail"]["missing"])
+        ad.write_text(ART_DIRECTION)
+        no_hero = _metadata("art-direction")
+        no_hero["applications"] = ["sign"]
+        self.assertEqual(record(self.church, "art-direction", "lesson", no_hero)["errors"][0]["code"], "homepage_proof_required")
+        four = _metadata("art-direction")
+        four["campaigns"] = four["campaigns"][:4]
+        self.assertEqual(record(self.church, "art-direction", "lesson", four)["errors"][0]["code"], "campaigns_required")
+        unproven = _metadata("art-direction")
+        unproven["campaigns"][2]["proof"] = unproven["campaigns"][2]["proof"][:2]
+        self.assertEqual(record(self.church, "art-direction", "lesson", unproven)["errors"][0]["code"], "campaign_proof_required")
+        one_reference = _metadata("art-direction")
+        one_reference["references"] = one_reference["references"][:1]
+        self.assertEqual(record(self.church, "art-direction", "lesson", one_reference)["errors"][0]["code"], "references_required")
+        redirected = _metadata("art-direction")
+        redirected["critic"] = {"verdict": "redirect", "notes": "Every section is the same split."}
+        self.assertEqual(record(self.church, "art-direction", "lesson", redirected)["errors"][0]["code"], "critic_required")
+        ok = record(self.church, "art-direction", "The house style is quiet so the seasons can be loud.", _metadata("art-direction"))
+        self.assertEqual(ok["status"], "recorded", ok)
+        guide = (self.church / "brand" / "guide.md").read_text()
+        self.assertIn("**Campaign looks:** Look 1: Idea 1", guide)
+        self.assertIn("**The critic:** passed.", guide)
+
+    def test_staging_needs_the_art_direction_and_a_version_3_system(self):
+        self._record_through("voice")
+        patch = self._stage_files()
+        self.assertEqual(stage_brand(self.church, patch)["errors"][0]["code"], "stage_out_of_order")
+        self.assertEqual(record(self.church, "art-direction", "lesson", _metadata("art-direction"))["status"], "recorded")
+        old = json.loads(json.dumps(patch))
+        old["brand_system"]["schema_version"] = 2
+        self.assertEqual(stage_brand(self.church, old)["errors"][0]["field"], "schema_version")
+        four_slots = json.loads(json.dumps(patch))
+        four_slots["brand_system"]["web"]["slots"].update({"a": {"changes": "x", "may_hold": ["y"]}, "b": {"changes": "x", "may_hold": ["y"]}})
+        self.assertEqual(stage_brand(self.church, four_slots)["errors"][0]["code"], "invalid_slots")
+        bad_check = json.loads(json.dumps(patch))
+        bad_check["brand_system"]["web"]["checks"] = ["looks_nice"]
+        self.assertEqual(stage_brand(self.church, bad_check)["errors"][0]["code"], "invalid_checks")
+        no_order = json.loads(json.dumps(patch))
+        no_order["brand_system"]["precedence"] = ["page", "brief"]
+        self.assertEqual(stage_brand(self.church, no_order)["errors"][0]["code"], "invalid_precedence")
+        no_rules = json.loads(json.dumps(patch))
+        no_rules["brand_system"]["web"]["decision_rules"] = [{"when": "always"}]
+        self.assertEqual(stage_brand(self.church, no_rules)["errors"][0]["field"], "web.decision_rules[0].do")
+
+    def test_a_brand_built_before_the_web_layer_can_finish_and_add_it_later(self):
+        self._needs_renderer()
+        self._ready_to_approve()
+        path = self.church / ".handbuilt" / "build-my-brand" / "state.json"
+        state = json.loads(path.read_text())
+        state["stages"].pop("assets")
+        state["stages"].pop("art-direction")
+        path.write_text(json.dumps(state))
+        result = orient(self.church)
+        self.assertEqual(result["skipped_stages"], ["assets", "art-direction"])
+        self.assertEqual(result["owed_stages"], [])
+        self.assertTrue(any("web layer" in w for w in result["warnings"]))
+        self.assertEqual(approve(self.church)["status"], "approved")
+        self.assertEqual(record(self.church, "connect", "Travels.", {})["status"], "recorded")
+        early = record(self.church, "art-direction", "lesson", _metadata("art-direction"))
+        self.assertEqual(early["errors"][0]["code"], "stage_owed")
+        self.assertEqual(record(self.church, "assets", "photos", _metadata("assets"))["status"], "recorded")
+        self._write_web_files()
+        later = record(self.church, "art-direction", "lesson", _metadata("art-direction"))
+        self.assertEqual(later["status"], "recorded", later)
+        saved = json.loads(path.read_text())
+        self.assertTrue(saved["stages"]["build"].get("stale"))
+        self.assertTrue(saved["stages"]["prove"].get("stale"))
+
     # ------------------------------------------------------------ the system, the proof, approval
 
     def test_staging_requires_the_image_language_and_passing_marks_then_approval_archives_the_old_brand(self):
         self._needs_renderer()
-        self._record_through("voice")
+        self._record_through("art-direction")
         patch = self._stage_files()
         old_schema = json.loads(json.dumps(patch))
         old_schema["brand_system"]["schema_version"] = 1
@@ -471,7 +620,9 @@ class BuildMyBrandTest(unittest.TestCase):
         no_announcement = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf"})
         self.assertEqual(no_announcement["errors"][0]["field"], "announcement")
         Image.new("RGB", (10, 10), "blue").save(self.church / "announcement.png")
-        proof = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf", "announcement": "announcement.png"})
+        no_web = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf", "announcement": "announcement.png"})
+        self.assertEqual(no_web["errors"][0]["code"], "web_proof_required")
+        proof = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf", "announcement": "announcement.png", "web_proof": WEB_PROOF})
         self.assertEqual(proof["status"], "recorded", proof)
         too_soon = record(self.church, "connect", "travels", {})
         self.assertEqual(too_soon["errors"][0]["code"], "approval_required")
@@ -509,7 +660,7 @@ class BuildMyBrandTest(unittest.TestCase):
 
     def test_a_waiver_lets_the_creative_director_accept_a_named_failure_with_a_reason(self):
         self._needs_renderer()
-        self._record_through("voice")
+        self._record_through("art-direction")
         patch = self._stage_files()
         thin = self.church / "brand" / "staging" / "marks" / "thin.svg"
         thin.write_text(THIN)
@@ -525,14 +676,14 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(json.loads((self.church / "brand" / "staging" / "brand-system.json").read_text())["waivers"][0]["reason"], reason)
 
     def _ready_to_approve(self, patch: dict | None = None) -> None:
-        self._record_through("voice")
+        self._record_through("art-direction")
         staged = stage_brand(self.church, patch or self._stage_files())
         self.assertEqual(staged["status"], "staged", staged)
         self.assertEqual(record(self.church, "build", "Built.", {"staged_files": ["brand/staging/marks/mark.svg"]})["status"], "recorded")
         (self.church / "before.pdf").write_bytes(b"%PDF-1.4 before")
         (self.church / "after.pdf").write_bytes(b"%PDF-1.4 after")
         Image.new("RGB", (10, 10), "blue").save(self.church / "announcement.png")
-        proof = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf", "announcement": "announcement.png"})
+        proof = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf", "announcement": "announcement.png", "web_proof": WEB_PROOF})
         self.assertEqual(proof["status"], "recorded", proof)
 
     def _set_live_logo(self, **logo: str) -> None:
@@ -640,7 +791,7 @@ class BuildMyBrandTest(unittest.TestCase):
         archive = Path(result["archive"])
         for kept in ("guide.md", "brief.md", "discovery/site.png", "staging/marks/mark.svg", "workflow-record/state.json", "run.json"):
             self.assertTrue((archive / kept).is_file(), kept)
-        self.assertEqual(json.loads((archive / "run.json").read_text())["stages_recorded"], ["roadmap", "fork", "discover", "interview"])
+        self.assertEqual(json.loads((archive / "run.json").read_text())["stages_recorded"], ["roadmap", "fork", "discover", "assets", "interview"])
         self.assertFalse((self.church / "brand" / "guide.md").exists())
         state = orient(self.church)
         self.assertEqual(state["next_stage"], "roadmap")
@@ -701,7 +852,7 @@ class BuildMyBrandTest(unittest.TestCase):
 
     def test_guide_renders_to_pdf_before_and_after_staging(self):
         self._needs_renderer()
-        self._record_through("voice")
+        self._record_through("art-direction")
         neutral = render_guide(self.church)
         self.assertEqual(neutral["status"], "rendered", neutral)
         self.assertEqual(neutral["brand_source"], "neutral")

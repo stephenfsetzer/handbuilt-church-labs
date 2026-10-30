@@ -17,6 +17,8 @@ otherwise.
 | Makers | [maker.md](maker.md) | making, with an image model | Logo designers who write one editorial brief per concept and run draw, edit, and vectorize; wide internal exploration, including non-literal constructions; never the source of a presentation on their own |
 | Writer | [writer.md](writer.md) | judgment | Every word on a board, the voice round, and the writing rules, all drawn from the church's own words |
 | Producer | [producer.md](producer.md) | making | Clean vectors on a grid, the mark family, the small variant, exports, the sub-brand generator, the survival checks |
+| Art director | [art-director.md](art-director.md) | judgment, with vision | The web house style, the five campaign looks, and each website page's score. In Build My Brand the creative director plays it |
+| Critic | [critic.md](critic.md) | judgment, with vision; always a fresh worker | Checks work from screenshots before the pastor sees it, against the art direction and the [misses log](../taste/misses.md); never judges its own work |
 
 Tiers are mapped to models per host in [routing.md](routing.md).
 
@@ -24,7 +26,8 @@ Tiers are mapped to models per host in [routing.md](routing.md).
 
 The pastor meets the team by job title, never by a made-up name, a model or
 a tool. Every record carries `speaker`, one of `creative director`,
-`senior designer`, `researcher`, `maker`, `writer` or `producer`, and the
+`senior designer`, `researcher`, `maker`, `writer`, `producer`,
+`art director` or `critic`, and the
 guide and the brand book open that stage with the speaker and the stage,
 for example "Creative director · Your direction". Open each message to the
 pastor the same way. The creative director opens and closes every phase and
@@ -45,11 +48,14 @@ at the end of the stage.
 2. **Refinement** (`refine-1`, `refine-2`). Two rounds. Each presents the
    tightened system in the same context and asks for reactions. The chosen
    mark's SVG is recorded with the second refinement.
-3. **The system** (`color`, `type`, `voice`, `build`). Color and type are
-   confirmed on the developed system. The producer builds the mark family,
+3. **The system** (`color`, `type`, `voice`, `art-direction`, `build`).
+   Color and type are confirmed on the developed system. The art direction
+   writes the web house style and five campaign looks, shows them on the
+   homepage hero, and passes the critic before the pastor sees them. The producer builds the mark family,
    the derived small variant, exports, templates, and the image language, and
    runs the survival checks before the system is staged.
-4. **Proof and approval.** Unchanged: real pieces beside the old ones.
+4. **Proof and approval.** Real pieces beside the old ones, plus the
+   homepage hero at desktop and phone and the lockup in a website header.
 
 ## What the interface enforces
 

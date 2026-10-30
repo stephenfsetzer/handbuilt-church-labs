@@ -26,7 +26,9 @@ Read a reference only when its stage is reached:
 - [Interview](references/interview.md): the eight questions and how to ask them.
 - [Lessons](references/lessons.md): the teach-and-choose rounds.
 - [Direction proposals](references/direction-proposals.md): how to build and show directions.
-- [The studio](references/studio/README.md): the firm's six roles, who speaks when, the phases after direction, and [model routing](references/studio/routing.md).
+- [The studio](references/studio/README.md): the firm's roles, who speaks when, the phases after direction, and [model routing](references/studio/routing.md).
+- [Art director](references/studio/art-director.md) and [critic](references/studio/critic.md): the house style, the five campaign looks, page scores, and the fresh-context check before the pastor sees anything.
+- [Taste library](references/taste/README.md) and [misses log](references/taste/misses.md): named references to learn from, and what pastors have overruled.
 - [Image briefs](references/image-briefs.md): the editorial brief an image model needs for each concept.
 - [Brand system](references/brand-system.md): what build stages, the schema, the survival checks, and the templates.
 - [Guide format](references/guide-format.md): how each guide section is written.
@@ -69,9 +71,12 @@ a real design in front of the pastor.
 
 These came from a full run, and each one cost a pastor a round:
 
-- **Never shows a later phase.** Website screens, signage plans and print
+- **Never shows a later phase.** Website pages, signage plans and print
   layouts come after approval, as their own work. The interface refuses a
-  brand board that shows one.
+  brand board that shows one. The one exception is the homepage hero in
+  the art direction round and the proof: the brand is tested on the web
+  before it is approved, so a lockup that can't be read in a website
+  header is found before a site is built on it.
 - **Never slips in a new element.** A look the pastor has not picked (an
   atmosphere layer, a texture, a photo style) is shown as an option with a
   recommendation, never added to the kit on its own.
@@ -109,7 +114,12 @@ any round loses nothing. If Handbuilt updates itself partway through a run,
 keep going in the same session: every decision lives in the church folder.
 Mention the new version in one line and do not send the pastor to a new
 session. A run that began before the plan stage existed
-reports the plan in `owed_stages`; record it first.
+reports the plan in `owed_stages`; record it first. A run that began
+before the photo stage reports `assets` there too; the interface brings it
+back just before the art direction, and the pastor stays where they are
+until then. A brand built before its web layer existed reports
+`skipped_stages`: it can finish and be approved without them, and Build My
+Website asks for them later.
 
 If `start` does not report `ready`, the host agent may prepare the runtime
 with the `setup` operation in `handbook/runtime-setup.md`, then run the
@@ -163,6 +173,20 @@ guide's first real section, "How you look today," with screenshots and a
 designer's plain reading of what the current image says. This is the first
 lesson, and it lands before a single question. Record it with `sources`
 listing each thing inspected (`label`, `kind`, and `location` where useful).
+
+### Your photos
+
+Before the interview, rate every photo the church has: on the website, in
+the discovery folder, and any the pastor drops in. Each gets a rating (`A`
+can carry a page, `B` can support a section, `C` is not used), consent
+(`yes`, `no` or `ask`), and whether anyone recognizable is in it. List what
+is missing in `gaps`, and a short `shot_list` a volunteer could take on a
+Sunday. Most small churches have few good photos; the art direction plans
+for what is really there instead of discovering it page by page. Record
+`assets` with `photos`, `gaps` and `shot_list`; the interface writes
+`brand/photo-ledger.json`, which the website workflow uses so no photo
+appears on two pages. Ask the pastor nothing here except, at the end,
+whether the `ask` photos may be used.
 
 ## 4. Interview, only what the pastor alone knows
 
@@ -321,12 +345,48 @@ company, or a terminal command. Do not mention keys to the pastor at all.
 Record which path made the mark in the develop section. Explorations stay
 under staging either way.
 
+### How it looks everywhere: the art direction
+
+The brand system says which colors, fonts and mark. It does not say what a
+page should feel like, or what to do when there is no good photo. Without
+that layer the only fix for a flat piece is another color, and the palette
+grows until nothing is chosen on purpose. This round adds it, before the
+system is built, and tests it on the web. Read the
+[art director](references/studio/art-director.md) and the
+[taste library](references/taste/README.md) first.
+
+1. Write the house style in `brand/staging/art-direction.md` with its eight
+   headings: the idea, references, fixed bones, photo treatment, without
+   photos, never, slots, and decision rules. The interface refuses a file
+   missing one. Keep it to three brand colors by default.
+2. Show two or three house styles on the website's homepage hero, at
+   desktop (1440 wide) and phone (375 wide), with a recommendation that
+   names the earlier pick it follows.
+3. Show five campaign looks: the wardrobe for seasons and events. Each has
+   a name, an idea in one line, an open-licensed title font, which brand
+   color leads, a photo or no-photo approach, and proof on three pieces (a
+   feast, a community event, a plain notice). Each must look unlike the
+   other four. A campaign look dresses the site's slots and the season's
+   pieces; it never becomes the website's own look.
+4. Before the pastor sees any of it, the [critic](references/studio/critic.md)
+   checks it in fresh context from screenshots only. A redirect is fixed,
+   not shown.
+
+Record `art-direction` with `applications` (including `homepage_hero`),
+`boards`, `options`, `recommendation`, `follows`, at least two
+`references` (each with `name` and `learn`), the five `campaigns` with
+their `proof`, the `critic` verdict and notes, `decision` and `rationale`.
+Recording it on a run that was already built marks the build and the
+proof stale; restage and prove again.
+
 ## 6. Build into staging
 
 Write the brand system under `brand/staging/`, never into the live `brand/`
 paths: the mark family with a derived small-size variant, PNG exports,
-open-licensed font files, the voice rules, the image-language rules, and the
-weekly templates including the announcement. See
+open-licensed font files, the voice rules, the image-language rules, the
+weekly templates including the announcement, and the web house style with
+its five campaign looks (`web`, `campaigns` and `precedence`, schema
+version 3). See
 [Brand system](references/brand-system.md). Run the survival checks, then
 stage the system and record the build:
 
@@ -339,8 +399,9 @@ python3 "<church-folder>/handbuilt.py" build-my-brand record --stage build \
 
 `stage-brand` validates every path is inside `brand/staging/`, every mark is a
 safe SVG or PNG, every font has a license named, every color has a job, the
-image language is stated, the five renderer colors are all present if
-supplied, and the survival checks pass (sign, footer, favicon on the small
+image language is stated, the web house style has one to three slots and
+decision rules an agent can follow, there are five campaign looks, the
+five renderer colors are all present if supplied, and the survival checks pass (sign, footer, favicon on the small
 variant, one color, reversal, embroidery; pass or fail, never a score).
 `build` metadata lists `staged_files`. Nothing is live yet.
 
@@ -350,8 +411,11 @@ Render the church's most recent bulletin with the staged brand and place it
 beside the current one, and render the church's own test announcement from
 the image-language rules. Use the bulletin skill's production interface with
 a brand file that points at the staged assets; do not hand-edit the live
-`brand.json`. Put the pages in the guide section side by side. Record `prove`
-with `before`, `after`, and `announcement` paths. Then show the pastor and
+`brand.json`. Then render the web proof: the homepage hero at desktop and
+phone, and the lockup in a website header at 30 to 44 px tall, where a
+small second line becomes unreadable. Put the pages in the guide section
+side by side. Record `prove` with `before`, `after`, `announcement`, and
+`web_proof` (`hero_desktop`, `hero_phone`, and a `header` list). Then show the pastor and
 ask for approval in plain words: this replaces the live brand, and the old
 one is kept under `brand/archive/`. First list exactly what goes in, what it
 replaces, and what is archived, from the dry run, so the pastor approves a
@@ -371,7 +435,8 @@ reads the result with no further steps. Do not approve on the pastor's behalf.
 ## 8. Connect, hand off, and keep learning
 
 Record `connect`: the guide section "How your brand travels" shows the one
-brand file driving the bulletin, the website, the newsletter, social posts,
+brand file driving the bulletin, the website (built next with Build My
+Website, which starts from this approved kit), the newsletter, social posts,
 announcement images, and print. Teach integration now, after the pastor has
 seen it work once.
 

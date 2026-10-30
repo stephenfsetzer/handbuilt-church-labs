@@ -32,23 +32,23 @@ plan must belong to exactly one phase. A natural grouping:
 
 ```json
 {"phases": [
-  {"title": "Getting to know you", "stages": ["fork", "discover", "interview", "identity"],
+  {"title": "Getting to know you", "stages": ["fork", "discover", "assets", "interview", "identity"],
    "you_see": "How your church looks today, through a designer's eyes, and the brief in your words",
    "you_decide": "Keep your mark or start new; one identity for everything", "time": "One sitting"},
   {"title": "The idea", "stages": ["direction", "develop", "refine-1", "refine-2"],
    "you_see": "Two or three directions on your own bulletin, announcement, and a social post; then one direction developed and tightened twice",
    "you_decide": "The direction, then the version, then the mark you keep", "time": "Three short sessions"},
-  {"title": "The system", "stages": ["color", "type", "voice", "build", "prove"],
-   "you_see": "The palette, the type, your voice, then your latest bulletin in the new brand beside the old one",
+  {"title": "The system", "stages": ["color", "type", "voice", "art-direction", "build", "prove"],
+   "you_see": "The palette, the type, your voice, how your website's front page and five seasonal looks would feel, then your latest bulletin and homepage in the new brand",
    "you_decide": "Each in turn, then whether the new brand goes live", "time": "Two sessions"},
   {"title": "Keeping it", "stages": ["connect", "handoff"],
    "you_see": "Where the brand travels and a one-page card for anyone who helps", "you_decide": "Nothing", "time": "Half an hour"}
 ]}
 ```
 
-Stage keys: `fork`, `discover`, `interview`, `identity`, `direction`,
-`develop`, `refine-1`, `refine-2`, `color`, `type`, `voice`, `build`,
-`prove`, `connect`, `handoff`.
+Stage keys: `fork`, `discover`, `assets`, `interview`, `identity`,
+`direction`, `develop`, `refine-1`, `refine-2`, `color`, `type`, `voice`,
+`art-direction`, `build`, `prove`, `connect`, `handoff`.
 
 ## A run that began before the plan existed
 
@@ -58,3 +58,10 @@ next stage until the plan is recorded. Write the plan with the pastor's
 actual position in it; the interface's opening line says "this plan arrives
 with the work already under way" and names the step they are at. Recorded
 late, the plan still reads first in the guide.
+
+A run that began before the photo stage owes `assets` too. It is not
+recorded at once: the pastor stays where they are, and `orient` brings it
+back just before the art direction, which needs it. A brand built before
+its web layer existed is not held up at all; `orient` lists the photo and
+art direction stages under `skipped_stages`, and Build My Website asks for
+them when the church starts its website.

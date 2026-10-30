@@ -11,7 +11,10 @@ Say "Build my brand." The agent will:
 2. Ask one question: keep your current logo and redesign around it, or
    start new.
 3. Show you how your church looks today, from your website, your social
-   page, your bulletins, and your logo, with no questions asked.
+   page, your bulletins, and your logo, with no questions asked. Then sort
+   your photos: which ones can carry a page, which can help, which to set
+   aside, and what is missing. At the end it asks only whether the photos
+   with people in them may be used.
 4. Ask seven short questions about what only you know: who you are trying to
    reach, what success looks like, the name that goes on everything, who runs
    it week to week.
@@ -23,12 +26,16 @@ Say "Build my brand." The agent will:
    an image tool from a written brief, shaped by your reactions, and then
    turned into a clean file that prints in one color. Each round is a short
    lesson, concrete things to compare, and your pick. You are never asked to
-   describe a feeling.
+   describe a feeling. Last, how it looks everywhere: the quiet look of your
+   website, shown on its front page at computer and phone size, and five
+   looks for seasons and events (Advent, a parish picnic, a plain notice),
+   so the website can change with the church year without changing itself.
 6. Build the brand and every weekly template, including how an announcement
    image is made so the agent can make one on a Tuesday, and check that the
    mark survives a sign, a footer, a favicon, one color, and embroidery.
-7. Prove it by rendering your most recent bulletin and an announcement in
-   the new brand beside the old one, then ask you to approve. Your previous
+7. Prove it by rendering your most recent bulletin, an announcement, and
+   your website's front page in the new brand beside the old one, then ask
+   you to approve. Your previous
    brand is kept under `brand/archive/`.
 8. Leave you a brand guide, set in your own brand, that records every
    decision and why, and a one-page card a volunteer can use.
@@ -40,6 +47,9 @@ any round and pick up later.
 After the brand is approved, ask for a lockup for a ministry, an image for
 an announcement, a poster, a seasonal color, or a check of a volunteer's
 draft. The agent reads your guide and applies your rules.
+
+When the brand is approved, Build My Website can build your website from
+it. See the [website guide](build-my-website.md).
 
 The workflow does not create social accounts, buy domains, publish anywhere,
 or change your live brand until you approve the proof.
