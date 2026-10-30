@@ -78,7 +78,21 @@ Five, each with: a name, the idea in one line, a title font (open-licensed),
 what it borrows from the place, which brand color leads, its photo or
 no-photo approach, its own "never" list, and proof on the same three pieces
 (a feast, a community event, a plain notice). Each must look unlike the other
-four.
+four, and no shape or device may carry more than one of the five.
+
+Two things make a look specific rather than tidy:
+
+- **A real kind of printed object.** Each look borrows the logic of
+  something people already read: a stage script, a playbill, a street sign,
+  a hymn board, a transit map. A look that is only a texture or an effect
+  (glowing lights, halftone arches) has no idea yet.
+- **One line of voice and one fact only this church has,** on every proof
+  piece: a line from the voice guide or the church's own published words,
+  and a true detail (a hymn number, how many neighbors come, the door people
+  use). Never invented.
+
+On a bilingual brand, at least one look makes the two languages themselves
+the idea, not just two lines of type.
 
 ## Page scores
 
@@ -92,6 +106,25 @@ section look like this too."
 
 A device repeated down a page ("one break of the grid in every band") is
 itself a repetition. Write contrast into the score, not as a habit.
+
+Inside pages:
+
+- **The home hero's idea carries through.** Each inside page reuses the
+  hero's signature shape or device once, in a smaller job. A shape must hold
+  words or do work; an empty shape is filler.
+- **Design for the filled length.** Give every placeholder a word budget in
+  the score (for example, 40 to 60 words), and show the critic the page
+  filled with neutral text of that length, never empty boxes.
+- **No shared skeletons across churches.** A page made for one church is
+  never the template for another's. The critic sees the same page made for
+  the last church and redirects a page that repeats its order and layouts.
+- **Phones.** The menu and, on a bilingual site, the language switch stay
+  reachable at 375 wide. Long strings (email addresses, links) are shortened
+  or set to wrap cleanly, never broken mid-word.
+- **Equal languages.** On a bilingual site both languages get the same
+  size, weight and treatment, placeholders included.
+- **Facts once.** In a page's body a fact appears once. The site's footer
+  is shared chrome and doesn't count as a repeat.
 
 ## Briefing a designer
 

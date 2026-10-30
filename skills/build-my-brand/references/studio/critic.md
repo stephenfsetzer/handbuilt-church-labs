@@ -10,6 +10,8 @@ only these inputs:
 - screenshots of the piece at 1440 and 375 wide (never the code)
 - the art direction and, for a page, its score
 - the previous three sections or pieces it sits beside
+- for an inside page, the home page it sits beside and the same page made
+  for the last church, if there is one
 - the [misses log](../taste/misses.md)
 - the quality bar: screenshots of the strongest piece of the same kind the
   studio has already had approved, for any church (a hero beside a hero, a
