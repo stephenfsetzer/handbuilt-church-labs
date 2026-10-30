@@ -7,7 +7,8 @@ operations workflows. Sessions here behave by these rules.
 
 - `skills/` holds the workflows (`onboarding`, `bulletin`,
   `sermon-research`, `sermon-reflection`, `sermon-video`,
-  `finance-onboarding`, `finance-report`, `build-my-brand`). Each
+  `finance-onboarding`, `finance-report`, `build-my-brand`,
+  `build-my-website`). Each
   SKILL.md is the operating procedure;
   follow it exactly.
 - `skills/bulletin/renderer/` holds private bulletin rendering details,

@@ -11,6 +11,8 @@ brand/staging/
   marks/            SVG masters and PNG exports: mark, small variant, wordmark, lockups, favicon, social avatar
   type/             open-licensed font files the templates and the guide reference
   voice.md          the voice rules
+  art-direction.md  the web house style, in its eight headings
+  campaigns/        the five campaign looks, each proven on a feast, an event and a notice
   templates/        bulletin theme, newsletter, social sizes, letterhead, sign concept, announcement
   explorations/     every board the pastor saw, and each internal exploration round under <round>/
   checks/           survival check renders and report.json, written by check-marks and stage-brand
@@ -28,7 +30,7 @@ moved into the live brand.
 ```json
 {
   "brand_system": {
-    "schema_version": 2,
+    "schema_version": 3,
     "name": {"wordmark": "Riverbend Lutheran Church", "short": "Riverbend"},
     "direction": {"name": "Open Door", "story": "One paragraph a stranger could feel."},
     "marks": {
@@ -69,7 +71,33 @@ moved into the live brand.
       "letterhead": "brand/staging/templates/letterhead.html",
       "sign_concept": "brand/staging/templates/sign-concept.svg",
       "announcement": "brand/staging/templates/announcement.html"
-    }
+    },
+    "web": {
+      "idea": "A quiet frame so the seasons can be loud.",
+      "house_style": "brand/staging/art-direction.md",
+      "bones": {"grid": "12 columns, 24 px gutters, 1200 px max", "type_scale": [16, 20, 28, 44, 72],
+                "header": "Lockup at 36 px tall, left; four links at most"},
+      "photo_treatment": {"rule": "Documentary photos keep their true color in one warm grade, or go plain black and white. Never a brand-color print over people.",
+                          "examples": {"right": ["brand/staging/explorations/photo-right.png"], "wrong": ["brand/staging/explorations/photo-wrong.png"]}},
+      "without_photos": ["A true number from the parish, set huge on paper", "One shape from the building, cropped large", "The service time in display type on the primary color"],
+      "never": ["Text within 24 px of an edge", "The primary color as one of three equal blocks with paper and the deep color"],
+      "slots": {
+        "home_hero": {"changes": "Each season", "may_hold": ["the current campaign look", "the house style when no campaign runs"]},
+        "announcement_band": {"changes": "Weekly", "may_hold": ["this week's notice", "seasonal service times"]},
+        "featured_page": {"changes": "Per campaign", "may_hold": ["one campaign's own page"]}
+      },
+      "decision_rules": [
+        {"when": "a section has no usable photo", "do": "lead with a number or with type on the primary color", "never": "fill it with a stock photo"},
+        {"when": "two rules conflict", "do": "the one higher in precedence wins"}
+      ],
+      "checks": ["contrast_aa", "no_text_near_edge", "no_horizontal_scroll", "one_accent_per_viewport", "one_h1", "alt_text", "photo_ledger_consent", "no_reused_photos"]
+    },
+    "campaigns": [
+      {"name": "Lantern", "idea": "Light carried through the dark weeks.", "title_font": {"family": "Fraunces", "license": "SIL Open Font License 1.1"},
+       "leads_with": "deep", "photo_approach": "No photo; one warm shape on the deep color.", "borrows_from_place": "The lamps by the north door.",
+       "never": ["a candle clip-art icon"]}
+    ],
+    "precedence": ["brief", "brand_kit", "house_style", "campaign", "page"]
   },
   "colors": {"ink": "#1c1c1c", "accent": "#2b4a6f", "accent_deep": "#1a2c44", "paper": "#fffdf8", "rubric_red": "#8b3a3a"},
   "logo": {"banner": "brand/staging/marks/lockup-horizontal.png", "mark": "brand/staging/marks/mark.png"},
@@ -79,7 +107,9 @@ moved into the live brand.
 
 Rules the check enforces:
 
-- `schema_version` is 2. Version 2 added `marks.small` and `imagery`.
+- `schema_version` is 3. Version 2 added `marks.small` and `imagery`;
+  version 3 adds `web`, `campaigns` and `precedence`. The example above
+  shows one campaign for space; the check requires five.
 - Every path is relative, inside `brand/staging/`, and exists.
 - `marks.primary`, `marks.small` (the derived small-size variant), and
   `marks.wordmark` are required. `primary` and `small` are editable SVG
@@ -101,6 +131,20 @@ Rules the check enforces:
   (a list). Other text fields such as `photography` are kept. These are the
   rules an agent follows when the pastor says "I need an image for an
   announcement."
+- `web` is the house style as rules an agent follows without a designer:
+  `idea`; `house_style`, the staged art direction file; `bones`;
+  `photo_treatment.rule`, with optional `right` and `wrong` examples;
+  `without_photos` and `never` lists; one to three `slots`, each with
+  `changes` and `may_hold`; `decision_rules`, each with `when` and `do`
+  (and an optional `never`); and `checks`, the website build's checks,
+  from the list in the example.
+- `campaigns` holds exactly five looks, each with a unique `name`, `idea`,
+  `title_font` (`family` and `license`, optional `files`), `leads_with`
+  and `photo_approach`. Their proof pieces are recorded in the art
+  direction stage, not here.
+- `precedence` is exactly `brief`, `brand_kit`, `house_style`, `campaign`,
+  `page`: a lower layer never overrides a higher one. A campaign can't
+  change the mark; a page can't break the house style.
 - `voice` and every template path exist. Include an `announcement` template
   built from the imagery rules; the church's own test announcement is part
   of the proof.

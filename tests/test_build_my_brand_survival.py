@@ -22,9 +22,9 @@ THIN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="curr
 DEFAULT_FILL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="20" y="10" width="60" height="80"/></svg>'
 RED = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="20" y="10" width="60" height="80" fill="#ff0000"/></svg>'
 PHASES = [
-    {"title": "Start", "stages": ["fork", "discover", "interview", "identity"], "you_see": "a", "you_decide": "b", "time": "c"},
+    {"title": "Start", "stages": ["fork", "discover", "assets", "interview", "identity"], "you_see": "a", "you_decide": "b", "time": "c"},
     {"title": "Idea", "stages": ["direction", "develop", "refine-1", "refine-2"], "you_see": "a", "you_decide": "b", "time": "c"},
-    {"title": "System", "stages": ["color", "type", "voice", "build", "prove", "connect", "handoff"], "you_see": "a", "you_decide": "b", "time": "c"},
+    {"title": "System", "stages": ["color", "type", "voice", "art-direction", "build", "prove", "connect", "handoff"], "you_see": "a", "you_decide": "b", "time": "c"},
 ]
 
 
@@ -40,6 +40,8 @@ def _metadata(stage: str) -> dict:
                      "built_from": ["admired: a neighborhood bakery sign", "wild card: a transit map"]})
     if stage == "discover":
         meta["sources"] = [{"label": "site", "kind": "website"}]
+    if stage == "assets":
+        meta.update({"photos": [], "gaps": ["Every photo"]})
     if stage == "interview":
         meta["answers"] = {k: "a" for k in INTERVIEW_KEYS}
     return meta
