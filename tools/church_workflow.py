@@ -155,6 +155,21 @@ def claude_update_settings() -> dict | None:
     return claude_updates.update_request()
 
 
+def _whats_new(previous: object, current: str) -> str | None:
+    """Return the one-line note for a version this church has not started yet."""
+    from tools.workflow_updates import version
+    if not isinstance(previous, str):
+        return None
+    try:
+        if version(previous) >= version(current):
+            return None
+        lines = (ROOT / "handbook/whats-new.md").read_text(encoding="utf-8").splitlines()
+        return lines[lines.index(f"## {current}") + 2].strip() or None
+    except (OSError, ValueError, IndexError):
+        # A missing note never stands between a pastor and their work.
+        return None
+
+
 def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:
     from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
@@ -237,6 +252,10 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
               "launcher": [doctor["runtime"]["python"], str(ROOT / "tools/church_workflow.py"),
                            "--church-folder", str(church)],
               "next_action": "Read this exact skill. Use the returned launcher prefix for every operation in this task; it keeps the workflow version fixed. Check workflow readiness before producing."}
+    whats_new = _whats_new(saved.get("plugin_version"), package_version(ROOT))
+    if whats_new:
+        result["whats_new"] = whats_new
+        result["next_action"] = f"Tell the pastor in one sentence what is new: {whats_new} " + result["next_action"]
     result["handbuilt_run"] = str(_record(church, workflow, "start", result, doctor))
     return result, 0
 

@@ -153,13 +153,12 @@ first two commands above to the pastor one at a time instead, using
 [Guided computer setup](skills/onboarding/references/guided-setup.md#run-one-command-in-the-terminal).
 Do not edit Codex configuration files by hand.
 
-**Updates in Codex:** the marketplace follows `main`. Codex has no
-automatic-update switch documented for this marketplace, so do not claim one,
-and do not lead with its absence. Tell the pastor that Handbuilt checks for
-verified workflow updates each time church work starts (see section 3), and
-that the agent can refresh the app's
-copy on request with `codex plugin marketplace upgrade handbuilt-church-labs --json`
-followed by the `codex plugin add` line above.
+**Updates in Codex:** the marketplace follows `main`, and Codex normally
+refreshes it when Codex starts, so restarting Codex is the first thing to try
+for a new version. Handbuilt also checks for verified workflow updates each time church work
+starts (see section 3). The agent can refresh the app's copy on request with
+`codex plugin marketplace upgrade handbuilt-church-labs --json` followed by the
+`codex plugin add` line above.
 
 ## 3. Keep it updated
 

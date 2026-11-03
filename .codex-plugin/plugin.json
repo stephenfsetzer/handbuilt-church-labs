@@ -14,7 +14,9 @@
   },
   "interface": {
     "displayName": "Handbuilt Church Labs",
+    "websiteURL": "https://gethandbuilt.com",
     "privacyPolicyURL": "https://gethandbuilt.com/privacy",
+    "termsOfServiceURL": "https://gethandbuilt.com/terms",
     "shortDescription": "Weekly church writing and worship workflows",
     "longDescription": "Create a private church folder, prepare source-verified sermon research briefs, write your sermon in your own voice with a light edit, prepare the recorded sermon as a reviewable video, produce reviewable worship bulletin booklets, and build a monthly finance report for the vestry or council from QuickBooks.",
     "developerName": "Handbuilt",

@@ -7,5 +7,21 @@
     "name": "Handbuilt",
     "url": "https://gethandbuilt.com"
   },
-  "privacyPolicyUrl": "https://gethandbuilt.com/privacy"
+  "homepage": "https://gethandbuilt.com",
+  "repository": "https://github.com/stephenfsetzer/handbuilt-church-labs",
+  "license": "MIT",
+  "keywords": [
+    "church",
+    "worship",
+    "sermon",
+    "video",
+    "bulletin",
+    "onboarding",
+    "finance",
+    "brand"
+  ],
+  "documentationUrl": "https://github.com/stephenfsetzer/handbuilt-church-labs#readme",
+  "supportUrl": "https://github.com/stephenfsetzer/handbuilt-church-labs#installation-and-support",
+  "privacyPolicyUrl": "https://gethandbuilt.com/privacy",
+  "termsOfServiceUrl": "https://gethandbuilt.com/terms"
 }
