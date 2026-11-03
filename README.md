@@ -205,7 +205,7 @@ readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 
-Install Handbuilt Church Labs version 0.8.8 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
+Install Handbuilt Church Labs from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
 There are two ways to install, and you can use both: ask your agent (see
 [Install with your AI agent](#install-with-your-ai-agent)), or click through
 the app as described below. Either way, automatic updates must be on so each
@@ -252,8 +252,8 @@ Cowork, and the **Code** tab.
    copy stays on the version you installed today.
 5. Confirm. Then open the **Discover** tab, find **Handbuilt Church Labs**,
    and choose **Add**.
-6. Open **Your plugins** and confirm that Handbuilt Church Labs shows version
-   0.8.8, eight skills, and **Enable plugin** on.
+6. Open **Your plugins** and confirm that Handbuilt Church Labs shows eight
+   skills and **Enable plugin** on.
 
 Start a new session or task, and ask, “Set up my Church Command Center.” The
 **Code** tab or Cowork is the right place for church work, because it keeps

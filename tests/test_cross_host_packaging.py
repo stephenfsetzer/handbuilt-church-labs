@@ -39,6 +39,8 @@ class CrossHostPackagingTest(unittest.TestCase):
         self.assertEqual(claude_manifest["name"], manifest["name"])
         self.assertEqual(claude_manifest["version"], manifest["version"])
         self.assertEqual(claude_manifest["privacyPolicyUrl"], "https://gethandbuilt.com/privacy")
+        self.assertNotIn("mcpServers", manifest)
+        self.assertNotIn("mcpServers", claude_manifest)
         claude_marketplace = json.loads(
             (REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
         )

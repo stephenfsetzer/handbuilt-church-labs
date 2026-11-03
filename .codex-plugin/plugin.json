@@ -7,11 +7,6 @@
     "url": "https://gethandbuilt.com"
   },
   "skills": "./skills/",
-  "mcpServers": {
-    "church-labs": {
-      "url": "https://gethandbuilt.com/api/mcp"
-    }
-  },
   "extensions": {
     "com.openai": {
       "onboardingSkill": "./skills/onboarding/SKILL.md"

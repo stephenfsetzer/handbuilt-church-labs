@@ -7,11 +7,5 @@
     "name": "Handbuilt",
     "url": "https://gethandbuilt.com"
   },
-  "privacyPolicyUrl": "https://gethandbuilt.com/privacy",
-  "mcpServers": {
-    "church-labs": {
-      "type": "http",
-      "url": "https://gethandbuilt.com/api/mcp"
-    }
-  }
+  "privacyPolicyUrl": "https://gethandbuilt.com/privacy"
 }
