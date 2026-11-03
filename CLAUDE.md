@@ -52,7 +52,8 @@ operations workflows. Sessions here behave by these rules.
    Riverbend chart or are invented, and each one is listed in
    `tools/example-accounts.txt`. `tools/pii_check.py` fails on any figure or
    account number that is not listed. Images, PDFs, office files, spreadsheets and accounting exports are
-   never committed. Commit messages, pull request titles and descriptions,
+   never committed, apart from the plugin icon that `tools/pii_check.py` pins by
+   checksum. Commit messages, pull request titles and descriptions,
    and release notes are public too: describe a bug in general terms, never
    with a church's name or figures. CI checks all of it, including against a
    private denylist kept in the `HANDBUILT_PRIVATE_DENYLIST` repository

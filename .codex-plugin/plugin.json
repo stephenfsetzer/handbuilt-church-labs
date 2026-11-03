@@ -32,6 +32,8 @@
       "Build this week's bulletin.",
       "Set up our finances."
     ],
-    "brandColor": "#425B76"
+    "brandColor": "#425B76",
+    "composerIcon": "./.claude-plugin/icon.png",
+    "logo": "./.claude-plugin/icon.png"
   }
 }

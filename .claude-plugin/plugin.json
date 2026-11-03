@@ -20,6 +20,7 @@
     "finance",
     "brand"
   ],
+  "icon": "./.claude-plugin/icon.png",
   "documentationUrl": "https://github.com/stephenfsetzer/handbuilt-church-labs#readme",
   "supportUrl": "https://github.com/stephenfsetzer/handbuilt-church-labs#installation-and-support",
   "privacyPolicyUrl": "https://gethandbuilt.com/privacy",
