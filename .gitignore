@@ -16,3 +16,4 @@ __pycache__/
 private-church-data/
 tests/generated/
 tests/rehearsal-output/
+evals/results/

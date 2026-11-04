@@ -292,7 +292,8 @@ record, and the chosen mark is always an editable SVG.
 Most churches have no image service key, and the workflow is built for
 that. Run `keys status` once before develop. A missing key never stops the
 run, and the pastor is never asked for a key, an account with an image
-company, or a terminal command. Do not mention keys to the pastor at all.
+company, or a terminal command. Bring up keys only if the pastor asks, then
+explain them plainly.
 
 1. **The host's own image tool.** Codex has a built-in image generator. Make
    the round there from the makers' briefs and register it with

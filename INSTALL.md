@@ -25,9 +25,9 @@ tone, plain-language explanations, and common snags. In short:
 - Before each step, say what you are doing, why it matters, and what they
   will see. After it, check the result yourself and say what comes next.
 - Explain each new word once, briefly. Treat errors as normal and fixable.
-- Keep the machinery out of what you say. Do not name commands, file paths,
-  backup files, slash commands, or terms like "marketplace" or "catalog" unless
-  the pastor asks. Say "I'm adding Handbuilt to Claude's list of add-ons", not
+- Keep technical detail out of the first explanation, and answer fully whenever
+  the pastor asks. Avoid commands, file paths, backup files, slash commands, and
+  terms like "marketplace" or "catalog" until then. Say "I'm adding Handbuilt to Claude's list of add-ons", not
   "running the claude installer command against the marketplace catalog".
 - Never ask for a password in chat, and never change settings beyond this
   page without a yes.
@@ -172,7 +172,9 @@ has neither by default:
   that also stops plugin updates unless this is set.
 
 Handbuilt includes a script that merges both into the user settings file,
-keeps every other setting, and saves a backup first. After the preferred
+keeps every other setting, and saves a backup first. Tell the pastor this changes
+a Claude setting that lets all their plugins update, and get a yes before running
+it. After the preferred
 route, run it from the marketplace copy Claude Code just downloaded:
 
 ```bash

@@ -3,9 +3,9 @@
 Practical AI workflows for small Episcopal and Lutheran churches.
 
 Handbuilt Church Labs helps a pastor set up a private church folder, prepare
-cited sermon research, and build worship bulletins for review. It is the Labs
-learning and experimentation space for [Handbuilt](https://gethandbuilt.com).
-You bring your church's practice and judgment. The plugin gives the agent a
+cited sermon research, write sermons in their own voice, and build worship
+bulletins, sermon videos, finance reports and a church brand for review. It is
+made by [Handbuilt](https://gethandbuilt.com). You bring your church's practice and judgment. The plugin gives the agent a
 repeatable way to help with the routine work.
 
 ## Install with your AI agent
@@ -391,6 +391,32 @@ The AI service you choose may process messages and file content used during a
 conversation under that service's account settings and terms. A local folder
 does not make AI processing offline. Do not include passwords, payment
 information, or confidential pastoral case details in onboarding.
+
+## What the plugin runs, fetches and sends
+
+The plugin sends nothing to Handbuilt. It works through your AI app and local
+Python tools, and it reaches these places only for the work you ask for:
+
+- **Your computer:** it runs the plugin's Python tools in a separate managed
+  environment, creates your church folder, and with your approval installs tools
+  such as Python, PDF tools and FFmpeg when they are missing. During install it
+  can add Handbuilt's automatic-update settings to your Claude settings file,
+  including `FORCE_AUTOUPDATE_PLUGINS`, which applies to all plugins. It saves a
+  backup first and changes nothing else.
+- **GitHub:** it checks this repository for a new release and downloads verified
+  release files. The check sends no church content or credentials.
+- **Python Package Index (PyPI):** it downloads the Python packages listed in
+  `requirements.lock`, each checked against its recorded hash.
+- **Websites you name or need:** your church website, published lectionary and
+  scripture sources, and research sources, read through your AI app.
+- **Video hosts:** for a sermon video, the public YouTube, Vimeo or other service
+  page you give it.
+- **QuickBooks:** the finance report reads your books through the QuickBooks
+  connector you sign in to, and never changes them.
+- **Google Fonts:** a finance report can request a brand font from Google Fonts
+  when the church's brand uses one.
+- **Image services:** Build My Brand uses OpenAI, Google or Recraft only if you
+  add your own key for one, and it sends them the image briefs.
 
 ## Before you begin
 
