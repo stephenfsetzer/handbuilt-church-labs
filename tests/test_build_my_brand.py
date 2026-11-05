@@ -44,7 +44,7 @@ def _metadata(stage: str) -> dict:
     if stage == "roadmap":
         meta["phases"] = json.loads(json.dumps(PHASES))
     if stage in DECISION_STAGES:
-        meta.update({"decision": f"{stage} choice", "rationale": f"Because the {stage} lesson showed why.",
+        meta.update({"standing": "decided", "decision": f"{stage} choice", "rationale": f"Because the {stage} lesson showed why.",
                      "speaker": "writer" if stage == "voice" else "creative director"})
         if stage == "fork":
             meta["decision"] = "new"
@@ -166,16 +166,16 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(blocked["status"], "blocked")
         self.assertEqual(blocked["errors"][0]["code"], "stage_out_of_order")
         self._record_through("roadmap")
-        bad_fork = record(self.church, "fork", "text", {"decision": "maybe", "rationale": "x"})
+        bad_fork = record(self.church, "fork", "text", {"standing": "decided", "decision": "maybe", "rationale": "x"})
         self.assertEqual(bad_fork["errors"][0]["code"], "invalid_fork")
         ok = record(self.church, "fork", "Refresh keeps the mark; new replaces it.", _metadata("fork"))
         self.assertEqual(ok["status"], "recorded")
         self.assertEqual(record(self.church, "discover", "audit", {"sources": [{"label": "site", "kind": "website"}]})["status"], "recorded")
         self.assertEqual(record(self.church, "interview", "brief", {"answers": {k: "a" for k in INTERVIEW_KEYS}})["status"], "recorded")
-        no_rationale = record(self.church, "identity", "lesson", {"decision": "one mark"})
+        no_rationale = record(self.church, "identity", "lesson", {"standing": "decided", "decision": "one mark"})
         self.assertEqual(no_rationale["errors"][0]["field"], "rationale")
-        self.assertEqual(record(self.church, "identity", "lesson", {"decision": "one mark", "rationale": "drift", "speaker": "creative director"})["status"], "recorded")
-        few_options = record(self.church, "direction", "lesson", {"decision": "A", "rationale": "why", "options": ["A"], "applications": list(DIRECTION_APPLICATIONS)})
+        self.assertEqual(record(self.church, "identity", "lesson", {"standing": "decided", "decision": "one mark", "rationale": "drift", "speaker": "creative director"})["status"], "recorded")
+        few_options = record(self.church, "direction", "lesson", {"standing": "decided", "decision": "A", "rationale": "why", "options": ["A"], "applications": list(DIRECTION_APPLICATIONS)})
         self.assertEqual(few_options["errors"][0]["code"], "options_required")
         legacy = record(self.church, "mark", "lesson", {"decision": "x", "rationale": "y"})
         self.assertEqual(legacy["errors"][0]["code"], "stage_replaced")
@@ -724,6 +724,59 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(bad.stderr, "")
         orient_run = subprocess.run([sys.executable, str(CLI), "orient", "--church-folder", str(self.church)], capture_output=True, text=True)
         self.assertEqual(json.loads(orient_run.stdout)["next_stage"], "roadmap")
+
+    def test_an_amendment_after_approval_that_keeps_nothing_leaves_the_brand_approved(self):
+        self._ready_to_approve()
+        self.assertEqual(approve(self.church)["status"], "approved")
+        live = (self.church / "brand.json").read_text()
+        self.assertEqual(record(self.church, "amendment", "Trying a lockup.", {"step": "open", "what": "A lockup"})["status"], "recorded")
+        self.assertTrue((self.church / "brand" / "staging" / "brand-system.json").is_file(), "the approved system is the starting point")
+        finished = record(self.church, "amendment", "The pastor kept none of it.", {"step": "finish", "added": []})
+        self.assertEqual(finished["status"], "recorded", finished)
+        self.assertFalse(finished["needs_approval"])
+        self.assertFalse((self.church / "brand" / "staging").exists(), "nothing should stay staged against the approved brand")
+        self.assertTrue(list((self.church / "brand" / "archive").glob("amendment-1-unused-*")), "the sketches are kept")
+        self.assertEqual((self.church / "brand.json").read_text(), live)
+        self.assertEqual(orient(self.church)["amendments_awaiting_approval"], [])
+        self.assertIn("Finished with nothing added", (self.church / "brand" / "guide.md").read_text())
+
+    def test_an_amendment_comes_after_the_build_and_takes_one_step_at_a_time(self):
+        self._record_through("voice")
+        early = record(self.church, "amendment", "Too soon.", {"step": "open", "what": "x"})
+        self.assertEqual(early["errors"][0]["code"], "stage_out_of_order")
+        self.assertEqual(stage_brand(self.church, self._stage_files())["status"], "staged")
+        self.assertEqual(record(self.church, "build", "Built.", {"staged_files": ["brand/staging/marks/mark.svg"]})["status"], "recorded")
+        self.assertEqual(record(self.church, "amendment", "Text.", {"step": "finish", "added": []})["errors"][0]["code"], "no_open_amendment")
+        self.assertEqual(record(self.church, "amendment", "Text.", {"step": "start"})["errors"][0]["code"], "invalid_amendment_step")
+        self.assertEqual(record(self.church, "amendment", "Text.", {"step": "open", "what": "A lockup"})["status"], "recorded")
+        self.assertEqual(record(self.church, "amendment", "Text.", {"step": "open", "what": "Another"})["errors"][0]["code"], "amendment_open")
+        outside = record(self.church, "amendment", "Text.", {"step": "finish", "added": ["church.yaml"]})
+        self.assertEqual(outside["errors"][0]["code"], "outside_staging")
+
+    def test_the_command_line_opens_an_amendment_and_renders_the_edition(self):
+        self._needs_renderer()
+        self._record_through("voice")
+        self.assertEqual(stage_brand(self.church, self._stage_files())["status"], "staged")
+        self.assertEqual(record(self.church, "build", "Built.", {"staged_files": ["brand/staging/marks/mark.svg"]})["status"], "recorded")
+        (self.church / "note.md").write_text("A small addition.\n")
+        (self.church / "meta.json").write_text(json.dumps({"step": "open", "what": "A lockup"}))
+        opened = subprocess.run([sys.executable, str(CLI), "record", "--church-folder", str(self.church), "--stage", "amendment",
+                                 "--content-file", str(self.church / "note.md"), "--metadata-file", str(self.church / "meta.json")], capture_output=True, text=True)
+        self.assertEqual(json.loads(opened.stdout)["status"], "recorded", opened.stdout)
+        rendered = render_guide(self.church, edition="governing-body")
+        self.assertEqual(rendered["status"], "rendered", rendered)
+        self.assertTrue((self.church / "brand" / "governing-body-edition.pdf").is_file())
+        self.assertEqual(render_guide(self.church, edition="other")["errors"][0]["code"], "unknown_edition")
+
+    def test_an_absolute_path_through_a_symlink_out_of_the_folder_is_refused(self):
+        self._record_through("identity")
+        outside = Path(self.temp.name) / "outside"
+        outside.mkdir()
+        Image.new("RGB", (8, 8), "white").save(outside / "board.png")
+        (self.church / "brand" / "away").symlink_to(outside)
+        meta = _metadata("direction")
+        meta["boards"] = [str(self.church / "brand" / "away" / "board.png")]
+        self.assertEqual(record(self.church, "direction", "Directions.", meta)["errors"][0]["code"], "invalid_path")
 
     def test_the_launcher_registers_the_new_operations(self):
         source = (ROOT / "tools" / "church_workflow.py").read_text()

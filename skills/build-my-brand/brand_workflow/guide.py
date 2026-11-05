@@ -34,7 +34,9 @@ HEADING = re.compile(r"^(#{1,4})\s+(.*)$")
 ORDERED = re.compile(r"^\s*\d+[.)]\s+(.*)$")
 UNORDERED = re.compile(r"^\s*[-*]\s+(.*)$")
 TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
-DECISION_LABELS = ("**Options considered:**", "**Shown on:**", "**Recommended:**", "**Decision:**", "**Why:**")
+DECISION_LABELS = ("**Options considered:**", "**Shown on:**", "**Recommended:**", "**Decision:**", "**Decided by:**", "**Why:**",
+                   "**Proposed by the studio, not yet decided:**", "**The studio suggests:**", "**Why the studio suggests it:**",
+                   "**This is an amendment.**", "**Added:**", "**Status:**")
 WAYFINDING_LABELS = ("**Where you are:**", "**You decide today:**", "**Next you will see:**")
 MAX_GUIDE_BYTES = 1024 * 1024
 
@@ -238,7 +240,7 @@ def _church_name(root: Path) -> str:
     return "Your church"
 
 
-def _cover(root: Path, system: dict[str, Any], church_name: str, source: str) -> str:
+def _cover(root: Path, system: dict[str, Any], church_name: str, source: str, kicker: str) -> str:
     marks = system.get("marks") if isinstance(system.get("marks"), dict) else {}
     name = (system.get("name") or {}).get("wordmark") if isinstance(system.get("name"), dict) else None
     direction = (system.get("direction") or {}).get("name") if isinstance(system.get("direction"), dict) else None
@@ -251,7 +253,7 @@ def _cover(root: Path, system: dict[str, Any], church_name: str, source: str) ->
         parts.append(f'<img class="cover-wordmark" src="{html.escape(wordmark, quote=True)}" alt="{html.escape(name or church_name)}">')
     else:
         parts.append(f'<h1 class="cover-title">{html.escape(name or church_name)}</h1>')
-    parts.append('<p class="cover-kicker">Brand Guide</p>')
+    parts.append(f'<p class="cover-kicker">{html.escape(kicker)}</p>')
     if direction:
         parts.append(f'<p class="cover-direction">{html.escape(direction)}</p>')
     status = {"approved": f"Approved {system.get('approved_on', '')}".strip(), "staged": "Working draft, not yet approved", "neutral": "Started, before any brand decision"}[source]
@@ -260,7 +262,7 @@ def _cover(root: Path, system: dict[str, Any], church_name: str, source: str) ->
     return "\n".join(parts)
 
 
-def build_html(root: Path, markdown: str) -> tuple[str, str]:
+def build_html(root: Path, markdown: str, *, title: str = "Brand Guide", kicker: str = "Brand Guide · The pastor's own record") -> tuple[str, str]:
     source, system, colors = _brand_source(root)
     faces, display, text = _font_faces(root, system)
     pal = _palette(system, colors)
@@ -271,7 +273,7 @@ def build_html(root: Path, markdown: str) -> tuple[str, str]:
     css = f"""
 {faces}
 @page {{ size: letter; margin: 0.9in 0.85in 0.9in 0.85in;
-  @bottom-left {{ content: "{html.escape(church_name)} · Brand Guide"; font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; letter-spacing: 0.04em; }}
+  @bottom-left {{ content: "{html.escape(church_name)} · {html.escape(title)}"; font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; letter-spacing: 0.04em; }}
   @bottom-right {{ content: counter(page); font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; }} }}
 @page cover {{ margin: 0; @bottom-left {{ content: none; }} @bottom-right {{ content: none; }} }}
 html {{ color: {pal['ink']}; background: {pal['paper']}; }}
@@ -306,16 +308,16 @@ hr {{ border: 0; border-top: 0.75pt solid {pal['deep']}; margin: 14pt 0; }}
 .swatch {{ display: inline-block; width: 0.5in; height: 0.5in; vertical-align: middle; margin-right: 8pt; border: 0.5pt solid {pal['deep']}55; }}
 a {{ color: {pal['accent']}; text-decoration: none; }}
 """
-    document = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{html.escape(church_name)} Brand Guide</title><style>{css}</style></head>
-<body>{_cover(root, system, church_name, source)}
+    document = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{html.escape(church_name)} {html.escape(title)}</title><style>{css}</style></head>
+<body>{_cover(root, system, church_name, source, kicker)}
 <main>{body}</main></body></html>"""
     return source, document
 
 
-def render(root: Path, guide: Path, target: Path) -> dict[str, Any]:
+def render(root: Path, guide: Path, target: Path, **labels: str) -> dict[str, Any]:
     if guide.stat().st_size > MAX_GUIDE_BYTES:
         raise ValueError(f"Brand guide exceeds the {MAX_GUIDE_BYTES // (1024 * 1024)} MiB render limit")
-    source, document = build_html(root, guide.read_text(encoding="utf-8"))
+    source, document = build_html(root, guide.read_text(encoding="utf-8"), **labels)
     try:
         from weasyprint import HTML  # noqa: WPS433
     except ImportError as exc:

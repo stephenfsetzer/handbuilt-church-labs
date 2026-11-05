@@ -13,7 +13,7 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_DIR))
 
 from brand_workflow import (  # noqa: E402
-    LEGACY_STAGES, STAGES, approve, book, check_marks, explore, orient, record, redirect, render_guide, restart, stage_brand,
+    AMENDMENT_STAGE, LEGACY_STAGES, STAGES, approve, book, check_marks, explore, orient, record, redirect, render_guide, restart, stage_brand,
 )
 from brand_workflow import images  # noqa: E402
 
@@ -39,7 +39,7 @@ def _parser() -> argparse.ArgumentParser:
 
     item = sub.add_parser("record", help="Record a stage into the guide with its decision and why")
     item.add_argument("--church-folder", required=True)
-    item.add_argument("--stage", required=True, choices=STAGES + tuple(LEGACY_STAGES))
+    item.add_argument("--stage", required=True, choices=STAGES + tuple(LEGACY_STAGES) + (AMENDMENT_STAGE,))
     item.add_argument("--content-file", required=True)
     item.add_argument("--metadata-file")
     item.add_argument("--replace", action="store_true")
@@ -49,7 +49,7 @@ def _parser() -> argparse.ArgumentParser:
     item.add_argument("--round", required=True, help="A short name for the round, for example sketches-1")
     item.add_argument("--files", nargs="+", required=True, help="SVG or PNG sketches inside the church folder")
     item.add_argument("--maker", default="maker")
-    item.add_argument("--dark", help="The dark color for the reversed render, six-digit hex")
+    item.add_argument("--dark", help="The dark color for the reversed render, six hex digits, with or without the #")
 
     item = sub.add_parser("redirect", help="The creative director stops an exploration round, says why, and re-briefs")
     item.add_argument("--church-folder", required=True)
@@ -83,7 +83,7 @@ def _parser() -> argparse.ArgumentParser:
     item.add_argument("--church-folder", required=True)
     item.add_argument("--source", required=True, help="The chosen PNG inside the church folder")
     item.add_argument("--out", required=True, help="The SVG to write under brand/staging/, for example brand/staging/marks/mark.svg")
-    item.add_argument("--dark", help="The dark color for the reversal check, six-digit hex")
+    item.add_argument("--dark", help="The dark color for the reversal check, six hex digits, with or without the #")
 
     item = sub.add_parser("import-images", help="Register images the host made with its own image tool (no network)")
     item.add_argument("--church-folder", required=True)
@@ -101,7 +101,7 @@ def _parser() -> argparse.ArgumentParser:
     item.add_argument("--church-folder", required=True)
     item.add_argument("--primary", help="The primary mark SVG under brand/staging/ (defaults to the staged system)")
     item.add_argument("--small", help="The derived small-size variant SVG under brand/staging/")
-    item.add_argument("--dark", help="The dark color for the reversal check, six-digit hex")
+    item.add_argument("--dark", help="The dark color for the reversal check, six hex digits, with or without the #")
 
     item = sub.add_parser("stage-brand", help="Validate the built system and stage it for approval")
     item.add_argument("--church-folder", required=True)
@@ -115,9 +115,10 @@ def _parser() -> argparse.ArgumentParser:
     item = sub.add_parser("book", help="Rewrite the brand book page from the decisions so far")
     item.add_argument("--church-folder", required=True)
 
-    item = sub.add_parser("render-guide", help="Render the brand guide to PDF in the church's own brand")
+    item = sub.add_parser("render-guide", help="Render the brand guide, or the governing-body edition, to PDF in the church's own brand")
     item.add_argument("--church-folder", required=True)
     item.add_argument("--out")
+    item.add_argument("--edition", choices=("governing-body",), help="Render the edition to share with the governing body")
 
     item = sub.add_parser("restart", help="Archive an unfinished run and begin again")
     item.add_argument("--church-folder", required=True)
@@ -166,7 +167,7 @@ def main() -> int:
     elif args.command == "restart":
         result = restart(args.church_folder, reason=args.reason)
     else:
-        result = render_guide(args.church_folder, args.out)
+        result = render_guide(args.church_folder, args.out, edition=args.edition)
     print(json.dumps(result, indent=2))
     return 0 if result.get("status") not in {"blocked", "failed"} else 1
 
