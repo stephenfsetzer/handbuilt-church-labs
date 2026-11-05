@@ -223,7 +223,10 @@ valid metadata example (`research_target` and the source ledger together), see
 ## `research_complete`
 
 Present `research-brief.md` as ready for the pastor's study and discernment.
-Also identify `readings.md` as its verification record. Do not request
+Also name `readings.md` as the record of which readings were checked. Tell the
+pastor the passage, the questions the brief takes up, and any limit that changes
+how they should use a source. Leave out the workflow, its checks, the editing
+pass, and your tools. Do not request
 reflections, offer to draft automatically, or imply that another workflow stage
 is pending. `next_actions` must be empty. You may mention once that when the
 pastor is ready to write, they can say "Start my sermon reflection."

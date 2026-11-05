@@ -266,8 +266,9 @@ When a rule fails, production fits the bulletin with small, bounded changes: a
 blank inside cover, looser line spacing, slightly larger type, music at 95% to
 100%, or one section starting a new page. It never changes wording or order.
 
-Show the user the sequential PDF, booklet PDF, warnings, and receipt. Before
-asking for approval, state these in plain words:
+Show the pastor the sequential PDF and booklet PDF, and explain any warnings.
+Keep the receipt for your own later steps; a pastor never needs to open it.
+Before asking for approval, state these in plain words:
 
 - `fit_summary`, when it is not empty. It names every layout adjustment, for
   example "To fold into 16 pages, page 2 is left blank and line spacing is a
