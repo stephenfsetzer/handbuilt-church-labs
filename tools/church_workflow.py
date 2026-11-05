@@ -363,6 +363,35 @@ def _doctor(workflow: str = "bulletin") -> dict:
     return report
 
 
+_SAFE_CODE = re.compile(r"[A-Za-z][A-Za-z0-9_.\[\]-]{0,79}")
+
+
+def _safe_code(value) -> str | None:
+    """Return a stable code or field name, never free text that could hold church-private words."""
+    return value if isinstance(value, str) and _SAFE_CODE.fullmatch(value) else None
+
+
+def _failure_summary(result: dict) -> dict:
+    """Stable error codes and field names only; messages and details are left out on purpose."""
+    errors = []
+    for item in (result.get("errors") if isinstance(result.get("errors"), list) else [])[:20]:
+        if isinstance(item, dict) and _safe_code(item.get("code")):
+            entry = {"code": item["code"]}
+            if _safe_code(item.get("field")):
+                entry["field"] = item["field"]
+            errors.append(entry)
+    code = _safe_code(result.get("code")) or (errors[0]["code"] if errors else None)
+    field = _safe_code(result.get("field")) or next((e["field"] for e in errors if "field" in e), None)
+    summary = {}
+    if code:
+        summary["error_code"] = code
+    if field:
+        summary["error_field"] = field
+    if errors:
+        summary["errors"] = errors
+    return summary
+
+
 def _record(church: Path, workflow: str, operation: str, result: dict, runtime: dict) -> Path:
     path = _private_file(church, f".handbuilt/runs/{uuid.uuid4()}.json")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -373,6 +402,8 @@ def _record(church: Path, workflow: str, operation: str, result: dict, runtime: 
               "runtime_python": runtime["runtime"]["python"],
               "status": result.get("status"),
               "production_receipt": result.get("receipt") or result.get("receipt_path")}
+    if result.get("status") in {"blocked", "error", "failed"}:
+        record.update(_failure_summary(result))
     path.write_text(json.dumps(record, indent=2) + "\n")
     return path
 
@@ -397,7 +428,10 @@ def execute(church: Path, workflow: str, operation: str, arguments: list[str]) -
                                 "--church-folder", str(church)], capture_output=True, text=True)
         brand = json.loads(check.stdout)
         if not brand.get("ready"):
-            return {"status": "blocked", "code": "brand_not_ready", "brand": brand}, 2
+            blocked = {"status": "blocked", "code": "brand_not_ready", "brand": brand}
+            blocked["handbuilt_run"] = str(_record(church, workflow, operation, blocked, doctor))
+            blocked["installation"] = installation()
+            return blocked, 2
     command = [doctor["runtime"]["python"], str(script), operation]
     if not (workflow == "bulletin" and operation == "finalize"):
         command += ["--church-folder", str(church)]

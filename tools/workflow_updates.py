@@ -218,6 +218,11 @@ def file_lock(path):
             unlock()
 
 
+def _usable_release(latest):
+    """True only for a cached release record that carries both release assets."""
+    return set(latest['assets']) == {PACKAGE, CHECKSUM}
+
+
 def update_lock(store):
     return file_lock(store / 'update.lock')
 
@@ -243,12 +248,20 @@ def select_release(current_root, store, validate, *, download=fetch, now=time.ti
             if not isinstance(state, dict):
                 state = {}
             checked = state.get('checked_at', 0)
-            if not force and isinstance(checked, (float, int)) and 0 <= now() - checked < CHECK_INTERVAL:
-                latest = state.get('latest')
-                if not isinstance(latest, dict):
-                    return dict(result, status='deferred', reason='recent_check_unavailable')
+            cached = state.get('latest')
+            recent = not force and isinstance(checked, (float, int)) and 0 <= now() - checked < CHECK_INTERVAL
+            if recent and not isinstance(cached, dict):
+                # A recent live check failed; do not retry the network until the window ends.
+                return dict(result, status='deferred', reason='recent_check_unavailable')
+            if recent:
+                # Foreign sources in a cached record are rejected here without any request.
+                validate_release_metadata(cached)
+            if recent and _usable_release(cached):
+                latest = cached
                 result['freshness'] = 'cached'
             else:
+                # A missing, malformed or asset-less record is never fresh: check live.
+                # If the live check fails, the handler below reports deferred, not current.
                 try:
                     latest = latest_release(download)
                 except (OSError, ValueError, TypeError, KeyError):
