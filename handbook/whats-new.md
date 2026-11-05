@@ -6,4 +6,4 @@ section, with the note as one plain line for a pastor.
 
 ## 0.8.26
 
-Installing Handbuilt no longer asks you to sign in to Church Labs, which is now a separate connection, and your workflows work the same as before.
+You can now correct a bulletin after approval, bulletins flag blanks left in brackets before you print, and brand guides keep what you decided apart from what was proposed, with a separate edition for your vestry or council.
