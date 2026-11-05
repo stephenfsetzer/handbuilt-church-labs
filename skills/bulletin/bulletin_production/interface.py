@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import html as html_text
 import importlib.metadata
 import importlib.util
 import json
@@ -33,6 +34,17 @@ PLACEHOLDER_PATTERNS = (
     re.compile(r"\bExample Pastor\b", re.I),
     re.compile(r"\bExample Announcement\b", re.I),
     re.compile(r"\bReplace with this week", re.I),
+)
+# A printed bracket is an open item unless it is plainly a verse number, a
+# conventional liturgical marking, or text the verified Sunday library ships.
+# Words that signal a blank win over every allowance below.
+_PRINTED_BRACKET = re.compile(r"\[([^\[\]]{0,200})\]")
+_BLANK_SIGNAL = re.compile(r"_{2,}|\b(?:names?|insert|fill|tb[ad])\b", re.I)
+_VERSE_REFERENCE = re.compile(r"[\d\s:;,.\-abc]+", re.I)
+_LITURGICAL_MARKING = re.compile(
+    r"(?:alleluia|amen|refrain|chorus|verse|antiphon|repeat|silence|pause"
+    r"|stand|sit|kneel|bow|optional|or)\b",
+    re.I,
 )
 MAX_FOOTER_ROSTER = 9
 
@@ -1335,6 +1347,129 @@ def _validate_bulletin(bulletin: dict[str, Any]) -> None:
         )
 
 
+def _validate_lectionary_track(church_config: dict[str, Any], bulletin: dict[str, Any]) -> None:
+    """Hold the bulletin to church.yaml's track, as sermon research does.
+
+    A church that leaves the track blank, usually because its lectionary has
+    no tracks, has nothing to compare against. A bulletin that states a local
+    lectionary names no competing track, so it is not compared either.
+    """
+    lectionary = church_config.get("lectionary")
+    configured = str((lectionary if isinstance(lectionary, dict) else {}).get("track") or "").strip()
+    printed = str((bulletin.get("service") or {}).get("lectionary_track") or "").strip()
+    if printed.casefold().startswith("local"):
+        return
+    if configured and printed.casefold() != configured.casefold():
+        raise StageFailure(
+            "lectionary_track_mismatch",
+            "validation",
+            f"This bulletin uses {printed}, but church.yaml says the church follows {configured}. "
+            "Choose one: correct the bulletin, or change the track in church.yaml.",
+            field="service.lectionary_track",
+        )
+
+
+def _normalized_bracket(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def _shipped_bracket_texts() -> set[str]:
+    """Bracketed wording that prints from the verified Sunday library.
+
+    Read from the shipped files so the list cannot drift from them. HTML
+    comments never print, and the "inserted here" lines are renderer
+    directives, so neither one excuses the same words in a printed bulletin.
+    """
+    texts: list[str] = []
+    for path in sorted((_renderer_dir() / "liturgy").glob("*.md")):
+        texts.append(re.sub(r"<!--.*?-->", " ", path.read_text(encoding="utf-8"), flags=re.S))
+
+    def strings(value: Any) -> None:
+        if isinstance(value, dict):
+            for child in value.values():
+                strings(child)
+        elif isinstance(value, list):
+            for child in value:
+                strings(child)
+        elif isinstance(value, str):
+            texts.append(value)
+
+    strings(json.loads((_repo_root() / "skills/bulletin/resources/bcp1979/sunday.json").read_text(encoding="utf-8")))
+    return {
+        _normalized_bracket(match.group(0))
+        for text in texts
+        for match in _PRINTED_BRACKET.finditer(text)
+        if "inserted here" not in match.group(0).casefold()
+    }
+
+
+def _printed_html_text(html_path: Path) -> str:
+    markup = html_path.read_text(encoding="utf-8")
+    markup = re.sub(r"<!--.*?-->|<(style|script|head)\b.*?</\1>", " ", markup, flags=re.S | re.I)
+    return html_text.unescape(re.sub(r"<[^>]+>", "", markup))
+
+
+def _unfilled_brackets(printed: str, shipped: set[str]) -> list[str]:
+    """Return each distinct bracket a pastor should look at, in page order."""
+    found: dict[str, str] = {}
+    for match in _PRINTED_BRACKET.finditer(printed):
+        whole, inner = " ".join(match.group(0).split()), match.group(1).strip()
+        if not _BLANK_SIGNAL.search(inner) and (
+            (inner and _VERSE_REFERENCE.fullmatch(inner))
+            or _LITURGICAL_MARKING.match(inner)
+            or _normalized_bracket(whole) in shipped
+        ):
+            continue
+        found.setdefault(_normalized_bracket(whole), whole)
+    return list(found.values())
+
+
+def _bracket_origin(text: str, bulletin: dict[str, Any], root: Path) -> str | None:
+    """Name the weekly field or liturgy source that holds a printed bracket."""
+    def search(value: Any, path: str) -> str | None:
+        if isinstance(value, dict):
+            children = ((f"{path}.{key}" if path else str(key), child) for key, child in value.items())
+        elif isinstance(value, list):
+            children = ((f"{path}[{index}]", child) for index, child in enumerate(value))
+        else:
+            return path if isinstance(value, str) and text in " ".join(value.split()) else None
+        for child_path, child in children:
+            hit = search(child, child_path)
+            if hit:
+                return hit
+        return None
+
+    hit = search(bulletin, "")
+    if hit:
+        return hit
+    liturgy = bulletin.get("liturgy") if isinstance(bulletin.get("liturgy"), dict) else {}
+    for group in ("sources", "files"):
+        values = liturgy.get(group) if isinstance(liturgy.get(group), dict) else {}
+        for key, raw in values.items():
+            path = root / str(raw)
+            if path.is_file() and _inside(path, root) and text in " ".join(path.read_text(encoding="utf-8").split()):
+                return f"liturgy.{group}.{key}"
+    return None
+
+
+def _open_bracket_items(html_path: Path, bulletin: dict[str, Any], root: Path) -> list[dict[str, Any]]:
+    if not html_path.is_file():
+        return []
+    items: list[dict[str, Any]] = []
+    for text in _unfilled_brackets(_printed_html_text(html_path), _shipped_bracket_texts()):
+        item = {
+            "code": "unfilled_placeholder",
+            "text": text,
+            "message": f"The bulletin prints {text}, which looks like a blank that was not filled in. "
+                       "Fill it in with a revision, or confirm it should print as written.",
+        }
+        origin = _bracket_origin(text, bulletin, root)
+        if origin:
+            item["field"] = origin
+        items.append(item)
+    return items
+
+
 def _stage_effective_brand(
     brand: dict[str, Any], church_config: dict[str, Any], root: Path, stage_dir: Path
 ) -> Path:
@@ -1601,6 +1736,7 @@ def _copy_music_assets(
                 continue
             requested = entry.get("images") or ([entry["image"]] if entry.get("image") else [])
             copied: list[str] = []
+            label = str(entry.get("title") or entry.get("number") or slot.replace("_", " ")).strip()
             for raw in requested:
                 candidate = Path(str(raw))
                 candidates = [candidate] if candidate.is_absolute() else [root / candidate, root / "music" / candidate.name]
@@ -1609,7 +1745,7 @@ def _copy_music_assets(
                     warnings.append({
                         "code": "music_title_fallback",
                         "field": f"{group_name}.{slot}",
-                        "message": f"Music image was not found: {raw}",
+                        "message": f"The music image for {label} was not found: {raw}",
                     })
                     continue
                 if not _inside(source, root):
@@ -1626,7 +1762,7 @@ def _copy_music_assets(
                 warnings.append({
                     "code": "music_title_fallback",
                     "field": f"{group_name}.{slot}",
-                    "message": "No music image was supplied; number and title will be printed.",
+                    "message": f"No music image was supplied for {label}; only its number and title will be printed.",
                 })
             entry["images"] = copied
             entry.pop("image", None)
@@ -2168,8 +2304,11 @@ def _receipt_artifact_path(root: Path, receipt_path: Path, receipt: dict[str, An
     return archived if archived.is_file() else direct
 
 
-def _load_prior_revision(root: Path, prior_run: str | Path) -> dict[str, Any]:
-    """Load and validate the exact prior review receipt named by the caller."""
+def _load_prior_revision(root: Path, prior_run: str | Path, *, correct_approved: bool = False) -> dict[str, Any]:
+    """Load and validate the exact prior receipt named by the caller.
+
+    An approved package is accepted only for an explicit correction.
+    """
     receipt_path = Path(prior_run).expanduser()
     if not receipt_path.is_absolute():
         receipt_path = (root / receipt_path).resolve()
@@ -2208,8 +2347,27 @@ def _load_prior_revision(root: Path, prior_run: str | Path) -> dict[str, Any]:
         raise StageFailure("prior_run_not_reviewable", "revision", "Only a ready-for-review package can be revised")
     package_dir = receipt_path.parent.resolve()
     approval_path = package_dir / "bulletin-approval-receipt.json"
+    approval: dict[str, Any] | None = None
     if approval_path.is_file():
-        raise StageFailure("prior_run_approved", "revision", "An approved bulletin cannot be revised")
+        if not correct_approved:
+            raise StageFailure(
+                "prior_run_approved",
+                "revision",
+                "This bulletin is already approved, so an ordinary revision cannot change it. "
+                "To fix an error, ask for a correction with --correct-approved.",
+            )
+        try:
+            approval = json.loads(approval_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise StageFailure("prior_receipt_invalid", "revision", f"Could not read the approval receipt: {exc}") from exc
+        if not isinstance(approval, dict) or approval.get("production_run_id") != receipt["run_id"]:
+            raise StageFailure("prior_receipt_invalid", "revision", "The approval receipt names a different run")
+    elif correct_approved and not receipt.get("corrects_approved"):
+        raise StageFailure(
+            "prior_run_not_approved",
+            "revision",
+            "This bulletin has not been approved, so it needs an ordinary revision, not a correction.",
+        )
     for artifact in receipt.get("artifacts", []):
         if not isinstance(artifact, dict) or not str(artifact.get("path", "")).strip():
             raise StageFailure("prior_receipt_invalid", "revision", "Prior receipt has an invalid artifact")
@@ -2220,7 +2378,7 @@ def _load_prior_revision(root: Path, prior_run: str | Path) -> dict[str, Any]:
         if expected_sha and _sha256(path) != expected_sha:
             raise StageFailure("prior_artifact_changed", "revision", f"Prior artifact changed after review: {artifact['path']}")
     history_path = root / "bulletins" / "bulletin-log.json"
-    if history_path.is_file():
+    if approval is None and history_path.is_file():
         try:
             history = json.loads(history_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -2246,8 +2404,8 @@ def _load_prior_revision(root: Path, prior_run: str | Path) -> dict[str, Any]:
                 source_sha = str(receipt["source_config"].get("sha256", "")).strip()
                 if source_sha and _sha256(source_path) != source_sha:
                     raise StageFailure("prior_artifact_changed", "revision", "The prior source config changed after review")
-                return {"path": receipt_path, "receipt": receipt, "source": source, "package_dir": package_dir}
-    return {"path": receipt_path, "receipt": receipt, "source": _migrate_v1_source_config(root, receipt_path, receipt), "package_dir": package_dir}
+                return {"path": receipt_path, "receipt": receipt, "source": source, "package_dir": package_dir, "approval": approval}
+    return {"path": receipt_path, "receipt": receipt, "source": _migrate_v1_source_config(root, receipt_path, receipt), "package_dir": package_dir, "approval": approval}
 
 
 def _consume_saved_worship_resolution(root: Path, bulletin: dict[str, Any]) -> None:
@@ -2437,6 +2595,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             })
         _validate_parish_information(source_resolved)
         _validate_bulletin(source_resolved)
+        _validate_lectionary_track(church_config, source_resolved)
         _validate_liturgy_sources(source_resolved, root)
         inventory_result = _validate_source_inventory(root, source_resolved)
         template = source_resolved.get("template") or source_resolved.get("_template") or "classic"
@@ -2484,17 +2643,28 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
                         "receipt_path": str(receipt_path),
                         "week_folder": str(final_dir),
                         "warnings": prior.get("warnings", []),
+                        "open_items": prior.get("open_items", []),
+                        "corrects_approved": prior.get("corrects_approved"),
                         "booklet_signature": prior.get("booklet_signature", {}),
                         "print_mode": prior.get("print_mode", "booklet"),
                         "fit_summary": prior.get("fit_summary", ""),
                         "idempotent": True,
                     }
                 if prior.get("resolved_bulletin_digest") == digest:
+                    if _revision and (final_dir / "bulletin-approval-receipt.json").is_file():
+                        raise StageFailure(
+                            "correction_changes_nothing",
+                            "revision",
+                            "This correction would print the same bulletin that is already approved. "
+                            "Say what should change.",
+                        )
                     return {
                         "status": prior.get("status", "ready_for_review"),
                         "receipt_path": str(receipt_path),
                         "week_folder": str(final_dir),
                         "warnings": prior.get("warnings", []),
+                        "open_items": prior.get("open_items", []),
+                        "corrects_approved": prior.get("corrects_approved"),
                         "booklet_signature": prior.get("booklet_signature", {}),
                         "print_mode": prior.get("print_mode", "booklet"),
                         "fit_summary": prior.get("fit_summary", ""),
@@ -2566,6 +2736,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         print_gate = _print_gate(stage_dir, html_path, sequential_pdf, env,
                                  print_mode, inside_cover_allowed)
         warnings.extend(print_gate["warnings"])
+        open_items = _open_bracket_items(html_path, source_resolved, root)
+        warnings.extend(open_items)
         _run([sys.executable, str(impose_script), str(sequential_pdf), str(booklet_pdf)], stage="imposition")
 
         (stage_dir / "bulletin-log.json").unlink(missing_ok=True)
@@ -2633,6 +2805,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
                 if _revision else None
             ),
             "revision_request_digest": revision_digest,
+            "corrects_approved": (_revision or {}).get("corrects_approved"),
+            "open_items": open_items,
             "source_bulletin_digest": _json_digest(source_resolved),
             "source_config": {
                 "path": str(final_paths["config"].relative_to(root)),
@@ -2693,6 +2867,8 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "week_folder": str(final_dir),
             "artifacts": receipt["artifacts"],
             "warnings": warnings,
+            "open_items": open_items,
+            "corrects_approved": receipt["corrects_approved"],
             "booklet_signature": signature,
             "print_mode": print_mode,
             "fit_adjustments": print_gate["adjustments"],
@@ -2710,12 +2886,23 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             shutil.rmtree(stage_dir, ignore_errors=True)
 
 
-def revise(church_folder: str | Path, prior_run: str | Path, bulletin: dict[str, Any]) -> dict[str, Any]:
-    """Produce a replacement for one explicit, unapproved review package."""
+def revise(
+    church_folder: str | Path,
+    prior_run: str | Path,
+    bulletin: dict[str, Any],
+    *,
+    correct_approved: bool = False,
+) -> dict[str, Any]:
+    """Produce a replacement for one explicit review package.
+
+    With ``correct_approved``, the prior package may be an approved one. Its
+    files and approval move unchanged to ``.revisions``, approved history keeps
+    naming it, and the replacement needs its own approval before it counts.
+    """
 
     try:
         root = _require_church_folder(Path(church_folder))
-        prior = _load_prior_revision(root, prior_run)
+        prior = _load_prior_revision(root, prior_run, correct_approved=correct_approved)
         source = prior["source"]
         if not isinstance(bulletin, dict):
             raise StageFailure("invalid_request", "revision", "Revision input must be an object")
@@ -2774,7 +2961,18 @@ def revise(church_folder: str | Path, prior_run: str | Path, bulletin: dict[str,
             "receipt_path": prior["path"],
             "receipt_sha256": _sha256(prior["path"]),
             "archive_dir": archive_dir,
+            # A further revision of a correction still corrects the same
+            # approved bulletin, so the link carries forward until approval.
+            "corrects_approved": prior["receipt"].get("corrects_approved"),
         }
+        if prior["approval"] is not None:
+            revision["corrects_approved"] = {
+                "run_id": prior["receipt"]["run_id"],
+                "approval_id": prior["approval"].get("approval_id"),
+                "receipt_path": str(archive_dir.relative_to(root) / "bulletin-production-receipt.json"),
+                "approval_receipt_path": str(archive_dir.relative_to(root) / "bulletin-approval-receipt.json"),
+                "approval_receipt_sha256": _sha256(prior["package_dir"] / "bulletin-approval-receipt.json"),
+            }
         return produce(root, merged, _revision=revision)
     except StageFailure as exc:
         return _failure(exc, status="blocked")
@@ -2885,8 +3083,24 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
         if reviewed != actual_hashes:
             raise StageFailure("approval_mismatch", "finalization", "Reviewed hashes do not match artifacts")
 
+        open_items = [item for item in receipt.get("open_items") or [] if isinstance(item, dict)]
+        confirmed = approval.get("confirmed_open_items")
+        confirmed = {str(text) for text in confirmed} if isinstance(confirmed, list) else set()
+        unconfirmed = [str(item.get("text")) for item in open_items if str(item.get("text")) not in confirmed]
+        if unconfirmed:
+            raise StageFailure(
+                "open_items_unconfirmed",
+                "finalization",
+                f"This bulletin still prints {', '.join(unconfirmed)}. Fill it in with a revision, "
+                "or have the pastor confirm it should print as written.",
+                field="confirmed_open_items",
+                diagnostics={"open_items": open_items},
+            )
+
         config_artifact = next(item for item in receipt["artifacts"] if item["role"] == "config")
         config = json.loads((root / config_artifact["path"]).read_text(encoding="utf-8"))
+        # The track in church.yaml can be edited after review, too.
+        _validate_lectionary_track(_load_church_configuration(root)[0], config)
 
         # Re-run the same read-only source-inventory gate used at production.
         # An artifact/config file hash matching the receipt only proves the
@@ -2919,6 +3133,7 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
             "reviewed_artifact_hashes": actual_hashes,
             "production_receipt_sha256": _sha256(receipt_path),
             "history_update": "verified",
+            "confirmed_open_items": [str(item.get("text")) for item in open_items],
             "source_inventory": {
                 "fingerprint": inventory_result["fingerprint"],
                 "imports_checked": inventory_result["imports_checked"],
@@ -2932,6 +3147,9 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
         if history_path.is_file():
             history = json.loads(history_path.read_text(encoding="utf-8"))
         entry = _history_entry(config, receipt, approval_id)
+        corrects = receipt.get("corrects_approved") if isinstance(receipt.get("corrects_approved"), dict) else None
+        if corrects:
+            entry["corrects"] = {"run_id": corrects.get("run_id"), "approval_id": corrects.get("approval_id")}
         history_key = entry["occurrence_key"]
         existing = history.get(history_key) if isinstance(history, dict) else None
         if existing is None and isinstance(history, dict) and (config.get("service_context") or {}).get("inherits_legacy_history"):
@@ -2939,6 +3157,7 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
             if isinstance(legacy, dict) and not legacy.get("service_id"):
                 existing = legacy
         legacy_history_snapshot: dict[str, Any] | None = None
+        corrected_history_snapshot: dict[str, Any] | None = None
         if isinstance(existing, dict):
             existing_templates = existing.get("templates", {}) or {}
             matching = any(
@@ -2946,8 +3165,14 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
                 for value in existing_templates.values()
             ) if isinstance(existing_templates, dict) else False
             if not matching:
+                corrected = bool(corrects) and isinstance(existing_templates, dict) and any(
+                    isinstance(value, dict) and value.get("production_run_id") == corrects.get("run_id")
+                    for value in existing_templates.values()
+                )
                 if _is_legacy_unapproved_history(existing):
                     legacy_history_snapshot = copy.deepcopy(existing)
+                elif corrected:
+                    corrected_history_snapshot = copy.deepcopy(existing)
                 else:
                     raise StageFailure(
                         "approved_history_conflict",
@@ -2960,6 +3185,9 @@ def finalize(production_receipt: str | Path, approval: dict[str, Any]) -> dict[s
                 "date": entry["date"],
                 "entry": legacy_history_snapshot,
             }
+        if corrected_history_snapshot is not None:
+            approval_receipt["history_update"] = "replaced_corrected_approval"
+            approval_receipt["corrects_approved"] = {**corrects, "history_entry": corrected_history_snapshot}
         history[history_key] = entry
         ordered = {key: history[key] for key in sorted(history)}
 

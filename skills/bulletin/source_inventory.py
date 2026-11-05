@@ -525,7 +525,13 @@ def _known_import_ids(root: Path) -> list[str]:
     imports_root = root / IMPORT_ROOT
     if not imports_root.is_dir():
         return []
-    return sorted(p.name for p in imports_root.iterdir() if p.is_dir() and _IMPORT_ID_RE.match(p.name))
+    # A folder with neither file is what an interrupted import leaves behind.
+    # It holds nothing a bulletin could rely on, so it must not block one.
+    return sorted(
+        p.name for p in imports_root.iterdir()
+        if p.is_dir() and _IMPORT_ID_RE.match(p.name)
+        and ((p / "manifest.json").is_file() or (p / "inventory.json").is_file())
+    )
 
 
 def _confined_source_path(root: Path, manifest: dict[str, Any]) -> Path | None:

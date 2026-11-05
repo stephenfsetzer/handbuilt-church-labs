@@ -274,6 +274,12 @@ asking for approval, state these in plain words:
   little looser." The receipt lists the same steps in `fit_adjustments`.
 - Each `page_fill_warning`: which pages are only partly full. These are
   allowed but are worth a look.
+- Each entry in `open_items`: bracketed text that will print and looks like a
+  blank nobody filled in, such as `[Name of the person to remember]`. Its
+  `field`, when present, says where the words live. Ask the pastor to supply
+  the wording, then revise. If the brackets belong there, the pastor can say
+  so; see step 5. Verse numbers, markings such as `[Alleluia]`, and optional
+  words in the shipped liturgy are not open items.
 
 When production returns `blocked` with `booklet_fit_failed`, tell the pastor
 the error's one sentence. The bulletin needs a change the pastor chooses, such
@@ -308,8 +314,9 @@ part, not the small label beside it. To reword the psalm's heading, revise
 The replacement is rendered and verified before the prior package moves to a
 recoverable `.revisions/` folder. The new receipt links the predecessor run,
 receipt hash, archive location, and source-config digest. Repeating the same
-revision is idempotent. An approved package or an approved history entry can
-never be revised or overwritten.
+revision is idempotent. An ordinary revision can never change an approved
+package or an approved history entry; step 6 covers an error found after
+approval.
 
 Legacy version 1 receipts are read without modification. Staged music is
 recovered only when exactly one matching private source can be verified. A
@@ -319,7 +326,11 @@ missing or ambiguous source blocks revision and requires fresh source paths.
 
 Create approval JSON containing `production_run_id`, `approved_by`, and the
 reviewed artifact hashes from the production receipt. An optional `note` and
-`approved_at` may be included. Then run:
+`approved_at` may be included. If the receipt lists `open_items`, finalization
+is refused until each one is filled in by a revision or the pastor confirms it
+should print as written. Record that confirmation by listing each item's exact
+`text` in `confirmed_open_items`. Never add it without asking the pastor. Then
+run:
 
 ```bash
 <launcher-prefix> bulletin finalize \
@@ -329,6 +340,31 @@ reviewed artifact hashes from the production receipt. An optional `note` and
 Finalization verifies that reviewed artifacts have not changed, writes the
 approval receipt, and updates approved bulletin history. If review requests a
 change, revise through a new production run rather than finalizing the old one.
+
+## 6. Correct an error found after approval
+
+When a pastor finds a mistake in an approved bulletin, make a correction. Use
+this only when the pastor has asked to change the approved bulletin:
+
+```bash
+<launcher-prefix> bulletin revise --correct-approved \
+  --prior-run <approved-bulletin-production-receipt.json> \
+  --input <changed-fields.json>
+```
+
+Tell the pastor what happens, in these words:
+
+- The approved bulletin is kept exactly as it was, with its approval, under
+  `.revisions/` beside the week's folder. The result's `corrects_approved`
+  gives its location.
+- The week's folder now holds a corrected bulletin to review. It is not final
+  yet. Until it is approved, approved history still names the earlier bulletin.
+- Review the corrected bulletin, then finalize it as in step 5. Further changes
+  before approval use an ordinary revision of the corrected bulletin.
+- The pastor decides whether to reprint or resend. Copies already handed out
+  do not change.
+
+Without `--correct-approved`, a revision of an approved bulletin is refused.
 
 ## Boundaries
 

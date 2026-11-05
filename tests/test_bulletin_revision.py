@@ -151,6 +151,82 @@ class BulletinRevisionTest(unittest.TestCase):
             history = json.loads((church / "bulletins" / "bulletin-log.json").read_text(encoding="utf-8"))
             self.assertEqual(history["2026-09-20"]["templates"]["classic"]["production_run_id"], receipt["run_id"])
 
+    def _approve(self, receipt_path) -> dict:
+        receipt = json.loads(Path(receipt_path).read_text(encoding="utf-8"))
+        hashes = {item["role"]: item["sha256"] for item in receipt["artifacts"]}
+        return finalize(receipt_path, {"production_run_id": receipt["run_id"], "approved_by": "Test", "reviewed_artifact_hashes": hashes})
+
+    def test_correction_flag_refuses_a_bulletin_that_was_never_approved(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            church = make_church(Path(temporary))
+            with self._patch_production():
+                first = produce(church, bulletin_input())
+                result = revise(church, first["receipt_path"], {"announcements": [{"title": "Changed", "text": "Changed."}]}, correct_approved=True)
+            self.assertEqual(result["errors"][0]["code"], "prior_run_not_approved")
+
+    def test_correction_that_changes_nothing_is_refused_and_keeps_the_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            church = make_church(Path(temporary))
+            with self._patch_production():
+                first = produce(church, bulletin_input())
+                self.assertEqual(self._approve(first["receipt_path"])["status"], "approved")
+                result = revise(church, first["receipt_path"], {}, correct_approved=True)
+            self.assertEqual(result["errors"][0]["code"], "correction_changes_nothing")
+            self.assertTrue((Path(first["week_folder"]) / "bulletin-approval-receipt.json").is_file())
+
+    def test_correction_is_refused_when_the_approved_files_changed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            church = make_church(Path(temporary))
+            with self._patch_production():
+                first = produce(church, bulletin_input())
+                self.assertEqual(self._approve(first["receipt_path"])["status"], "approved")
+                next(Path(first["week_folder"]).glob("*.html")).write_text("hand edited", encoding="utf-8")
+                result = revise(church, first["receipt_path"], {"announcements": [{"title": "Changed", "text": "Changed."}]}, correct_approved=True)
+            self.assertEqual(result["errors"][0]["code"], "prior_artifact_changed")
+
+    def test_correction_can_be_revised_repeated_and_corrected_again(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            church = make_church(Path(temporary))
+            log = church / "bulletins" / "bulletin-log.json"
+            change = {"announcements": [{"title": "Changed", "text": "Changed."}]}
+            with self._patch_production():
+                first = produce(church, bulletin_input())
+                original = json.loads(Path(first["receipt_path"]).read_text(encoding="utf-8"))
+                self.assertEqual(self._approve(first["receipt_path"])["status"], "approved")
+                corrected = revise(church, first["receipt_path"], change, correct_approved=True)
+                self.assertEqual(corrected["status"], "ready_for_review", corrected.get("errors"))
+                link = corrected["corrects_approved"]
+                self.assertEqual(link["run_id"], original["run_id"])
+                self.assertTrue((church / link["approval_receipt_path"]).is_file())
+                repeated = revise(church, first["receipt_path"], change, correct_approved=True)
+                self.assertTrue(repeated["idempotent"])
+                self.assertEqual(repeated["receipt_path"], corrected["receipt_path"])
+                # An ordinary revision of the corrected bulletin keeps the link.
+                second_try = revise(church, corrected["receipt_path"], {"announcements": [{"title": "Again", "text": "Again."}]})
+                self.assertEqual(second_try["status"], "ready_for_review", second_try.get("errors"))
+                self.assertEqual(second_try["corrects_approved"], link)
+                self.assertEqual(json.loads(log.read_text(encoding="utf-8"))["2026-09-20"]["templates"]["classic"]["production_run_id"], original["run_id"])
+                approved = self._approve(second_try["receipt_path"])
+                self.assertEqual(approved["status"], "approved", approved.get("errors"))
+                stored = json.loads(Path(approved["approval_receipt_path"]).read_text(encoding="utf-8"))
+                self.assertEqual(stored["history_update"], "replaced_corrected_approval")
+                self.assertEqual(stored["corrects_approved"]["history_entry"]["templates"]["classic"]["production_run_id"], original["run_id"])
+                final = json.loads(Path(second_try["receipt_path"]).read_text(encoding="utf-8"))
+                self.assertEqual(json.loads(log.read_text(encoding="utf-8"))["2026-09-20"]["templates"]["classic"]["production_run_id"], final["run_id"])
+                again = revise(church, second_try["receipt_path"], {"announcements": [{"title": "Third", "text": "Third."}]}, correct_approved=True)
+                self.assertEqual(again["corrects_approved"]["run_id"], final["run_id"])
+                self.assertEqual(self._approve(again["receipt_path"])["status"], "approved")
+
+    def test_finalize_refuses_a_track_changed_in_church_settings_after_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            church = make_church(Path(temporary))
+            with self._patch_production():
+                first = produce(church, bulletin_input())
+            brand = {"church": {"name": "Public Test Parish"}, "logo": {}, "colors": {}, "qr": {}}
+            with patch.object(interface, "_load_church_configuration", lambda root: ({"lectionary": {"track": "Track 1"}}, brand)):
+                result = self._approve(first["receipt_path"])
+            self.assertEqual(result["errors"][0]["code"], "lectionary_track_mismatch")
+
     def test_finalize_refuses_a_second_approved_package_for_the_same_date(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             church = make_church(Path(temporary))

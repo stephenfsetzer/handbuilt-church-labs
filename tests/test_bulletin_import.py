@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import shutil
 import subprocess
@@ -162,6 +163,28 @@ class BulletinImportTests(unittest.TestCase):
         repaired = import_bulletin(self.church, pdf_path)
         self.assertEqual(repaired, first)
         self.assertEqual(snapshot.stat().st_size, pdf_path.stat().st_size)
+
+    def test_a_failed_import_leaves_no_folder_but_keeps_a_saved_inventory(self):
+        source = _pdf_from_html("<p>Synthetic bulletin</p>", self.tmp / "failed.pdf")
+        imports = self.church / "onboarding" / "imports"
+        with patch("skills.onboarding.bulletin_import._bounded_pdf_inspection",
+                   side_effect=BulletinImportError("synthetic failure")):
+            with self.assertRaises(BulletinImportError):
+                import_bulletin(self.church, source)
+            self.assertEqual(list(imports.glob("*")), [])
+            import_id = hashlib.sha256(source.read_bytes()).hexdigest()[:16]
+            (imports / import_id).mkdir()
+            (imports / import_id / "inventory.json").write_text("{}", encoding="utf-8")
+            with self.assertRaises(BulletinImportError):
+                import_bulletin(self.church, source)
+        self.assertTrue((imports / import_id / "inventory.json").is_file())
+
+    def test_a_folder_an_earlier_failed_import_left_is_ignored_by_source_checks(self):
+        from skills.bulletin.source_inventory import _known_import_ids
+        imports = self.church / "onboarding" / "imports"
+        (imports / "0123456789abcdef").mkdir(parents=True)
+        (imports / "0123456789abcdef" / "source.pdf").write_bytes(b"%PDF-")
+        self.assertEqual(_known_import_ids(self.church), [])
 
     def test_oversized_raw_image_dimensions_are_rejected_before_decode(self):
         class OversizedImage:
