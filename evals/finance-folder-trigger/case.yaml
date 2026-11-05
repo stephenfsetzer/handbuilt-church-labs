@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: finance-folder-trigger
+context:
+  scaffold_script: fixture.sh
