@@ -123,7 +123,7 @@ VISUAL = [
     {"id": "nothing_clipped", "text": "No text is cut off, overlapping, or running outside the page."},
     {"id": "cover_is_clear", "text": "The cover clearly shows the church name, the Sunday, the date and time, without a repeated or awkward line."},
     {"id": "who_says_what_is_clear", "text": "Someone in a pew can tell which words the leader says and which words the people say."},
-    {"id": "prayers_readable", "text": "Body text looks large and spaced enough to read aloud in a dim church."},
+    {"id": "prayers_readable", "text": "Prayers and the people's responses look large and spaced enough to read aloud in a dim church. Readings print as full-width paragraphs by the church's design choice; do not fail them for that."},
     {"id": "no_stray_marks", "text": "There are no stray template words, markup, code, or empty headings. The bracketed flower name and a bracketed closing hymn are known blanks the pastor has been asked about, and are not failures here."},
     {"id": "looks_finished", "text": "Once the two known blanks are filled, a parish administrator would hand this out without embarrassment. A back page with little on it is fine."},
 ]

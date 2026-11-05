@@ -71,8 +71,8 @@ retrieval before any prose. Preserve source IDs for the final source ledger.
 
 ## Speed and size
 
-An interactive run should reach `research_complete` in under ten minutes,
-so keep retrieval parallel and the cards compact:
+Quality comes before speed. Avoid wasted time, not research: keep retrieval
+parallel and the cards compact.
 
 - Issue independent fetches and searches together in one turn, never one
   per turn. Once the leads are known, open the Bible text, the historic

@@ -34,9 +34,9 @@ TOOLS = "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,Agent,Skill"
 OFF_LIMITS = ("/Desktop", "/Documents", "/Downloads", "/homebase", "evals/finished_work")
 TIMEOUT = {"bulletin": 2400, "brief": 3000}
 USER_AGENT = "handbuilt-church-labs-eval/1.0"
-# Reported every run, but not a failure until the design decision is made. Readings print
-# as long solid blocks by the template's design. That is a choice for the owner.
-KNOWN_GAPS = {"prayers_readable"}
+# A judge item listed here is reported every run but does not fail it. Use it only while an
+# owner decision is pending, and record the decision in the README when it is made.
+KNOWN_GAPS: set[str] = set()
 
 
 def outside_repo(path: Path) -> Path:

@@ -45,6 +45,14 @@ This needs a signed-in `claude`, poppler, and network access. Results must be ou
 the repository. Each run gets a fresh church and a private copy of the plugin, loads
 no personal settings or connectors, and is marked failed if it touches personal folders.
 
+## Decisions that shape grading
+
+- Readings print as full-width paragraphs. This is a design choice, so the visual
+  judge does not fail it (2026-11-05).
+- When the lectionary marks verses optional and the church follows the appointment,
+  the bulletin prints them and tells the pastor they can be dropped (2026-11-05).
+- Research quality comes before speed. Time is reported, never graded (2026-11-05).
+
 ## Limits
 
 - A reopened source can refuse a plain request. The grader reports that and does not

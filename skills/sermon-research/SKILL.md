@@ -172,9 +172,9 @@ Save that tally as `run-notes.md` in the same private working directory.
 After each blocked `record` attempt, add its error code and the repair to the
 tally before retrying or handing off; keep these process details out of the research brief.
 Batch independent web fetches in one turn. Run the writing pass's preflight
-before the first `record` call, and add no source after it. An interactive
-run should reach `research_complete` in under ten minutes; a scheduled run
-may take longer when it goes deeper.
+before the first `record` call, and add no source after it. Quality comes
+before speed: never cut research, the editing pass, or a source check to
+finish sooner. An interactive run usually takes fifteen to twenty minutes.
 
 For the `public` quality profile, source sufficiency has three mechanical
 minimums in addition to the semantic review: 2,500 words, seven materially
