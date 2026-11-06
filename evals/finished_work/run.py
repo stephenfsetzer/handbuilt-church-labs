@@ -13,7 +13,11 @@ import argparse
 import concurrent.futures as futures
 import html
 import json
+import os
 import re
+import threading
+import signal
+import queue
 import shutil
 import subprocess
 import sys
@@ -25,14 +29,15 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 LABS = HERE.parents[1]
 sys.path[:0] = [str(HERE)]
-import fixtures as F  # noqa: E402
-import grade as G  # noqa: E402
+import cases as C  # noqa: E402
 import judges as J  # noqa: E402
+import pastor as P  # noqa: E402
+
+CASES = C.load()
 
 PLUGIN_PARTS = ("skills", "tools", "scaffold", "handbook")
 TOOLS = "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,Agent,Skill"
 OFF_LIMITS = ("/Desktop", "/Documents", "/Downloads", "/homebase", "evals/finished_work")
-TIMEOUT = {"bulletin": 2400, "brief": 3000}
 USER_AGENT = "handbuilt-church-labs-eval/1.0"
 # A judge item listed here is reported every run but does not fail it. Use it only while an
 # owner decision is pending, and record the decision in the README when it is made.
@@ -64,14 +69,122 @@ def settings(run_dir: Path) -> str:
     return json.dumps({"permissions": {"deny": deny}})
 
 
-def agent_command(prompt: str, plugin: Path, church: Path, model: str, run_dir: Path) -> list[str]:
+def agent_command(prompt: str, plugin: Path, model: str, run_dir: Path, *, resume: str = "", keep: bool = False) -> list[str]:
+    """One agent turn. A conversation keeps its session so the next turn can resume it."""
+    isolation = [flag for flag in J.ISOLATION if not (keep and flag == "--no-session-persistence")]
     command = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
                "--plugin-dir", str(plugin), "--add-dir", str(run_dir),
                "--allowedTools", TOOLS, "--permission-mode", "dontAsk",
-               "--settings", settings(run_dir), *J.ISOLATION]
+               "--settings", settings(run_dir), *isolation]
+    if resume:
+        command += ["--resume", resume]
     if model:
         command += ["--model", model]
     return command
+
+
+# Paid services a pastor may have set up. An eval must never spend on them.
+PAID_KEYS = ("OPENAI_API_KEY", "RECRAFT_API_KEY", "GEMINI_API_KEY")
+
+
+def run_environment(run_dir: Path) -> dict:
+    """A pastor's computer with Handbuilt installed and no image services set up.
+
+    Handbuilt keeps saved image keys in its support folder, beside the managed
+    runtime. Each run gets its own support folder that links only the runtime.
+    """
+    sys.path.insert(0, str(LABS))
+    from tools.handbuilt_runtime import default_runtime_root  # noqa: PLC0415
+    real = default_runtime_root()
+    support = run_dir / "support"
+    support.mkdir(exist_ok=True)
+    runtime = support / real.name
+    if not runtime.exists():
+        runtime.symlink_to(real, target_is_directory=True)
+    env = {key: value for key, value in os.environ.items() if key not in PAID_KEYS}
+    env["HANDBUILT_RUNTIME_HOME"] = str(runtime)
+    return env
+
+
+# Seconds a turn may keep running after the agent's answer, so background work it started
+# (a re-render) can finish. A preview server stops on its own after an hour; this ends sooner.
+AFTER_ANSWER = 300
+
+
+def agent_turn(command: list[str], run_dir: Path, transcript: Path, timeout: int) -> tuple[dict, bool]:
+    """One agent turn. It ends at the agent's answer, so a preview server or other
+    background process the agent left running cannot turn finished work into a timeout."""
+    deadline = time.monotonic() + timeout
+    answered_at = None
+    with transcript.open("w", encoding="utf-8") as sink:
+        process = subprocess.Popen(command, cwd=run_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   stdin=subprocess.DEVNULL, env=run_environment(run_dir), text=True,
+                                   start_new_session=True)
+        lines: "queue.Queue[str | None]" = queue.Queue()
+
+        def pump() -> None:
+            for line in process.stdout:
+                lines.put(line)
+            lines.put(None)
+
+        threading.Thread(target=pump, daemon=True).start()
+        timed_out = False
+        while True:
+            now = time.monotonic()
+            if now > deadline:
+                timed_out = True
+                break
+            if answered_at and now - answered_at > AFTER_ANSWER:
+                break
+            try:
+                line = lines.get(timeout=1)
+            except queue.Empty:
+                continue
+            if line is None:
+                break
+            sink.write(line)
+            if '"type":"result"' in line.replace(" ", ""):
+                answered_at = time.monotonic()
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+    return read_stream(transcript), timed_out
+
+
+def converse(case: C.Case, prompt: str, plugin: Path, model: str, judge_model: str, run_dir: Path) -> bool:
+    """Run the agent, letting the stand-in pastor answer until the work is done. Returns timed_out."""
+    history = [{"who": "pastor", "text": prompt}]
+    stream, timed_out = agent_turn(agent_command(prompt, plugin, model, run_dir, keep=bool(case.persona)),
+                                   run_dir, run_dir / "transcript-00.jsonl", case.timeout)
+    history.append({"who": "assistant", "text": str(stream["final"].get("result") or "")})
+    for number in range(1, case.max_exchanges + 1 if case.persona else 1):
+        session = stream["final"].get("session_id") or stream["init"].get("session_id")
+        if timed_out or not session:
+            break
+        answer = P.respond(case.persona, history[:-1], history[-1]["text"], judge_model, run_dir)
+        if answer.get("error"):
+            history.append({"who": "note", "text": f"The stand-in pastor could not answer: {answer['error']}"})
+            break
+        if answer["done"]:
+            break
+        history.append({"who": "pastor", "text": answer["reply"]})
+        stream, timed_out = agent_turn(agent_command(answer["reply"], plugin, model, run_dir, resume=session, keep=True),
+                                       run_dir, run_dir / f"transcript-{number:02d}.jsonl", case.timeout)
+        if not timed_out and not stream["final"].get("num_turns"):
+            # A resume can end at once on a leftover background notice; send the message again.
+            stream, timed_out = agent_turn(agent_command(answer["reply"], plugin, model, run_dir, resume=session, keep=True),
+                                           run_dir, run_dir / f"transcript-{number:02d}b.jsonl", case.timeout)
+        history.append({"who": "assistant", "text": str(stream["final"].get("result") or "")})
+    with (run_dir / "transcript.jsonl").open("w", encoding="utf-8") as whole:
+        for part in sorted(run_dir.glob("transcript-*.jsonl")):
+            whole.write(part.read_text(encoding="utf-8", errors="replace"))
+    P.write_conversation(run_dir / "conversation.md", history)
+    return timed_out
 
 
 def read_stream(path: Path) -> dict:
@@ -83,10 +196,21 @@ def read_stream(path: Path) -> dict:
         except ValueError:
             continue
     init = next((e for e in events if e.get("type") == "system" and e.get("subtype") == "init"), {})
-    final = next((e for e in reversed(events) if e.get("type") == "result"), {})
+    results = [e for e in events if e.get("type") == "result"]
+    final = dict(results[-1]) if results else {}
+    if len(results) > 1:
+        # A resumed session reports its running cost, so the whole cost is the largest one.
+        final["total_cost_usd"] = max(e.get("total_cost_usd") or 0 for e in results)
+        final["num_turns"] = sum(e.get("num_turns") or 0 for e in results)
+    # A turn that ended with an empty answer does not replace the last real one.
+    spoken = [e for e in results if str(e.get("result") or "").strip()]
+    if spoken and not str(final.get("result") or "").strip():
+        final["result"] = spoken[-1]["result"]
     uses, seen = [], []
     for event in events:
-        for block in (event.get("message") or {}).get("content") or []:
+        # Some system events carry a plain string message, such as a denied tool.
+        message = event.get("message")
+        for block in (message.get("content") if isinstance(message, dict) else None) or []:
             if not isinstance(block, dict):
                 continue
             if block.get("type") == "tool_use":
@@ -141,45 +265,11 @@ class PageText:
         return html.unescape(re.sub(r"<[^>]+>", " ", text))
 
 
-def bulletin_judges(church: Path, graded: dict, final: str, model: str, run_dir: Path) -> dict:
-    writing = graded.get("writing") or {}
-    receipt = writing.get("receipt") or {}
-    context = F.BULLETIN_PROMPT.format(church="(the church folder)") + "\n\nCalendar facts and saved church settings are not invented.\n\n" + json.dumps(
-        {"fit_summary": receipt.get("fit_summary"),
-         "warnings": [w for w in receipt.get("warnings", []) if w.get("code") != "music_title_fallback"],
-         "open_items": receipt.get("open_items")}, indent=1)
-    result = {"final_message": J.rubric_judge("Grade this message an assistant left for a pastor about this week's bulletin.",
-                                              J.FINAL_MESSAGE_BULLETIN, final, context, model, run_dir)}
-    if writing.get("pdf"):
-        pages = run_dir / "pages"
-        shutil.rmtree(pages, ignore_errors=True)
-        pages.mkdir()
-        subprocess.run(["pdftoppm", "-r", "100", "-png", writing["pdf"], str(pages / "page")], check=True)
-        result["visual"] = J.visual_judge(sorted(pages.glob("*.png")), model, pages)
-    return result
-
-
-def brief_judges(church: Path, graded: dict, final: str, model: str, run_dir: Path) -> dict:
-    writing = graded.get("writing") or {}
-    result = {"final_message": J.rubric_judge("Grade this message an assistant left for a pastor about this week's sermon research.",
-                                              J.FINAL_MESSAGE_BRIEF, final, "The passage is Matthew 25:14-30.", model, run_dir)}
-    brief = writing.get("brief")
-    if brief:
-        result["quality"] = J.rubric_judge("Grade this sermon research brief for a pastor preparing Matthew 25:14-30.",
-                                           J.BRIEF_QUALITY, brief, "The brief prepares the pastor's own discernment.", model, run_dir)
-        with futures.ThreadPoolExecutor(4) as pool:
-            jobs = [pool.submit(J.source_judge, url, page, brief, model, run_dir) for url, page in graded.get("sources", {}).items()]
-            result["sources"] = [job.result() for job in jobs]
-        flagged = [c for v in result["sources"] for c in v.get("claims", []) if c["verdict"] == "unsupported"]
-        result["recheck"] = [J.recheck_claim(c, graded["sources"], brief, model, run_dir) for c in flagged]
-    return result
-
-
 def judge_counts(judged: dict) -> dict:
     passed = total = 0
     failures, ungraded, gaps = [], [], []
     for name, verdict in judged.items():
-        if name in {"sources", "recheck"}:
+        if name in {"sources", "recheck"} or not isinstance(verdict, dict) or "status" not in verdict:
             continue
         if verdict.get("status") != "graded":
             ungraded.append(name)
@@ -200,23 +290,17 @@ def judge_counts(judged: dict) -> dict:
             "sources_ungraded": [v["url"] for v in judged.get("sources", []) if v.get("status") != "graded"]}
 
 
-def one_run(case: str, number: int, out: Path, model: str, judge_model: str) -> dict:
-    run_dir = out / f"{case}-{number}"
+def one_run(case_name: str, number: int, out: Path, model: str, judge_model: str) -> dict:
+    case = CASES[case_name]
+    run_dir = out / f"{case_name}-{number}"
     run_dir.mkdir(parents=True)
     plugin, church = run_dir / "plugin", run_dir / "riverbend"
     stage_plugin(plugin)
-    F.seed_church(church)
-    prompt = (F.BULLETIN_PROMPT if case == "bulletin" else F.BRIEF_PROMPT).format(church=church)
-    transcript = run_dir / "transcript.jsonl"
+    case.seed(church)
     started = time.time()
-    timed_out = False
-    with transcript.open("w", encoding="utf-8") as sink:
-        try:
-            subprocess.run(agent_command(prompt, plugin, church, model, run_dir), cwd=run_dir, stdout=sink,
-                           stderr=subprocess.STDOUT, timeout=TIMEOUT[case], stdin=subprocess.DEVNULL)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-    return grade_run(case, number, run_dir, judge_model, seconds=round(time.time() - started), timed_out=timed_out)
+    prompt = case.prompt(church) if callable(case.prompt) else case.prompt.format(church=church)
+    timed_out = converse(case, prompt, plugin, model, judge_model, run_dir)
+    return grade_run(case_name, number, run_dir, judge_model, seconds=round(time.time() - started), timed_out=timed_out)
 
 
 def grade_run(case: str, number: int, run_dir: Path, judge_model: str, *, seconds: int, timed_out: bool) -> dict:
@@ -227,12 +311,10 @@ def grade_run(case: str, number: int, run_dir: Path, judge_model: str, *, second
     (run_dir / "final-message.md").write_text(final, encoding="utf-8")
     problems = isolation_problems(stream, plugin)
     fetch = PageText()
-    if case == "bulletin":
-        graded = G.grade_bulletin(church)
-        judged = bulletin_judges(church, graded, final, judge_model, run_dir)
-    else:
-        graded = G.grade_brief(church, fetch, seen_by_agent=stream["seen"])
-        judged = brief_judges(church, graded, final, judge_model, run_dir)
+    conversation = (run_dir / "conversation.md").read_text(encoding="utf-8") if (run_dir / "conversation.md").exists() else ""
+    spec = CASES[case]
+    graded = spec.grade(church, stream=stream, fetch=fetch)
+    judged = spec.judges(church, graded, final, conversation, judge_model, run_dir)
     counts = judge_counts(judged)
     failed_checks = [c for c in graded["checks"] if not c["passed"]]
     record = {"case": case, "run": number, "seconds": seconds, "timed_out": timed_out,
@@ -263,7 +345,7 @@ def table(records: list[dict]) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--case", choices=("bulletin", "brief", "both"), default="both")
+    parser.add_argument("--case", choices=(*CASES, "all"), action="append", help="Repeat to choose several. Default: all.")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--model", default="", help="Agent model. Blank uses the account default.")
@@ -272,17 +354,17 @@ def main(argv=None) -> int:
     parser.add_argument("--regrade", action="store_true", help="Grade the runs already in --out again. No agent runs.")
     args = parser.parse_args(argv)
     out = outside_repo(args.out)
+    chosen = list(CASES) if not args.case or "all" in args.case else args.case
     if args.regrade:
         earlier = json.loads((out / "results.json").read_text(encoding="utf-8"))
         records = [grade_run(r["case"], r["run"], out / f"{r['case']}-{r['run']}", args.judge_model,
-                             seconds=r["seconds"], timed_out=r["timed_out"]) if args.case in {"both", r["case"]} else r
+                             seconds=r["seconds"], timed_out=r["timed_out"]) if r["case"] in chosen else r
                    for r in earlier]
         return report(out, records)
     if out.exists():
         raise SystemExit("Choose a new results folder; a rerun never reuses old work.")
     out.mkdir(parents=True)
-    cases = ("bulletin", "brief") if args.case == "both" else (args.case,)
-    jobs = [(case, n) for case in cases for n in range(1, args.runs + 1)]
+    jobs = [(case, n) for case in chosen for n in range(1, args.runs + 1)]
     with futures.ThreadPoolExecutor(args.parallel) as pool:
         records = list(pool.map(lambda job: one_run(job[0], job[1], out, args.model, args.judge_model), jobs))
     return report(out, records)
