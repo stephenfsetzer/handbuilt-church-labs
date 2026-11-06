@@ -41,6 +41,9 @@ WORKSPACE_TOOLS = [
     {"name": "write_file", "description": "Save a UTF-8 finance file inside the synthetic church. Creates parent directories.",
      "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}, "text": {"type": "string"}},
                      "required": ["path", "text"]}},
+    {"name": "copy_file", "description": "Copy a file into the church's finance folder unchanged, like cp. A connector reply that Claude Code saved to a tool-results file is saved as the reply text itself.",
+     "inputSchema": {"type": "object", "properties": {"source": {"type": "string"}, "destination": {"type": "string"}},
+                     "required": ["source", "destination"]}},
     {"name": "inspect_pdf", "description": "View both pages of a locally rendered PDF before handing off the draft.",
      "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
     {"name": "run_command", "description": "Run a finance workflow command exactly as documented, using the staged church_workflow.py or returned launcher. No shell, pipes, arbitrary programs, or other workflows.",
@@ -70,26 +73,43 @@ def call(books: B.Books, name: str, args: dict) -> dict:
         raise ValueError("split_by must be month")
     if name == "profit_loss_quickbooks_account" and connector.get("profile_required"):
         raise ValueError("profile_info_required: company profile fields industry and state are required before profit and loss can be read")
-    counts = getattr(books, "_connector_calls", {})
-    query = json.dumps([name, args], sort_keys=True)
-    counts[query] = counts.get(query, 0) + 1
-    books._connector_calls = counts
-    pull = max(counts.values())  # Once books change, subsequent reads see the same revision.
-    snapshot = books.snapshot(pull=pull) if hasattr(books, "snapshot") else books
     if name == "qbo_accounting_get_balance_sheet":
         end = min(month_of(args["end_date"]), books.last)
         if args.get("start_date") and month_of(args["start_date"]) > end:
             raise ValueError("start date is after the available end date")
-        return snapshot.balance_sheet(end)
-    start, requested_end = month_of(args["periodStart"]), month_of(args["periodEnd"])
-    if date.fromisoformat(args["periodStart"]) > date.fromisoformat(args["periodEnd"]):
-        raise ValueError("start date is after end date")
-    end = min(requested_end, books.last)
-    if start > end:
-        raise ValueError("no books for the requested period")
+        start = None  # a balance sheet reflects every posting through its end month
+    else:
+        start, requested_end = month_of(args["periodStart"]), month_of(args["periodEnd"])
+        if date.fromisoformat(args["periodStart"]) > date.fromisoformat(args["periodEnd"]):
+            raise ValueError("start date is after end date")
+        end = min(requested_end, books.last)
+        if start > end:
+            raise ValueError("no books for the requested period")
+    pull = covering_pull(books, start, end)
+    if name == "qbo_accounting_get_balance_sheet":
+        return books.snapshot(pull=pull).balance_sheet(end)
     if hasattr(books, "connector_pl"):
         return books.connector_pl(start, end, split_by=args.get("split_by"), pull=pull)
     return books.pl(start, end, limit=B.CONNECTOR_ROW_LIMIT)
+
+
+def covering_pull(books: B.Books, start, end) -> int:
+    """The read ordinal among reads whose period covers a revised month.
+
+    Late postings land after the first read that shows their month. Any later read
+    covering that month, with any arguments, sees the revised books. Reads that do
+    not cover a revised month are unaffected by it and do not count.
+    """
+    months = {B.parse(r["month"]) for r in books.church.get("connector", {}).get("revisions", [])}
+    covered = {month for month in months if (start is None or start <= month) and month <= end}
+    if not covered:
+        return 1
+    seen = getattr(books, "_covering_reads", {})
+    pull = 1 + max(seen.get(month, 0) for month in covered)
+    for month in covered:
+        seen[month] = seen.get(month, 0) + 1
+    books._covering_reads = seen
+    return pull
 
 
 class Workspace:
@@ -104,7 +124,10 @@ class Workspace:
         if write:
             allowed = path.is_relative_to(self.root / "finance") and path.suffix in {".json", ".md", ".csv"}
         else:
-            allowed = path.is_relative_to(self.root) or path.is_relative_to(self.plugin)
+            # Claude Code saves a very large tool reply as a file in its own tool-results
+            # folder. A pastor's agent can read it there, so the stand-in may too.
+            saved_reply = "tool-results" in path.parts and path.is_relative_to(Path.home() / ".claude" / "projects")
+            allowed = path.is_relative_to(self.root) or path.is_relative_to(self.plugin) or saved_reply
         if not allowed:
             raise ValueError("path is outside the eval workspace")
         return path
@@ -146,14 +169,14 @@ class Workspace:
             index = 2
             schemas = {
                 ("finance-onboarding", "orient"): {},
-                ("finance-onboarding", "look"): {"--balance-sheet": "file", "--pl-12m": "file", "--clearing-threshold": "text"},
+                ("finance-onboarding", "look"): {"--balance-sheet": "file", "--pl-12m": "file", "--pl-recent": "file", "--clearing-threshold": "text"},
                 ("finance-onboarding", "readiness"): {"--item": "text", "--status": "text", "--reason": "text", "--caveat": "text"},
                 ("finance-onboarding", "calendar"): {"--books-closed-by": "text", "--report-by": "text", "--meeting": "text", "--approver": "text"},
                 ("finance-onboarding", "stage"): {"--done": "text"},
                 ("finance-report", "status"): {"--month": "month"},
-                ("finance-report", "build"): {"--month": "month", "--prepared": "date", "--balance-sheet": "file", "--pl-ytd": "file", "--pl-prior": "file", "--pl-through": "through", "--unrecorded": "text", "--sample": "flag"},
+                ("finance-report", "build"): {"--month": "month", "--prepared": "date", "--balance-sheet": "file", "--pl-ytd": "file", "--pl-prior": "file", "--pl-through": "through", "--company-info": "file", "--unrecorded": "text", "--sample": "flag"},
                 ("finance-report", "render"): {"--suffix": "suffix"},
-                ("finance-report", "setup", "draft"): {"--balance-sheet": "file", "--pl-12m": "file", "--pl-year": "file"},
+                ("finance-report", "setup", "draft"): {"--balance-sheet": "file", "--pl-12m": "file", "--pl-year": "file", "--company-info": "file"},
                 ("finance-report", "setup", "budget"): {"--year": "text", "--csv": "file", "--annual": "text", "--none": "flag"},
                 ("finance-report", "setup", "one-time"): {"--year": "text", "--amount": "text", "--label": "text", "--none": "flag", "--done": "flag"},
                 ("finance-report", "setup", "apply"): {"--approved-by": "text"},
@@ -241,6 +264,21 @@ class Workspace:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
             return {"saved": str(path)}
+        if name == "copy_file":
+            source = self.path(args["source"])
+            destination = self.path(args["destination"], write=True)
+            text = source.read_text()
+            if "tool-results" in source.parts:
+                # Claude Code stores a large reply as its list of content blocks; the reply is their text.
+                try:
+                    blocks = json.loads(text)
+                    if isinstance(blocks, list) and all(isinstance(b, dict) and b.get("type") == "text" for b in blocks):
+                        text = "".join(b["text"] for b in blocks)
+                except ValueError:
+                    pass
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(text)
+            return {"saved": str(destination)}
         if name == "inspect_pdf":
             path = self.path(args["path"])
             if not path.is_relative_to(self.root / "finance") or path.suffix != ".pdf":

@@ -67,22 +67,35 @@ def write_church(module, root: Path) -> dict:
         paths[name] = p
         return p
 
+    save("company-info.json", books.company_info())
     save("balance-sheet.json", books.balance_sheet(last))
     save("pl-12m.json", books.pl(start12, last))
     save("pl-12m-connector.json", books.pl(start12, last, limit=B.CONNECTOR_ROW_LIMIT))
-    for year in range(y - 4, y):
-        if (year, 12) >= books.first:
-            save(f"pl-{year}.json", books.pl((year, 1), (year, 12)))
-    save("pl-ytd.json", books.pl((y, 1), last))
-    if m > 1:
-        save("pl-prior.json", books.pl((y, 1), (y, m - 1)))
+    # the last two complete months, for income that stopped being recorded
+    save("pl-recent.json", books.pl(back(last, 1), last))
+    # whole years of the church's own year (January to December, or July to June), by the year each starts
+    fs = books.fiscal_start
+    this_start = B.fiscal_year_start(books, y, m)
+    for year in range(this_start[0] - 4, this_start[0]):
+        year_end = back((year + 1, fs), 1)
+        if year_end >= books.first and year_end < this_start:
+            save(f"pl-{year}.json", books.pl((year, fs), year_end))
+    save("pl-ytd.json", books.pl(this_start, last))
+    if last != this_start:
+        save("pl-prior.json", books.pl(this_start, back(last, 1)))
     # month-by-month pulls for books that close into a fund: every month end of last year,
     # and this year's before the two that pl-prior and pl-ytd cover
-    through_end = (y, m - 2) if m > 2 else (y - 1, 12)
-    for yy, mm in B.months_between((y - 1, 1), through_end):
+    last_start = (this_start[0] - 1, fs)
+    for yy, mm in B.months_between(last_start, back(last, 2)):
         if (yy, mm) >= books.first:
-            save(f"pl-through-{B.key(yy, mm)}.json", books.pl((yy, 1), (yy, mm)))
+            save(f"pl-through-{B.key(yy, mm)}.json", books.pl(B.fiscal_year_start(books, yy, mm), (yy, mm)))
     return paths
+
+
+def back(month, k):
+    """(year, month) k months earlier."""
+    i = month[0] * 12 + month[1] - 1 - k
+    return i // 12, i % 12 + 1
 
 
 def call(script, root, *args):
@@ -142,13 +155,14 @@ class Run:
         self.pulls = write_church(module, root)
         p = self.pulls
         self.look, self.look_code, self.look_err = call(
-            ONBOARDING, root, "look", "--balance-sheet", str(p["balance-sheet.json"]), "--pl-12m", str(p["pl-12m.json"]))
+            ONBOARDING, root, "look", "--balance-sheet", str(p["balance-sheet.json"]), "--pl-12m", str(p["pl-12m.json"]),
+            "--pl-recent", str(p["pl-recent.json"]))
         findings = root / "finance/onboarding/findings.json"
         self.findings = json.loads(findings.read_text())["findings"] if findings.exists() and self.look_code == 0 else []
         years = [a for k in sorted(p) if re.fullmatch(r"pl-\d{4}\.json", k) for a in ("--pl-year", str(p[k]))]
         self.draft, self.draft_code, self.draft_err = call(
             REPORT, root, "setup", "draft", "--balance-sheet", str(p["balance-sheet.json"]),
-            "--pl-12m", str(p["pl-12m.json"]), *years)
+            "--pl-12m", str(p["pl-12m.json"]), "--company-info", str(p["company-info.json"]), *years)
         draft_file = root / "finance/board/setup-draft.json"
         self.draft_file = json.loads(draft_file.read_text()) if draft_file.exists() else {}
         self._built = {}
