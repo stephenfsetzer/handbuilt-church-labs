@@ -17,7 +17,9 @@ it; the treasurer approves or edits it before the report is final.
    the year, still better than this point last year ($21,300 short), and
    last year ended $12,600 ahead." Compare with the same point last year,
    not only with the budget, because church income is uneven through the
-   year.
+   year. "The year" is the church's own year. When it does not start in
+   January, name its months: "short for the year so far (July to August
+   2026)".
 3. **End with the bills.** "We can pay our bills: about two and a half
    months of spending is in the bank." Under one and a half months, say cash
    is tight.

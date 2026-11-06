@@ -108,3 +108,5 @@
 7700-10
 8100-10
 8200-10
+2025-26     # not an account: a church year label (July 2025 to June 2026) in finance tests
+2026-27     # not an account: a church year label (July 2026 to June 2027) in finance-report code and tests

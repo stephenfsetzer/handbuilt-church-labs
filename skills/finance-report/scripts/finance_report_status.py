@@ -10,7 +10,11 @@ Prints JSON; "ready" is true only when nothing blocks a monthly run.
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from build_report_data import MONTHS, fiscal_month, year_start_of  # noqa: E402
 
 
 def main(argv=None):
@@ -45,13 +49,23 @@ def main(argv=None):
     if cfg:
         for key in ("bank_accounts", "income_groups", "spending_groups", "obligations", "history_start"):
             add(f"setting: {key}", bool(cfg.get(key)), "set" if cfg.get(key) else "missing")
+        fs = fiscal_month(cfg.get("fiscal_year_start"))
+        add("setting: the month the church's year starts", True,
+            f"{MONTHS[fs - 1]}" if fs else "not saved yet: pull company info this month and build with "
+            "--company-info; the build saves it", blocks=False)
         if args.month:
-            year = args.month[:4]
+            pulls = root / cfg.get("report_folder", "finance/board") / args.month / "pulls"
+            if not fs:
+                ok = (pulls / "company-info.json").exists()
+                add("pull: company-info.json", ok, "saved" if ok else "not yet pulled: needed once, to learn "
+                    "the month the church's year starts")
+            start = year_start_of(args.month, fs or 1)
+            year = start[:4]
             has_budget = year in cfg.get("budget", {}) or cfg.get("budget_mode") == "none"
             add(f"budget {year}", has_budget, "set" if has_budget
                 else "missing: upload a Budget versus Actuals export or choose no budget")
-            pulls = root / cfg.get("report_folder", "finance/board") / args.month / "pulls"
-            for f in ("balance-sheet.json", "pl-ytd.json") + (("pl-prior.json",) if not args.month.endswith("-01") else ()):
+            first_month = args.month == start
+            for f in ("balance-sheet.json", "pl-ytd.json") + (("pl-prior.json",) if not first_month else ()):
                 add(f"pull: {f}", (pulls / f).exists(), "saved" if (pulls / f).exists() else "not yet pulled")
 
     checks.append({"check": "QuickBooks connection", "ok": None,

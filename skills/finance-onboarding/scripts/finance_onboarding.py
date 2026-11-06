@@ -20,8 +20,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPORT_SCRIPTS = HERE.parents[1] / "finance-report" / "scripts"
 sys.path.insert(0, str(REPORT_SCRIPTS))
-from build_report_data import load_balance_sheet, load_pl, code, strip_code, INCOME, EXPENSE  # noqa: E402
-from finance_setup import draft_accounts, draft_groups, plain  # noqa: E402
+from build_report_data import (load_balance_sheet, load_pl, code, strip_code, INCOME, EXPENSE,  # noqa: E402
+                               MONTHS, PullCutOff, record_cut_off, liabilities_below_zero, balances_by_name,
+                               section_rows as section)
+from finance_setup import draft_accounts, draft_groups, plain, PROCESSOR, ONE_TIME  # noqa: E402
 
 STAGES = {
     1: ("Look", "Pull the books read-only and write the finance overview for the pastor."),
@@ -86,9 +88,10 @@ def log(st, text):
 
 
 def largest_source(items, top, income):
-    """The largest source of income: the top group, or, when one heading holds most of the
-    income (more than 80%), the largest account or heading directly under it."""
-    if top["share"] <= 0.8 or not income or top["accounts"] == ["*"]:
+    """The largest source of income: the top group, or, when that group is a heading with
+    accounts under it, the largest account or heading directly under it. The heading's own
+    share comes along as `within`, so the finding can name both."""
+    if not income or top["accounts"] == ["*"]:
         return top
     under = {}
     for it in items:
@@ -103,26 +106,75 @@ def largest_source(items, top, income):
     if len(under) < 2:
         return top
     name, amount = max(under.items(), key=lambda kv: kv[1])
-    return {"name": plain(name), "share": round(amount / income, 3)}
+    return {"name": plain(name), "share": round(amount / income, 3),
+            "within": {"name": top["name"], "share": top["share"]}}
 
 
-def balances(rows, n):
-    """Sum each account's opening row and change row by name."""
-    out = {}
-    for name, vals in rows:
-        base = strip_code(name)
-        cur = out.get(base, [0.0] * n)
-        out[base] = [a + b for a, b in zip(cur, vals)]
-    return out
+def concentration_text(top):
+    """'Envelope offerings is 59% of income.' or, when the heading holds most income but no single
+    account under it does, the heading's share with its largest part named."""
+    within = top.get("within")
+    if top["share"] >= 0.5:
+        return f"{top['name']} is {top['share']:.0%} of income."
+    if within and within["share"] >= 0.5:
+        return (f"{within['name']} is {within['share']:.0%} of income; its largest part is "
+                f"{top['name']}, {top['share']:.0%} of income.")
+    return None
 
 
-def section(rows, start, stop):
-    names = [n for n, _ in rows]
-    if start not in names:
-        return []
-    i = names.index(start)
-    j = next((k for k in range(i + 1, len(names)) if names[k] in stop), len(names))
-    return rows[i + 1:j]
+balances = balances_by_name
+
+
+def signed(v):
+    return f"-${abs(round(v)):,}" if round(v) < 0 else f"${round(v):,}"
+
+
+def and_list(words):
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def month_span(start, end):
+    """'July and August 2026', 'June to August 2026', 'December 2025 to February 2026'."""
+    s, e = (int(start[:4]), int(start[5:7])), (int(end[:4]), int(end[5:7]))
+    if s == e:
+        return f"{MONTHS[e[1] - 1]} {e[0]}"
+    if s[0] != e[0]:
+        return f"{MONTHS[s[1] - 1]} {s[0]} to {MONTHS[e[1] - 1]} {e[0]}"
+    count = e[1] - s[1] + 1
+    return f"{MONTHS[s[1] - 1]} {'and' if count == 2 else 'to'} {MONTHS[e[1] - 1]} {e[0]}"
+
+
+def recent_postings(rows, months, items12, inc12, recent_path, threshold):
+    """Regular income accounts that recorded nothing in the recent pull while money-on-its-way
+    balances (payment service clearing, undeposited funds) rose over the same months. Together
+    they point to income received but not yet recorded; a fall in giving is not established."""
+    start, end, recent_items, _ = load_pl(recent_path)
+    if not end.startswith(months[-1]):
+        sys.exit(f"CHECK FAILED: --pl-recent ends {end}; it must end with the balance sheet's last month, {months[-1]}")
+    count = (int(end[:4]) - int(start[:4])) * 12 + int(end[5:7]) - int(start[5:7]) + 1
+    recent = {it["name"]: it["value"] for it in recent_items if it["section"] in INCOME}
+    # Regular income only: a one-time gain (a sale, a bequest) is expected to stop.
+    stopped = [it["name"] for it in items12 if it["section"] == "Income" and inc12 and not ONE_TIME.search(it["name"])
+               and it["value"] >= 0.03 * inc12 and recent.get(it["name"], 0) <= 0]
+    if not stopped:
+        return None
+    n = len(months)
+    held = balances(rows, n)
+    rose = []
+    for name, vals in held.items():
+        if PROCESSOR.search(name) and n > count and vals[-1] - vals[-1 - count] >= threshold:
+            rose.append({"account": name, "was": round(vals[-1 - count], 2), "now": round(vals[-1], 2)})
+    if not rose:
+        return None  # income can pause for many reasons; with nothing waiting to be recorded, say nothing
+    span = month_span(start, end)
+    names = and_list([strip_code(x) for x in stopped])
+    text = (f"{names} recorded nothing in {span}, while " +
+            and_list([f"{r['account']} rose from {signed(r['was'])} to {signed(r['now'])}" for r in rose]) +
+            ". This looks like income received but not yet recorded (a recording lag). "
+            "A decline in giving is not established by these books.")
+    return {"text": text, "stopped": [strip_code(x) for x in stopped], "rose": rose, "months": span,
+            "question": f"Is all income for {span} recorded, including online gifts and deposits, and what do "
+                        f"{and_list([r['account'] for r in rose])} hold?"}
 
 
 def money(v):
@@ -132,6 +184,15 @@ def money(v):
 # --- commands ---------------------------------------------------------------------
 
 def cmd_look(args, root):
+    try:
+        look(args, root)
+    except PullCutOff as cut:
+        # The refusal is recorded where the findings would be, so a cut-off pull is visible later.
+        record_cut_off(root / "finance/onboarding/look-blocked.json", cut)
+        raise
+
+
+def look(args, root):
     months, rows = load_balance_sheet(args.balance_sheet)
     n = len(months)
     accounts, bank, endow = draft_accounts(rows)
@@ -158,10 +219,19 @@ def cmd_look(args, root):
     add("result", "info", f"Over the {period_months} months pulled, {money(inc)} came in and {money(exp)} went out, "
         f"{money(inc - exp)} {'ahead' if inc >= exp else 'short'}.", "The year's direction, before any detail.")
     top = largest_source(items, groups[0], inc)
-    if top and top["share"] >= 0.5:
-        add("concentration", "watch", f"{top['name']} is {top['share']:.0%} of income.",
+    said = concentration_text(top) if top else None
+    if said:
+        add("concentration", "watch", said,
             "Heavy reliance on one source is the main financial risk to name for the board.",
             f"How secure is {top['name']} over the next two years?")
+    if args.pl_recent:
+        lag = recent_postings(rows, months, items, inc, args.pl_recent, args.clearing_threshold)
+        if lag:
+            add("recent_postings", "watch", lag["text"],
+                "Income that stops while money waits in clearing or undeposited accounts is usually a recording "
+                "delay. Saying giving fell would be a conclusion the books do not support.",
+                lag["question"], "unrecorded_income")
+            findings[-1]["detail"] = {k: lag[k] for k in ("stopped", "rose", "months")}
     procs = [a for a in accounts if a["kind"] == "payment service"]
     open_procs = [a for a in procs if abs(a["balance_now"]) >= args.clearing_threshold]
     if open_procs:
@@ -170,13 +240,17 @@ def cmd_look(args, root):
             "A balance here usually means income received online was not recorded in full, or was recorded late.",
             "When are online payments recorded, and are they recorded in full, with fees as an expense?",
             "payment_services")
-    liab = balances(section(rows, "Liabilities", {"Equity"}), n)
-    neg = {k: v[-1] for k, v in liab.items() if v[-1] < -500}
+    neg = liabilities_below_zero(months, rows)
     if neg:
-        add("negative_liabilities", "fix", "Liabilities below zero: " +
-            ", ".join(f"{k} {money(v)}" for k, v in neg.items()) + ".",
-            "A liability cannot normally be negative; it usually means income or payments were recorded in the wrong place.",
+        def since(x):
+            return (f"below zero since at least {x['below_zero_since_words']}, the first month pulled"
+                    if x["since_the_first_month_pulled"] else f"below zero since {x['below_zero_since_words']}")
+        add("negative_liabilities", "fix", f"Liabilities below zero at the end of {month_span(months[-1], months[-1])}: " +
+            "; ".join(f"{x['account']} {signed(x['balance'])} ({since(x)})" for x in neg) + ".",
+            "A liability cannot normally be negative; it usually means income or payments were recorded in the "
+            "wrong place. These balances are read from the books, opening and change rows already added together.",
             "What should these accounts hold?")
+        findings[-1]["detail"] = neg
     eq = balances(section(rows, "Equity", {"Retained Earnings", "Net Income"}), n)
     obe = next((v[-1] for k, v in eq.items() if "opening bal" in k.lower()), 0)
     if abs(obe) >= 1:
@@ -321,6 +395,7 @@ def main(argv=None):
     lk = sub.add_parser("look", parents=[common])
     lk.add_argument("--balance-sheet", required=True)
     lk.add_argument("--pl-12m", required=True)
+    lk.add_argument("--pl-recent", help="profit and loss for the last two complete months, to spot income not yet recorded")
     lk.add_argument("--clearing-threshold", type=float, default=1000)
     rd = sub.add_parser("readiness", parents=[common])
     rd.add_argument("--item", required=True)

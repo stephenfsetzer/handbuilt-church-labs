@@ -57,9 +57,16 @@ month folder before asking anything.
    a decision to go without.
 
 2. **Pull from QuickBooks, read-only.** Follow `references/quickbooks.md`:
-   company info, the balance sheet split by month, then profit and loss for
-   January 1 through the month end and through the prior month end (skip the
-   second in January). Save each response in `finance/board/YYYY-MM/pulls/`.
+   company info, the balance sheet split by month, then profit and loss from
+   the first day of the church's year through the month end and through the
+   prior month end (skip the second in the year's first month). The year is
+   the church's own: January to December, or July to June, and so on, as
+   `fiscal_year_start` in the settings says. If the settings do not have
+   `fiscal_year_start` yet, save the company info response as
+   `company-info.json` in the pulls folder and add
+   `--company-info finance/board/YYYY-MM/pulls/company-info.json` to the
+   build below; the build saves the month in the settings. Save each
+   response in `finance/board/YYYY-MM/pulls/` exactly as returned.
 
 3. **Look for income not yet recorded.** If the church uses payment services
    such as Stripe or Givebutter and they are connected, compare their payouts
@@ -77,9 +84,17 @@ month folder before asking anything.
    ```
 
    A blocked result means something does not agree: a total with
-   QuickBooks, a pull with its period, or last year's line with last year's
-   recorded result. Stop and report it. Never edit figures by hand to make a
-   check pass.
+   QuickBooks, a pull with its period, a pull with its own columns, last
+   year's line with last year's recorded result, or the settings' year start
+   with QuickBooks. Stop and report it. Never edit figures by hand to make a
+   check pass. A cut-off pull leaves its refusal in `blocked.json` in the
+   month folder.
+
+   Every year the report states (the year so far, the running chart, last
+   year, their labels) follows the church's year; the result's `year` says
+   which months it covers. A liability below zero comes back in
+   `liabilities_below_zero` with its balance and first month below zero;
+   quote those, never a figure worked out from the pull's rows.
 
    If the church closes each year into a fund balance, equity moves without
    a result and the build stops on last year's line or on the balance sheet
@@ -91,7 +106,8 @@ month folder before asking anything.
    reads those years' monthly results from the profit and loss.
 
    Raise each item in the result's `needs_a_person` list: watch items that
-   need this month's facts, new accounts that fell into "Everything else"
+   need this month's facts, a group whose accounts match nothing this year,
+   new accounts that fell into "Everything else"
    (confirm or change the grouping in the settings), and earlier months that
    changed since last month's report (also flagged on the report itself),
    and a month that looks unrecorded: no income entered at all, which means
@@ -124,11 +140,12 @@ month folder before asking anything.
    render once more. Leave the final PDF, `report.json`, and receipt
    unchanged afterward.
 
-## Each January
+## Each new year
 
-Add last year to the settings' `long_view.full_years` and `pressure` series
-(from the full-year profit and loss; take out one-time items and label
-them), and add the new year's budget.
+When the church's year begins (January, or July, and so on), add last year
+to the settings' `long_view.full_years` and `pressure` series (from the
+whole-year profit and loss; take out one-time items and label them), and add
+the new year's budget.
 
 ## Guardrails
 

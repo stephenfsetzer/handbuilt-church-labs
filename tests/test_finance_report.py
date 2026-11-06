@@ -411,7 +411,8 @@ class FinanceReportTests(unittest.TestCase):
         pulls = self.church / "setup-pulls"
         draft, code, err = run(self.church, "setup", "draft",
                                "--balance-sheet", str(self.board / "2026-08/pulls/balance-sheet.json"),
-                               "--pl-12m", str(pulls / "pl-12m.json"), "--pl-year", str(pulls / "pl-2025.json"))
+                               "--pl-12m", str(pulls / "pl-12m.json"), "--pl-year", str(pulls / "pl-2025.json"),
+                               "--company-info", str(pulls / "company-info.json"))
         self.assertEqual(code, 0, err)
         run(self.church, "setup", "budget", "--year", "2026", *budget)
         return draft
@@ -783,9 +784,21 @@ class ConcentrationTests(unittest.TestCase):
                  {"name": "3130 Gifts", "chain": ["3130 Gifts", "3100-00 Operating Income", "Income"], "section": "Income", "value": 90.0},
                  {"name": "Interest", "chain": ["Interest", "Other Income"], "section": "Other Income", "value": 10.0}]
         top = {"name": "Operating income", "accounts": ["3100-00"], "share": 0.99}
-        self.assertEqual(self.onboarding.largest_source(items, top, 1000.0), {"name": "Preschool rent", "share": 0.6})
+        self.assertEqual(self.onboarding.largest_source(items, top, 1000.0),
+                         {"name": "Preschool rent", "share": 0.6, "within": {"name": "Operating income", "share": 0.99}})
+        # A heading is looked under whatever its share: a board needs the account, not the heading.
         spread = {**top, "share": 0.7}
-        self.assertIs(self.onboarding.largest_source(items, spread, 1000.0), spread)
+        self.assertEqual(self.onboarding.largest_source(items, spread, 1000.0)["name"], "Preschool rent")
+        # A group that is a single account has nothing under it to look at.
+        single = {"name": "Preschool rent", "accounts": ["3120"], "share": 0.6}
+        self.assertIs(self.onboarding.largest_source(items, single, 1000.0), single)
+
+    def test_a_heading_holding_most_income_is_named_with_its_largest_part(self):
+        said = self.onboarding.concentration_text(
+            {"name": "Pledges", "share": 0.4, "within": {"name": "Giving", "share": 0.7}})
+        self.assertEqual(said, "Giving is 70% of income; its largest part is Pledges, 40% of income.")
+        self.assertIsNone(self.onboarding.concentration_text(
+            {"name": "Pledges", "share": 0.3, "within": {"name": "Giving", "share": 0.4}}))
 
 
 class OneTimeCandidateTests(unittest.TestCase):

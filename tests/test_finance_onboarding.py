@@ -97,7 +97,7 @@ class FinanceOnboardingTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         summary = " ".join(look["summary"])
         self.assertIn("Stripe $1,250", summary)
-        self.assertIn("Giving is", summary)
+        self.assertIn("Pledge Payments is 51% of income", summary)  # the account under the Giving heading
         self.assertTrue(any("reconciled" in q for q in look["questions_for_treasurer"]))
         (self.church / "finance/finance-overview.md").write_text("# Finance overview\n")
         self.assertEqual(self.ob("stage", "--done", "1")[1], 0)
@@ -105,7 +105,8 @@ class FinanceOnboardingTests(unittest.TestCase):
         # Stage 2: setup and a sample edition
         self.assertEqual(self.ob("stage", "--done", "2")[1], 2)
         self.report("setup", "draft", "--balance-sheet", str(self.board / "2026-08/pulls/balance-sheet.json"),
-                    "--pl-12m", str(pulls / "pl-12m.json"), "--pl-year", str(pulls / "pl-2025.json"))
+                    "--pl-12m", str(pulls / "pl-12m.json"), "--pl-year", str(pulls / "pl-2025.json"),
+                    "--company-info", str(pulls / "company-info.json"))
         self.report("setup", "budget", "--year", "2026", "--csv", str(pulls / "budget-vs-actuals-2026.csv"))
         self.report("setup", "one-time", "--year", "2025", "--amount", "25000", "--label", "estate gift", "--done")
         self.assertEqual(self.report("setup", "apply", "--approved-by", "Pat Example")[1], 0)

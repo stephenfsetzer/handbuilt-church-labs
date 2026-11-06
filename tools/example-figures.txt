@@ -24,3 +24,6 @@
 30,000     # short-answer.md: example unrecorded-month year
 92,400     # tests: Riverbend endowment
 31,337     # finance evals: a figure no eval church's books support
+14,087     # finance evals: Lantern Hill (invented) year so far, July to August 2026
+8,793      # finance evals: Lantern Hill (invented) last church year result
+2,400      # finance evals: Millbrook (invented) deferred rental revenue below zero

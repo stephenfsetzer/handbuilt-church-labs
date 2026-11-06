@@ -402,8 +402,9 @@ def chart_running(d, run, pending, at=None):
     label_left = min(W - lw - 2, max(2, x(i) - 8 - lw))
     o.append(f'<rect x="{label_left:.1f}" y="{ly_ - 11:.1f}" width="{lw:.1f}" height="15" rx="2" fill="#ffffff" opacity="0.92"/>')
     o.append(d.text(label_left + lw - 3, ly_, label, 11, 700, None, "end"))
+    first = int(run.get("first_month", 1)) - 1  # the church's year can start in any month
     for k in range(12):
-        o.append(d.text(x(k), H - 8, MONTH_ABBR[k], 9.5, 600 if k <= i else 400,
+        o.append(d.text(x(k), H - 8, MONTH_ABBR[(first + k) % 12], 9.5, 600 if k <= i else 400,
                         t["ink"] if k <= i else t["muted"], "middle"))
     return d.svg(W, H, o)
 
@@ -760,11 +761,14 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     ytd_chg = (f"Through {before_name}; {mname} not yet recorded" if unrecorded
                else f"{delta_text(plan['actual'] - prev['ytd'])} in {mname}" if prev else "&nbsp;")
     ytd_word = "ahead" if year >= 0 else "short"
+    # A church whose year does not start in January names its months: "Year so far, July to August".
+    year_tile = (f"Year so far, {esc(meta['year_starts'])} to {esc(mname)}"
+                 if meta.get("year_starts") and meta["year_starts"] != mname else "Year so far")
     in_chg = ("Nothing entered yet" if unrecorded and not tm["came_in"]
               else f"Most: {esc(tm['top_in']['label'])}, {signed_money(tm['top_in']['amount'])}")
     tiles = f"""<div class="eyebrow" style="margin-bottom:3pt">Since last month</div><div class="tiles">
 <div class="tile"><div class="lab">Bank cash</div><div class="val">{signed_money(cash['bank'])}</div><div class="chg">{bank_chg}</div></div>
-<div class="tile"><div class="lab">Year so far</div><div class="val">{money(year)} {ytd_word}</div><div class="chg">{ytd_chg}</div></div>
+<div class="tile"><div class="lab">{year_tile}</div><div class="val">{money(year)} {ytd_word}</div><div class="chg">{ytd_chg}</div></div>
 <div class="tile"><div class="lab">Money in, {esc(mname)}</div><div class="val">{signed_money(tm['came_in'])}</div>
 <div class="chg">{in_chg}</div></div>
 <div class="tile"><div class="lab">Money out, {esc(mname)}</div><div class="val">{signed_money(tm['went_out'])}</div>
@@ -801,7 +805,8 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     def share_answer(section, total, monthly, noun):
         parts = section["parts"]
         if share_is_proportional(parts):
-            lead = f"{esc(section['headline'])}: <b>{parts[0]['amount'] / total:.0%}</b> of {noun} this year."
+            named = next((p for p in parts if p["name"] == section.get("lead")), parts[0])
+            lead = f"{esc(section['headline'])}: <b>{named['amount'] / total:.0%}</b> of {noun} this year."
         else:
             lead = "The net total for this year is zero." if not any(p["amount"] for p in parts) else "Credits are included; percentages would be misleading."
         return f"{lead} Total {noun}: {signed_money(total)} this year; {signed_money(monthly)} in {esc(mname)}."
