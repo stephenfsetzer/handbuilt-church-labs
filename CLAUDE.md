@@ -68,6 +68,9 @@ operations workflows. Sessions here behave by these rules.
    built-in `unittest`, not `pytest`. For church work, use the active skill's
    saved-file and output checks instead of running developer tests after each
    onboarding stage.
+5. **Meet the module release standard.** No workflow is released or built
+   without tool checks, agent checks and finished-work checks. See
+   [the standard](AGENTS.md#module-release-standard).
 
 ## Working on a church (not on the Labs)
 
