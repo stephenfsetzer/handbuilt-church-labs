@@ -81,8 +81,8 @@ read back the answer in plain language, then batch and verify the update.
 Report the pastor-facing result, not an internal
 file inventory.
 
-Ask no more than three questions in one turn, and prefer none when sources
-answer them. Use one question for an unfamiliar or consequential choice.
+Ask no more than three questions in one turn (prefer none when sources answer
+them); ask further open choices after the pastor answers, never all at once. Use one question for an unfamiliar or consequential choice.
 “Later,” “not sure,” “unknown,” and “not applicable” are valid; require no magic confirmation phrase.
 
 ## Runtime gate

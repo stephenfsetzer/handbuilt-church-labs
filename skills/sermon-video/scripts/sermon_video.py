@@ -314,6 +314,14 @@ def artwork(root, data):
     review_page(root, data, values)
 
 
+def church_site(website):
+    """church.yaml may hold a bare domain such as example.org; a link needs its scheme."""
+    website = str(website or "").strip()
+    if website and not re.match(r"https?://", website, re.I):
+        website = "https://" + website
+    return website
+
+
 def review_page(root, data, values):
     labels = []
     for key, label in data.get("labels", {}).items():
@@ -323,7 +331,7 @@ def review_page(root, data, values):
     notes.extend(f'{k.replace("_", " ").capitalize()}: {v.get("evidence", "Not established")}'
                  for k, v in data.get("labels", {}).items() if v.get("status") in ("unknown", "provisional"))
     values = {**values, "labels": "".join(labels), "notes": "".join(f"<li>{escape(n)}</li>" for n in notes),
-              "source_url": escape(data["source"].get("url", data["church"].get("website", ""))),
+              "source_url": escape(data["source"].get("url") or church_site(data["church"].get("website", ""))),
               "ending": str(max(0, data["sermon"]["end"] - data["sermon"]["start"] + data["video"]["intro_seconds"] - 20)),
               "panel": str(data["video"]["intro_seconds"] + data["video"]["lower_start"] + 1)}
     if values["source_url"]:

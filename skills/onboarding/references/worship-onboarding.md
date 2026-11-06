@@ -130,6 +130,8 @@ will save them once, and you can change them in ordinary language later.”
   reads the first half and the congregation the second; `psalm_response_start`
   has no effect. Do not ask a separate starting-side question for half verses.
 - Propose the traditional doxology, the church's own wording, or omission.
+  A sample that does not print a doxology does not settle it: many churches
+  sing one without printing it. Leave it undecided until the pastor chooses.
   Ask about a music image only if the sample or pastor indicates one is used.
 - Propose continuous prayer paragraphs with one opening speaker label and
   concise rubrics. Explain that prayer words stay intact. Keep repeated

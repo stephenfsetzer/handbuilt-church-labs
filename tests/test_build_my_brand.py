@@ -699,6 +699,22 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertIn("Public Test Parish", document)
         self.assertNotIn("Your church", document)
 
+    def test_cover_marks_print_in_the_cover_ink_not_black(self):
+        import base64
+        from brand_workflow.guide import _cover
+        marks = self.church / "brand" / "marks"
+        marks.mkdir(parents=True, exist_ok=True)
+        (marks / "mark.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+                                         '<path fill="currentColor" d="M0 0h10v10H0z"/></svg>')
+        system = {"marks": {"primary": "brand/marks/mark.svg", "wordmark": "brand/marks/mark.svg"}}
+        cover = _cover(self.church, system, "Test Parish", "approved", "Brand Guide", "#fafaf7")
+        sources = [part.split('"')[0] for part in cover.split('src="')[1:]]
+        self.assertEqual(len(sources), 2)
+        for source in sources:
+            svg = base64.b64decode(source.split(",", 1)[1]).decode()
+            self.assertIn('fill="#fafaf7"', svg)
+            self.assertNotIn("currentColor", svg)
+
     def test_guide_renders_to_pdf_before_and_after_staging(self):
         self._needs_renderer()
         self._record_through("voice")

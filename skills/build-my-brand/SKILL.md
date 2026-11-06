@@ -59,12 +59,17 @@ no interview answers. Write one on every record. `orient` lists any choice
 still missing one under `governing_edition.needs_reason`, and any text the
 edition left out under `governing_edition.held_back`. Read the edition before
 the pastor shares it: the check catches quotation marks and word-for-word
-interview answers, not a paraphrase.
+interview answers, not a paraphrase. The edition prints each `decision`
+as written, so write it in plain words a vestry member can follow, never
+studio shorthand such as "Direction A" or "1B, 2A". State as fact only what
+the pastor or church records say, such as where the name comes from. In the
+guide and the edition, explain a design term such as lockup or wordmark the
+first time, and keep file names and color codes to a line for the designer.
 
 Show it with the host's own viewer, and keep that step thin: in Claude,
 publish the file as a private artifact and share the link; in Codex, open
-the file in its preview or browser; with no viewer, give the pastor the
-file path. The file is the brand book in every host; the viewer only shows
+the file in its preview or browser; with no viewer, or when the host
+declines, give the pastor the file path and move on. The file is the brand book in every host; the viewer only shows
 it. Boards the pastor reacts to are saved as images under
 `brand/staging/explorations/` and appear in the book, so every round puts
 a real design in front of the pastor.

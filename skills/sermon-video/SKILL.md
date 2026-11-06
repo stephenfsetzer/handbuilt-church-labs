@@ -180,7 +180,8 @@ python3 <skill>/scripts/sermon_video.py captions --plan <run-folder>/plan.json \
 ```
 
 With no platform captions, provide a word-timed transcription (Whisper-style
-JSON) with its source origin:
+JSON) with its source origin. If no transcriber is installed, tell the pastor
+and ask before installing one; never install software unasked.
 
 ```bash
 python3 <skill>/scripts/sermon_video.py captions --plan <run-folder>/plan.json \
@@ -222,6 +223,9 @@ python3 <skill>/scripts/serve_review.py --run-dir <run-folder>
 ```
 
 It binds to localhost, prints the review URL, and saves `preview-url.txt`.
+It stops on its own after an hour (`--minutes`); you start it again when the
+pastor wants to look later.
+Run it in the background and stop it when your checks are done.
 
 Record those observations with `review --plan ... --observations <json>` as
 described in the plan reference. A receipt becomes `ready_for_review` only when
@@ -251,7 +255,10 @@ new download.
   plain message if the computer lacks room.
 
 Show the working review page, thumbnail, and download links. Explain the actual
-source and any material uncertainty. Do not claim YouTube or Vimeo was tested
+source and any material uncertainty. Write this message in church language: the
+pastor never runs a command, and tool names such as FFmpeg or Whisper stay out of
+it. Say that the preview page closes after an hour and that they can ask you to
+open it again. Do not claim YouTube or Vimeo was tested
 when only another provider was exercised. Publication needs accurate labels and
 the church's authorization for the actual destination; this preparation skill
 does not expand that authorization.

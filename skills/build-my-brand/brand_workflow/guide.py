@@ -8,6 +8,7 @@ bundled open fonts before any brand exists.
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 import re
@@ -240,7 +241,17 @@ def _church_name(root: Path) -> str:
     return "Your church"
 
 
-def _cover(root: Path, system: dict[str, Any], church_name: str, source: str, kicker: str) -> str:
+def _cover_image(root: Path, relative: str, ink: str) -> str:
+    """A mark for the colored cover. Marks paint with currentColor, which an image
+    does not inherit, so an SVG is recolored to the cover's ink first."""
+    path = root / relative
+    if path.suffix.lower() != ".svg":
+        return html.escape(relative, quote=True)
+    svg = path.read_text(encoding="utf-8").replace("currentColor", ink)
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def _cover(root: Path, system: dict[str, Any], church_name: str, source: str, kicker: str, ink: str = "#ffffff") -> str:
     marks = system.get("marks") if isinstance(system.get("marks"), dict) else {}
     name = (system.get("name") or {}).get("wordmark") if isinstance(system.get("name"), dict) else None
     direction = (system.get("direction") or {}).get("name") if isinstance(system.get("direction"), dict) else None
@@ -248,9 +259,9 @@ def _cover(root: Path, system: dict[str, Any], church_name: str, source: str, ki
     wordmark = marks.get("wordmark")
     primary = marks.get("primary")
     if primary and (root / primary).is_file():
-        parts.append(f'<img class="cover-mark" src="{html.escape(primary, quote=True)}" alt="">')
+        parts.append(f'<img class="cover-mark" src="{_cover_image(root, primary, ink)}" alt="">')
     if wordmark and (root / wordmark).is_file():
-        parts.append(f'<img class="cover-wordmark" src="{html.escape(wordmark, quote=True)}" alt="{html.escape(name or church_name)}">')
+        parts.append(f'<img class="cover-wordmark" src="{_cover_image(root, wordmark, ink)}" alt="{html.escape(name or church_name)}">')
     else:
         parts.append(f'<h1 class="cover-title">{html.escape(name or church_name)}</h1>')
     parts.append(f'<p class="cover-kicker">{html.escape(kicker)}</p>')
@@ -277,7 +288,7 @@ def build_html(root: Path, markdown: str, *, title: str = "Brand Guide", kicker:
   @bottom-right {{ content: counter(page); font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; }} }}
 @page cover {{ margin: 0; @bottom-left {{ content: none; }} @bottom-right {{ content: none; }} }}
 html {{ color: {pal['ink']}; background: {pal['paper']}; }}
-body {{ font-family: "{display}", Georgia, serif; font-size: 11pt; line-height: 1.5; }}
+body {{ font-family: "{display}", Georgia, serif; font-size: 11.5pt; line-height: 1.5; }}
 .cover {{ page: cover; height: 11in; padding: 1.4in 1.1in; box-sizing: border-box; background: {pal['accent']}; color: {pal['paper']}; page-break-after: always; }}
 .cover-mark {{ max-height: 1.6in; max-width: 2.4in; margin-bottom: 0.6in; }}
 .cover-wordmark {{ max-width: 5.5in; max-height: 1.6in; display: block; }}
@@ -285,20 +296,22 @@ body {{ font-family: "{display}", Georgia, serif; font-size: 11pt; line-height: 
 .cover-kicker {{ font-family: "{text}"; text-transform: uppercase; letter-spacing: 0.18em; font-size: 10pt; margin: 0.5in 0 0 0; }}
 .cover-direction {{ font-size: 16pt; margin: 0.2in 0 0 0; font-style: italic; }}
 .cover-status {{ font-family: "{text}"; font-size: 9pt; position: absolute; bottom: 1.0in; left: 1.1in; opacity: 0.85; }}
-h2 {{ font-size: 22pt; line-height: 1.15; margin: 0 0 14pt 0; padding-top: 0.2in; page-break-before: always; color: {pal['accent']}; }}
-h2:first-of-type {{ page-break-before: auto; }}
-h3 {{ font-family: "{text}"; text-transform: uppercase; letter-spacing: 0.1em; font-size: 9.5pt; color: {pal['deep']}; margin: 18pt 0 6pt 0; }}
+h2 {{ font-size: 22pt; line-height: 1.15; margin: 30pt 0 14pt 0; padding-top: 0.2in; break-after: avoid; color: {pal['accent']}; }}
+h2:first-of-type {{ margin-top: 0; }}
+h3, h4 {{ break-after: avoid; }}
+tr, figure {{ break-inside: avoid; }}
+h3 {{ font-family: "{text}"; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10.5pt; color: {pal['deep']}; margin: 18pt 0 6pt 0; }}
 h4 {{ font-family: "{text}"; font-size: 11pt; margin: 14pt 0 4pt 0; }}
 p {{ margin: 0 0 9pt 0; }}
 ul, ol {{ margin: 0 0 9pt 1.2em; padding: 0; }}
 li {{ margin: 0 0 4pt 0; }}
 blockquote {{ margin: 10pt 0; padding: 4pt 0 4pt 14pt; border-left: 3pt solid {pal['accent']}; color: {pal['deep']}; }}
-table {{ border-collapse: collapse; width: 100%; margin: 8pt 0 12pt 0; font-family: "{text}"; font-size: 9.5pt; }}
+table {{ border-collapse: collapse; width: 100%; margin: 8pt 0 12pt 0; font-family: "{text}"; font-size: 10.5pt; }}
 th {{ text-align: left; border-bottom: 1.5pt solid {pal['accent']}; padding: 4pt 6pt; color: {pal['deep']}; }}
 td {{ border-bottom: 0.5pt solid {pal['deep']}44; padding: 4pt 6pt; vertical-align: top; }}
 figure {{ margin: 10pt 0 14pt 0; text-align: center; }}
 figure img, p img {{ max-width: 100%; max-height: 4.6in; }}
-figcaption {{ font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; margin-top: 4pt; }}
+figcaption {{ font-family: "{text}"; font-size: 9.5pt; color: {pal['deep']}; margin-top: 4pt; }}
 code {{ font-family: Menlo, monospace; font-size: 9pt; background: {pal['deep']}12; padding: 0 3pt; }}
 pre {{ font-family: Menlo, monospace; font-size: 8.5pt; background: {pal['deep']}12; padding: 8pt; white-space: pre-wrap; }}
 hr {{ border: 0; border-top: 0.75pt solid {pal['deep']}; margin: 14pt 0; }}
@@ -309,7 +322,7 @@ hr {{ border: 0; border-top: 0.75pt solid {pal['deep']}; margin: 14pt 0; }}
 a {{ color: {pal['accent']}; text-decoration: none; }}
 """
     document = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{html.escape(church_name)} {html.escape(title)}</title><style>{css}</style></head>
-<body>{_cover(root, system, church_name, source, kicker)}
+<body>{_cover(root, system, church_name, source, kicker, pal["paper"])}
 <main>{body}</main></body></html>"""
     return source, document
 

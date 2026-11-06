@@ -54,7 +54,8 @@ Read [drawing-out.md](references/drawing-out.md) in full.
 2. Tell the pastor they can answer out loud. In the Claude and ChatGPT apps
    they can use the voice or dictation button instead of typing. Talking is
    usually closer to how they preach.
-3. Ask one question at a time, and wait for each answer. Follow what they say
+3. Ask one question at a time, and wait for each answer. One message holds
+   one question, never a follow-up tucked behind it. Follow what they say
    rather than working through a list. Stop when they have found something
    they want to say and who they are saying it to, or when they want to start
    writing.
