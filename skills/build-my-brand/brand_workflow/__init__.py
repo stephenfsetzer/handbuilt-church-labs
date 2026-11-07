@@ -662,8 +662,11 @@ def _edition(root: Path, state: dict[str, Any]) -> tuple[str, dict[str, list[str
         return [f"### {STAGE_TITLES[stage]}", "", EDITION_ABOUT[stage], "", f"**{label}:** {value}", "", f"**{why_label}:** {reason(stage)}", ""]
 
     def decision_words(stage: str) -> str:
-        decision = state["stages"][stage].get("decision")
-        return FORK_WORDS[decision] if stage == "fork" and decision in FORK_WORDS else shareable(stage, decision)
+        record = state["stages"][stage]
+        decision = record.get("decision")
+        if stage == "fork" and decision in FORK_WORDS:
+            return FORK_WORDS[decision]
+        return shareable(stage, record.get("decision_for_leaders") or decision)
 
     identity = _church_identity(root)
     if _amendments_awaiting_approval(state):
@@ -685,7 +688,8 @@ def _edition(root: Path, state: dict[str, Any]) -> tuple[str, dict[str, list[str
     proposals = _open_proposals(state)
     for proposal in proposals:
         stage = proposal["stage"]
-        lines.extend(item(stage, "The studio suggests", shareable(stage, proposal["proposal"]), "Why the studio suggests it"))
+        for_leaders = state["stages"][stage].get("decision_for_leaders") or proposal["proposal"]
+        lines.extend(item(stage, "The studio suggests", shareable(stage, for_leaders), "Why the studio suggests it"))
     if not proposals:
         lines.extend(["Nothing open.", ""])
     unmarked = _unmarked_stages(state)
@@ -864,6 +868,17 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
             if _not_for_sharing(reason, _private_runs(state)):
                 raise WorkflowFailure("not_for_sharing", "reason_for_leaders is read by the governing body. Write it in the studio's own words, with no quotation marks and no interview answers", field="reason_for_leaders")
             record["reason_for_leaders"] = reason
+        # The edition prints the decision (or proposal) itself. When it quotes the
+        # pastor, leaders need the same choice said in the studio's own words.
+        stated = record.get("decision") or record.get("proposal")
+        for_leaders = metadata.get("decision_for_leaders")
+        if for_leaders is not None:
+            for_leaders = _require_text(for_leaders, "decision_for_leaders")
+            if _not_for_sharing(for_leaders, _private_runs(state)):
+                raise WorkflowFailure("not_for_sharing", "decision_for_leaders is read by the governing body. Write it in the studio's own words, with no quotation marks and no interview answers", field="decision_for_leaders")
+            record["decision_for_leaders"] = for_leaders
+        elif stated and stage != "fork" and _not_for_sharing(stated, _private_runs(state)):
+            raise WorkflowFailure("decision_for_leaders_required", "This choice quotes the pastor or repeats an interview answer, so the governing body edition cannot print it. Add decision_for_leaders: the same choice in the studio's own words, with no quotation marks", field="decision_for_leaders")
         options = metadata.get("options")
         if stage in OPTION_STAGES:
             if not isinstance(options, list) or len(options) < 2 or not all(isinstance(o, str) and o.strip() for o in options):

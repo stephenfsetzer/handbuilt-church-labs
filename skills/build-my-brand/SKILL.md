@@ -60,7 +60,10 @@ still missing one under `governing_edition.needs_reason`, and any text the
 edition left out under `governing_edition.held_back`. Read the edition before
 the pastor shares it: the check catches quotation marks and word-for-word
 interview answers, not a paraphrase. The edition prints each `decision`
-as written, so write it in plain words a vestry member can follow, never
+as written; when a decision quotes the pastor, recording it asks for
+`decision_for_leaders`, the same choice in your own words. A cover note or
+anything else you write for leaders follows the same rule: paraphrase, never
+repeat the pastor's words. Write decisions in plain words a vestry member can follow, never
 studio shorthand such as "Direction A" or "1B, 2A". State as fact only what
 the pastor or church records say, such as where the name comes from. In the
 guide and the edition, explain a design term such as lockup or wordmark the

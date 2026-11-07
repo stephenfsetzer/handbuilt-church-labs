@@ -42,6 +42,11 @@ not run `start` again. Then:
 Follow `workflow_state` and `next_actions`. Read `church.yaml` for the
 church's name, tradition, and people before you ask anything.
 
+If you cannot find the church folder, do not stop there. Say in one sentence
+that you will open their saved research once they tell you where the folder
+is, then begin `draw_out` from what the pastor already told you, with one
+question about their own thinking on the text.
+
 ## `draw_out`
 
 Read [drawing-out.md](references/drawing-out.md) in full.

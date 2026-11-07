@@ -603,6 +603,24 @@ class BrandFieldRegressions(unittest.TestCase):
         lifted["reason_for_leaders"] = f"It works. We want this because {interview}."
         self.assertEqual(self.bw.record(self.church, "develop", "Lesson.", lifted)["errors"][0]["code"], "not_for_sharing")
 
+    def test_f17_a_decision_that_quotes_the_pastor_still_reaches_the_vestry(self):
+        """The edition read 'Left out of this edition' where the brand's central idea belonged."""
+        from tests.test_build_my_brand import _metadata
+        self.through("direction")
+        quoted = _metadata("develop")
+        quoted["decision"] = 'Calm and plain, "letters you can read from the road".'
+        refused = self.bw.record(self.church, "develop", "Lesson.", quoted)
+        self.assertEqual(refused["errors"][0]["code"], "decision_for_leaders_required")
+        quoted["decision_for_leaders"] = 'Calm, plain lettering, "readable" from the road.'
+        self.assertEqual(self.bw.record(self.church, "develop", "Lesson.", quoted)["errors"][0]["code"], "not_for_sharing")
+        quoted["decision_for_leaders"] = "Calm, plain lettering that can be read from a passing car."
+        self.assertEqual(self.bw.record(self.church, "develop", "Lesson.", quoted)["status"], "recorded")
+        edition = (self.church / "brand" / "governing-body-edition.md").read_text(encoding="utf-8")
+        self.assertIn("Calm, plain lettering that can be read from a passing car.", edition)
+        self.assertNotIn("Left out of this edition", edition)
+        guide = (self.church / "brand" / "guide.md").read_text(encoding="utf-8")
+        self.assertIn("letters you can read from the road", guide, "the pastor's own record keeps their words")
+
     def test_f16_a_choice_the_pastor_has_not_made_is_not_shown_as_decided(self):
         """A pastor reads 'Decision' in the guide beside an option nobody had yet chosen."""
         from tests.test_build_my_brand import _metadata
