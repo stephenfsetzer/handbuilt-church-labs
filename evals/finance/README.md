@@ -73,7 +73,9 @@ connectors and unrestricted shell access are excluded from the run.
 Run output, tool traces, generated PDFs, and grades must stay outside this public
 repository. A model run needs Claude Code, `ANTHROPIC_API_KEY`, and permitted
 model API access. The runner uses isolated configuration, so a host's saved login
-is not used. Proxy and certificate settings are preserved.
+is not used. Proxy and certificate settings are preserved. To use the signed-in
+Claude account instead of an API key, set `HANDBUILT_EVAL_USE_SIGN_IN=1`. Personal
+settings, plugins and connectors are still kept out of the run.
 
 ```bash
 "<runtime.python>" evals/finance/skill_eval.py all \
@@ -98,7 +100,30 @@ valid; passing the source-claims judge item remains mandatory. The judge evaluat
 source attribution, period, account, sign, uncertainty,
 required treasurer questions, prohibited conclusions, and clarity. Missing output,
 failed processes, malformed or incomplete judge verdicts, and unjudged runs cannot
-pass the model gate. A safe stop is graded explicitly for blocked-connector cases.
+pass the model gate. An invalid judge verdict, such as a quote absent from the
+writing, is retried once with the reason attached before the run is left ungraded.
+The judge is told the eval date, so work prepared that day is not faulted, and
+sees each PDF inspection as the number of page images it returned.
+
+A safe stop is graded explicitly for blocked-connector cases, with a rubric for
+the block instead of the normal one. A run counts as a known source block only
+when the recorded evidence shows the case's own limitation:
+
+- the connector refused profit and loss because the company profile needs a write;
+- a profit and loss pull came back with exactly the connector's row limit, and the
+  model stopped before running look or build and produced no findings or monthly
+  report from it;
+- a look or build that ran on authentic connector responses failed on the cut-off,
+  on a prior-year line changed by revised or closed history, or on a balance sheet
+  that starts too late.
+
+Any other missing look, build, render or report is a failure.
+
+Claude Code saves a large connector reply to its own file, which the contained
+workspace cannot read. The runner sets `MAX_MCP_OUTPUT_TOKENS` high for both the
+API key and the signed-in account, so balance sheets and profit and loss arrive
+whole. Redwood Crossing's late posting appears on any later read whose period
+covers the revised month, so a second pull of the same history sees the change.
 
 No model scores are checked into this repository. Run the model matrix for each
 release candidate and report scores per case, skill, and model with its PR. A

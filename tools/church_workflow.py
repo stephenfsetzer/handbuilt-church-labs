@@ -67,7 +67,7 @@ def _private_file(church: Path, relative: str) -> Path:
 
 def installation() -> dict:
     manifest_path = ROOT / ".codex-plugin" / "plugin.json"
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("name") != "handbuilt-church-labs":
         raise ValueError("This is not a Handbuilt Church Labs installation")
     return {
@@ -97,7 +97,7 @@ def _connect(church_folder: str | Path, *, update_policy: str | None, automatic:
     launcher = _private_file(church, "handbuilt.py")
     source = ROOT / "scaffold/church-folder/handbuilt.py"
     expected = source.read_bytes()
-    old = json.loads(metadata.read_text()) if metadata.exists() else {}
+    old = json.loads(metadata.read_text(encoding="utf-8")) if metadata.exists() else {}
     if not isinstance(old, dict):
         raise ValueError("The church connection is invalid; preserve it for review.")
     if automatic and old.get("plugin_root") and Path(old["plugin_root"]).resolve() != ROOT.resolve():
@@ -110,7 +110,7 @@ def _connect(church_folder: str | Path, *, update_policy: str | None, automatic:
     if policy not in {"pinned", "stable"}:
         raise ValueError("Choose stable or pinned workflow updates.")
     if launcher.exists() and launcher.read_bytes() != expected:
-        old = json.loads(metadata.read_text()) if metadata.exists() else {}
+        old = json.loads(metadata.read_text(encoding="utf-8")) if metadata.exists() else {}
         if hashlib.sha256(launcher.read_bytes()).hexdigest() != old.get("launcher_sha256"):
             raise ValueError("The church's handbuilt.py was customized; preserve it and review before reconnecting")
     info = installation()
@@ -155,13 +155,28 @@ def claude_update_settings() -> dict | None:
     return claude_updates.update_request()
 
 
+def _whats_new(previous: object, current: str) -> str | None:
+    """Return the one-line note for a version this church has not started yet."""
+    from tools.workflow_updates import version
+    if not isinstance(previous, str):
+        return None
+    try:
+        if version(previous) >= version(current):
+            return None
+        lines = (ROOT / "handbook/whats-new.md").read_text(encoding="utf-8").splitlines()
+        return lines[lines.index(f"## {current}") + 2].strip() or None
+    except (OSError, ValueError, IndexError):
+        # A missing note never stands between a pastor and their work.
+        return None
+
+
 def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[dict, int]:
     from tools.plugin_identity import inspect_installation, is_development_root
     from tools.handbuilt_runtime import default_runtime_root
     from tools.workflow_updates import RuntimeUpgradeRequired, select_release, package_version, verify_installed, version
     identity = inspect_installation(ROOT, church)
     metadata = _private_file(church, ".handbuilt/installation.json")
-    saved = json.loads(metadata.read_text()) if metadata.exists() else {}
+    saved = json.loads(metadata.read_text(encoding="utf-8")) if metadata.exists() else {}
     if not isinstance(saved, dict) or (saved.get("plugin_root") and not Path(saved["plugin_root"]).is_absolute()):
         raise ValueError("The church connection is invalid; preserve it for review.")
     saved_root = Path(saved.get("plugin_root", str(ROOT))).resolve()
@@ -177,7 +192,7 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
         command = [sys.executable, str(candidate / "tools/handbuilt_runtime.py")]
         command += (["verify"] if workflow in PDF_WORKFLOWS else ["doctor", "--capability", "workspace"])
         try:
-            check = subprocess.run(command + ["--format", "json"], capture_output=True, text=True, timeout=90)
+            check = subprocess.run(command + ["--format", "json"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
             report = json.loads(check.stdout)
         except (OSError, subprocess.SubprocessError, TypeError, ValueError) as exc:
             raise RuntimeUpgradeRequired("The new workflow could not complete its runtime check.") from exc
@@ -213,7 +228,7 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
         # The target verifies its runtime again before saving the connection.
         process = subprocess.run([sys.executable, str(selected / "tools/church_workflow.py"),
                                   "--church-folder", str(church), "start", workflow,
-                                  "--skip-update-check"], capture_output=True, text=True, timeout=120)
+                                  "--skip-update-check"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
         result = json.loads(process.stdout)
         result["app_loaded_identity"] = identity["loaded"]
         result["updates"] = updates
@@ -237,6 +252,10 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
               "launcher": [doctor["runtime"]["python"], str(ROOT / "tools/church_workflow.py"),
                            "--church-folder", str(church)],
               "next_action": "Read this exact skill. Use the returned launcher prefix for every operation in this task; it keeps the workflow version fixed. Check workflow readiness before producing."}
+    whats_new = _whats_new(saved.get("plugin_version"), package_version(ROOT))
+    if whats_new:
+        result["whats_new"] = whats_new
+        result["next_action"] = f"Tell the pastor in one sentence what is new: {whats_new} " + result["next_action"]
     result["handbuilt_run"] = str(_record(church, workflow, "start", result, doctor))
     return result, 0
 
@@ -249,7 +268,7 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
 
     identity = inspect_installation(ROOT, church)
     metadata = _private_file(church, ".handbuilt/installation.json")
-    saved = json.loads(metadata.read_text()) if metadata.exists() else {}
+    saved = json.loads(metadata.read_text(encoding="utf-8")) if metadata.exists() else {}
     if not isinstance(saved, dict) or (saved.get("plugin_root") and not Path(saved["plugin_root"]).is_absolute()):
         raise ValueError("The church connection is invalid; preserve it for review.")
 
@@ -275,7 +294,7 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
         command = [sys.executable, str(candidate / "tools/handbuilt_runtime.py"),
                    "doctor", "--capability", "workspace", "--format", "json"]
         try:
-            check = subprocess.run(command, capture_output=True, text=True, timeout=90)
+            check = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
             report = json.loads(check.stdout)
         except (OSError, subprocess.SubprocessError, TypeError, ValueError) as exc:
             raise RuntimeUpgradeRequired("The new workflow could not complete its runtime check.") from exc
@@ -295,7 +314,7 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
         process = subprocess.run(
             [sys.executable, str(selected / "tools/church_workflow.py"),
              "--church-folder", str(church), "connect", "--update-policy", "stable"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
         )
         try:
             connection = json.loads(process.stdout)
@@ -335,13 +354,42 @@ def _doctor(workflow: str = "bulletin") -> dict:
     arguments = (["verify"] if workflow in PDF_WORKFLOWS
                  else ["doctor", "--capability", "workspace"])
     result = subprocess.run([sys.executable, str(ROOT / "tools/handbuilt_runtime.py"),
-                             *arguments, "--format", "json"], capture_output=True, text=True, timeout=90)
+                             *arguments, "--format", "json"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
     report = json.loads(result.stdout)
     if report.get("status") != "ready":
         return {"status": "blocked", "code": "runtime_not_ready", "runtime_check": report,
                 "runtime_repair": _runtime_repair_plan(),
                 "next_action": report.get("next_action", "Follow the runtime check's repair plan, then check again.")}
     return report
+
+
+_SAFE_CODE = re.compile(r"[A-Za-z][A-Za-z0-9_.\[\]-]{0,79}")
+
+
+def _safe_code(value) -> str | None:
+    """Return a stable code or field name, never free text that could hold church-private words."""
+    return value if isinstance(value, str) and _SAFE_CODE.fullmatch(value) else None
+
+
+def _failure_summary(result: dict) -> dict:
+    """Stable error codes and field names only; messages and details are left out on purpose."""
+    errors = []
+    for item in (result.get("errors") if isinstance(result.get("errors"), list) else [])[:20]:
+        if isinstance(item, dict) and _safe_code(item.get("code")):
+            entry = {"code": item["code"]}
+            if _safe_code(item.get("field")):
+                entry["field"] = item["field"]
+            errors.append(entry)
+    code = _safe_code(result.get("code")) or (errors[0]["code"] if errors else None)
+    field = _safe_code(result.get("field")) or next((e["field"] for e in errors if "field" in e), None)
+    summary = {}
+    if code:
+        summary["error_code"] = code
+    if field:
+        summary["error_field"] = field
+    if errors:
+        summary["errors"] = errors
+    return summary
 
 
 def _record(church: Path, workflow: str, operation: str, result: dict, runtime: dict) -> Path:
@@ -354,7 +402,9 @@ def _record(church: Path, workflow: str, operation: str, result: dict, runtime: 
               "runtime_python": runtime["runtime"]["python"],
               "status": result.get("status"),
               "production_receipt": result.get("receipt") or result.get("receipt_path")}
-    path.write_text(json.dumps(record, indent=2) + "\n")
+    if result.get("status") in {"blocked", "error", "failed"}:
+        record.update(_failure_summary(result))
+    path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -375,10 +425,13 @@ def execute(church: Path, workflow: str, operation: str, arguments: list[str]) -
     if workflow == "bulletin" and operation in {"produce", "revise"}:
         brand_script = ROOT / WORKFLOWS["brand"]
         check = subprocess.run([doctor["runtime"]["python"], str(brand_script), "status",
-                                "--church-folder", str(church)], capture_output=True, text=True)
+                                "--church-folder", str(church)], capture_output=True, text=True, encoding="utf-8", errors="replace")
         brand = json.loads(check.stdout)
         if not brand.get("ready"):
-            return {"status": "blocked", "code": "brand_not_ready", "brand": brand}, 2
+            blocked = {"status": "blocked", "code": "brand_not_ready", "brand": brand}
+            blocked["handbuilt_run"] = str(_record(church, workflow, operation, blocked, doctor))
+            blocked["installation"] = installation()
+            return blocked, 2
     command = [doctor["runtime"]["python"], str(script), operation]
     if not (workflow == "bulletin" and operation == "finalize"):
         command += ["--church-folder", str(church)]
@@ -393,7 +446,7 @@ def execute(church: Path, workflow: str, operation: str, arguments: list[str]) -
             elif value.startswith("--receipt="):
                 if not (church / value.split("=", 1)[1]).resolve().is_relative_to(church):
                     raise ValueError("Finalize only a receipt inside this church folder")
-    process = subprocess.run(command + arguments, cwd=church, capture_output=True, text=True)
+    process = subprocess.run(command + arguments, cwd=church, capture_output=True, text=True, encoding="utf-8", errors="replace")
     try:
         result = json.loads(process.stdout)
     except ValueError:
@@ -423,10 +476,11 @@ def _print_layout():
 
 
 def _week_folder(html_path: Path) -> Path:
-    """The dated week folder, also for an archived copy under .revisions/<v>/."""
+    """The dated week folder, also for a copy under .revisions/<v>/ or revisions/<v>/."""
     parts = html_path.parent.parts
-    if ".revisions" in parts:
-        return Path(*parts[:parts.index(".revisions")])
+    for marker in (".revisions", "revisions"):
+        if marker in parts:
+            return Path(*parts[:parts.index(marker)])
     return html_path.parent
 
 
@@ -439,6 +493,7 @@ def _resolve_moved_assets(html: str, html_path: Path) -> tuple[str, list[dict], 
     folder (and its hymn-images/), then in the plugin's bundled fonts.
     """
     from urllib.parse import unquote, urlparse
+    from urllib.request import url2pathname
 
     week = _week_folder(html_path)
     fonts = ROOT / "skills/bulletin/renderer/fonts"
@@ -449,16 +504,17 @@ def _resolve_moved_assets(html: str, html_path: Path) -> tuple[str, list[dict], 
         if raw.startswith(("data:", "http:", "https:", "#")):
             continue
         if raw.startswith("file://"):
-            path = Path(unquote(urlparse(raw).path))
+            path = Path(url2pathname(urlparse(raw).path))
         else:
             path = html_path.parent / unquote(raw)
         if path.exists():
             continue
         name = path.name
         candidates = [week / name]
-        images = week / "hymn-images"
-        if images.is_dir():
-            candidates += sorted(images.rglob(name))
+        for folder in ("hymn-images", "announcement-images"):
+            images = week / folder
+            if images.is_dir():
+                candidates += sorted(images.rglob(name))
         candidates.append(fonts / name)
         found = next((item for item in candidates if item.is_file()), None)
         if found is None:

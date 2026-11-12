@@ -103,6 +103,15 @@ def _inline(svg_text: str, size_px: int, background: str) -> str:
             f'<div style="width:{int(size_px * 0.84)}px;height:{int(size_px * 0.84)}px">{svg_text}</div></div>')
 
 
+def normalize_dark(value: Any) -> str:
+    """Six hex digits, with or without the #, as the #rrggbb the renderer needs."""
+    text = value.strip() if isinstance(value, str) else ""
+    text = text if text.startswith("#") else f"#{text}"
+    if not HEX.fullmatch(text):
+        raise SurvivalFailure("invalid_dark", "The dark color must be six hex digits, for example #27384a", field="dark")
+    return text.lower()
+
+
 def render_mark(root: Path, svg_path: Path, out_dir: Path, dark: str = DEFAULT_DARK) -> dict[str, str]:
     """Render sign (black on white) and reversed (white on dark) at 512 px, plus footer and favicon at true size.
 
@@ -114,8 +123,7 @@ def render_mark(root: Path, svg_path: Path, out_dir: Path, dark: str = DEFAULT_D
     except ImportError as exc:
         raise SurvivalFailure("renderer_unavailable", "WeasyPrint is unavailable in this runtime; run the runtime doctor") from exc
     from PIL import Image  # noqa: WPS433
-    if not HEX.fullmatch(dark or ""):
-        raise SurvivalFailure("invalid_dark", "The dark color must be a six-digit hex value", field="dark")
+    dark = normalize_dark(dark)
     svg_text = svg_path.read_text(encoding="utf-8")
     svg_text = re.sub(r"<svg\b", '<svg style="width:100%;height:100%;display:block"', svg_text, count=1)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -245,6 +253,7 @@ def check_embroidery(sign_image) -> dict[str, Any]:
 
 def run_checks(root: Path, svg_path: Path, out_dir: Path, *, which: tuple[str, ...], dark: str = DEFAULT_DARK) -> dict[str, Any]:
     """Render one mark and run the named checks. Pass or fail, never a score."""
+    dark = normalize_dark(dark)
     from PIL import Image  # noqa: WPS433
     validate_mark_svg(svg_path)
     renders = render_mark(root, svg_path, out_dir, dark=dark)

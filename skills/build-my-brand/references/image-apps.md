@@ -55,7 +55,7 @@ prompt and saves the result into `brand/inbox/` the same way.
 Register what arrived with `import-images`, naming the app as the tool:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand import-images \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand import-images \
   --round <name> --files brand/inbox/<file> ... \
   --prompt-file brand/staging/explorations/<round>/prompts.md --tool "ChatGPT"
 ```

@@ -20,7 +20,9 @@ listed in ``tools/example-accounts.txt``.
 
 Images, PDFs, office documents, spreadsheets and accounting exports are never
 committed: a scan, screenshot or export cannot be read for private material,
-so the file type itself is a finding. Fonts are the only binary files allowed.
+so the file type itself is a finding. Fonts are the only binary files allowed,
+apart from the plugin icon, which is pinned by checksum so nothing else can take
+its place.
 
 ``--text FILE`` scans pull request titles, descriptions and commit messages
 written to FILE with the same rules, so public Git and GitHub text is checked
@@ -30,6 +32,7 @@ as well as the tree.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import subprocess
@@ -119,6 +122,9 @@ BLOCKED_FILE_TYPES = {
     ".ods", ".odt", ".ofx", ".pages", ".pdf", ".png", ".ppt", ".pptx", ".qbo", ".qfx",
     ".svg", ".tif", ".tiff", ".tsv", ".webp", ".xls", ".xlsx", ".zip",
 }
+# The one image in the tree: Handbuilt's own mark, which directory listings show.
+PLUGIN_ICON = ".claude-plugin/icon.png"
+PLUGIN_ICON_SHA256 = "ca3d53c1638e21acc5ef110670435a4fbca16b14842748d880866f4c4a197038"
 FIGURE_REGISTRY = Path("tools") / "example-figures.txt"
 DOLLAR_FIGURE = re.compile(r"\$\s?([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})(?:\.[0-9]{1,2})?(?![0-9])")
 GROUPED_FIGURE = re.compile(r"(?<![0-9.,$])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,])")
@@ -318,6 +324,9 @@ def scan_worktree(root: Path, denylist: Iterable[str]) -> tuple[list[Finding], l
             continue
         if is_sensitive_filename(path):
             findings.append(Finding(location, "sensitive filename"))
+        if (location == PLUGIN_ICON
+                and hashlib.sha256(path.read_bytes()).hexdigest() == PLUGIN_ICON_SHA256):
+            continue
         if path.suffix.lower() in BLOCKED_FILE_TYPES:
             # In a checkout, only committed files count; test runs may leave renders behind.
             if not (root / ".git").exists() or location in tracked:
@@ -340,7 +349,7 @@ def git_history_objects(root: Path) -> Iterator[tuple[str, str]]:
         ["git", "rev-list", "--objects", "--all"],
         cwd=root,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         check=False,
     )
     if result.returncode != 0:

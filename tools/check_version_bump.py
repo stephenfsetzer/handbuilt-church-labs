@@ -56,7 +56,7 @@ def parse_version(text: str) -> tuple[int, int, int]:
 
 def _git(*arguments: str) -> str:
     return subprocess.run(
-        ["git", "-C", str(ROOT), *arguments], check=True, capture_output=True, text=True
+        ["git", "-C", str(ROOT), *arguments], check=True, capture_output=True, text=True, encoding="utf-8", errors="replace"
     ).stdout
 
 

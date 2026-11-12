@@ -48,7 +48,7 @@ def extract_pages(pdf: Path) -> list[list[str]]:
             ["pdftotext", "-layout", str(pdf), str(text_path)],
             check=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
         )
         text = text_path.read_text(encoding="utf-8")
     pages = text.split("\f")

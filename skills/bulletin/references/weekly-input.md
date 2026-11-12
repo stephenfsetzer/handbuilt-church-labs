@@ -26,6 +26,17 @@ The agent builds one private JSON object:
 | `parish_information` | Optional. Omit it to use the church's saved standing sections. Set `before_service` and/or `after_service` explicitly, including an empty list, to override or suppress that scope for this week only; each is an ordered list of `{title, text}`. |
 | `options` | Supported weekly display choices from the schema. Do not invent a `presentation` wrapper. |
 
+When the pastor has not chosen a hymn yet, save a visible blank for that slot,
+such as `{"title": "[Closing hymn to be chosen]"}`, and ask for the choice.
+Never choose a hymn for them. Production lists the bracket under `open_items`,
+so it cannot reach print unnoticed.
+
+`lectionary.optional_verses` in `church.yaml` decides optional verses, such as
+Psalm 90:1-8, (9-11), 12. `include_all` prints them and `omit_optional` leaves
+them out. `appointed` follows the published appointment: print the optional
+verses and tell the pastor they can be dropped. `ask_each_week` asks. Say which
+verses printed in the heading.
+
 A recurring welcome, accessibility note, pastoral contact, or worship-book
 explanation found in a supplied source belongs in the standing
 `church.yaml bulletin.parish_information` field (see
@@ -38,6 +49,10 @@ feature. It is a supported field now.
 Rite II". It is not the Sunday occasion. Leave it absent unless a source or the
 pastor supplies a distinct service title; `service.occasion` already prints
 the calendar occasion on the cover.
+
+A blank line in reading text prints as a gap. For a reading set as poetry, keep
+the source's line breaks and add a blank line only where the source has a stanza
+break. Never add one in mid-sentence. A single newline keeps the next line close.
 
 For the psalm, preserve verified verse numbers, half-verse markers, and the
 church's saved response format. The renderer has distinct responsive and

@@ -3,6 +3,7 @@
 import argparse
 import mimetypes
 import re
+import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -76,14 +77,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", required=True)
     parser.add_argument("--port", type=int, default=0)
+    parser.add_argument("--minutes", type=float, default=60,
+                        help="Stop on its own after this many minutes, so a forgotten preview never keeps running.")
     args = parser.parse_args()
     root = Path(args.run_dir).expanduser().resolve()
     if not (root / "review.html").is_file():
         parser.error("The review page has not been prepared.")
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(root))
     url = f"http://127.0.0.1:{server.server_port}/review.html"
-    (root / "preview-url.txt").write_text(url + "\n")
+    (root / "preview-url.txt").write_text(url + "\n", encoding="utf-8")
     print(url, flush=True)
+    if args.minutes > 0:
+        stopper = threading.Timer(args.minutes * 60, server.shutdown)
+        stopper.daemon = True
+        stopper.start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

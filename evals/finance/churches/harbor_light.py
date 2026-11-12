@@ -57,9 +57,9 @@ TRUTH = {
     "one_time": [],
     "connector_limit": True,
     "skill": {
-        "tell": ["The profit and loss from QuickBooks was cut off at the connector's row limit, so its figures cannot be used yet.",
+        "tell": ["The profit and loss from QuickBooks was cut off at the connector's row limit, so its account lines cannot be used yet; at most its section totals may be quoted, labeled as totals.",
                  "What happens next: a shorter period or a QuickBooks export, and who can provide it."],
-        "avoid": ["Presents income, spending, or a result for the twelve months from the cut-off pull."],
+        "avoid": ["Presents line detail, groups, accounts, a largest source or other findings from the cut-off pull, or quotes its section totals without labeling them as totals from a cut-off pull."],
     },
     "checks": [
         {"id": "refuses_partial_pull", "kind": "look_refuses_truncated",

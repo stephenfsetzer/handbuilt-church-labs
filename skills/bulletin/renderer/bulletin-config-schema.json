@@ -78,6 +78,7 @@
       "properties": {
         "include_serving_today": {"type": "boolean", "default": false},
         "merge_back_page": {"type": "boolean", "default": false},
+        "announcements_placement": {"type": "string", "enum": ["back_page", "after_connect_give"], "default": "back_page"},
         "serving_roles": {"type": "array", "items": {"type": "string"}},
         "print_mode": {
           "type": "string",
@@ -168,6 +169,7 @@
         "images": {"type": "array", "items": {"type": "string"}},
         "image": {"type": "string"},
         "lyric_columns": {"type": "integer", "enum": [1, 2]},
+        "print_width": {"type": "number", "exclusiveMinimum": 0, "description": "Optional maximum printed width of the music images, in inches."},
         "lyrics": {
           "type": "array",
           "items": {
@@ -245,14 +247,27 @@
       "additionalProperties": false
     },
     "announcementEntry": {
-      "description": "A dated weekly announcement. image/images may carry a supplied event poster or inline QR graphic; caption is optional text under the image(s).",
+      "description": "A dated weekly announcement. image/images may carry a supplied event poster or inline QR graphic, sized to the text column; caption is optional text under the image(s). featured prints one boxed block with a photo, a figure, a progress bar and a QR code, written as real text.",
       "type": "object",
       "properties": {
         "title": {"type": "string"},
         "text": {"type": "string"},
         "image": {"type": "string"},
         "images": {"type": "array", "items": {"type": "string"}},
-        "caption": {"type": "string"}
+        "caption": {"type": "string"},
+        "featured": {
+          "description": "A featured announcement block. Every part is optional, but it needs at least one. It never splits across pages.",
+          "type": "object",
+          "properties": {
+            "photo": {"type": "string", "description": "Church-relative path to a photo, shown 4:5."},
+            "figure": {"type": "string", "description": "A short figure in display type, for example 'More than $2,400'."},
+            "figure_note": {"type": "string", "description": "A line under the figure, for example 'given so far toward our $8,000 goal'."},
+            "progress": {"type": "number", "minimum": 0, "maximum": 100, "description": "Percent of the goal reached, drawn as a bar."},
+            "qr_url": {"type": "string", "pattern": "^https?://", "description": "The web address the printed QR code opens."},
+            "qr_label": {"type": "string", "description": "Words under the QR code (default 'Scan the code')."}
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },

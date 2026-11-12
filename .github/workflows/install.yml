@@ -1,0 +1,141 @@
+name: Install on a pastor's computer
+
+# Runs the real setup on Windows, macOS and Linux, the way an agent would on a
+# computer with no usable Python: Handbuilt fetches its own Python, builds its
+# private environment, and passes the Church Command Center readiness check.
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: Setup on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Handbuilt fetches its own Python
+        run: |
+          export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt runtime"
+          printf 'HANDBUILT_RUNTIME_HOME=%s\n' "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
+          bin/handbuilt-python --where
+          bin/handbuilt-python -c "import sys, ssl; print(sys.version); print(ssl.OPENSSL_VERSION)"
+
+      - name: Build the private environment and check readiness
+        run: |
+          bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
+          cat "$RUNNER_TEMP/setup.json"
+          bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
+          bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          import json, sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          print(report["status"], "-", report["message"])
+          if report["status"] != "ready":
+              raise SystemExit("The Church Command Center readiness check did not pass: " + str(report.get("next_action")))
+          print(report["runtime"]["python"])
+          PY
+
+      - name: Create a church folder with the private environment
+        run: |
+          python_path=$(bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          import json, sys
+          print(json.load(open(sys.argv[1], encoding="utf-8"))["runtime"]["python"])
+          PY
+          )
+          printf 'HANDBUILT_TEST_PYTHON=%s\n' "$python_path" >> "$GITHUB_ENV"
+          "$python_path" -m unittest tests.test_own_python -v 2>&1 | tail -40
+
+      - name: Handbuilt's own PDF tools build and check a sample PDF
+        if: runner.os != 'Linux'
+        run: |
+          bin/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
+          # Time the sample PDF by itself, so a slow first run shows up plainly.
+          bin/handbuilt-python - "$RUNNER_TEMP/native.json" "$HANDBUILT_TEST_PYTHON" <<'PY' || true
+          import json, subprocess, sys, time
+          tools = json.load(open(sys.argv[1], encoding="utf-8"))["native_tools"]["locations"]
+          start = time.time()
+          import os
+          done = subprocess.run([sys.argv[2], "-I", "-B", "-X", "faulthandler", "tools/runtime_probe.py",
+                                 *[tools[name] for name in ("pdftoppm", "pdfinfo", "pdffonts", "pdftotext")]],
+                                capture_output=True, text=True, timeout=900,
+                                env={**os.environ, "DYLD_PRINT_LIBRARIES": "1"})
+          print("sample PDF seconds:", round(time.time() - start), "exit:", done.returncode)
+          print(done.stdout[-1500:])
+          loaded = [line for line in done.stderr.splitlines() if "dyld" in line and ("native" in line or "homebrew" in line or "/usr/local" in line)]
+          print("libraries loaded from outside the system:", len(loaded))
+          print("\n".join(loaded[-60:]))
+          print("\n".join(line for line in done.stderr.splitlines() if "dyld" not in line)[-3500:])
+          PY
+          bin/handbuilt-python tools/handbuilt_runtime.py verify --format json > "$RUNNER_TEMP/verify.json" || true
+          bin/handbuilt-python - "$RUNNER_TEMP/native.json" "$RUNNER_TEMP/verify.json" <<'PY'
+          import json, sys
+          native = json.load(open(sys.argv[1], encoding="utf-8"))
+          verify = json.load(open(sys.argv[2], encoding="utf-8"))
+          print("native-install:", native["status"], "-", native["message"], "-", native.get("technical_detail"))
+          print("tools:", native["native_tools"]["locations"])
+          print("verify:", verify["status"], "-", verify["message"], "-", verify.get("technical_detail"))
+          if verify["status"] != "ready" or not verify.get("verification", {}).get("ok"):
+              raise SystemExit("A sample PDF could not be built and checked with Handbuilt's own PDF tools.")
+          PY
+
+      - name: The Windows command launcher works without Git Bash
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          set "HANDBUILT_RUNTIME_HOME=%RUNNER_TEMP%\handbuilt cmd runtime"
+          call bin\handbuilt-python.cmd --where || exit /b 1
+          call bin\handbuilt-python.cmd -c "import sys; print(sys.version)" || exit /b 1
+          call bin\handbuilt-python.cmd -c "import pathlib; pathlib.Path('utf8-check.txt').write_text(chr(8220) + 'psalm' + chr(8221)); print(pathlib.Path('utf8-check.txt').read_text())" || exit /b 1
+
+  suite:
+    # The whole regression suite on each system. It reports what does not yet
+    # work there without blocking a release; setup above is the gate.
+    name: Regression suite on ${{ matrix.os }} (report only)
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+      - name: Prepare Handbuilt's environment
+        run: |
+          export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt runtime"
+          printf 'HANDBUILT_RUNTIME_HOME=%s\n' "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
+          bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
+          bin/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
+          bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
+      - name: Run the regression suite
+        run: |
+          python_path=$(bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          import json, sys
+          print(json.load(open(sys.argv[1], encoding="utf-8"))["runtime"]["python"])
+          PY
+          )
+          "$python_path" -m unittest discover -s tests -p 'test_*.py' > "$RUNNER_TEMP/suite.log" 2>&1 || true
+          grep -E "^(FAIL|ERROR): |^Ran |^OK|^FAILED" "$RUNNER_TEMP/suite.log" | head -300
+          tail -5 "$RUNNER_TEMP/suite.log"
+          grep -q "^OK" "$RUNNER_TEMP/suite.log"
+      - name: Save the full suite log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-log-${{ matrix.os }}
+          path: ${{ runner.temp }}/suite.log

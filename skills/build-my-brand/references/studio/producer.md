@@ -22,7 +22,7 @@ system that survives the real world.
 4. **Run the survival checks.** They are pass or fail, never a score:
 
    ```bash
-   python3 "<church-folder>/handbuilt.py" build-my-brand check-marks \
+   handbuilt-python "<church-folder>/handbuilt.py" build-my-brand check-marks \
      --primary brand/staging/marks/mark.svg --small brand/staging/marks/mark-small.svg --dark <hex>
    ```
 

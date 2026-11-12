@@ -19,13 +19,25 @@ class SundayLibraryError(ValueError):
     pass
 
 
+def _matches_release(path: Path, expected: str) -> bool:
+    """Whether a shipped text file is the released one.
+
+    Git on Windows can rewrite line endings when it downloads the plugin. That
+    changes the bytes and not the words, so the text is also checked with
+    Windows line endings turned back.
+    """
+    data = path.read_bytes()
+    return expected in (hashlib.sha256(data).hexdigest(),
+                        hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest())
+
+
 def _read_data() -> dict:
     path = RESOURCE_DIR / "sunday.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         manifest = json.loads((RESOURCE_DIR / "manifest.json").read_text(encoding="utf-8"))
         expected = manifest["data"]["sha256"]
-        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+        if not _matches_release(path, expected):
             raise ValueError("Bundled Sunday text differs from its verified release")
         return data
     except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -42,7 +54,7 @@ def verify_shipped_liturgy(identifier: str, *, plugin_root: Path | None = None) 
         if entry is None:
             return  # Other public or church-owned units retain their own checks.
         path = root / "skills/bulletin/renderer/liturgy" / f"{identifier}.md"
-        if hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
+        if not _matches_release(path, entry["sha256"]):
             raise ValueError("Changed standard worship text")
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise SundayLibraryError(f"The bundled {identifier} source is missing or changed. Restore the verified plugin release; the pastor does not need to locate a replacement source.") from exc

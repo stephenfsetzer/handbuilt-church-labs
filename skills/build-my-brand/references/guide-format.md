@@ -36,12 +36,37 @@ The interface then appends, in a fixed block, whichever of these apply:
 **Recommended:** version B, because ...
 **It follows your earlier pick:** the direction pick, ...
 **Decision:** the pick
+**Decided by:** the pastor
 **Why:** the rationale
+```
+
+A round the pastor has not decided shows this instead of the decision lines:
+
+```
+**Proposed by the studio, not yet decided:** the suggestion
+**Why the studio suggests it:** the reason
 ```
 
 The plan's section gets a table of its phases instead. The rendered guide
 sets the opening lines and the decision lines apart so a reader skimming
 can find where they are and every decision.
+
+## The label and the summary
+
+The interface keeps a block at the top of the guide, between `standing`
+markers. It labels the guide as the pastor's own working record and lists
+every choice under "Decided by the pastor" or "Proposed by the studio, not yet
+decided". Choices from before this marking existed get a third label. Edit
+anywhere else; the interface rewrites this block.
+
+Amendments get their own sections at the end, each opening with **This is an
+amendment.** and closing with its status.
+
+## The governing-body edition
+
+`brand/governing-body-edition.md` is generated from the record, never from
+these sections. See "Which document to share" in the skill. Edits to it are
+overwritten.
 
 ## Images and side-by-side proof
 

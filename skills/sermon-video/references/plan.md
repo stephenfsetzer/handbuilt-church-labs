@@ -87,7 +87,7 @@ After mechanical verification, record actual observations in private JSON:
 ```
 
 ```bash
-python3 <skill>/scripts/sermon_video.py review --plan <folder>/plan.json \
+handbuilt-python <skill>/scripts/sermon_video.py review --plan <folder>/plan.json \
   --observations <folder>/review-observations.json
 ```
 

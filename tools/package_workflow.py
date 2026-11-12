@@ -61,7 +61,7 @@ def _run_git(root: Path, *arguments: str) -> str:
             ["git", "-C", str(root), *arguments],
             check=True,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
         )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise PackageError(f"Unable to inspect the source repository: {exc}") from exc

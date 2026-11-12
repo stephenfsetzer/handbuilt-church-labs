@@ -27,7 +27,7 @@ def check_pdf_tools(tools: dict[str, str]) -> list[str]:
         checks.append("render")
 
         def run(name: str, *args: str) -> str:
-            result = subprocess.run([tools[name], *args], capture_output=True, text=True,
+            result = subprocess.run([tools[name], *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                     timeout=10, check=True)
             checks.append(name)
             return result.stdout

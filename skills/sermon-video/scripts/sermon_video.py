@@ -107,7 +107,7 @@ def discover_candidates(text, page_url):
 
 def probe(path):
     return json.loads(run(["ffprobe", "-v", "error", "-show_format", "-show_streams",
-                           "-of", "json", path], capture_output=True, text=True).stdout)
+                           "-of", "json", path], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout)
 
 
 def plan(path):
@@ -256,7 +256,7 @@ def artwork(root, data):
     assets = root / "assets"
     assets.mkdir(exist_ok=True)
     if not (assets / "fonts.css").exists():           # the pages import it; without it the system fonts apply
-        (assets / "fonts.css").write_text("/* No custom fonts. The system fonts named in the plan are used. */\n")
+        (assets / "fonts.css").write_text("/* No custom fonts. The system fonts named in the plan are used. */\n", encoding="utf-8")
     values = {"church": escape(data["church"]["name"]),
               "title": escape(visible(data, "title") or "A Sunday sermon"),
               "preacher": escape(visible(data, "preacher")),
@@ -309,9 +309,17 @@ def artwork(root, data):
     values["metadata"] = escape(" · ".join(filter(None, [visible(data, k) for k in ("scripture", "sunday", "service_date")])))
     values["panel_metadata"] = escape(" · ".join(filter(None, [visible(data, k) for k in ("scripture", "service_date")])))
     for name in ("thumbnail", "intro", "outro", "lower-third"):
-        template = Template((SKILL / "assets" / (name + ".html")).read_text())
+        template = Template((SKILL / "assets" / (name + ".html")).read_text(encoding="utf-8"))
         (root / (name + ".html")).write_text(template.substitute(values), encoding="utf-8")
     review_page(root, data, values)
+
+
+def church_site(website):
+    """church.yaml may hold a bare domain such as example.org; a link needs its scheme."""
+    website = str(website or "").strip()
+    if website and not re.match(r"https?://", website, re.I):
+        website = "https://" + website
+    return website
 
 
 def review_page(root, data, values):
@@ -323,7 +331,7 @@ def review_page(root, data, values):
     notes.extend(f'{k.replace("_", " ").capitalize()}: {v.get("evidence", "Not established")}'
                  for k, v in data.get("labels", {}).items() if v.get("status") in ("unknown", "provisional"))
     values = {**values, "labels": "".join(labels), "notes": "".join(f"<li>{escape(n)}</li>" for n in notes),
-              "source_url": escape(data["source"].get("url", data["church"].get("website", ""))),
+              "source_url": escape(data["source"].get("url") or church_site(data["church"].get("website", ""))),
               "ending": str(max(0, data["sermon"]["end"] - data["sermon"]["start"] + data["video"]["intro_seconds"] - 20)),
               "panel": str(data["video"]["intro_seconds"] + data["video"]["lower_start"] + 1)}
     if values["source_url"]:
@@ -331,7 +339,7 @@ def review_page(root, data, values):
     values["caption_track"] = '<track kind="captions" src="sermon.en.vtt" srclang="en" label="English (review draft)">' if (root / "sermon.en.vtt").exists() else ""
     values["caption_links"] = '<a href="sermon.en.srt" download>Download captions</a><a href="sermon-transcript.txt">Read transcript</a>' if (root / "sermon.en.srt").exists() else ""
     values["caption_notice"] = "Captions are a draft for parish review." if values["caption_track"] else "Captions are not available in this review copy."
-    (root / "review.html").write_text(Template((SKILL / "assets/review.html").read_text()).substitute(values), encoding="utf-8")
+    (root / "review.html").write_text(Template((SKILL / "assets/review.html").read_text(encoding="utf-8")).substitute(values), encoding="utf-8")
     (root / "upload-copy.txt").write_text(visible(data, "title") + "\n\n" + data["church"]["name"] + "\n" +
                                         "\n".join(f'{k}: {v.get("text", "")} ({v["status"]})' for k, v in data.get("labels", {}).items()) +
                                         "\n\n" + "\n".join(notes) + "\n", encoding="utf-8")
@@ -500,8 +508,8 @@ def write_captions(root, data, given, origin=0.0):
         position = " line:45%" if name_panel(data) and a < panel_end and b > panel_start else ""
         vtt.extend([f"{timestamp(a)} --> {timestamp(b)}{position}", wrapped, ""])
         srt.extend([str(i), f'{timestamp(a, ",")} --> {timestamp(b, ",")}', wrapped, ""])
-    (root / "sermon.en.vtt").write_text("\n".join(vtt)); (root / "sermon.en.srt").write_text("\n".join(srt))
-    (root / "sermon-transcript.txt").write_text("Draft transcript for parish review.\n\n" + "\n\n".join(c[2] for c in cues) + "\n")
+    (root / "sermon.en.vtt").write_text("\n".join(vtt), encoding="utf-8"); (root / "sermon.en.srt").write_text("\n".join(srt), encoding="utf-8")
+    (root / "sermon-transcript.txt").write_text("Draft transcript for parish review.\n\n" + "\n\n".join(c[2] for c in cues) + "\n", encoding="utf-8")
     if (root / "review.html").exists():
         artwork(root, data)
     return {"status": "draft_captions_ready", "cues": len(cues)}
@@ -555,7 +563,7 @@ def source_view(root, data):
 def check_master(original, master, offset, length):
     """Prove the master matches the recording, sound and picture, at three points before the recording can be removed."""
     def compare(args):
-        return subprocess.run([str(a) for a in ["ffmpeg", "-hide_banner", "-nostats"] + args], capture_output=True, text=True)
+        return subprocess.run([str(a) for a in ["ffmpeg", "-hide_banner", "-nostats"] + args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     for t in sorted({round(min(1.0, length / 4), 2), round(length / 2, 2), round(max(0.0, length - 6), 2)}):
         window = min(3.0, length - t)
         sound = compare(["-ss", offset + t, "-t", window, "-i", original, "-ss", t, "-t", window, "-i", master,
@@ -670,7 +678,7 @@ def render(root, data):
     speech_duration = end - start
     measure = run(["ffmpeg", "-hide_banner", "-ss", start, "-i", source, "-t", speech_duration,
                    "-vn", "-af", "loudnorm=I=-18:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"],
-                  capture_output=True, text=True)
+                  capture_output=True, text=True, encoding="utf-8", errors="replace")
     match = re.search(r'\{\s*"input_i".*?\}', measure.stderr, re.S)
     if not match:
         raise ValueError("Could not measure sermon audio.")
@@ -808,7 +816,7 @@ def loudness_filter(levels):
 def ffmpeg_version():
     """The version line of the ffmpeg that made the video, kept in the receipt."""
     try:
-        first = run(["ffmpeg", "-version"], capture_output=True, text=True).stdout.splitlines()[0]
+        first = run(["ffmpeg", "-version"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.splitlines()[0]
     except (OSError, subprocess.CalledProcessError, IndexError):
         return "unknown"
     return first.replace("ffmpeg version ", "").split(" Copyright")[0].strip() or "unknown"
@@ -826,7 +834,7 @@ def audio_check(root, data, receipt, output):
     measured = subprocess.run([str(a) for a in ["ffmpeg", "-hide_banner", "-nostats", "-ss", view["start"], "-t", length,
                                                   "-i", view["path"], "-ss", data["video"]["intro_seconds"], "-t", length,
                                                   "-i", output, "-filter_complex", graph, "-f", "null", "-"]],
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, encoding="utf-8", errors="replace")
     if measured.returncode != 0 and "No such filter" in measured.stderr:
         return None
     found = re.findall(r"SDR ch\d+: (-?[\d.]+|inf) dB", measured.stderr)
@@ -873,7 +881,7 @@ def verify(root, data):
         def seconds(value):
             a, b, c = value.split(":")
             return float(a) * 3600 + float(b) * 60 + float(c)
-        for a, b in re.findall(r"(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})", captions.read_text()):
+        for a, b in re.findall(r"(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})", captions.read_text(encoding="utf-8")):
             cues.append((seconds(a), seconds(b)))
         if not cues or any(a < 0 or a >= b or b > duration for a, b in cues) or any(cues[i][1] > cues[i + 1][0] for i in range(len(cues) - 1)):
             raise ValueError("Caption timestamps are invalid or overlapping.")
@@ -948,7 +956,7 @@ def release(version):
 
 def yt_dlp_version():
     try:
-        return run(["yt-dlp", "--version"], capture_output=True, text=True).stdout.strip() or None
+        return run(["yt-dlp", "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip() or None
     except (OSError, subprocess.CalledProcessError):
         return None
 
@@ -1002,7 +1010,7 @@ def downloader_report():
     version, runtime = yt_dlp_version(), js_runtime()
     try:
         header = subprocess.run([str(a) for a in yt_dlp_command(["-v"], runtime, version)],
-                                capture_output=True, text=True, timeout=60).stderr
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60).stderr
     except (OSError, subprocess.TimeoutExpired):
         header = ""
     return downloader_status(version, runtime, header)
@@ -1011,7 +1019,7 @@ def downloader_report():
 def estimate_download_bytes(url, max_height, runtime, version, extra=()):
     """The provider's own size estimate for the chosen formats, or None when it gives none."""
     try:
-        info = json.loads(run(estimate_command(url, max_height, runtime, version, extra), capture_output=True, text=True).stdout)
+        info = json.loads(run(estimate_command(url, max_height, runtime, version, extra), capture_output=True, text=True, encoding="utf-8", errors="replace").stdout)
     except (OSError, ValueError, subprocess.CalledProcessError):
         return None
     sizes = [part.get("filesize") or part.get("filesize_approx") for part in (info.get("requested_formats") or [info])]

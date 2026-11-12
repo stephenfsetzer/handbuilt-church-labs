@@ -43,7 +43,7 @@ text. Save briefs under `.handbuilt/build-my-brand/scratch/briefs/`.
 Draw each concept, with reference images when they help:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand draw \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand draw \
   --round <name> --brief-file <brief.md> --n 4 [--reference <png> ...] [--provider openai|gemini|recraft] --maker <your name>
 ```
 
@@ -51,14 +51,14 @@ After the pastor reacts to the creative director's picks, make precise
 edits of the chosen image for variations. Say what changes and what stays:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand edit \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand edit \
   --round <name> --source <chosen.png> --instruction-file <edit.md> --n 2
 ```
 
 When the pastor keeps one, vectorize it into the staged mark:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand vectorize \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand vectorize \
   --source <chosen.png> --out brand/staging/marks/mark.svg
 ```
 
@@ -72,7 +72,7 @@ If the host has its own image tool, make the images there from the same
 brief and register them, with no network:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand import-images \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand import-images \
   --round <name> --files <png> ... --prompt-file <brief.md> --tool "<tool name>"
 ```
 

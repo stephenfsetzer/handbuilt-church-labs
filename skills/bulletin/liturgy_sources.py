@@ -85,7 +85,7 @@ def require_verified_source(church_folder: str | Path, file: str | Path) -> dict
     text = _owned(root, file)
     try:
         sidecar = _owned(root, str(text) + ".source.json")
-        record = json.loads(sidecar.read_text())
+        record = json.loads(sidecar.read_text(encoding="utf-8"))
         source = record["source"]
         target = record["text"]
         original = _owned(root, source["path"])

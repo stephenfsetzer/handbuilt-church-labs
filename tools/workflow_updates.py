@@ -43,7 +43,7 @@ def version(value):
 
 
 def package_version(root):
-    values = [json.loads((root / directory / 'plugin.json').read_text())
+    values = [json.loads((root / directory / 'plugin.json').read_text(encoding="utf-8"))
               for directory in ('.codex-plugin', '.claude-plugin')]
     if any(not isinstance(item, dict) or item.get('name') != 'handbuilt-church-labs' for item in values):
         raise ValueError('Unexpected workflow package name.')
@@ -151,13 +151,13 @@ def unpack_verified(data, digest, destination, expected_version):
             path = destination / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
-        (destination / '.handbuilt-workflow.json').write_text(json.dumps(manifest))
+        (destination / '.handbuilt-workflow.json').write_text(json.dumps(manifest), encoding="utf-8")
     if package_version(destination) != expected_version:
         raise ValueError('The package version does not match its release.')
 
 
 def verify_installed(root):
-    manifest = json.loads((root / '.handbuilt-workflow.json').read_text())
+    manifest = json.loads((root / '.handbuilt-workflow.json').read_text(encoding="utf-8"))
     if (not isinstance(manifest, dict) or manifest.get('schema_version') != 1
             or manifest.get('version') != package_version(root)
             or not isinstance(manifest.get('files'), dict)
@@ -218,6 +218,11 @@ def file_lock(path):
             unlock()
 
 
+def _usable_release(latest):
+    """True only for a cached release record that carries both release assets."""
+    return set(latest['assets']) == {PACKAGE, CHECKSUM}
+
+
 def update_lock(store):
     return file_lock(store / 'update.lock')
 
@@ -237,18 +242,26 @@ def select_release(current_root, store, validate, *, download=fetch, now=time.ti
                 return dict(result, status='deferred', reason='another_update_in_progress')
             state_path = store / 'latest-check.json'
             try:
-                state = json.loads(state_path.read_text())
+                state = json.loads(state_path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 state = {}
             if not isinstance(state, dict):
                 state = {}
             checked = state.get('checked_at', 0)
-            if not force and isinstance(checked, (float, int)) and 0 <= now() - checked < CHECK_INTERVAL:
-                latest = state.get('latest')
-                if not isinstance(latest, dict):
-                    return dict(result, status='deferred', reason='recent_check_unavailable')
+            cached = state.get('latest')
+            recent = not force and isinstance(checked, (float, int)) and 0 <= now() - checked < CHECK_INTERVAL
+            if recent and not isinstance(cached, dict):
+                # A recent live check failed; do not retry the network until the window ends.
+                return dict(result, status='deferred', reason='recent_check_unavailable')
+            if recent:
+                # Foreign sources in a cached record are rejected here without any request.
+                validate_release_metadata(cached)
+            if recent and _usable_release(cached):
+                latest = cached
                 result['freshness'] = 'cached'
             else:
+                # A missing, malformed or asset-less record is never fresh: check live.
+                # If the live check fails, the handler below reports deferred, not current.
                 try:
                     latest = latest_release(download)
                 except (OSError, ValueError, TypeError, KeyError):

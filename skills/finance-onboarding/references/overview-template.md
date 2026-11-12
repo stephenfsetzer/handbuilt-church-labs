@@ -7,7 +7,8 @@ and date; estimates are labeled.
 ## Sections
 
 1. **Summary.** Five or six numbered findings, most important first: can we
-   pay our bills, the year's direction, the biggest dependency, anything that
+   pay our bills, the direction over the twelve months pulled (say which
+   months; they are not the church's year), the biggest dependency, anything that
    changes what "cash" means (restricted funds), how trustworthy the books
    are today.
 2. **Systems and how money moves.** QuickBooks, the bank, payment services,

@@ -52,7 +52,8 @@ operations workflows. Sessions here behave by these rules.
    Riverbend chart or are invented, and each one is listed in
    `tools/example-accounts.txt`. `tools/pii_check.py` fails on any figure or
    account number that is not listed. Images, PDFs, office files, spreadsheets and accounting exports are
-   never committed. Commit messages, pull request titles and descriptions,
+   never committed, apart from the plugin icon that `tools/pii_check.py` pins by
+   checksum. Commit messages, pull request titles and descriptions,
    and release notes are public too: describe a bug in general terms, never
    with a church's name or figures. CI checks all of it, including against a
    private denylist kept in the `HANDBUILT_PRIVATE_DENYLIST` repository
@@ -67,6 +68,9 @@ operations workflows. Sessions here behave by these rules.
    built-in `unittest`, not `pytest`. For church work, use the active skill's
    saved-file and output checks instead of running developer tests after each
    onboarding stage.
+5. **Meet the module release standard.** No workflow is released or built
+   without tool checks, agent checks and finished-work checks. See
+   [the standard](AGENTS.md#module-release-standard).
 
 ## Working on a church (not on the Labs)
 

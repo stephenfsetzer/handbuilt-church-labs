@@ -41,15 +41,43 @@ open beside the conversation, and in a working session put it on the shared
 screen so everyone looks at the same page. `build-my-brand book` rewrites it
 by hand.
 
+## Which document to share
+
+- `brand/guide.md`, its PDF and `brand/book.html` are the pastor's own working
+  record. They hold interview answers and the conversation behind each
+  choice, and they say so. `brand/brief.md` is private too.
+- `brand/governing-body-edition.md` is the one to give a vestry, council, or
+  other governing body. The interface rewrites it after every recorded stage.
+  It holds the decisions and the reasons, and leaves out interview answers,
+  lesson text, the `rationale`, handoffs and run details. Render a PDF with
+  `render-guide --edition governing-body`.
+
+When the pastor wants to share the brand with leaders, offer the edition, not
+the guide. Its reasons come only from `reason_for_leaders`, a sentence or two
+in the studio's own words on each decision record, with no quotation marks and
+no interview answers. Write one on every record. `orient` lists any choice
+still missing one under `governing_edition.needs_reason`, and any text the
+edition left out under `governing_edition.held_back`. Read the edition before
+the pastor shares it: the check catches quotation marks and word-for-word
+interview answers, not a paraphrase. The edition prints each `decision`
+as written; when a decision quotes the pastor, recording it asks for
+`decision_for_leaders`, the same choice in your own words. A cover note or
+anything else you write for leaders follows the same rule: paraphrase, never
+repeat the pastor's words. Write decisions in plain words a vestry member can follow, never
+studio shorthand such as "Direction A" or "1B, 2A". State as fact only what
+the pastor or church records say, such as where the name comes from. In the
+guide and the edition, explain a design term such as lockup or wordmark the
+first time, and keep file names and color codes to a line for the designer.
+
 Show it with the host's own viewer, and keep that step thin: in Claude,
 publish the file as a private artifact and share the link; in Codex, open
-the file in its preview or browser; with no viewer, give the pastor the
-file path. The file is the brand book in every host; the viewer only shows
+the file in its preview or browser; with no viewer, or when the host
+declines, give the pastor the file path and move on. The file is the brand book in every host; the viewer only shows
 it. Boards the pastor reacts to are saved as images under
 `brand/staging/explorations/` and appear in the book, so every round puts
 a real design in front of the pastor.
 
-## Four rules that never bend
+## Five rules that never bend
 
 1. **Teach, then ask.** No decision goes to the pastor before the pastor has
    the concept needed to make it. Each lesson is short, in church language,
@@ -60,7 +88,13 @@ a real design in front of the pastor.
 3. **Every recorded decision carries its why.** The workflow interface
    refuses a decision without a rationale. Write the rationale in the
    pastor's own terms, from what they actually said.
-4. **Fidelity only rises, and you judge the work.** Every presentation after
+4. **Only the pastor decides.** Every decision round is recorded with
+   `standing`. Use `decided` only when the pastor actually chose. Everything
+   else the studio shows or suggests is `proposed`, however confident the
+   recommendation or however quiet the pastor. Silence is not a choice. Never
+   mark a studio suggestion as the pastor's decision, and never fill in
+   `decision` to get a record accepted.
+5. **Fidelity only rises, and you judge the work.** Every presentation after
    the direction shows at least what the pastor saw last time, more real.
    The interface refuses a record that shows less. A round that passes
    every rule and produces generic work is a failed round; redirect it.
@@ -97,9 +131,13 @@ Compare the saved plugin root in `.handbuilt/installation.json` with this
 skill's plugin root. If they differ, reconnect using the installed
 [onboarding connection reference](../onboarding/references/connection-and-brand.md).
 
+`handbuilt-python` is Handbuilt's own Python, at `<app-loaded-plugin-root>/bin/handbuilt-python`
+(`bin\handbuilt-python.cmd` on Windows without Git Bash). Use that full path when the
+short name is not found. Never ask the pastor to install Python.
+
 ```bash
-python3 "<church-folder>/handbuilt.py" start build-my-brand
-python3 "<church-folder>/handbuilt.py" build-my-brand orient
+handbuilt-python "<church-folder>/handbuilt.py" start build-my-brand
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand orient
 ```
 
 `orient` returns every stage's recorded state, the plan and where the pastor
@@ -118,10 +156,12 @@ doctor again. Do not ask the pastor to install packages.
 ### Starting over
 
 If the pastor wants to begin an unfinished run again, archive it rather than
-editing around it:
+editing around it. For one more variation or a small addition after the build,
+use an [amendment](#small-additions-after-the-build) instead; it keeps every
+decision.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand restart --reason "<why>"
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand restart --reason "<why>"
 ```
 
 The guide, the brief, discovery evidence, staged work, and the run's record
@@ -138,7 +178,7 @@ will see at each, what they decide, and about how long each takes. Follow
 on, opens every guide section with where the pastor is and what comes next.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand record --stage roadmap \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage roadmap \
   --content-file <plan.md> --metadata-file <plan.json>
 ```
 
@@ -183,6 +223,29 @@ were shown, and `rationale`. The guide section holds the lesson and what was
 shown; the interface appends the options, what it was shown on, the
 recommendation, the decision, and why in a fixed block so the record is
 complete even if the prose is thin.
+
+### Decided or proposed
+
+Each round's metadata says who stands behind it:
+
+- **`"standing": "decided"`**: the pastor chose. Give `decision` and `rationale`.
+- **`"standing": "proposed"`**: the studio suggests it and the pastor has not
+  chosen. Give `proposal` (or `recommendation`), and `rationale` for why the
+  studio suggests it. Leave `decision` out; the interface refuses a proposal
+  that has one. The fork cannot be proposed; ask.
+
+Work may continue past a proposal when the pastor wants to see more, but
+approval refuses while any is open and lists them. The guide and the
+governing-body edition show the two under separate labels. To settle one, ask
+the pastor, then record the stage again with `--replace` and `standing`
+`decided`. If they said yes to the proposal exactly as it stood, add
+`"accepts_proposal": true` so later rounds stay good. If they chose something
+else, leave it out; later rounds are marked stale, as with any revision.
+
+A run recorded before this marking existed still loads. Its choices are kept
+as recorded, `orient` lists them under `unmarked_decisions`, and both documents
+show them under their own label. They do not block approval. Ask the pastor to
+confirm any that were only the studio's suggestion, and record those again.
 
 ### Direction: directions, not designs
 
@@ -261,11 +324,11 @@ take reactions, draw again or make precise edits of the chosen image, then
 vectorize the one the pastor keeps.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand draw --round <name> --brief-file <brief.md> [--n 4] [--reference <png> ...] [--provider openai|gemini|recraft]
-python3 "<church-folder>/handbuilt.py" build-my-brand edit --round <name> --source <chosen.png> --instruction-file <edit.md> [--n 2] [--provider openai|gemini]
-python3 "<church-folder>/handbuilt.py" build-my-brand vectorize --source <chosen.png> --out brand/staging/marks/mark.svg
-python3 "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <brief.md> --tool "<tool>"
-python3 "<church-folder>/handbuilt.py" build-my-brand keys status
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand draw --round <name> --brief-file <brief.md> [--n 4] [--reference <png> ...] [--provider openai|gemini|recraft]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand edit --round <name> --source <chosen.png> --instruction-file <edit.md> [--n 2] [--provider openai|gemini]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand vectorize --source <chosen.png> --out brand/staging/marks/mark.svg
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <brief.md> --tool "<tool>"
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand keys status
 ```
 
 Every image is flattened onto white before review (a transparent PNG
@@ -292,7 +355,8 @@ record, and the chosen mark is always an editable SVG.
 Most churches have no image service key, and the workflow is built for
 that. Run `keys status` once before develop. A missing key never stops the
 run, and the pastor is never asked for a key, an account with an image
-company, or a terminal command. Do not mention keys to the pastor at all.
+company, or a terminal command. Bring up keys only if the pastor asks, then
+explain them plainly.
 
 1. **The host's own image tool.** Codex has a built-in image generator. Make
    the round there from the makers' briefs and register it with
@@ -331,9 +395,9 @@ weekly templates including the announcement. See
 stage the system and record the build:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand check-marks --primary <mark.svg> --small <mark-small.svg> --dark <hex>
-python3 "<church-folder>/handbuilt.py" build-my-brand stage-brand --patch-file <staged.json>
-python3 "<church-folder>/handbuilt.py" build-my-brand record --stage build \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand check-marks --primary <mark.svg> --small <mark-small.svg> --dark <hex>
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand stage-brand --patch-file <staged.json>
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage build \
   --content-file <section.md> --metadata-file <meta.json>
 ```
 
@@ -342,7 +406,36 @@ safe SVG or PNG, every font has a license named, every color has a job, the
 image language is stated, the five renderer colors are all present if
 supplied, and the survival checks pass (sign, footer, favicon on the small
 variant, one color, reversal, embroidery; pass or fail, never a score).
-`build` metadata lists `staged_files`. Nothing is live yet.
+`build` metadata lists `staged_files`. Nothing is live yet. `--dark` takes six
+hex digits, with or without the `#`.
+
+### Small additions after the build
+
+Once the build is recorded, `explore`, `draw`, `edit`, `redirect` and
+`import-images` refuse until an amendment is open. An amendment is for a small
+addition: one more variation, a ministry lockup. It keeps earlier decisions and
+receipts and appears in the guide labeled as an amendment. Changing a decision
+is a `--replace`, and beginning again is a restart.
+
+```bash
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage amendment \
+  --content-file <what-and-why.md> --metadata-file <open.json>
+# open.json: {"step": "open", "what": "One more variation of the mark"}
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage amendment \
+  --content-file <what-the-pastor-kept.md> --metadata-file <finish.json>
+# finish.json: {"step": "finish", "added": ["brand/staging/marks/mark-youth.svg"]}
+```
+
+`what` appears in the governing-body edition, so write it plainly in the
+studio's words. `added` is empty when the pastor kept nothing.
+
+After approval, opening an amendment puts the approved system back under
+`brand/staging/`, and the live brand stays as it is. If the pastor keeps
+anything, the amendment needs fresh approval: if the addition belongs in the
+system (a new key under `marks`, say), run `stage-brand` with
+`brand/staging/brand-system.json` updated, then show the `approve --dry-run`
+list and approve only when the pastor says so. Do not approve on the pastor's
+behalf.
 
 ## 7. Prove it on something real
 
@@ -351,15 +444,17 @@ beside the current one, and render the church's own test announcement from
 the image-language rules. Use the bulletin skill's production interface with
 a brand file that points at the staged assets; do not hand-edit the live
 `brand.json`. Put the pages in the guide section side by side. Record `prove`
-with `before`, `after`, and `announcement` paths. Then show the pastor and
+with `before`, `after`, and `announcement` paths. The interface refuses an
+`after` PDF that is not set in the staged display and text faces, so the
+pastor never approves type that will not print. Then show the pastor and
 ask for approval in plain words: this replaces the live brand, and the old
 one is kept under `brand/archive/`. First list exactly what goes in, what it
 replaces, and what is archived, from the dry run, so the pastor approves a
 list and not an impression:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand approve --dry-run
-python3 "<church-folder>/handbuilt.py" build-my-brand approve --approved-by "<pastor's name>"
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand approve --dry-run
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand approve --approved-by "<pastor's name>"
 ```
 
 Approval archives the current `brand.json` and live brand assets, re-runs the
@@ -381,7 +476,7 @@ announcement image, or a lockup, and what the agent will do. Then render the
 guide:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand render-guide
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand render-guide
 ```
 
 The PDF is set in the church's own marks, type, and colors. A generic-looking
@@ -395,7 +490,8 @@ Requests for a ministry lockup, an announcement image, an event poster, a
 seasonal color, or a check of a volunteer's draft are small operations that
 read `brand.json` and the guide. Follow
 [Small operations](references/small-operations.md). Append a short guide
-entry only when something durable changes.
+entry only when something durable changes. When a request adds to the brand
+system itself, use an [amendment](#small-additions-after-the-build).
 
 ## Guarantees you keep
 

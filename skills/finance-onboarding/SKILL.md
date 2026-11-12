@@ -26,7 +26,7 @@ Run the app-loaded adapter once, for this workflow and for the finance
 report, whose operations stages 1, 2, and 4 use:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start finance-onboarding
 ```
 
@@ -53,14 +53,28 @@ time.
    ```bash
    <launcher> finance-onboarding look \
      --balance-sheet finance/board/setup-pulls/balance-sheet.json \
-     --pl-12m finance/board/setup-pulls/pl-12m.json
+     --pl-12m finance/board/setup-pulls/pl-12m.json \
+     --pl-recent finance/board/setup-pulls/pl-recent.json
    ```
+
+   Run it on the pulls as saved, even one you suspect the connector cut off.
+   The script checks each pull and, when one is cut off, stops and records
+   the refusal in `finance/onboarding/look-blocked.json`. Then tell the
+   pastor in plain words that the books could not be read in full yet, and
+   offer a shorter period or a QuickBooks export. The section totals in that
+   record are correct and may be quoted as totals; nothing else comes from
+   the cut-off pull.
 
 4. Write `finance/finance-overview.md` for the pastor from
    `finance/onboarding/findings.json`, following
    `references/overview-template.md`. Every figure names its source. Label
    anything uncertain as an estimate. Anything that could alarm is framed as
-   a question for the treasurer, not a conclusion.
+   a question for the treasurer, not a conclusion. Take balances and dates
+   from the findings as written (a liability below zero carries its balance
+   and the month it went below zero in `detail`); never work one out from
+   the pull's opening and change rows. When income stopped while clearing
+   or undeposited balances rose, say it looks like income not yet recorded,
+   and that the books do not show giving fell.
 5. Walk the pastor through it. Then `<launcher> finance-onboarding stage --done 1`.
 
 ## Stage 2: First report

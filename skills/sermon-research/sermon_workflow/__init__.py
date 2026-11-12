@@ -143,6 +143,22 @@ class WorkflowFailure(Exception):
         self.field = field
 
 
+class WorkflowFailures(WorkflowFailure):
+    """Several expected failures found in one pass; the first one stays the headline."""
+
+    def __init__(self, failures: list[WorkflowFailure]):
+        first = failures[0]
+        super().__init__(first.code, first.message, field=first.field)
+        self.failures = list(failures)
+
+
+def _raise_all(failures: list[WorkflowFailure]) -> None:
+    if len(failures) == 1:
+        raise failures[0]
+    if failures:
+        raise WorkflowFailures(failures)
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
@@ -195,10 +211,13 @@ def _quality_requirements(quality_profile: str) -> dict[str, int]:
 
 def _failure(exc: WorkflowFailure | Exception) -> dict[str, Any]:
     if isinstance(exc, WorkflowFailure):
-        item: dict[str, Any] = {"code": exc.code, "message": exc.message}
-        if exc.field:
-            item["field"] = exc.field
-        return {"status": "blocked", "errors": [item], "warnings": []}
+        items = []
+        for failure in getattr(exc, "failures", None) or [exc]:
+            item: dict[str, Any] = {"code": failure.code, "message": failure.message}
+            if failure.field:
+                item["field"] = failure.field
+            items.append(item)
+        return {"status": "blocked", "errors": items, "warnings": []}
     return {
         "status": "failed",
         "errors": [{"code": "unexpected_failure", "message": str(exc)}],
@@ -926,13 +945,19 @@ def _validate_reading_sources(
 
 
 def _validate_research_sources(metadata: dict[str, Any], quality_profile: str) -> None:
+    """Check every source and the profile minimums, then report all problems together."""
     sources = metadata.get("sources")
     requirements = _quality_requirements(quality_profile)
     minimum_sources = requirements["minimum_sources"]
-    if not isinstance(sources, list) or len(sources) < minimum_sources:
+    if not isinstance(sources, list):
+        sources_found = 0
+    else:
+        sources_found = len(sources)
+    if not isinstance(sources, list) or sources_found < minimum_sources:
         raise WorkflowFailure(
             "unverified_sources",
-            f"Research quality profile {quality_profile} requires at least {minimum_sources} materially used sources",
+            f"Research quality profile {quality_profile} requires at least {minimum_sources} "
+            f"materially used sources; {sources_found} provided",
             field="metadata.sources",
         )
     required = (
@@ -946,67 +971,85 @@ def _validate_research_sources(metadata: dict[str, Any], quality_profile: str) -
         "claim_support",
         "currency_note",
     )
+    failures: list[WorkflowFailure] = []
+
+    def check(call, *args) -> None:
+        try:
+            call(*args)
+        except WorkflowFailure as exc:
+            failures.append(exc)
+
     source_ids = set()
     for index, source in enumerate(sources):
         if not isinstance(source, dict):
-            raise WorkflowFailure("unverified_sources", "Each source must be a record")
+            failures.append(WorkflowFailure(
+                "unverified_sources", "Each source must be a record", field=f"metadata.sources[{index}]"))
+            continue
         prefix = f"metadata.sources[{index}]"
         for key in required:
-            _require_text(source.get(key), f"{prefix}.{key}")
+            check(_require_text, source.get(key), f"{prefix}.{key}")
         # retrieved_at is optional; see _validate_retrieved_at.
-        _validate_retrieved_at(source, f"{prefix}.retrieved_at")
-        if source["access_result"] not in {"opened", "verified"}:
-            raise WorkflowFailure(
+        check(_validate_retrieved_at, source, f"{prefix}.retrieved_at")
+        if str(source.get("access_result") or "").strip() and source["access_result"] not in {"opened", "verified"}:
+            failures.append(WorkflowFailure(
                 "unverified_sources",
                 "Research source access_result must be opened or verified",
                 field=f"{prefix}.access_result",
-            )
-        source_id = str(source["source_id"])
-        if source_id in source_ids:
-            raise WorkflowFailure("duplicate_source_id", f"Duplicate source_id: {source_id}")
-        source_ids.add(source_id)
-        location = str(source["url_or_citation"]).strip()
-        parsed = urlparse(location)
-        if parsed.scheme:
-            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-                raise WorkflowFailure(
-                    "invalid_source_url",
-                    "Research source URL is invalid",
+            ))
+        source_id = str(source.get("source_id") or "").strip()
+        if source_id:
+            if source_id in source_ids:
+                failures.append(WorkflowFailure(
+                    "duplicate_source_id", f"Duplicate source_id: {source_id}", field=f"{prefix}.source_id"))
+            source_ids.add(source_id)
+        location = str(source.get("url_or_citation") or "").strip()
+        if location:
+            parsed = urlparse(location)
+            if parsed.scheme:
+                if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+                    failures.append(WorkflowFailure(
+                        "invalid_source_url",
+                        "Research source URL is invalid",
+                        field=f"{prefix}.url_or_citation",
+                    ))
+            elif len(location.split()) < 4:
+                failures.append(WorkflowFailure(
+                    "imprecise_source_citation",
+                    "A non-URL research source needs a precise citation of at least four words",
                     field=f"{prefix}.url_or_citation",
-                )
-        elif len(location.split()) < 4:
-            raise WorkflowFailure(
-                "imprecise_source_citation",
-                "A non-URL research source needs a precise citation",
-                field=f"{prefix}.url_or_citation",
-            )
-        if len(str(source["claim_support"]).split()) < 4:
-            raise WorkflowFailure(
+                ))
+        claim = str(source.get("claim_support") or "").strip()
+        if claim and len(claim.split()) < 4:
+            failures.append(WorkflowFailure(
                 "insufficient_claim_support",
-                "Research source claim_support must identify the supported claim",
+                f"Research source claim_support must identify the supported claim in at least four words; has {len(claim.split())}",
                 field=f"{prefix}.claim_support",
-            )
-        if len(str(source["currency_note"]).split()) < 2:
-            raise WorkflowFailure(
+            ))
+        currency = str(source.get("currency_note") or "").strip()
+        if currency and len(currency.split()) < 2:
+            failures.append(WorkflowFailure(
                 "missing_currency_note",
-                "Research source currency_note must explain its date fitness",
+                "Research source currency_note must explain its date fitness in at least two words",
                 field=f"{prefix}.currency_note",
-            )
+            ))
     minimum_ancient = requirements["minimum_ancient_interpreters"]
     if minimum_ancient:
         ancient_authors = {
             str(source.get("author") or "").strip().casefold()
             for source in sources
-            if source.get("access_result") == "opened"
+            if isinstance(source, dict)
+            and source.get("access_result") == "opened"
             and ANCIENT_INTERPRETER_SOURCE.search(str(source.get("source_type") or ""))
             and str(source.get("author") or "").strip()
         }
         if len(ancient_authors) < minimum_ancient:
-            raise WorkflowFailure(
+            failures.append(WorkflowFailure(
                 "insufficient_ancient_interpreters",
-                "Public research requires at least two distinct opened ancient Christian interpreters",
+                f"Public research requires at least {minimum_ancient} distinct opened ancient Christian "
+                f"interpreters; {len(ancient_authors)} found",
                 field="metadata.sources",
-            )
+            ))
+    _raise_all(failures)
 
 
 def _stage_receipt_metadata(
@@ -1256,6 +1299,12 @@ def _validate_research(
     root: Path,
     quality_profile: str,
 ) -> list[dict[str, str]]:
+    """Check the whole brief and report every violation found, not only the first."""
+    failures: list[WorkflowFailure] = []
+
+    def fail(code: str, message: str, field: str = "content") -> None:
+        failures.append(WorkflowFailure(code, message, field=field))
+
     headings = _headings(content)
     missing = [
         required
@@ -1263,21 +1312,18 @@ def _validate_research(
         if not any(required.lower() in heading.lower() for heading in headings)
     ]
     if missing:
-        raise WorkflowFailure(
+        fail(
             "invalid_research_shape",
-            f"Research brief is missing sections: {', '.join(missing)}",
-            field="content",
+            f"Research brief is missing {len(missing)} of {len(RESEARCH_HEADINGS)} required sections: "
+            f"{', '.join(missing)}",
         )
-    positions = [
-        next(index for index, heading in enumerate(headings) if required.lower() in heading.lower())
-        for required in RESEARCH_HEADINGS
-    ]
-    if positions != sorted(positions):
-        raise WorkflowFailure(
-            "invalid_research_order",
-            "Research brief sections are out of the required order",
-            field="content",
-        )
+    else:
+        positions = [
+            next(index for index, heading in enumerate(headings) if required.lower() in heading.lower())
+            for required in RESEARCH_HEADINGS
+        ]
+        if positions != sorted(positions):
+            fail("invalid_research_order", "Research brief sections are out of the required order")
     retired_headings = {
         "theological voices",
         "interpretive disagreement",
@@ -1285,10 +1331,9 @@ def _validate_research(
         "scholarship account",
     }
     if any(heading.casefold() in retired_headings for heading in headings):
-        raise WorkflowFailure(
+        fail(
             "invalid_research_organization",
             "Use the current research brief shape without retired duplicate or scholarship sections",
-            field="content",
         )
     voices_match = re.search(
         r"^##\s+Interpretive Conversations\s*$([\s\S]*?)(?=^##\s+Contemporary Convergence\s*$)",
@@ -1303,98 +1348,80 @@ def _validate_research(
     if len(thematic_headings) < 2 or any(
         not heading.rstrip().endswith("?") for heading in thematic_headings
     ):
-        raise WorkflowFailure(
+        fail(
             "invalid_research_organization",
-            "Interpretive Conversations must use at least two question-shaped thematic subsections",
-            field="content",
+            "Interpretive Conversations must use at least two question-shaped thematic subsections; "
+            f"found {len(thematic_headings)}",
         )
     header = content.split("## Research orientation", 1)[0]
-    for field in (
-        "Preaching date",
-        "Liturgical setting",
-        "Text",
-        "Selection mode",
-        "Translation",
-    ):
-        if not re.search(rf"^\*\*{re.escape(field)}:\*\*\s+\S", header, re.M):
-            raise WorkflowFailure(
-                "invalid_research_header",
-                f"Research brief header is missing {field}",
-                field="content",
-            )
-    reflection_index = next(
-        index
-        for index, heading in enumerate(headings)
-        if "questions for reflection" in heading.lower()
-    )
-    if reflection_index != len(headings) - 1:
-        raise WorkflowFailure(
-            "reflection_stop_violated",
-            "Questions for reflection must be the final section",
-            field="content",
-        )
-    reflection_match = re.search(
-        r"^#{1,6}\s+Questions for reflection\s*$([\s\S]*)\Z",
-        content,
-        re.I | re.M,
-    )
-    reflection_lines = [
-        re.sub(r"^[-*\d.)\s]+", "", line).strip()
-        for line in (reflection_match.group(1).splitlines() if reflection_match else [])
-        if line.strip()
+    missing_header = [
+        field
+        for field in ("Preaching date", "Liturgical setting", "Text", "Selection mode", "Translation")
+        if not re.search(rf"^\*\*{re.escape(field)}:\*\*\s+\S", header, re.M)
     ]
-    if not reflection_lines or any(not line.endswith("?") for line in reflection_lines):
-        raise WorkflowFailure(
-            "reflection_stop_violated",
-            "The final section may contain reflection questions only",
-            field="content",
+    if missing_header:
+        fail(
+            "invalid_research_header",
+            f"Research brief header is missing {len(missing_header)} fields: {', '.join(missing_header)}",
         )
+    reflection_index = next(
+        (index for index, heading in enumerate(headings) if "questions for reflection" in heading.lower()),
+        None,
+    )
+    if reflection_index is not None:
+        if reflection_index != len(headings) - 1:
+            fail("reflection_stop_violated", "Questions for reflection must be the final section")
+        reflection_match = re.search(
+            r"^#{1,6}\s+Questions for reflection\s*$([\s\S]*)\Z",
+            content,
+            re.I | re.M,
+        )
+        reflection_lines = [
+            re.sub(r"^[-*\d.)\s]+", "", line).strip()
+            for line in (reflection_match.group(1).splitlines() if reflection_match else [])
+            if line.strip()
+        ]
+        if not reflection_lines or any(not line.endswith("?") for line in reflection_lines):
+            fail("reflection_stop_violated", "The final section may contain reflection questions only")
     if LOCALIZATION.search(content):
-        raise WorkflowFailure(
-            "research_localization",
-            "Research must not claim knowledge of the pastor's local context",
-            field="content",
-        )
+        fail("research_localization", "Research must not claim knowledge of the pastor's local context")
     process_hit = PROCESS_LANGUAGE.search(content)
     if process_hit:
-        raise WorkflowFailure(
+        fail(
             "research_process_language",
             "Research brief must read as finished copy; remove notes about searches, access, or what the researcher did"
             f" (found: {process_hit.group(0)!r}); express a limit through attribution",
-            field="content",
         )
     local_hits = [term for term in _church_local_terms(root) if term.lower() in content.lower()]
     if local_hits:
-        raise WorkflowFailure(
-            "research_localization",
-            f"Research contains church-folder local data: {', '.join(local_hits)}",
-            field="content",
-        )
+        fail("research_localization", f"Research contains church-folder local data: {', '.join(local_hits)}")
     if re.search(r"[\u2014\u2013]", content):
-        raise WorkflowFailure("prohibited_dash", "Research contains an em dash or en dash", field="content")
+        fail("prohibited_dash", "Research contains an em dash or en dash")
     links = len(re.findall(r"\]\(https?://", content))
     if links < 4:
-        raise WorkflowFailure(
+        fail(
             "insufficient_citations",
             f"Research brief has {links} linked citations; at least four are required",
-            field="content",
         )
-    for index, source in enumerate(metadata.get("sources", [])):
+    sources = metadata.get("sources", [])
+    for index, source in enumerate(sources if isinstance(sources, list) else []):
+        if not isinstance(source, dict):
+            continue
         location = str(source.get("url_or_citation", "")).strip()
         if urlparse(location).scheme in {"http", "https"} and location not in content:
-            raise WorkflowFailure(
+            fail(
                 "unlinked_research_source",
                 "Every URL source in the ledger must appear in the research brief",
-                field=f"metadata.sources[{index}].url_or_citation",
+                f"metadata.sources[{index}].url_or_citation",
             )
     words = len(content.split())
     minimum_words = _quality_requirements(quality_profile)["minimum_words"]
     if words < minimum_words:
-        raise WorkflowFailure(
+        fail(
             "research_too_short",
             f"Research brief has {words} words; quality profile {quality_profile} requires at least {minimum_words:,}",
-            field="content",
         )
+    _raise_all(failures)
     return []
 
 
@@ -1564,18 +1591,31 @@ def record(
         states = _artifact_states(root, sermon_dir, receipts, quality_profile)
         _check_order(states, root, stage)
 
-        warnings = _validate_content(stage, content, metadata, root, quality_profile)
+        if stage == "research":
+            # Run every independent check so one resubmission fixes everything.
+            problems: list[WorkflowFailure] = []
+            warnings = []
+            checks = (
+                lambda: _validate_content(stage, content, metadata, root, quality_profile),
+                lambda: _validate_research_sources(metadata, quality_profile),
+                lambda: _validate_research_target(
+                    content,
+                    metadata,
+                    _stage_receipt_metadata(states, "readings"),
+                    _sermon_primary_text(root),
+                    mode,
+                ),
+            )
+            for check in checks:
+                try:
+                    check()
+                except WorkflowFailure as exc:
+                    problems.extend(getattr(exc, "failures", None) or [exc])
+            _raise_all(problems)
+        else:
+            warnings = _validate_content(stage, content, metadata, root, quality_profile)
         if stage == "readings":
             _validate_reading_sources(metadata, content, root, date_value)
-        elif stage == "research":
-            _validate_research_sources(metadata, quality_profile)
-            _validate_research_target(
-                content,
-                metadata,
-                _stage_receipt_metadata(states, "readings"),
-                _sermon_primary_text(root),
-                mode,
-            )
 
         target = sermon_dir / STAGE_FILES[stage]
         if target.exists() and not replace:

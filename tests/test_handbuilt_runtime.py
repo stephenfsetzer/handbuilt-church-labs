@@ -857,7 +857,7 @@ class RuntimeManagerTests(unittest.TestCase):
             .read_text(encoding="utf-8")
             .splitlines()
             if line and not line.startswith("#") and not line.startswith((
-                "pip==", "certifi==", "setuptools==", "brotli==", "cffi==", "cssselect2==",
+                "pip==", "certifi==", "setuptools==", "brotli==", "cffi==", "colorama==", "cssselect2==",
                 "fonttools==", "pycparser==", "pydyf==", "pyphen==", "tinycss2==", "tinyhtml5==",
                 "typing_extensions==", "webencodings==", "zopfli==",
             ))

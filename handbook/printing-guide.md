@@ -28,3 +28,34 @@ purpose. This is a normal booklet blank that lets the service start on
 a right-hand page. The bulletin's review summary says when it was
 used. A church that never wants it can turn it off with the
 `allow_blank_inside_cover` preference.
+
+## Fixing a mistake after approval
+
+Found a typo or a wrong name after you approved the bulletin? Ask for a
+correction, for example "fix the closing hymn number in Sunday's bulletin."
+
+- Your approved bulletin is kept exactly as it was, with its approval,
+  in a `.revisions` folder beside the week's folder.
+- The week's folder gets a corrected bulletin for you to review. It is
+  not final until you approve it again.
+- You decide whether to reprint or resend. Copies already handed out
+  do not change.
+
+Before approval, just ask for the change. Nothing needs undoing.
+
+## What fitting will and will not change
+
+To reach a page count that folds, the bulletin may get slightly larger
+type, a little more line spacing, or a section that starts a new page.
+Three things stay fixed:
+
+- A line said together (the Creed, the Lord's Prayer) never wraps. If
+  larger type would wrap one, that text stays at the regular size, and a
+  long one prints its speaker label above the text.
+- A heading never sits alone at the foot of a page.
+- Music prints at 95% or more of its size. A church can allow smaller,
+  so a piece stays on one page, with `music_min_scale` under `bulletin`
+  in `church.yaml` (for example `0.85`). A church can also cap the body
+  type with `body_size` (for example `12pt`).
+
+The review summary names every change.

@@ -45,9 +45,9 @@ TRUTH = {
     "largest_source": "Member Giving",
     "one_time": [],
     "skill": {
-        "tell": ["Program profitability cannot be established from partial classes with every wage unclassed; source documents and allocations are missing."],
+        "tell": ["States that program results cannot be established from the classes available: classes are partial and every wage is unclassed."],
         "ask": [
-            "Who owns the QuickBooks account, who uses the shared login, and how can the church arrange its own appropriate access?",
+            "Who owns the QuickBooks account, and who uses the shared login?",
             "What explains the nominal ministry-worker payroll and missing clergy salary line, and where is clergy compensation actually recorded?",
             "Can the treasurer or payroll professional verify contractor classification, pension arrears, and the pending payroll tax filing?",
             "Who can confirm the outside audit's filing status and supply the budget export?",

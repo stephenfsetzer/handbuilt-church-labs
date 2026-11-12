@@ -24,8 +24,8 @@ code remains in `render_bulletin.py` but is not exposed.
 ## Generate a bulletin
 
 ```bash
-python3 render_bulletin.py --config <week>/bulletin-config.json --template classic
-python3 impose_booklet.py <week>/bulletin-2026-09-06-classic.pdf
+handbuilt-python render_bulletin.py --config <week>/bulletin-config.json --template classic
+handbuilt-python impose_booklet.py <week>/bulletin-2026-09-06-classic.pdf
 ```
 
 The first command writes a sequential US Letter PDF (plus the

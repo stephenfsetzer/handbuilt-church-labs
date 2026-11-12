@@ -243,6 +243,254 @@ print(json.dumps({'result': 'No work was produced.', 'subtype': 'success', 'mode
     def test_currency_suffix_does_not_consume_next_word(self):
         self.assertEqual(harness.figures_in("$500 monthly; $250 more; $3k; $2M"), [500, 250, 3000, 2000000])
 
+    def test_large_connector_responses_arrive_whole_in_both_auth_modes(self):
+        # Claude Code saves an MCP result above MAX_MCP_OUTPUT_TOKENS to its own
+        # tool-results file, which the contained Workspace tool cannot read.
+        for variables in [{"ANTHROPIC_API_KEY": "synthetic-test-key"}, {harness.SIGNED_IN: "1", "PATH": "/usr/bin"}]:
+            with self.subTest(variables=sorted(variables)), patch.dict(os.environ, variables, clear=True):
+                env = harness.isolated_env(Path("/tmp/test-finance-config"))
+                self.assertGreaterEqual(int(env["MAX_MCP_OUTPUT_TOKENS"]), 100000)
+
+    def test_prepared_monthly_groups_match_account_codes(self):
+        sys.path.insert(0, str(ROOT / "skills/finance-report/scripts"))
+        import build_report_data as builder
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            harness.prepare_monthly("cedar_hollow", root)
+            config = json.loads((root / "finance/board/config.json").read_text())
+        items = [{"section": a["section"], "chain": [*a.get("under", []), a["name"]], "value": 1.0}
+                 for a in ALL["cedar_hollow"].CHURCH["pl"]]
+        for side, sections in [("income_groups", builder.INCOME), ("spending_groups", builder.EXPENSE)]:
+            with self.subTest(side=side):
+                first = config[side][0]
+                self.assertGreater(builder.group_items(items, config[side], sections)[first["name"]], 0, first)
+
+    def test_judge_prompt_states_eval_date_and_visual_check(self):
+        workspace = [{"tool": "inspect_pdf", "arguments": {"path": "finance/board/2026-08/report.pdf"},
+                      "error": False, "response": {"pages": 2}}]
+        prompt = harness.judge_prompt([{"id": "a", "kind": "tell", "text": "Tell."}], "Prepared 2026-09-10.",
+                                      "cedar_hollow", [], workspace, [])
+        self.assertIn(f"Today is {harness.TODAY}", prompt)
+        self.assertIn("returned 2 page images", prompt)
+
+
+class KnownSourceBlockTests(unittest.TestCase):
+    """A safe refusal from a cut-off pull is a known block, before look or build runs."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="finance-block-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name).resolve()
+        self.books = B.Books(ALL["harbor_light"].CHURCH)
+
+    def reads(self, start="2025-09-01"):
+        calls = [{"tool": "company_info", "arguments": {}, "error": False, "response": self.books.company_info()}]
+        for name, args in [("qbo_accounting_get_balance_sheet", {"end_date": "2026-08-31"}),
+                           ("profit_loss_quickbooks_account", {"periodStart": start, "periodEnd": "2026-08-31"})]:
+            calls.append({"tool": name, "arguments": args, "error": False, "response": stub.call(self.books, name, args)})
+        return calls
+
+    def case(self, skill):
+        folder = self.base / skill / "harbor_light"
+        folder.mkdir(parents=True)
+        (folder / "finance/onboarding").mkdir(parents=True)
+        (folder / "finance/finance-overview.md").write_text("The profit and loss was cut off, so its figures cannot be used yet.\n")
+        (folder / "finance/onboarding/questions.json").write_text(json.dumps(
+            [{"for": "Treasurer", "question": "Can you export the profit and loss?", "why": "The pull was cut off."}]))
+        (folder.parent / "harbor_light-run.json").write_text(json.dumps({
+            "church": "harbor_light", "skill": skill, "status": "completed", "error": None, "returncode": 0,
+            "quickbooks_calls": self.reads(), "workspace_calls": []}))
+        return folder
+
+    def test_refusal_after_cut_off_pull_is_a_known_block_for_both_skills(self):
+        qcalls = self.reads()
+        self.assertEqual(len(qcalls[-1]["response"]["reportData"]["data"]["rows"]), B.CONNECTOR_ROW_LIMIT)
+        for skill in harness.SKILLS:
+            with self.subTest(skill=skill):
+                folder = self.base / f"plain-{skill}"
+                folder.mkdir()
+                self.assertTrue(harness.known_source_block("harbor_light", skill, folder, [], qcalls))
+
+    def test_refusal_is_not_a_block_once_findings_or_a_report_exist_or_without_a_cut_off(self):
+        qcalls = self.reads()
+        folder = self.base / "with-findings"
+        (folder / "finance/onboarding").mkdir(parents=True)
+        (folder / "finance/onboarding/findings.json").write_text(json.dumps({"findings": [{"id": "x"}]}))
+        self.assertFalse(harness.known_source_block("harbor_light", "finance-onboarding", folder, [], qcalls))
+        (folder / "finance/board/2026-08").mkdir(parents=True)
+        (folder / "finance/board/2026-08/report.json").write_text(json.dumps({"meta": {"status": "draft"}}))
+        self.assertFalse(harness.known_source_block("harbor_light", "finance-report", folder, [], qcalls))
+        empty = self.base / "short-pull"
+        empty.mkdir()
+        short = [call for call in qcalls if call["tool"] != "profit_loss_quickbooks_account"]
+        self.assertFalse(harness.known_source_block("harbor_light", "finance-onboarding", empty, [], short))
+        cedar = B.Books(ALL["cedar_hollow"].CHURCH)
+        args = {"periodStart": "2025-09-01", "periodEnd": "2026-08-31"}
+        normal = [{"tool": "profit_loss_quickbooks_account", "arguments": args, "error": False,
+                   "response": stub.call(cedar, "profit_loss_quickbooks_account", args)}]
+        self.assertFalse(harness.known_source_block("cedar_hollow", "finance-onboarding", empty, [], normal))
+
+    def test_refusal_is_graded_with_the_blocked_rubric(self):
+        for skill in harness.SKILLS:
+            with self.subTest(skill=skill):
+                result = harness.grade(self.case(skill), None)
+                self.assertEqual(result["outcome"], "source_blocked")
+                self.assertIn("block-tell", [item["id"] for item in result["rubric"]])
+                self.assertFalse([error for error in result["errors"] if "missing successful" in error
+                                  and "start" not in error], result["errors"])
+
+    def test_invalid_judge_verdict_is_retried_once_with_the_reason(self):
+        folder = self.case("finance-onboarding")
+        quote = "The profit and loss was cut off, so its figures cannot be used yet."
+        good = {"items": [{"id": ident, "pass": True, "quote": quote} for ident in
+                          ("block-tell", "block-ask", "block-avoid", "source-claims", "human-decisions")],
+                "clarity": 5, "clarity_reason": "Clear.", "judge_cost_usd": 0.5}
+        bad = copy.deepcopy(good)
+        bad["items"][0]["quote"] = "A sentence the pastor never saw."
+        prompts = []
+
+        def fake_judge(prompt, model):
+            prompts.append(prompt)
+            return copy.deepcopy(bad if len(prompts) == 1 else good)
+
+        with patch.object(harness, "judge", side_effect=fake_judge):
+            result = harness.grade(folder, "judge-model")
+        self.assertEqual(len(prompts), 2)
+        self.assertIn("judge quote is absent from submitted writing: block-tell", prompts[1])
+        self.assertIsNone(result["judge_error"])
+        self.assertEqual(result["judge_attempts"], 2)
+        self.assertEqual(result["clarity"], 5)
+
+    def test_judge_retries_only_once(self):
+        folder = self.case("finance-onboarding")
+        with patch.object(harness, "judge", return_value={"error": "invalid judge JSON: nope"}) as judged:
+            result = harness.grade(folder, "judge-model")
+        self.assertEqual(judged.call_count, 2)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("invalid judge JSON", result["judge_error"])
+
+
+class RevisionTests(unittest.TestCase):
+    """Redwood Crossing's late repair posting appears on a later read covering its month."""
+
+    def setUp(self):
+        self.church = ALL["redwood_crossing"].CHURCH
+        revision = self.church["connector"]["revisions"][0]
+        self.account, self.month, self.amount = revision["account"], revision["month"], revision["amount"]
+
+    @staticmethod
+    def repairs(report, account):
+        for row in report["reportData"]["data"]["rows"]:
+            cells = {cell["name"]: cell["value"] for cell in row["cells"]}
+            if cells["ACCOUNT_NAME"] == account:
+                return cells["DETAIL_NATURAL_HOME_AMOUNT__TOTAL"]
+        raise AssertionError("account missing")
+
+    def test_later_covering_read_serves_the_revision_even_when_not_identical(self):
+        books = B.Books(self.church)
+        original = books.pl((2025, 9), (2026, 8))
+        pl = "profit_loss_quickbooks_account"
+        # A period that does not cover the revised month is unchanged and does not count.
+        stub.call(books, pl, {"periodStart": "2026-01-01", "periodEnd": "2026-08-31"})
+        first = stub.call(books, pl, {"periodStart": "2025-09-01", "periodEnd": "2026-08-31"})
+        self.assertEqual(self.repairs(first, self.account), self.repairs(original, self.account))
+        later = stub.call(books, pl, {"periodStart": "2025-12-01", "periodEnd": "2026-08-31", "split_by": "month"})
+        whole = books.pl((2025, 12), (2026, 8))
+        self.assertAlmostEqual(self.repairs(later, self.account), self.repairs(whole, self.account) + self.amount, places=2)
+
+    def test_balance_sheet_read_counts_as_covering_the_month(self):
+        books = B.Books(self.church)
+        stub.call(books, "qbo_accounting_get_balance_sheet", {"end_date": "2026-08-31"})
+        later = stub.call(books, "profit_loss_quickbooks_account", {"periodStart": "2025-09-01", "periodEnd": "2026-08-31"})
+        original = books.pl((2025, 9), (2026, 8))
+        self.assertAlmostEqual(self.repairs(later, self.account), self.repairs(original, self.account) + self.amount, places=2)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StubKeepsUpWithTheScripts(unittest.TestCase):
+    """The stand-in shell allows a fixed list of options. A new script option missing from it
+    makes every eval run fail for the eval's reason, not the plugin's."""
+
+    def test_every_workflow_option_is_allowed_by_the_stub(self):
+        import re
+        REPO = Path(__file__).resolve().parents[1]
+        stub = (REPO / "evals" / "finance" / "quickbooks_stub.py").read_text()
+        scripts = {
+            "look": REPO / "skills/finance-onboarding/scripts/finance_onboarding.py",
+            "build": REPO / "skills/finance-report/scripts/build_report_data.py",
+            "draft": REPO / "skills/finance-report/scripts/finance_setup.py",
+        }
+        for name, script in scripts.items():
+            options = set(re.findall(r'add_argument\("(--[a-z0-9-]+)"', script.read_text()))
+            missing = sorted(o for o in options if f'"{o}"' not in stub and o not in {"--church-folder", "--format", "--out", "--help"})
+            self.assertEqual(missing, [], f"{name}: options the stub does not allow")
+
+
+class PreparedSettingsFollowTheChurchYear(unittest.TestCase):
+    def test_a_july_church_saves_last_year_july_to_june(self):
+        import json
+        import sys
+        import tempfile
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "evals" / "finance"))
+        import books as B
+        import skill_eval as harness
+        from churches import ALL
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "church"
+            harness.church_folder("lantern_hill", root)
+            harness.prepare_monthly("lantern_hill", root)
+            saved = json.loads((root / "finance/board/config.json").read_text())["long_view"]["full_years"]
+        books = B.Books(ALL["lantern_hill"].CHURCH)
+        last = saved[-1]
+        self.assertEqual(last["reported"], round(books.period_result((last["year"], 7), (last["year"] + 1, 6))))
+
+    def test_the_judge_knows_the_earlier_approvals_given_in_the_task(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "evals" / "finance"))
+        import skill_eval as harness
+        prompt = harness.judge_prompt([], "x", "alder_meadow", [], [], [])
+        self.assertIn("going without a budget", prompt)
+
+
+class SavedLargeReplies(unittest.TestCase):
+    def test_the_workspace_reads_a_reply_claude_code_saved_to_a_file(self):
+        import sys
+        import tempfile
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "evals" / "finance"))
+        import quickbooks_stub as stub
+        with tempfile.TemporaryDirectory() as tmp:
+            space = stub.Workspace(Path(tmp), Path(tmp))
+            saved = Path.home() / ".claude" / "projects" / "x" / "tool-results" / "reply.txt"
+            self.assertEqual(space.path(str(saved)), saved.resolve())
+            with self.assertRaises(ValueError):
+                space.path(str(saved), write=True)
+            with self.assertRaises(ValueError):
+                space.path(str(Path.home() / ".claude" / "settings.json"))
+
+
+class CopyingASavedReply(unittest.TestCase):
+    def test_copy_saves_the_reply_text_not_the_wrapper(self):
+        import json
+        import sys
+        import tempfile
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "evals" / "finance"))
+        import quickbooks_stub as stub
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "church"
+            (root / "finance").mkdir(parents=True)
+            saved = Path(tmp) / "reply.json"
+            saved.write_text(json.dumps([{"type": "text", "text": '{"reportTitle": "Balance Sheet"}'}]))
+            space = stub.Workspace(root, root)
+            space.path = lambda value, write=False, _orig=space.path: Path(value) if value == str(saved) else _orig(value, write=write)
+            space.call("copy_file", {"source": str(saved), "destination": "finance/bs.json"})
+            self.assertEqual((root / "finance/bs.json").read_text(), json.dumps([{"type": "text", "text": '{"reportTitle": "Balance Sheet"}'}]))
+            tool_results = Path(tmp) / "tool-results"
+            tool_results.mkdir()
+            moved = tool_results / "reply.json"
+            moved.write_text(saved.read_text())
+            space.path = lambda value, write=False, _orig=stub.Workspace(root, root).path: moved if value == str(moved) else _orig(value, write=write)
+            space.call("copy_file", {"source": str(moved), "destination": "finance/bs2.json"})
+            self.assertEqual((root / "finance/bs2.json").read_text(), '{"reportTitle": "Balance Sheet"}')

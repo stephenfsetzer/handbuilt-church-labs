@@ -3,9 +3,9 @@
 Practical AI workflows for small Episcopal and Lutheran churches.
 
 Handbuilt Church Labs helps a pastor set up a private church folder, prepare
-cited sermon research, and build worship bulletins for review. It is the Labs
-learning and experimentation space for [Handbuilt](https://gethandbuilt.com).
-You bring your church's practice and judgment. The plugin gives the agent a
+cited sermon research, write sermons in their own voice, and build worship
+bulletins, sermon videos, finance reports and a church brand for review. It is
+made by [Handbuilt](https://gethandbuilt.com). You bring your church's practice and judgment. The plugin gives the agent a
 repeatable way to help with the routine work.
 
 ## Install with your AI agent
@@ -205,7 +205,7 @@ readings, translation, or research preferences trigger the relevant recheck.
 
 ## Installation and support
 
-Install Handbuilt Church Labs version 0.8.8 from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
+Install Handbuilt Church Labs from [the Handbuilt Church Labs repository](https://github.com/stephenfsetzer/handbuilt-church-labs).
 There are two ways to install, and you can use both: ask your agent (see
 [Install with your AI agent](#install-with-your-ai-agent)), or click through
 the app as described below. Either way, automatic updates must be on so each
@@ -252,8 +252,8 @@ Cowork, and the **Code** tab.
    copy stays on the version you installed today.
 5. Confirm. Then open the **Discover** tab, find **Handbuilt Church Labs**,
    and choose **Add**.
-6. Open **Your plugins** and confirm that Handbuilt Church Labs shows version
-   0.8.8, eight skills, and **Enable plugin** on.
+6. Open **Your plugins** and confirm that Handbuilt Church Labs shows eight
+   skills and **Enable plugin** on.
 
 Start a new session or task, and ask, “Set up my Church Command Center.” The
 **Code** tab or Cowork is the right place for church work, because it keeps
@@ -317,7 +317,7 @@ Then turn on automatic updates. This sets `autoUpdate` for the marketplace and
 backs up your settings first:
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py enable
+~/.claude/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python ~/.claude/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py enable
 ```
 
 Start a new task and ask, “Set up my Church Command Center.”
@@ -368,8 +368,9 @@ users can also inspect the host-installed version with
 The agent checks the required local Python and print tools during setup and
 guides you through any missing dependencies. See [runtime setup](handbook/runtime-setup.md)
 and the [managed workflow update policy](handbook/workflow-updates.md).
-You need Python 3.10 or newer. Handbuilt installs its Python packages into its
-own managed environment.
+You do not need to install Python. Handbuilt downloads its own copy into its
+own folder and installs its Python packages into its own managed environment.
+On Windows, installing from GitHub needs Git for Windows.
 
 Installation and workflow behavior depend on your app, model, account, and
 operating system. The plugin has isolated Codex and Claude Code rehearsals and
@@ -391,6 +392,40 @@ The AI service you choose may process messages and file content used during a
 conversation under that service's account settings and terms. A local folder
 does not make AI processing offline. Do not include passwords, payment
 information, or confidential pastoral case details in onboarding.
+
+## What the plugin runs, fetches and sends
+
+The plugin sends nothing to Handbuilt. It works through your AI app and local
+Python tools, and it reaches these places only for the work you ask for:
+
+- **Your computer:** it runs the plugin's Python tools in a separate managed
+  environment, creates your church folder, and with your approval installs tools
+  such as Git, PDF tools and FFmpeg when they are missing. It keeps its own copy
+  of Python in its own folder and does not change any Python already on the
+  computer. During install it
+  can add Handbuilt's automatic-update settings to your Claude settings file,
+  including `FORCE_AUTOUPDATE_PLUGINS`, which applies to all plugins. It saves a
+  backup first and changes nothing else.
+- **GitHub:** it checks this repository for a new release and downloads verified
+  release files. The check sends no church content or credentials. The first
+  time it runs, it also downloads its own copy of Python from the
+  python-build-standalone project's releases, and uses it only when the file
+  matches the checksum recorded in `tools/python-dist.lock`.
+- **conda-forge (conda.anaconda.org):** on a Mac or Windows, before PDF work, it
+  downloads the Pango and Poppler packages listed in `tools/native-tools.lock`
+  into its own folder, each checked against its recorded hash.
+- **Python Package Index (PyPI):** it downloads the Python packages listed in
+  `requirements.lock`, each checked against its recorded hash.
+- **Websites you name or need:** your church website, published lectionary and
+  scripture sources, and research sources, read through your AI app.
+- **Video hosts:** for a sermon video, the public YouTube, Vimeo or other service
+  page you give it.
+- **QuickBooks:** the finance report reads your books through the QuickBooks
+  connector you sign in to, and never changes them.
+- **Google Fonts:** a finance report can request a brand font from Google Fonts
+  when the church's brand uses one.
+- **Image services:** Build My Brand uses OpenAI, Google or Recraft only if you
+  add your own key for one, and it sends them the image briefs.
 
 ## Before you begin
 

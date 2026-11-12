@@ -54,14 +54,14 @@ at the end of the stage.
 ## What the interface enforces
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand explore     --round <name> --files <svg|png> ... [--maker <name>] [--dark <hex>]
-python3 "<church-folder>/handbuilt.py" build-my-brand draw        --round <name> --brief-file <md> [--n N] [--reference <png> ...] [--provider openai|gemini|recraft]
-python3 "<church-folder>/handbuilt.py" build-my-brand edit        --round <name> --source <png> --instruction-file <md> [--n N]
-python3 "<church-folder>/handbuilt.py" build-my-brand vectorize   --source <png> --out brand/staging/marks/<name>.svg
-python3 "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <md> --tool "<name>"
-python3 "<church-folder>/handbuilt.py" build-my-brand redirect    --round <name> --reason "<why>" [--rebrief-file <md>]
-python3 "<church-folder>/handbuilt.py" build-my-brand record      --stage develop|refine-1|refine-2 --content-file <md> --metadata-file <json>
-python3 "<church-folder>/handbuilt.py" build-my-brand check-marks [--primary <svg> --small <svg>] [--dark <hex>]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand explore     --round <name> --files <svg|png> ... [--maker <name>] [--dark <hex>]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand draw        --round <name> --brief-file <md> [--n N] [--reference <png> ...] [--provider openai|gemini|recraft]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand edit        --round <name> --source <png> --instruction-file <md> [--n N]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand vectorize   --source <png> --out brand/staging/marks/<name>.svg
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <md> --tool "<name>"
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand redirect    --round <name> --reason "<why>" [--rebrief-file <md>]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record      --stage develop|refine-1|refine-2 --content-file <md> --metadata-file <json>
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand check-marks [--primary <svg> --small <svg>] [--dark <hex>]
 ```
 
 - **Fidelity only rises.** Every `develop` and `refine` record lists the

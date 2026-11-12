@@ -51,7 +51,8 @@ Claude use the same canonical workflows under `skills/`.
    Riverbend chart or are invented, and each one is listed in
    `tools/example-accounts.txt`. `tools/pii_check.py` fails on any figure or
    account number that is not listed. Images, PDFs, office files, spreadsheets and accounting exports are
-   never committed. Commit messages, pull request titles and descriptions,
+   never committed, apart from the plugin icon that `tools/pii_check.py` pins by
+   checksum. Commit messages, pull request titles and descriptions,
    and release notes are public too: describe a bug in general terms, never
    with a church's name or figures. CI checks all of it, including against a
    private denylist kept in the `HANDBUILT_PRIVATE_DENYLIST` repository
@@ -64,6 +65,29 @@ Claude use the same canonical workflows under `skills/`.
 4. **Verify before reporting completion.** For changes to this plugin, run
    `python3 tools/pii_check.py` and the repository test suite below. For church
    work, use the active skill's saved-file and output checks.
+5. **Meet the module release standard** below before releasing or building a
+   workflow.
+
+## Module release standard
+
+No workflow is released, and no new one is built, without all three kinds of
+evidence. Run them again before each release and each new model.
+
+1. **Tool checks** in `tests/`: the real production code on an invented church,
+   with no model. Every failure seen in real use becomes a check here
+   (`tests/test_field_regressions.py`).
+2. **Agent checks** in `evals/<case>/`: does the right skill start, does it ask
+   before assuming, does it state its limits. Each case runs three times, with
+   and without the plugin.
+3. **Finished-work checks** in `evals/finished_work/`: an agent runs the whole
+   workflow with the real tools, and a grader reads what the pastor receives.
+   The grader's own tests must show it fails each kind of damaged work. See
+   [Adding a case](evals/finished_work/README.md#adding-a-case).
+
+A person reads the failures before release, then fixes the plugin or the
+grader. Results are recorded in the private product repository, never here.
+A workflow that cannot meet this standard yet ships only with that limit
+stated in its skill and the release notes.
 
 ## Cloud tasks, privacy and authorship
 

@@ -6,10 +6,19 @@ the result.
 
 ## Host workflow
 
+Handbuilt brings its own Python. `bin/handbuilt-python` in the plugin runs it
+(`bin\handbuilt-python.cmd` on Windows without Git Bash). The first time, it
+downloads the build listed in `tools/python-dist.lock` from the
+python-build-standalone project on GitHub, checks it against the SHA-256
+recorded there, and unpacks it into Handbuilt's private folder. It needs no
+installer window and no administrator password, and it does not touch any
+Python already on the computer. `handbuilt-python --where` prints its path.
+Never ask the pastor to install Python.
+
 For **Set up my Church Command Center**, check from the installed plugin directory:
 
 ```bash
-python3 tools/handbuilt_runtime.py doctor --capability workspace --format json
+bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json
 ```
 
 `doctor` is read-only. It does not create folders, install packages, or change
@@ -32,15 +41,16 @@ rejected. Review both security floors and wheel coverage when changing support.
 The check inspects the managed interpreter itself. Updating another Python on
 the computer does not update an existing private environment.
 
-If preparation needs a different host interpreter, inspect an installed,
-patched interpreter and pass its exact path with `--bootstrap-python`.
-The plugin does not download Python or replace the computer's Python.
+Handbuilt's own Python meets these floors, so this check passes whenever the
+tools run through `handbuilt-python`. Only when a network blocks that download,
+inspect an installed, patched interpreter and pass its exact path with
+`--bootstrap-python`. The plugin never replaces the computer's Python.
 
 If the result is `python-package-missing`, prepare the isolated runtime with
 one host operation:
 
 ```bash
-python3 tools/handbuilt_runtime.py setup --format json
+handbuilt-python tools/handbuilt_runtime.py setup --format json
 ```
 
 `setup` creates a new private runtime generation with `venv --without-pip`.
@@ -70,7 +80,7 @@ pointer stops preparation without falling back to another environment.
 To select a retained previous generation, use the host operation:
 
 ```bash
-python3 tools/handbuilt_runtime.py rollback --format json
+handbuilt-python tools/handbuilt_runtime.py rollback --format json
 ```
 
 Rollback verifies the previous environment against the current security policy
@@ -83,13 +93,13 @@ The plugin does not remove retained generations as part of setup or rollback.
 The host can preview obsolete owned environments with:
 
 ```bash
-python3 tools/handbuilt_runtime.py prune --format json
+handbuilt-python tools/handbuilt_runtime.py prune --format json
 ```
 
 Review `prune.candidates`, then pause all Handbuilt workflows before applying:
 
 ```bash
-python3 tools/handbuilt_runtime.py prune --apply --workflows-stopped --format json
+handbuilt-python tools/handbuilt_runtime.py prune --apply --workflows-stopped --format json
 ```
 
 The host must establish that workflows have stopped. Older processes can still
@@ -102,7 +112,7 @@ directory can be removed once it is outside the selected and previous pair.
 The receipt lists candidates, completed removals, skipped paths and errors.
 If deletion fails partway, `prune.partial_removal_possible` requires inspection.
 
-From a connected church folder, use `python3 handbuilt.py runtime prune`.
+From a connected church folder, use `handbuilt-python handbuilt.py runtime prune`.
 The cleanup flags are host operations; present a plain-language
 maintenance plan to the pastor.
 
@@ -125,21 +135,26 @@ New installation receipts record the binary-only policy and wheel-lock digest.
 ## Finish computer preparation
 
 If the result is `native-tool-missing`, read the `native_install` plan from the
-JSON result. Explain that this is a computer-level PDF tool, ask for approval,
-then run the proposed command through the host workflow:
+JSON result. On a Mac or Windows the plan is **Handbuilt PDF tools**: Handbuilt
+downloads the Pango text libraries and the Poppler PDF tools from conda-forge,
+checks every package against the SHA-256 in `tools/native-tools.lock`, and
+unpacks them into its own folder. It needs no Homebrew, no installer and no
+password, and takes a minute or two. Tell the pastor in one sentence, then run
+the proposed command through the host workflow:
 
 ```bash
-python3 tools/handbuilt_runtime.py native-install --format json
+handbuilt-python tools/handbuilt_runtime.py native-install --format json
 ```
 
-Run `doctor` again after the operation. On macOS, the supported first adapter
-uses Homebrew to install Poppler. On Linux, it uses an available distribution
-package manager. If no supported manager is available, do not invent a
-download URL or ask the pastor to guess a command.
+Run `doctor` again after the operation. On Linux, the plan uses an available
+distribution package manager. If `verify` later says a library could not be
+loaded on a computer that already has PDF tools, run
+`native-install --own-tools` to add Handbuilt's own copy, then `verify` again.
+Do not invent a download URL or ask the pastor to guess a command.
 
-If Python or Homebrew itself is absent, follow the
+Follow the
 [computer preparation reference](../skills/onboarding/references/computer-preparation.md)
-for host inspection and official installation guidance. When an installer
+for host inspection. When an installer
 needs human interaction, identify the app/window, give one next action, and
 verify the result after the person completes it. Preserve progress on retries.
 
@@ -166,10 +181,10 @@ and sermon research, and `verify` for bulletin operations. Existing commands
 remain valid. To inspect from a connected church folder:
 
 ```bash
-python3 handbuilt.py runtime doctor --capability workspace
-python3 handbuilt.py runtime verify
-python3 handbuilt.py runtime setup --bootstrap-python "<inspected patched Python>"
-python3 handbuilt.py runtime rollback
+handbuilt-python handbuilt.py runtime doctor --capability workspace
+handbuilt-python handbuilt.py runtime verify
+handbuilt-python handbuilt.py runtime setup --bootstrap-python "<inspected patched Python>"
+handbuilt-python handbuilt.py runtime rollback
 ```
 
 The sample verifies the computer tools. Every church bulletin still needs its
@@ -197,7 +212,7 @@ The default runtime location is owned by Handbuilt and scoped to the current
 computer user:
 
 - macOS: `~/Library/Application Support/Handbuilt Church Labs/runtime`
-- Windows: `%LOCALAPPDATA%/Handbuilt Church Labs/runtime`
+- Windows: `%USERPROFILE%/.handbuilt/runtime`, kept short because Windows limits how long a file path can be
 - Linux: `$XDG_DATA_HOME/handbuilt-church-labs/runtime`, or the standard local
   data directory when that variable is not set
 
@@ -232,12 +247,11 @@ commands.
 
 ## Current integration boundary
 
-The plugin prepares and selects verified private runtime generations and can
-install Poppler through a supported system package manager. It does not
-bundle or install Python or Homebrew themselves. Computer-level changes use
-the host's installer and permission surface. There is no graphical bootstrap
-when Python is absent; the host must inspect the computer and guide that
-preparation before this Python helper can run. Nothing in this update replaces
+The plugin prepares and selects verified private runtime generations. It
+downloads its own Python and, on a Mac or Windows, its own PDF tools into its
+own folder, each checked against a recorded SHA-256. On Linux it can install
+Poppler through a supported system package manager. It never installs
+Homebrew or changes the computer's own Python. Nothing in this update replaces
 the existing installer or changes the church's customizable workspace.
 
 Input size and processing limits are documented in [input limits](input-limits.md).

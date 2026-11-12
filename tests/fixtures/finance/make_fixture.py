@@ -281,6 +281,11 @@ def native_pl(year, upto, start=None):
             "Rows": {"Row": rows}}
 
 
+# QuickBooks company info as the connector returns it: the year starts in January.
+COMPANY_INFO = {"companyName": "Riverbend Lutheran Church", "legalName": "Riverbend Lutheran Church",
+                "country": "US", "fiscalYearStartMonth": "January"}
+
+
 def main(out, short=False):
     """Write the synthetic church. short=True: books that start in January 2026."""
     out = Path(out)
@@ -292,7 +297,7 @@ def main(out, short=False):
         "    - name: Pat Example\n      role: Treasurer\n")
     budget_net = [1100.0] * 12
     config = {
-        "report_folder": "finance/board", "history_start": "2024-12",
+        "report_folder": "finance/board", "history_start": "2024-12", "fiscal_year_start": 1,
         "bank_accounts": ["Checking - First Bank 1111", "Savings - First Bank 2222"],
         "endowment_accounts": ["ELCA Endowment Fund"],
         "labels": {"4020": "Pledge payments", "6520": "Repairs"},
@@ -326,8 +331,10 @@ def main(out, short=False):
         (pulls / "balance-sheet.json").write_text(json.dumps(balance_sheet((2026, month))))
         (pulls / "pl-ytd.json").write_text(json.dumps(pl(2026, month)))
         (pulls / "pl-prior.json").write_text(json.dumps(pl(2026, month - 1)))
+        (pulls / "company-info.json").write_text(json.dumps(COMPANY_INFO))
     setup = out / "setup-pulls"
     setup.mkdir(exist_ok=True)
+    (setup / "company-info.json").write_text(json.dumps(COMPANY_INFO))
     (setup / "pl-12m.json").write_text(json.dumps(pl(2026, 8, start=(2025, 9))))
     (setup / "pl-2025.json").write_text(json.dumps(pl(2025, 12)))
     (setup / "budget-vs-actuals-2026.csv").write_text(bva_csv())

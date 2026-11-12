@@ -1,0 +1,8 @@
+# Every file is stored and downloaded byte for byte.
+#
+# Git on Windows rewrites line endings by default. That breaks the launcher
+# scripts and changes the fingerprints of the shipped worship texts, so every
+# bulletin on Windows was refused. Windows command files keep the Windows line
+# endings they are stored with.
+* -text
+*.cmd -text whitespace=cr-at-eol

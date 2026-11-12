@@ -44,8 +44,8 @@ TRUTH = {
     "one_time": [],
     "skill": {
         "tell": ["Everyday cash is below zero at the end of August: checking is overdrawn.",
-                 "The year runs July to June, and July carries the yearly property insurance premium."],
-        "ask": ["Whether the line of credit was drawn to cover the overdraft."],
+                 "Notes that the church's year is set to run July to June, and asks what the large July cost is, without asserting when the insurance is paid."],
+        "ask": ["How the overdraft and the line of credit relate."],
         "avoid": ["Says the church has money in the bank at the end of August.",
                   "Calls July an unusually bad month without naming the yearly insurance premium."],
     },
@@ -54,7 +54,6 @@ TRUTH = {
          "why": "Cash below zero must read as below zero, never as money in the bank."},
         {"id": "result", "kind": "look_result"},
         {"id": "fiscal_year_report", "kind": "build_fiscal_year",
-         "why": "A July-to-June church's August report covers July and August.",
-         "gap": "The report's year always runs from January."},
+         "why": "A July-to-June church's August report covers July and August."},
     ],
 }

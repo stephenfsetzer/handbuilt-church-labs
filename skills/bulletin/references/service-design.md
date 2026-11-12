@@ -64,7 +64,7 @@ content that was approved even if a shared part changes later.
 Use the connected launcher with the church's managed runtime:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" onboarding update --scope service --service-id family --patch-file "<church-folder>/.service-patch.json" --preview
+handbuilt-python "<church-folder>/handbuilt.py" onboarding update --scope service --service-id family --patch-file "<church-folder>/.service-patch.json" --preview
 ```
 
 A service patch contains the service fields directly, for example:

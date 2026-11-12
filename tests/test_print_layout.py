@@ -101,8 +101,8 @@ class CheckRuleTests(unittest.TestCase):
         names = [f.check for f in findings]
         self.assertEqual(names, ["booklet_page_count", "blank_pages_deliberate",
                                  "back_cover_last", "music_page_turn",
-                                 "opening_music_whole", "prayer_page_turn", "page_fill",
-                                 "assets_resolved"])
+                                 "opening_music_whole", "prayer_page_turn", "said_line_wrap",
+                                 "stranded_heading", "page_fill", "assets_resolved"])
         self.assertTrue(set(names) <= set(pl.CHECK_NAMES))
         self.assertTrue(all(f.passed for f in findings))
 

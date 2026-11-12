@@ -32,6 +32,7 @@ def main() -> int:
     revise_parser.add_argument("--church-folder", required=True)
     revise_parser.add_argument("--prior-run", required=True)
     revise_parser.add_argument("--input", required=True)
+    revise_parser.add_argument("--correct-approved", action="store_true")
 
     finalize_parser = commands.add_parser("finalize")
     finalize_parser.add_argument("--receipt", required=True)
@@ -45,7 +46,7 @@ def main() -> int:
         result = produce(args.church_folder, bulletin)
     elif args.command == "revise":
         bulletin = json.loads(Path(args.input).read_text(encoding="utf-8"))
-        result = revise(args.church_folder, args.prior_run, bulletin)
+        result = revise(args.church_folder, args.prior_run, bulletin, correct_approved=args.correct_approved)
     else:
         approval = json.loads(Path(args.approval).read_text(encoding="utf-8"))
         result = finalize(args.receipt, approval)

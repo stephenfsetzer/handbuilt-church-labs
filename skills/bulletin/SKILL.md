@@ -34,7 +34,7 @@ Before interviewing the pastor or staging a bulletin, run the app-loaded
 adapter once to select and verify the workflow:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start bulletin
 ```
 
@@ -260,20 +260,39 @@ left blank on purpose. Both may be saved once as standing preferences under
 `bulletin` in `church.yaml`; a weekly option overrides them. In booklet mode
 the page-by-page PDF must already be a multiple of 4 pages, with no padding
 blank and the back page last. No hymn or prayer may continue across a page
-turn, and the opening hymn prints whole. A missing font or picture blocks in
-every print mode.
+turn, and the opening hymn prints whole. No line of a text said together
+(the Creed, the Lord's Prayer, a confession) may wrap, and no heading may sit
+at the foot of a page with its text overleaf. A missing font or picture blocks
+in every print mode.
 When a rule fails, production fits the bulletin with small, bounded changes: a
 blank inside cover, looser line spacing, slightly larger type, music at 95% to
 100%, or one section starting a new page. It never changes wording or order.
+Larger type is kept only when no said line wraps: a said text that would wrap
+stays at the theme's size, and one that still wraps prints its speaker label
+above the text. A piece of music split over two pages moves onto one page when
+it fits at the church's smallest music scale or larger.
 
-Show the user the sequential PDF, booklet PDF, warnings, and receipt. Before
-asking for approval, state these in plain words:
+Two standing settings under `bulletin` in `church.yaml` bound fitting:
+`body_size` (for example `12pt`; fitting never sets body type above it, and
+13pt is the ceiling when unset) and `music_min_scale` (for example `0.85`; the
+smallest a piece of music may print to stay on one page, 95% when unset).
+`orient` returns them as `print_settings`, and the receipt records them.
+
+Show the pastor the sequential PDF and booklet PDF, and explain any warnings.
+Keep the receipt for your own later steps; a pastor never needs to open it.
+Before asking for approval, state these in plain words:
 
 - `fit_summary`, when it is not empty. It names every layout adjustment, for
   example "To fold into 16 pages, page 2 is left blank and line spacing is a
   little looser." The receipt lists the same steps in `fit_adjustments`.
 - Each `page_fill_warning`: which pages are only partly full. These are
   allowed but are worth a look.
+- Each entry in `open_items`: bracketed text that will print and looks like a
+  blank nobody filled in, such as `[Name of the person to remember]`. Its
+  `field`, when present, says where the words live. Ask the pastor to supply
+  the wording, then revise. If the brackets belong there, the pastor can say
+  so; see step 5. Verse numbers, markings such as `[Alleluia]`, and optional
+  words in the shipped liturgy are not open items.
 
 When production returns `blocked` with `booklet_fit_failed`, tell the pastor
 the error's one sentence. The bulletin needs a change the pastor chooses, such
@@ -305,11 +324,15 @@ A pastor naming a heading means the large line printed at the top of that
 part, not the small label beside it. To reword the psalm's heading, revise
 `readings.psalm.heading`.
 
-The replacement is rendered and verified before the prior package moves to a
-recoverable `.revisions/` folder. The new receipt links the predecessor run,
+The replacement is rendered and verified before the files the prior run made
+move to a recoverable `.revisions/` folder. Files the church or agent added to
+the week folder (a README, a photo, a script) stay where they are; the result
+and receipt list them as `preserved_files`. A church file that sits exactly
+where the new package writes is archived too and named in a warning. The new receipt links the predecessor run,
 receipt hash, archive location, and source-config digest. Repeating the same
-revision is idempotent. An approved package or an approved history entry can
-never be revised or overwritten.
+revision is idempotent. An ordinary revision can never change an approved
+package or an approved history entry; step 6 covers an error found after
+approval.
 
 Legacy version 1 receipts are read without modification. Staged music is
 recovered only when exactly one matching private source can be verified. A
@@ -319,7 +342,11 @@ missing or ambiguous source blocks revision and requires fresh source paths.
 
 Create approval JSON containing `production_run_id`, `approved_by`, and the
 reviewed artifact hashes from the production receipt. An optional `note` and
-`approved_at` may be included. Then run:
+`approved_at` may be included. If the receipt lists `open_items`, finalization
+is refused until each one is filled in by a revision or the pastor confirms it
+should print as written. Record that confirmation by listing each item's exact
+`text` in `confirmed_open_items`. Never add it without asking the pastor. Then
+run:
 
 ```bash
 <launcher-prefix> bulletin finalize \
@@ -329,6 +356,31 @@ reviewed artifact hashes from the production receipt. An optional `note` and
 Finalization verifies that reviewed artifacts have not changed, writes the
 approval receipt, and updates approved bulletin history. If review requests a
 change, revise through a new production run rather than finalizing the old one.
+
+## 6. Correct an error found after approval
+
+When a pastor finds a mistake in an approved bulletin, make a correction. Use
+this only when the pastor has asked to change the approved bulletin:
+
+```bash
+<launcher-prefix> bulletin revise --correct-approved \
+  --prior-run <approved-bulletin-production-receipt.json> \
+  --input <changed-fields.json>
+```
+
+Tell the pastor what happens, in these words:
+
+- The approved bulletin is kept exactly as it was, with its approval, under
+  `.revisions/` beside the week's folder. The result's `corrects_approved`
+  gives its location.
+- The week's folder now holds a corrected bulletin to review. It is not final
+  yet. Until it is approved, approved history still names the earlier bulletin.
+- Review the corrected bulletin, then finalize it as in step 5. Further changes
+  before approval use an ordinary revision of the corrected bulletin.
+- The pastor decides whether to reprint or resend. Copies already handed out
+  do not change.
+
+Without `--correct-approved`, a revision of an approved bulletin is refused.
 
 ## Boundaries
 

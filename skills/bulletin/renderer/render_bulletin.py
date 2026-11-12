@@ -32,13 +32,18 @@ from datetime import datetime
 from pathlib import Path
 from string import Template
 
+try:
+    from .brand_type import brand_faces, variation_settings
+except ImportError:  # run as a script, or imported from this folder
+    from brand_type import brand_faces, variation_settings
+
 HERE = Path(__file__).resolve().parent
 LITURGY_DIR = HERE / "liturgy"
 FONTS_DIR = HERE / "fonts"
 THEMES_DIR = HERE / "themes"
 
 SPEAKERS = ("Priest", "People", "Together", "Leader", "Reader", "Deacon",
-            "Presider", "Celebrant", "Bishop")
+            "Presider", "Celebrant", "Bishop", "Family")
 
 NEUTRAL_BRAND = {
     "church": {
@@ -395,7 +400,8 @@ def file_uri(p):
 
 def fmt_date(datestr):
     d = datetime.strptime(datestr, "%Y-%m-%d")
-    return d.strftime("%B %-d, %Y")
+    # Not "%-d": Windows does not have it.
+    return f"{d.strftime('%B')} {d.day}, {d.year}"
 
 
 def cover_logo(brand, repo_root, template="classic"):
@@ -554,6 +560,12 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
         head = label or (f"Hymn {num}" if num else "")
     sub = esc(title) + (f' <span class="tune">({esc(tune)})</span>' if tune else "")
     imgs = hymn.get("images") or ([hymn["image"]] if hymn.get("image") else [])
+    # An optional church-chosen print width (inches) narrows the music, for
+    # example so a congregational setting fits beside the text before it.
+    try:
+        print_width = float(hymn.get("print_width") or 0) or None
+    except (TypeError, ValueError):
+        print_width = None
     if max_h is None:
         max_h = 8.2 if full_page else 5.2
     systems = []
@@ -563,6 +575,8 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
             # Inline music sits inside the modern theme's left-rail section,
             # so its usable width is the text column, not the full page.
             image_w = content_w if content_w is not None else (5.75 if not full_page else 7.3)
+            if print_width:
+                image_w = min(image_w, print_width)
             systems.append(sized_img(p, "hymn-img", content_w=image_w, max_h=max_h))
     if hymn.get("custom_text"):
         systems.append(f'<p class="rubric">{esc(hymn["custom_text"])}</p>')
@@ -572,7 +586,11 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
                  if head else "")
     composer_html = (f'<p class="hymn-composer">Composer: {esc(str(composer))}</p>'
                      if str(composer or "").strip() else "")
-    header = lead_in + head_html + f'<p class="hymn-title">{sub}</p>' + composer_html
+    # An optional posture or other instruction ("Please stand.") prints under
+    # the title, above the music.
+    rubric_html = (f'<p class="rubric">{esc(str(hymn["rubric"]))}</p>'
+                   if str(hymn.get("rubric") or "").strip() else "")
+    header = lead_in + head_html + f'<p class="hymn-title">{sub}</p>' + composer_html + rubric_html
     # Keep any caller-supplied lead-in (a subtitle and rubric, say) with the
     # heading and only the first system, all as one unit. A long piece's
     # later systems then flow across pages on their own, instead of the
@@ -1044,8 +1062,98 @@ def _announcement_images(entry, repo_root):
     return paths
 
 
-def announcements_block(cfg, brand, repo_root, include_qr=False):
+ANNOUNCEMENT_PLACEMENTS = ("back_page", "after_connect_give")
+
+# The width of the text column announcements print in, by template. Modern
+# hangs section labels in a 1.55in rail, so its column is 5.75in; classic
+# sections use the full 7.3in measure.
+ANNOUNCEMENT_COLUMN_IN = {"modern": 5.75}
+FULL_MEASURE_IN = 7.3
+
+
+def announcement_column_width(template):
+    """The width, in inches, of the column announcement pictures print in."""
+    return ANNOUNCEMENT_COLUMN_IN.get(template or "", FULL_MEASURE_IN)
+
+
+def qr_data_uri(url):
+    """A QR code for ``url`` as an inline PNG, or None when it cannot be made."""
+    try:
+        import base64
+        import io
+        import qrcode
+    except ImportError:
+        return None
+    code = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=0, box_size=10)
+    code.add_data(url)
+    code.make(fit=True)
+    buffer = io.BytesIO()
+    code.make_image(fill_color="black", back_color="white").save(buffer, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def featured_block(featured, repo_root):
+    """A featured announcement row: photo, figure, progress, and QR code.
+
+    Everything but the photo and the code is real text, so it prints sharp,
+    reads aloud, and survives a word check. The row fits the text column.
+    """
+    if not isinstance(featured, dict):
+        return ""
+    cells = []
+    photo = str(featured.get("photo") or "").strip()
+    if photo:
+        path = (repo_root / photo).resolve()
+        if path.exists():
+            cells.append(f'<td class="f-photo"><img src="{path.as_uri()}" alt=""></td>')
+    figure = str(featured.get("figure") or "").strip()
+    note = str(featured.get("figure_note") or "").strip()
+    progress = featured.get("progress")
+    middle = ""
+    if figure:
+        middle += f'<p class="f-figure">{inline_md(figure)}</p>'
+    if note:
+        middle += f'<p class="f-note">{inline_md(note)}</p>'
+    if isinstance(progress, (int, float)) and not isinstance(progress, bool):
+        share = max(0.0, min(100.0, float(progress)))
+        middle += (f'<div class="f-bar"><div class="f-fill" '
+                   f'style="width:{share:g}%"></div></div>')
+    if middle:
+        cells.append(f'<td class="f-middle">{middle}</td>')
+    url = str(featured.get("qr_url") or "").strip()
+    if url:
+        uri = qr_data_uri(url)
+        if uri:
+            label = str(featured.get("qr_label") or "Scan the code").strip()
+            cells.append(f'<td class="f-qr"><img src="{uri}" alt="QR code for {esc(url)}">'
+                         f'<p class="f-scan">{esc(label)}</p></td>')
+    if not cells:
+        return ""
+    return f'<table class="feature-row"><tr>{"".join(cells)}</tr></table>'
+
+
+def announcements_placement(cfg):
+    """Resolve where dated announcements print.
+
+    ``back_page`` is the long-standing default. ``after_connect_give``
+    prints them directly after the Connect and Give section instead, for a
+    church that wants them read during the offertory. Any other or missing
+    value keeps the default.
+    """
+    options = cfg.get("options") or {}
+    value = str(options.get("announcements_placement", "")).strip() if isinstance(options, dict) else ""
+    return value if value in ANNOUNCEMENT_PLACEMENTS else "back_page"
+
+
+def announcements_section(cfg, repo_root, template=None):
+    """Render the dated announcements as one section, or nothing.
+
+    Pictures size to the text column the section prints in, never past it.
+    An announcement with ``featured`` prints as one boxed block that never
+    splits across pages.
+    """
     items = cfg.get("announcements", [])
+    content_w = announcement_column_width(template)
     lis_parts = []
     for a in items:
         title_html = f'<p class="ann-title">{inline_md(a["title"])}</p>' if str(a.get("title", "")).strip() else ""
@@ -1054,6 +1162,13 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
         caption = str(a.get("caption", "")).strip()
         caption_html = f'<p class="rubric">{inline_md(caption)}</p>' if caption else ""
         image_paths = _announcement_images(a, repo_root)
+        featured = featured_block(a.get("featured"), repo_root)
+        if featured:
+            pictures = "\n".join(sized_img(path, "announcement-img", content_w=content_w - 0.4,
+                                           max_h=7.2) for path in image_paths)
+            lis_parts.append(f'<div class="announcement featured">{title_html}{text_html}'
+                             f'{featured}{pictures}{caption_html}</div>')
+            continue
         if image_paths:
             # The back page reserves footer space on every page it spans,
             # so its usable height is well under a plain full page. Only
@@ -1063,8 +1178,9 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
             # of it. A small QR graphic is unaffected either way (it is
             # well under both bounds already, so it is never stretched).
             first_h, later_h = 7.2, 8.5
-            systems = ([sized_img(image_paths[0], "announcement-img", content_w=7.3, max_h=first_h)]
-                       + [sized_img(path, "announcement-img", content_w=7.3, max_h=later_h)
+            systems = ([sized_img(image_paths[0], "announcement-img", content_w=content_w,
+                                  max_h=first_h)]
+                       + [sized_img(path, "announcement-img", content_w=content_w, max_h=later_h)
                           for path in image_paths[1:]])
             first_system, later_systems = systems[0], systems[1:]
             rest = "\n".join(later_systems) + caption_html
@@ -1086,6 +1202,14 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
             body = keep(title_html, text_html)
         lis_parts.append(f'<div class="announcement">{body}</div>')
     lis = "\n".join(lis_parts)
+    if not items:
+        return ""
+    return f'<div class="section">{section_head("Announcements")}{lis}</div>'
+
+
+def announcements_block(cfg, brand, repo_root, include_qr=False, include_items=True,
+                        template=None):
+    items = cfg.get("announcements", []) if include_items else []
     svc = cfg["service"]
     options = cfg.get("options", {}) or {}
     serving_enabled = options.get("include_serving_today") is True
@@ -1131,7 +1255,7 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
     # label beside it.
     sections = []
     if items:
-        sections.append(f'<div class="section">{section_head("Announcements")}{lis}</div>')
+        sections.append(announcements_section(cfg, repo_root, template))
     if include_qr:
         sections.append(qr_block(brand, repo_root))
     after_service = parish_information_block(cfg, "after_service")
@@ -1445,6 +1569,9 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
                                    default_unit="absolution" if standard_form_vi else "confession-of-sin"))
     parts.append(liturgy_steps(variant, "peace", ctx))
     parts.append(qr_block(brand, repo_root))
+    inline_announcements = announcements_placement(cfg) == "after_connect_give"
+    if inline_announcements:
+        parts.append(announcements_section(cfg, repo_root, template))
 
     parts.append(hymn_block("Offertory Anthem", music.get("offertory_anthem"), config_dir,
                             full_page=False))
@@ -1509,7 +1636,9 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     else:
         parts.append(dismissal_markup)
         closing = closing_hymn_markup + postlude_markup
-    back = announcements_block(cfg, brand, repo_root)
+    back = (announcements_block(cfg, brand, repo_root, include_items=False, template=template)
+            if inline_announcements
+            else announcements_block(cfg, brand, repo_root, template=template))
     if can_merge_back_page(cfg, closing_hymn, back):
         parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')
     else:
@@ -1597,7 +1726,7 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
     else:
         parts.append(sending_markup)
         closing = closing_hymn_markup + postlude_markup
-    back = announcements_block(cfg, brand, repo_root)
+    back = announcements_block(cfg, brand, repo_root, template=template)
     if can_merge_back_page(cfg, closing_hymn, back):
         parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')
     else:
@@ -1738,8 +1867,35 @@ def font_faces():
     return "\n".join(faces)
 
 
-def build_css(template, brand):
+SERIF_STACK = '"Source Serif 4", Georgia, serif'
+SANS_STACK = '"Source Sans 3", Helvetica, Arial, sans-serif'
+
+
+def type_tokens(brand, church_root):
+    """Font roles for the themes, with an approved brand's own faces first.
+
+    The brand's display face sets titles and its text face sets labels,
+    times and page numbers. Running liturgy uses the brand's reading face
+    when it has one, with its axis settings, and the theme's reading serif
+    otherwise. Without brand type the themes keep their bundled faces.
+    """
+    faces, families = ("", {})
+    if church_root is not None:
+        faces, families = brand_faces(brand, Path(church_root))
+    display = families.get("display")
+    text = families.get("text")
+    reading = families.get("reading")
+    return faces, {
+        "face_display": f'"{display}", {SERIF_STACK}' if display else SERIF_STACK,
+        "face_label": f'"{text}", {SANS_STACK}' if text else SANS_STACK,
+        "face_body": f'"{reading}", {SERIF_STACK}' if reading else SERIF_STACK,
+        "body_variation": variation_settings(brand, "reading") if reading else "normal",
+    }
+
+
+def build_css(template, brand, church_root=None):
     colors = brand.get("colors", NEUTRAL_BRAND["colors"])
+    brand_face_css, faces = type_tokens(brand, church_root)
     resolved_footer = bulletin_footer(brand)
     footer_bits = [smart_quotes(str(resolved_footer[key]))
                    for key in ("contact_name", "address", "phone", "email", "website")
@@ -1750,13 +1906,15 @@ def build_css(template, brand):
         "accent": colors.get("accent", "#4a5d7e"),
         "accent_deep": colors.get("accent_deep", "#2e3a52"),
         "rubric": colors.get("rubric_red", "#8B3A3A"),
+        "paper": colors.get("paper", "#F3F1EC"),
         "footer_line": resolved_footer_line.replace('"', '\\"'),
+        **faces,
     }
     css = ""
     for name in ("base", template):
         sheet = (THEMES_DIR / f"{name}.css").read_text(encoding="utf-8")
         css += Template(sheet).substitute(tokens) + "\n"
-    return font_faces() + "\n" + css
+    return font_faces() + "\n" + brand_face_css + "\n" + css
 
 
 # ---------------------------------------------------------------------------
@@ -2000,7 +2158,7 @@ def main():
                                      args.template)
 
     content = mark_print_units(content)
-    css = build_css(args.template, brand)
+    css = build_css(args.template, brand, repo_root)
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><style>

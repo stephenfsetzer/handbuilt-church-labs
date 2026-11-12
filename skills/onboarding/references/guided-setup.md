@@ -122,11 +122,13 @@ Desktop folder", explain what is asking and why, then let the pastor choose.
 
 > Click **Start**, type **PowerShell**, and press **Enter**.
 
-On Windows, prefer the official Python installer or `winget` when the host
-reports it is available, and check the official instructions before giving a
-command. Bulletin PDF tools on Windows have no supported installer in this
-plugin yet; say so plainly, and continue with church setup and sermon
-research.
+On Windows, Handbuilt needs no Python installer: `handbuilt-python` fetches
+its own copy. Git is the one thing to install, with `winget` when the host
+reports it is available. After Git is installed, Claude must be fully closed
+and reopened before it can see it. Closing the window is not enough: have the
+pastor click the menu at the top left, then **File**, then **Exit**, and open
+Claude again. Bulletin PDF tools work on Windows: the doctor's plan installs
+Handbuilt's own copy with no installer window.
 
 ## Common snags
 
@@ -139,30 +141,23 @@ Read the actual message first. Match it to a row only when the evidence fits.
 | Homebrew install stops at `Password:` | Homebrew needs permission to create its folder. | Hand the step to the pastor in the Terminal. The agent's shell cannot type a password. |
 | `Need sudo access` or "not an administrator" | This account cannot install software. | Stop installing. Explain that church setup and sermon research can continue, and that bulletin PDF tools need someone with an administrator account. |
 | A message that Homebrew does not support this Mac, or an Intel processor (`uname -m` prints `x86_64`) | Homebrew's support for Intel Macs is being phased out. | Check the current [Homebrew support tiers](https://docs.brew.sh/Support-Tiers) before advising. Continue with workspace and sermon research. Record bulletin PDF tools as pending, and do not loop on installs. |
-| `python3` opens an Apple install pop-up or reports an old version | The Mac has a placeholder Python, not a usable one. | Look for a newer installed Python first. Otherwise use the official [python.org macOS installer](https://www.python.org/downloads/macos/) and walk them through its window. |
+| `python3` opens an Apple install pop-up or reports an old version | The Mac has a placeholder Python, not a usable one. | Do not install Python. Run the tool through `handbuilt-python`, which uses Handbuilt's own copy. |
+| After installing, **Set up my Church Command Center** gets a general answer, or Claude asks what a command center should do | Claude has not loaded the plugin yet. | Have the pastor fully quit Claude and open it again (Windows: menu at the top left, **File**, **Exit**; Mac: **Claude**, **Quit**), then start a new session. |
 | `Operation not permitted` on a Desktop or Documents folder | macOS privacy settings blocked the app from that folder. | Explain the prompt, and let the pastor choose to allow it or pick another folder location. |
 | Network errors, timeouts, or `Could not resolve host` | The internet connection dropped or a network blocks the download. | Ask them to check Wi-Fi, then retry once. On a church or diocese network, offer to wait until they are on another network. |
 | The same error twice after a retry | Repeating will not help. | Stop, explain what you learned, and either try a different supported route or record the item as pending with one clear next step. |
 
-## Install Homebrew with the pastor
+## PDF tools need no Homebrew
 
-Only install Homebrew when the doctor reports PDF tools missing, the host is a
-Mac with Apple silicon or a supported tier, and the pastor wants bulletin work
-now. Otherwise record it as pending.
+When the doctor reports PDF tools missing on a Mac or Windows, run its
+`native_install` plan. Handbuilt downloads its own PDF tools into its own
+folder, checks each file, and finishes in a minute or two. The pastor does
+nothing. Say what is happening in one sentence, for example: "I'm adding the
+small tools Handbuilt uses to make and check PDFs. They stay inside
+Handbuilt's own folder."
 
-1. Explain Homebrew in one or two sentences and ask whether to go ahead.
-2. Read the [official installation guide](https://docs.brew.sh/Installation)
-   or [brew.sh](https://brew.sh) for the current install command. Do not
-   rewrite it from memory.
-3. Have the pastor open the Terminal and run that one command (see above). It
-   asks for their password, then may ask them to press Return to continue.
-   It can take 5 to 15 minutes and may install Apple's Command Line Tools.
-4. At the end, Homebrew prints "Next steps" with lines to run. Ask the pastor
-   to paste that output. Give those lines back one at a time if they are
-   needed.
-5. Check `brew --version` yourself using the full path, then return to the
-   runtime doctor and its `native-install` plan. That step installs the PDF
-   tool without a password.
+Do not install Homebrew for Handbuilt. If a Mac already has Homebrew, leave it
+alone.
 
 ## Close each step
 
@@ -170,6 +165,6 @@ After every repaired item, say in one or two sentences what is now installed,
 where it lives when that helps, and the next step. When setup is done, give a
 short recap the pastor could repeat to a colleague, for example:
 
-> Your computer is ready. We added Handbuilt's private Python helpers, and
-> Homebrew with a small PDF reader so I can import your bulletins. None of it
-> touches your other apps. Next, we'll set up your church folder.
+> Your computer is ready. We added Handbuilt's own Python helpers and PDF
+> tools, all inside Handbuilt's own folder. None of it touches your other
+> apps. Next, we'll set up your church folder.

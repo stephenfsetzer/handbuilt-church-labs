@@ -8,6 +8,7 @@ bundled open fonts before any brand exists.
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 import re
@@ -23,6 +24,19 @@ from tools.image_limits import MAX_IMAGE_BYTES
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 BUNDLED_FONTS = SKILL_DIR.parent / "bulletin" / "renderer" / "fonts"
+
+
+def _load_brand_type():
+    """The bulletin renderer's brand_type module, shared by every renderer."""
+    import importlib.util
+    path = SKILL_DIR.parent / "bulletin" / "renderer" / "brand_type.py"
+    spec = importlib.util.spec_from_file_location("handbuilt_brand_type", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+brand_faces = _load_brand_type().brand_faces
 NEUTRAL = {"ink": "#1a1a1a", "accent": "#4a5d7e", "accent_deep": "#2e3a52", "paper": "#ffffff", "rubric_red": "#8B3A3A"}
 
 INLINE_CODE = re.compile(r"`([^`]+)`")
@@ -34,7 +48,9 @@ HEADING = re.compile(r"^(#{1,4})\s+(.*)$")
 ORDERED = re.compile(r"^\s*\d+[.)]\s+(.*)$")
 UNORDERED = re.compile(r"^\s*[-*]\s+(.*)$")
 TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$")
-DECISION_LABELS = ("**Options considered:**", "**Shown on:**", "**Recommended:**", "**Decision:**", "**Why:**")
+DECISION_LABELS = ("**Options considered:**", "**Shown on:**", "**Recommended:**", "**Decision:**", "**Decided by:**", "**Why:**",
+                   "**Proposed by the studio, not yet decided:**", "**The studio suggests:**", "**Why the studio suggests it:**",
+                   "**This is an amendment.**", "**Added:**", "**Status:**")
 WAYFINDING_LABELS = ("**Where you are:**", "**You decide today:**", "**Next you will see:**")
 MAX_GUIDE_BYTES = 1024 * 1024
 
@@ -166,39 +182,30 @@ def _brand_source(root: Path) -> tuple[str, dict[str, Any], dict[str, str]]:
     return "neutral", {}, colors
 
 
-def _font_faces(root: Path, system: dict[str, Any]) -> tuple[str, str, str]:
-    """Return (@font-face css, display family, text family)."""
-    fonts = system.get("type") if isinstance(system.get("type"), dict) else {}
-    css = []
-    families = {}
-    weights = {"regular": ("normal", "normal"), "bold": ("700", "normal"), "italic": ("normal", "italic"),
-               "bold_italic": ("700", "italic"), "semibold": ("600", "normal")}
-    for role in ("display", "text"):
-        entry = fonts.get(role) if isinstance(fonts.get(role), dict) else None
-        if entry and isinstance(entry.get("files"), dict):
-            family = entry["family"]
-            for face, rel in entry["files"].items():
-                original_path = root / rel
-                if original_path.is_symlink():
-                    raise ValueError(f"Font file for {role}.{face} must be a regular file inside the church folder")
-                font_path = original_path.resolve()
-                if root.resolve() not in font_path.parents or not font_path.is_file():
-                    raise ValueError(f"Font file for {role}.{face} must stay inside the church folder")
-                if font_path.stat().st_size > MAX_IMAGE_BYTES:
-                    raise ValueError(f"Font file for {role}.{face} exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB limit")
-                weight, style = weights.get(face, ("normal", "normal"))
-                src = font_path.as_uri()
-                css.append(f'@font-face {{ font-family: "{family}"; src: url("{src}"); font-weight: {weight}; font-style: {style}; }}')
-            families[role] = family
+def _font_faces(root: Path, system: dict[str, Any]) -> tuple[str, str, str, str]:
+    """Return (@font-face css, display family, text family, body family).
+
+    The approved or staged brand's own files come first (see the bulletin
+    renderer's brand_type module). Without them the guide uses the bundled
+    Source Serif 4 and Source Sans 3, with running text in the serif.
+    """
+    css, families = brand_faces({"brand_system": system}, root)
+    css = [css] if css else []
     if "display" not in families:
         for face, weight, style in (("SourceSerif4-Regular.ttf", "normal", "normal"), ("SourceSerif4-Bold.ttf", "700", "normal"), ("SourceSerif4-Italic.ttf", "normal", "italic")):
             css.append(f'@font-face {{ font-family: "Source Serif 4"; src: url("{(BUNDLED_FONTS / face).as_uri()}"); font-weight: {weight}; font-style: {style}; }}')
         families["display"] = "Source Serif 4"
+    body = families.get("text", families["display"])
     if "text" not in families:
         for face, weight, style in (("SourceSans3-Regular.ttf", "normal", "normal"), ("SourceSans3-Bold.ttf", "700", "normal"), ("SourceSans3-Italic.ttf", "normal", "italic")):
             css.append(f'@font-face {{ font-family: "Source Sans 3"; src: url("{(BUNDLED_FONTS / face).as_uri()}"); font-weight: {weight}; font-style: {style}; }}')
         families["text"] = "Source Sans 3"
-    return "\n".join(css), families["display"], families["text"]
+    return "\n".join(css), families["display"], families["text"], body
+
+
+def _css_string(value: str) -> str:
+    """Quote text for a CSS string, such as a running footer's content."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _palette(system: dict[str, Any], colors: dict[str, str]) -> dict[str, str]:
@@ -214,7 +221,9 @@ def _palette(system: dict[str, Any], colors: dict[str, str]) -> dict[str, str]:
         "accent": pick("primary", "accent", fallback=colors["accent"]),
         "deep": pick("deep", "accent_deep", "secondary", fallback=colors["accent_deep"]),
         "paper": pick("paper", "background", fallback=colors["paper"]),
-        "rubric": pick("rubric", "highlight", fallback=colors["rubric_red"]),
+        # A brand system without a rubric color marks decisions in its accent,
+        # not in a renderer default it never chose.
+        "rubric": pick("rubric", "highlight", fallback=pick("primary", "accent", fallback=colors["accent"]) if palette else colors["rubric_red"]),
     }
 
 
@@ -238,7 +247,17 @@ def _church_name(root: Path) -> str:
     return "Your church"
 
 
-def _cover(root: Path, system: dict[str, Any], church_name: str, source: str) -> str:
+def _cover_image(root: Path, relative: str, ink: str) -> str:
+    """A mark for the colored cover. Marks paint with currentColor, which an image
+    does not inherit, so an SVG is recolored to the cover's ink first."""
+    path = root / relative
+    if path.suffix.lower() != ".svg":
+        return html.escape(relative, quote=True)
+    svg = path.read_text(encoding="utf-8").replace("currentColor", ink)
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def _cover(root: Path, system: dict[str, Any], church_name: str, source: str, kicker: str, ink: str = "#ffffff") -> str:
     marks = system.get("marks") if isinstance(system.get("marks"), dict) else {}
     name = (system.get("name") or {}).get("wordmark") if isinstance(system.get("name"), dict) else None
     direction = (system.get("direction") or {}).get("name") if isinstance(system.get("direction"), dict) else None
@@ -246,12 +265,12 @@ def _cover(root: Path, system: dict[str, Any], church_name: str, source: str) ->
     wordmark = marks.get("wordmark")
     primary = marks.get("primary")
     if primary and (root / primary).is_file():
-        parts.append(f'<img class="cover-mark" src="{html.escape(primary, quote=True)}" alt="">')
+        parts.append(f'<img class="cover-mark" src="{_cover_image(root, primary, ink)}" alt="">')
     if wordmark and (root / wordmark).is_file():
-        parts.append(f'<img class="cover-wordmark" src="{html.escape(wordmark, quote=True)}" alt="{html.escape(name or church_name)}">')
+        parts.append(f'<img class="cover-wordmark" src="{_cover_image(root, wordmark, ink)}" alt="{html.escape(name or church_name)}">')
     else:
         parts.append(f'<h1 class="cover-title">{html.escape(name or church_name)}</h1>')
-    parts.append('<p class="cover-kicker">Brand Guide</p>')
+    parts.append(f'<p class="cover-kicker">{html.escape(kicker)}</p>')
     if direction:
         parts.append(f'<p class="cover-direction">{html.escape(direction)}</p>')
     status = {"approved": f"Approved {system.get('approved_on', '')}".strip(), "staged": "Working draft, not yet approved", "neutral": "Started, before any brand decision"}[source]
@@ -260,9 +279,9 @@ def _cover(root: Path, system: dict[str, Any], church_name: str, source: str) ->
     return "\n".join(parts)
 
 
-def build_html(root: Path, markdown: str) -> tuple[str, str]:
+def build_html(root: Path, markdown: str, *, title: str = "Brand Guide", kicker: str = "Brand Guide · The pastor's own record") -> tuple[str, str]:
     source, system, colors = _brand_source(root)
-    faces, display, text = _font_faces(root, system)
+    faces, display, text, body_face = _font_faces(root, system)
     pal = _palette(system, colors)
     church_name = (system.get("name") or {}).get("short") if isinstance(system.get("name"), dict) else None
     church_name = church_name or _church_name(root)
@@ -271,11 +290,12 @@ def build_html(root: Path, markdown: str) -> tuple[str, str]:
     css = f"""
 {faces}
 @page {{ size: letter; margin: 0.9in 0.85in 0.9in 0.85in;
-  @bottom-left {{ content: "{html.escape(church_name)} · Brand Guide"; font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; letter-spacing: 0.04em; }}
+  @bottom-left {{ content: {_css_string(church_name + " · " + title)}; font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; letter-spacing: 0.04em; }}
   @bottom-right {{ content: counter(page); font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; }} }}
 @page cover {{ margin: 0; @bottom-left {{ content: none; }} @bottom-right {{ content: none; }} }}
 html {{ color: {pal['ink']}; background: {pal['paper']}; }}
-body {{ font-family: "{display}", Georgia, serif; font-size: 11pt; line-height: 1.5; }}
+body {{ font-family: "{body_face}", Georgia, serif; font-size: 11.5pt; line-height: 1.5; }}
+h1, h2, .cover-title, .cover-direction {{ font-family: "{display}", Georgia, serif; font-weight: 700; font-style: normal; }}
 .cover {{ page: cover; height: 11in; padding: 1.4in 1.1in; box-sizing: border-box; background: {pal['accent']}; color: {pal['paper']}; page-break-after: always; }}
 .cover-mark {{ max-height: 1.6in; max-width: 2.4in; margin-bottom: 0.6in; }}
 .cover-wordmark {{ max-width: 5.5in; max-height: 1.6in; display: block; }}
@@ -283,20 +303,22 @@ body {{ font-family: "{display}", Georgia, serif; font-size: 11pt; line-height: 
 .cover-kicker {{ font-family: "{text}"; text-transform: uppercase; letter-spacing: 0.18em; font-size: 10pt; margin: 0.5in 0 0 0; }}
 .cover-direction {{ font-size: 16pt; margin: 0.2in 0 0 0; font-style: italic; }}
 .cover-status {{ font-family: "{text}"; font-size: 9pt; position: absolute; bottom: 1.0in; left: 1.1in; opacity: 0.85; }}
-h2 {{ font-size: 22pt; line-height: 1.15; margin: 0 0 14pt 0; padding-top: 0.2in; page-break-before: always; color: {pal['accent']}; }}
-h2:first-of-type {{ page-break-before: auto; }}
-h3 {{ font-family: "{text}"; text-transform: uppercase; letter-spacing: 0.1em; font-size: 9.5pt; color: {pal['deep']}; margin: 18pt 0 6pt 0; }}
+h2 {{ font-size: 22pt; line-height: 1.15; margin: 30pt 0 14pt 0; padding-top: 0.2in; break-after: avoid; color: {pal['accent']}; }}
+h2:first-of-type {{ margin-top: 0; }}
+h3, h4 {{ break-after: avoid; }}
+tr, figure {{ break-inside: avoid; }}
+h3 {{ font-family: "{text}"; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10.5pt; color: {pal['deep']}; margin: 18pt 0 6pt 0; }}
 h4 {{ font-family: "{text}"; font-size: 11pt; margin: 14pt 0 4pt 0; }}
 p {{ margin: 0 0 9pt 0; }}
 ul, ol {{ margin: 0 0 9pt 1.2em; padding: 0; }}
 li {{ margin: 0 0 4pt 0; }}
 blockquote {{ margin: 10pt 0; padding: 4pt 0 4pt 14pt; border-left: 3pt solid {pal['accent']}; color: {pal['deep']}; }}
-table {{ border-collapse: collapse; width: 100%; margin: 8pt 0 12pt 0; font-family: "{text}"; font-size: 9.5pt; }}
+table {{ border-collapse: collapse; width: 100%; margin: 8pt 0 12pt 0; font-family: "{text}"; font-size: 10.5pt; }}
 th {{ text-align: left; border-bottom: 1.5pt solid {pal['accent']}; padding: 4pt 6pt; color: {pal['deep']}; }}
 td {{ border-bottom: 0.5pt solid {pal['deep']}44; padding: 4pt 6pt; vertical-align: top; }}
 figure {{ margin: 10pt 0 14pt 0; text-align: center; }}
 figure img, p img {{ max-width: 100%; max-height: 4.6in; }}
-figcaption {{ font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; margin-top: 4pt; }}
+figcaption {{ font-family: "{text}"; font-size: 9.5pt; color: {pal['deep']}; margin-top: 4pt; }}
 code {{ font-family: Menlo, monospace; font-size: 9pt; background: {pal['deep']}12; padding: 0 3pt; }}
 pre {{ font-family: Menlo, monospace; font-size: 8.5pt; background: {pal['deep']}12; padding: 8pt; white-space: pre-wrap; }}
 hr {{ border: 0; border-top: 0.75pt solid {pal['deep']}; margin: 14pt 0; }}
@@ -306,16 +328,16 @@ hr {{ border: 0; border-top: 0.75pt solid {pal['deep']}; margin: 14pt 0; }}
 .swatch {{ display: inline-block; width: 0.5in; height: 0.5in; vertical-align: middle; margin-right: 8pt; border: 0.5pt solid {pal['deep']}55; }}
 a {{ color: {pal['accent']}; text-decoration: none; }}
 """
-    document = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{html.escape(church_name)} Brand Guide</title><style>{css}</style></head>
-<body>{_cover(root, system, church_name, source)}
+    document = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{html.escape(church_name)} {html.escape(title)}</title><style>{css}</style></head>
+<body>{_cover(root, system, church_name, source, kicker, pal["paper"])}
 <main>{body}</main></body></html>"""
     return source, document
 
 
-def render(root: Path, guide: Path, target: Path) -> dict[str, Any]:
+def render(root: Path, guide: Path, target: Path, **labels: str) -> dict[str, Any]:
     if guide.stat().st_size > MAX_GUIDE_BYTES:
         raise ValueError(f"Brand guide exceeds the {MAX_GUIDE_BYTES // (1024 * 1024)} MiB render limit")
-    source, document = build_html(root, guide.read_text(encoding="utf-8"))
+    source, document = build_html(root, guide.read_text(encoding="utf-8"), **labels)
     try:
         from weasyprint import HTML  # noqa: WPS433
     except ImportError as exc:

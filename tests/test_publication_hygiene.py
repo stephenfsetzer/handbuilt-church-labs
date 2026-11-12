@@ -157,6 +157,20 @@ class PublicationHygieneTest(unittest.TestCase):
                 self.assertIn(f"{name}  [private file type]", result.stdout)
             self.assertNotIn("Body.ttf", result.stdout)
 
+    def test_only_the_pinned_plugin_icon_may_be_committed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            icon = root / ".claude-plugin" / "icon.png"
+            icon.parent.mkdir()
+            icon.write_bytes((REPO_ROOT / ".claude-plugin" / "icon.png").read_bytes())
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            self.assertEqual(run_checker(root).returncode, 0)
+            icon.write_bytes(b"a different image")
+            result = run_checker(root)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(".claude-plugin/icon.png  [private file type]", result.stdout)
+
     def test_pull_request_and_commit_text_is_scanned(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"

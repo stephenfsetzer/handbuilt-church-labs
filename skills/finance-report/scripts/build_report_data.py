@@ -3,19 +3,29 @@
 
     python3 build_report_data.py --church-folder . --month 2026-08 \
         --balance-sheet PULL.json --pl-ytd PULL.json [--pl-prior PULL.json] \
+        [--company-info PULL.json] \
         [--unrecorded "1500|Preschool rent received August 21, not yet recorded"]
+
+"The church's year" below is its fiscal year: settings `fiscal_year_start`
+(1 for January, 7 for July). When the settings do not have it yet, the build
+reads it from --company-info (QuickBooks company info, a read-only pull),
+saves it in the settings, and goes on. With neither, it stops: it never
+assumes January.
 
 Inputs (saved connector responses, JSON):
   --balance-sheet  balance sheet split by month, from config history_start
                    (or earlier) through the report month end
-  --pl-ytd         profit and loss, January 1 through the report month end
-  --pl-prior       profit and loss, January 1 through the prior month end
-                   (omit for January)
-  --pl-through     YYYY-MM=PULL.json, repeatable: profit and loss, January 1
-                   through that month end. When a year's months are all
-                   given (with --pl-ytd and --pl-prior), its monthly results
-                   come from them instead of from equity on the balance sheet,
-                   for books that close each year into a fund balance
+  --pl-ytd         profit and loss, the first day of the church's year
+                   through the report month end
+  --pl-prior       profit and loss, the first day of the church's year
+                   through the prior month end (omit in the year's first month)
+  --company-info   QuickBooks company info, for the month the year starts
+  --pl-through     YYYY-MM=PULL.json, repeatable: profit and loss, the first
+                   day of the church's year through that month end. When a
+                   year's months are all given (with --pl-ytd and --pl-prior),
+                   its monthly results come from them instead of from equity
+                   on the balance sheet, for books that close each year into
+                   a fund balance
 
 Writes <report_folder>/<month>/report.json. The short answer and any watch
 item without a template are drafts for a person to finish. Stops with an
@@ -39,6 +49,28 @@ def fail(msg):
     sys.exit(f"CHECK FAILED: {msg}")
 
 
+class PullCutOff(SystemExit):
+    """A profit and loss the connector cut off. It stops the run like any failed check, and carries
+    what the refusal record keeps: the pull's name, why, and its section totals, which stay correct
+    in a cut-off pull. Its line detail is never used."""
+
+    def __init__(self, path, reason, sections, period):
+        super().__init__(f"CHECK FAILED: {reason}")
+        self.record = {
+            "status": "blocked", "code": "pull_cut_off", "pull": Path(path).name, "period": period,
+            "reason": reason,
+            "section_totals": {k: round(v, 2) for k, v in sections.items() if k in (*INCOME, *EXPENSE)},
+            "section_totals_note": ("Section totals from a cut-off pull are correct and may be quoted as totals. "
+                                    "Its account lines are incomplete: no groups, accounts or findings come from it."),
+            "next": "Pull a shorter period, or use a QuickBooks export of the same report, and run this again."}
+
+
+def record_cut_off(where, cut):
+    """Save the refusal next to the work it stopped, so a cut-off pull shows in the record."""
+    where.parent.mkdir(parents=True, exist_ok=True)
+    where.write_text(json.dumps(cut.record, indent=2), encoding="utf-8")
+
+
 def money(v):
     return f"${abs(round(v)):,}"
 
@@ -59,7 +91,7 @@ def strip_code(name):
 
 def read_pull(path, convert):
     """A saved pull: the connector's response, or QuickBooks' own report JSON read as the connector's."""
-    d = json.loads(Path(path).read_text())
+    d = json.loads(Path(path).read_text(encoding="utf-8"))
     if quickbooks_native.is_native(d):
         try:
             return convert(d)
@@ -68,8 +100,21 @@ def read_pull(path, convert):
     return d
 
 
+def check_cells(path, rows, width, first=1):
+    """Every row of a saved pull has one cell per column. A pull that was retyped or cut by hand
+    can drop a cell, which shifts every later figure on that row into the wrong month."""
+    for number, r in enumerate(rows, first):
+        cells = r.get("cells") or []
+        if len(cells) != width:
+            name = cells[0].get("value") if cells else None
+            fail(f"{Path(path).name}: row {number} ({name or 'unnamed'}) has {len(cells)} cells but the pull "
+                 f"has {width} columns, so the file is damaged or was not saved exactly as QuickBooks "
+                 "returned it; pull it again and save the response unchanged")
+
+
 def load_balance_sheet(path):
     d = read_pull(path, quickbooks_native.balance_sheet)
+    check_cells(path, d["reportData"]["rows"], len(d["displayColumns"]))
     cols = [c["key"] for c in d["displayColumns"][1:]]
     months = []
     for c in cols:
@@ -134,6 +179,135 @@ def row(rows, name):
     fail(f"balance sheet has no '{name}' row")
 
 
+def section_rows(rows, start, stop):
+    """The rows after the heading `start`, up to the first heading in `stop`."""
+    names = [n for n, _ in rows]
+    if start not in names:
+        return []
+    i = names.index(start)
+    j = next((k for k in range(i + 1, len(names)) if names[k] in stop), len(names))
+    return rows[i + 1:j]
+
+
+def balances_by_name(rows, n):
+    """Each account's balance by month: its opening row and change row summed by name."""
+    out = {}
+    for name, vals in rows:
+        base = strip_code(name)
+        cur = out.get(base, [0.0] * n)
+        out[base] = [a + b for a, b in zip(cur, vals)]
+    return out
+
+
+def month_words(key):
+    return f"{MONTHS[int(key[5:7]) - 1]} {key[:4]}"
+
+
+def liabilities_below_zero(months, rows, threshold=500):
+    """Liability accounts below zero at the last month, each with its balance and the first month of
+    the run of months it has been below zero. Read these; never work a balance out from the
+    opening and change rows by hand."""
+    out = []
+    liab = balances_by_name(section_rows(rows, "Liabilities", {"Equity"}), len(months))
+    for name, vals in liab.items():
+        if vals[-1] >= -threshold:
+            continue
+        i = len(vals) - 1
+        while i > 0 and vals[i - 1] < 0:
+            i -= 1
+        out.append({"account": name, "balance": round(vals[-1], 2), "month": months[-1],
+                    "below_zero_since": months[i], "below_zero_since_words": month_words(months[i]),
+                    "since_the_first_month_pulled": i == 0})
+    return out
+
+
+# --- the church's year -------------------------------------------------------------
+
+def read_fiscal_start(path):
+    """The month the church's year starts (1 to 12), from a saved QuickBooks company info pull."""
+    def find(node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k.lower() == "fiscalyearstartmonth":
+                    return v
+            for v in node.values():
+                got = find(v)
+                if got is not None:
+                    return got
+        elif isinstance(node, list):
+            for v in node:
+                got = find(v)
+                if got is not None:
+                    return got
+        return None
+    try:
+        value = find(json.loads(Path(path).read_text(encoding="utf-8")))
+    except (OSError, ValueError) as problem:
+        fail(f"cannot read the company info pull {Path(path).name}: {problem}")
+    month = fiscal_month(value)
+    if month is None:
+        fail(f"{Path(path).name} does not say which month the church's year starts "
+             "(fiscalYearStartMonth); pull company info from QuickBooks again and save it unchanged")
+    return month
+
+
+def fiscal_month(value):
+    """1 to 12 from 7, "7", "July" or "Jul"; None for anything else."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if 1 <= value <= 12 else None
+    text = str(value or "").strip()
+    if text.isdigit():
+        return fiscal_month(int(text))
+    names = {m.lower(): i + 1 for i, m in enumerate(MONTHS)}
+    names.update({m[:3].lower(): i + 1 for i, m in enumerate(MONTHS)})
+    return names.get(text.lower())
+
+
+def church_year_start(cfg, config_path, company_info):
+    """The month the church's year starts, and whether it was just saved to the settings.
+
+    The saved setting wins; company info fills it in when the settings predate it. When they
+    disagree, the build stops: one of them is out of date and a person should say which."""
+    saved = cfg.get("fiscal_year_start")
+    if saved is not None and fiscal_month(saved) is None:
+        fail(f"settings fiscal_year_start is {saved!r}; it must be the month the church's year starts, 1 to 12")
+    from_books = read_fiscal_start(company_info) if company_info else None
+    if saved is None and from_books is None:
+        fail("the finance settings do not say which month the church's year starts, and no company info "
+             "was given. Pull company info from QuickBooks (read-only), save it in this month's pulls "
+             "folder as company-info.json, and build again with --company-info; the build saves the "
+             "month in the settings. The report never assumes the year starts in January.")
+    if saved is not None and from_books is not None and fiscal_month(saved) != from_books:
+        fail(f"the finance settings say the church's year starts in {MONTHS[fiscal_month(saved) - 1]}, but "
+             f"QuickBooks company info says {MONTHS[from_books - 1]}; ask the treasurer which is right and "
+             "correct the setting (fiscal_year_start) or the QuickBooks company settings")
+    if saved is not None:
+        return fiscal_month(saved), False
+    cfg["fiscal_year_start"] = from_books
+    config_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    return from_books, True
+
+
+def shift(key, k):
+    """'YYYY-MM' moved k months."""
+    i = int(key[:4]) * 12 + int(key[5:7]) - 1 + k
+    return f"{i // 12}-{i % 12 + 1:02d}"
+
+
+def year_start_of(key, fs):
+    """The first month ('YYYY-MM') of the church's year that month `key` falls in."""
+    y, m = int(key[:4]), int(key[5:7])
+    return f"{y if m >= fs else y - 1}-{fs:02d}"
+
+
+def year_label(start_key, fs):
+    """'2026' for a calendar year; '2026-27' for a year that starts in another month."""
+    y = int(start_key[:4])
+    return str(y) if fs == 1 else f"{y}-{str(y + 1)[2:]}"
+
+
 # --- profit and loss ------------------------------------------------------------
 
 # Section headings as QuickBooks sometimes spells them, read as the names the builder uses.
@@ -149,6 +323,11 @@ def section_name(name):
 def load_pl(path):
     d = read_pull(path, quickbooks_native.profit_and_loss)
     rows = d["reportData"]["data"]["rows"]
+    # The connector's profit and loss declares no columns; every row needs at least its name and total,
+    # and a row that lost its total would move a later amount into its place.
+    for number, r in enumerate(rows, 1):
+        if len(r.get("cells") or []) < 2:
+            check_cells(path, [r], 2, number)
     by_id = {r["metadata"]["id"]: r for r in rows}
     section_of = {}
     for r in rows:
@@ -174,7 +353,8 @@ def load_pl(path):
                 chain.append(parent["cells"][0]["value"])
         sec = section_of.get(parts[0], "")
         items.append({"name": name, "chain": chain, "section": sec, "value": val})
-    check_complete(path, rows, items, sections, limited=d.get("source") != "quickbooks-api")
+    check_complete(path, rows, items, sections, limited=d.get("source") != "quickbooks-api",
+                   period=f"{d.get('periodStart')} to {d.get('periodEnd')}")
     return d["periodStart"], d["periodEnd"], items, sections
 
 
@@ -182,21 +362,22 @@ def load_pl(path):
 CONNECTOR_ROW_LIMIT = 100
 
 
-def check_complete(path, rows, items, sections, limited=True):
+def check_complete(path, rows, items, sections, limited=True, period=None):
     """Stop on a profit and loss the connector cut off: rows at its limit, or line rows that do not
     add up to their section's total. Nothing drafted from a partial pull can be trusted. QuickBooks'
     own reports have no row limit, so only the totals are checked for them."""
     name = Path(path).name
     if limited and len(rows) >= CONNECTOR_ROW_LIMIT:
-        fail(f"{name} has {len(rows)} rows, the connector's limit, so it is probably cut off; "
-             "pull a shorter period or use the QuickBooks export instead")
+        raise PullCutOff(path, f"{name} has {len(rows)} rows, the connector's limit, so it is probably cut off; "
+                         "pull a shorter period or use the QuickBooks export instead", sections, period)
     for sec in (*INCOME, *EXPENSE):
         if sec not in sections:
             continue
         lines = sum(it["value"] for it in items if it["section"] == sec)
         if abs(lines - sections[sec]) > 1:
-            fail(f"{name}: the {sec} lines add up to {lines:,.2f} but the {sec} total is {sections[sec]:,.2f}, "
-                 "so the pull is incomplete; pull it again or use the QuickBooks export instead")
+            raise PullCutOff(path, f"{name}: the {sec} lines add up to {lines:,.2f} but the {sec} total is "
+                             f"{sections[sec]:,.2f}, so the pull is cut off or incomplete; pull it again or use the "
+                             "QuickBooks export instead", sections, period)
 
 
 def pl_net(sections):
@@ -204,21 +385,21 @@ def pl_net(sections):
     return sum(sections.get(s, 0) for s in INCOME) - sum(sections.get(s, 0) for s in EXPENSE)
 
 
-def results_through(args, year, mon):
-    """Year-to-date results by month end ('YYYY-MM'), from the profit and loss pulls given."""
+def results_through(args, fs):
+    """Results for the church's year so far by month end ('YYYY-MM'), from the profit and loss pulls given."""
     out = {}
     for spec in args.pl_through:
         month, sep, path = spec.partition("=")
         if not sep or not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
             fail(f"--pl-through takes YYYY-MM=PULL.json, not {spec!r}")
         start, end, _, sections = load_pl(path)
-        if not start.startswith(f"{month[:4]}-01") or not end.startswith(month):
-            fail(f"--pl-through {month} covers {start} to {end}; it must run January 1 to the end of {month}")
+        if not start.startswith(year_start_of(month, fs)) or not end.startswith(month):
+            fail(f"--pl-through {month} covers {start} to {end}; it must run {MONTHS[fs - 1]} 1 to the end of {month}")
         out[month] = pl_net(sections)
     _, _, _, ytd_sec = load_pl(args.pl_ytd)
-    out[f"{year}-{mon:02d}"] = pl_net(ytd_sec)
-    if args.pl_prior and mon > 1:
-        out[f"{year}-{mon - 1:02d}"] = pl_net(load_pl(args.pl_prior)[3])
+    out[args.month] = pl_net(ytd_sec)
+    if args.pl_prior and args.month != year_start_of(args.month, fs):
+        out[shift(args.month, -1)] = pl_net(load_pl(args.pl_prior)[3])
     return out
 
 
@@ -240,6 +421,49 @@ def group_items(items, groups, sections_wanted):
                 out[g["name"]] += it["value"]
                 break
     return out
+
+
+def check_groups(groups, items, sections_wanted, side):
+    """Each named group's account entries against the books. An entry that is neither an account
+    number nor an account or heading name in the books stops the build: the group would print $0
+    for nothing. A number that matches no account with amounts this year is for a person to look at.
+    Returns the plain-language notes for a person."""
+    found = {code(n) for it in items if it["section"] in sections_wanted for n in it["chain"]}
+    notes = []
+    for g in groups:
+        if g.get("accounts") == ["*"]:
+            continue
+        entries = g.get("accounts") or []
+        if not entries:
+            fail(f"{side} group '{g['name']}' lists no accounts; name its account numbers in the settings")
+        unknown = [a for a in entries if a not in found]
+        bad = [a for a in unknown if not re.fullmatch(ACCOUNT_CODE, str(a))]
+        if bad:
+            fail(f"{side} group '{g['name']}' lists {', '.join(repr(a) for a in bad)}, which is not an account "
+                 "number or an account name in the books; correct the group's accounts in the settings")
+        if unknown and len(unknown) == len(entries):
+            notes.append(f"The {side} group '{g['name']}' matches no account with amounts this year "
+                         f"({', '.join(unknown)}), so it shows $0; check its accounts in the settings")
+    return notes
+
+
+def lead_part(parts, catch_all=()):
+    """The group a headline names: the largest named group with money in it. The catch-all
+    group ("Other spending") is named only when no other group has any money."""
+    positive = [p for p in parts if p["amount"] > 0]
+    named = [p for p in positive if p["name"] not in catch_all] or positive
+    return max(named, key=lambda p: p["amount"]) if named else None
+
+
+def headline(parts, catch_all=()):
+    """'Mostly X', where X is the lead group, never simply the first one listed."""
+    lead = lead_part(parts, catch_all)
+    if not lead:
+        return "No money recorded yet this year"
+    total = sum(p["amount"] for p in parts if p["amount"] > 0)
+    # "Mostly" only when it is true: the lead group holds at least half.
+    word = "Mostly" if lead["amount"] * 2 >= total else "Largest:"
+    return f"{word} {lead['name'].lower()}"
 
 
 def item_values(items, sections_wanted):
@@ -270,7 +494,20 @@ def watch_status(item, prev_watch):
     return "No change"
 
 
+_BLOCKED_RECORD = []  # where this build records a refusal, once the month folder is known
+
+
 def main(argv=None):
+    _BLOCKED_RECORD.clear()
+    try:
+        build(argv)
+    except PullCutOff as cut:
+        if _BLOCKED_RECORD:
+            record_cut_off(_BLOCKED_RECORD[0], cut)
+        raise
+
+
+def build(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--church-folder", default=".")
     ap.add_argument("--month", required=True, help="YYYY-MM, the last month of books in the report")
@@ -278,19 +515,34 @@ def main(argv=None):
     ap.add_argument("--pl-ytd", required=True)
     ap.add_argument("--pl-prior")
     ap.add_argument("--pl-through", action="append", default=[], help="'YYYY-MM=PULL.json'")
+    ap.add_argument("--company-info", help="QuickBooks company info pull, for the month the church's year starts")
     ap.add_argument("--unrecorded", action="append", default=[], help="'amount|label'")
     ap.add_argument("--prepared", required=True, help="YYYY-MM-DD")
     ap.add_argument("--sample", action="store_true", help="mark as a sample rebuilt from current books")
     args = ap.parse_args(argv)
 
     root = Path(args.church_folder).resolve()
-    cfg = json.loads((root / "finance/board/config.json").read_text())
+    config_path = root / "finance/board/config.json"
+    cfg = json.loads(config_path.read_text(encoding="utf-8"))
     folder = root / cfg["report_folder"]
+    _BLOCKED_RECORD.append(folder / args.month / "blocked.json")
     year, mon = int(args.month[:4]), int(args.month[5:])
     mname = MONTHS[mon - 1]
-    budget = cfg.get("budget", {}).get(str(year))
+    # The church's year: its first month, this year's months so far, and last year's twelve.
+    fs, fs_saved = church_year_start(cfg, config_path, args.company_info)
+    first_name = MONTHS[fs - 1]
+    fy_start = year_start_of(args.month, fs)
+    fy_year = int(fy_start[:4])
+    k = (mon - fs) % 12 + 1  # months of the church's year so far
+    this_keys = [shift(fy_start, i) for i in range(k)]
+    last_keys = [shift(fy_start, i - 12) for i in range(12)]
+    this_label, last_label = year_label(fy_start, fs), year_label(last_keys[0], fs)
+    period_label = (f"{first_name} to {mname} {year}" if fy_year == year
+                    else f"{first_name} {fy_year} to {mname} {year}")
+    prev_name = MONTHS[(mon - 2) % 12]
+    budget = cfg.get("budget", {}).get(str(fy_year))
     if not budget and cfg.get("budget_mode") != "none":
-        fail(f"config has no budget for {year}; add one or choose no budget in setup")
+        fail(f"config has no budget for {this_label}; add one or choose no budget in setup")
 
     # balance sheet: bank, endowment, monthly results
     months, bs = load_balance_sheet(args.balance_sheet)
@@ -303,47 +555,50 @@ def main(argv=None):
     # A year whose month ends all have a profit and loss pull takes its results from them. Books
     # that close each year into a fund balance move equity without a result, so equity alone
     # misreads the months the closing entry falls in.
-    ytd = results_through(args, year, mon) if args.pl_through else {}
-    for y, upto in ((year - 1, 12), (year, mon)):
-        keys = [f"{y}-{m:02d}" for m in range(1, upto + 1)]
-        if all(k in ytd for k in keys):
-            for m, k in enumerate(keys):
-                monthly[k] = ytd[k] - (ytd[keys[m - 1]] if m else 0)
+    ytd = results_through(args, fs) if args.pl_through else {}
+    for keys in (last_keys, this_keys):
+        if all(key in ytd for key in keys):
+            for m, key in enumerate(keys):
+                monthly[key] = ytd[key] - (ytd[keys[m - 1]] if m else 0)
     idx = months.index(args.month)
 
-    def cum(y, upto):
+    def cum(keys, label):
         s, out = 0.0, []
-        for m in range(1, upto + 1):
-            key = f"{y}-{m:02d}"
+        for key in keys:
             if key not in monthly:
-                fail(f"balance sheet must start by December {y - 1} to chart {y}")
+                fail(f"balance sheet must start by {month_words(shift(keys[0], -1))} to chart {label}")
             s += monthly[key]
             out.append(round(s))
         return out
 
-    # Short history: the books do not reach back to December two years ago,
+    # Short history: the books do not reach back to the month before last year began,
     # so there is no full last year to compare with.
-    short_history = cfg["history_start"] > f"{year - 2}-12"
-    this_year = cum(year, mon)
-    last_year = None if short_history else cum(year - 1, 12)
-    known = next((y for y in cfg.get("long_view", {}).get("full_years", []) if y["year"] == year - 1), None)
+    short_history = cfg["history_start"] > shift(last_keys[0], -1)
+    this_year = cum(this_keys, this_label)
+    last_year = None if short_history else cum(last_keys, last_label)
+    known = next((y for y in cfg.get("long_view", {}).get("full_years", []) if y["year"] == fy_year - 1), None)
     if last_year and known and abs(last_year[-1] - known["reported"]) > 1:
-        fail(f"last year's line ends at {last_year[-1]:,} but {year - 1}'s recorded result is "
-             f"{known['reported']:,}; the books for {year - 1} have changed or the settings are out of date")
+        fail(f"last year's line ends at {last_year[-1]:,} but {last_label}'s recorded result is "
+             f"{known['reported']:,}; the books for {last_label} have changed or the settings are out of date")
     plan_cum = [round(sum(budget["monthly_net"][:m])) for m in range(1, 13)] if budget else None
 
     # profit and loss: groups, this month, checks
-    _, end, ytd_items, ytd_sec = load_pl(args.pl_ytd)
+    y_start, end, ytd_items, ytd_sec = load_pl(args.pl_ytd)
     if not end.startswith(args.month):
         fail(f"--pl-ytd ends {end}, expected {args.month}")
+    if not y_start.startswith(fy_start):
+        fail(f"--pl-ytd starts {y_start}; it must start {first_name} 1, {fy_year}, the first day of the "
+             f"church's year (the settings say the year starts in {first_name})")
     prior_items, prior_sec = [], {}
     if args.pl_prior:
         p_start, p_end, prior_items, prior_sec = load_pl(args.pl_prior)
-        want = f"{year}-{mon - 1:02d}"
-        if mon == 1 or not p_end.startswith(want) or not p_start.startswith(f"{year}-01"):
-            fail(f"--pl-prior covers {p_start} to {p_end}; it must run January 1 to the end of {want}")
-    elif mon > 1:
-        fail("--pl-prior is required after January")
+        want = shift(args.month, -1)
+        if k == 1 or not p_end.startswith(want) or not p_start.startswith(fy_start):
+            fail(f"--pl-prior covers {p_start} to {p_end}; it must run {first_name} 1 to the end of {want}")
+    elif k > 1:
+        fail(f"--pl-prior is required after {first_name}, the first month of the church's year")
+    group_notes = (check_groups(cfg["income_groups"], [*ytd_items, *prior_items], INCOME, "income")
+                   + check_groups(cfg["spending_groups"], [*ytd_items, *prior_items], EXPENSE, "spending"))
     inc_ytd = group_items(ytd_items, cfg["income_groups"], INCOME)
     sp_ytd = group_items(ytd_items, cfg["spending_groups"], EXPENSE)
     inc_prior = group_items(prior_items, cfg["income_groups"], INCOME)
@@ -376,6 +631,15 @@ def main(argv=None):
         kept = [p for p in parts if not (p["catch_all"] and p["amount"] == 0 and p["this_month"] == 0)]
         return [{k: v for k, v in p.items() if k != "catch_all"} for p in kept]
 
+    def share_section(groups, ytd, prior):
+        parts = month_parts(groups, ytd, prior)
+        catch_all = {g["name"] for g in groups if g["accounts"] == ["*"]}
+        lead = lead_part(parts, catch_all)
+        section = {"headline": headline(parts, catch_all), "parts": parts}
+        if lead:
+            section["lead"] = lead["name"]
+        return section
+
     # largest single lines this month
     labels = cfg.get("labels", {})
 
@@ -397,13 +661,13 @@ def main(argv=None):
         if m.get("plan"):
             if not budget or m["plan"] not in budget:
                 continue
-            metrics[key] = round(actual - sum(budget[m["plan"]][:mon]))
+            metrics[key] = round(actual - sum(budget[m["plan"]][:k]))
         else:
             metrics[key] = round(actual)
 
     # previous report: watch list and obligations carry forward
     prev_path = folder / f"{year if mon > 1 else year - 1}-{(mon - 2) % 12 + 1:02d}" / "report.json"
-    prev = json.loads(prev_path.read_text()) if prev_path.exists() else None
+    prev = json.loads(prev_path.read_text(encoding="utf-8")) if prev_path.exists() else None
     watch = []
     carried = (prev or {}).get("watch") if prev else [dict(w) for w in cfg.get("watch_seed", [])]
     for w in carried or []:
@@ -430,7 +694,7 @@ def main(argv=None):
     readiness = None
     state_file = root / "finance/onboarding-state.json"
     if state_file.exists():
-        state = json.loads(state_file.read_text())
+        state = json.loads(state_file.read_text(encoding="utf-8"))
         readiness = {r["id"]: {k: r.get(k) for k in ("id", "title", "status", "caveat", "reason")}
                      for r in state.get("readiness", []) if r.get("status") != "met"}
         if budget and "budget" in readiness:
@@ -452,12 +716,12 @@ def main(argv=None):
 
     # earlier months changed since the last report? (months are not locked)
     history_change = None
-    if prev and mon > 1 and prev["meta"]["month"] == f"{year}-{mon - 1:02d}":
+    if prev and k > 1 and prev["meta"]["month"] == shift(args.month, -1):
         was, now = prev["plan"]["actual"], this_year[-2]
         if abs(now - was) >= 1:
-            history_change = {"was": was, "now": now, "month": MONTHS[mon - 2],
+            history_change = {"was": was, "now": now, "month": prev_name,
                               "caveat": f"Figures for earlier months changed since last month's report: the year "
-                                        f"through {MONTHS[mon - 2]} was {money(was)} {'ahead' if was >= 0 else 'short'} "
+                                        f"through {prev_name} was {money(was)} {'ahead' if was >= 0 else 'short'} "
                                         f"then and is {money(now)} {'ahead' if now >= 0 else 'short'} now."}
     if history_change:
         readiness = (readiness or []) + [{"id": "history_changed", "title": "Earlier months changed",
@@ -478,8 +742,8 @@ def main(argv=None):
     in_catch_all = catch_all(cfg["income_groups"], INCOME) + catch_all(cfg["spending_groups"], EXPENSE)
     new_in_catch_all = sorted(set(in_catch_all) - set((prev or {}).get("catch_all_accounts", in_catch_all)))
 
-    average_spending = round(total_sp / mon, 2)
-    ly_now, ly_end = (last_year[mon - 1], last_year[-1]) if last_year else (None, None)
+    average_spending = round(total_sp / k, 2)
+    ly_now, ly_end = (last_year[k - 1], last_year[-1]) if last_year else (None, None)
     t_out = top(EXPENSE)
     # Name the month's largest bill only when it is unusual for that account
     ytd_out = item_values(ytd_items, EXPENSE)
@@ -487,12 +751,14 @@ def main(argv=None):
     expense_keys = dict.fromkeys([*ytd_out, *prior_out])
     t_key = max(expense_keys, key=lambda k: abs(ytd_out.get(k, 0) - prior_out.get(k, 0))) if expense_keys else None
     account_ytd = ytd_out.get(t_key, 0)
-    unusual = t_key is not None and t_out["amount"] > 0 and account_ytd > 0 and t_out["amount"] > 1.25 * (account_ytd / mon)
+    unusual = t_key is not None and t_out["amount"] > 0 and account_ytd > 0 and t_out["amount"] > 1.25 * (account_ytd / k)
     # A month with no income recorded at all is not a bad month: the bookkeeper has not posted
     # it yet. Say so, and anchor the year on the month before, where the books are complete.
     unrecorded_month = came_in <= 0
+    # A church whose year starts in another month says which months "the year" is.
+    for_the_year = "for the year" if fs == 1 else f"for the year so far ({period_label})"
     if unrecorded_month:
-        before_name = MONTHS[mon - 2] if mon > 1 else None
+        before_name = prev_name if k > 1 else None
         s1 = (f"{mname} is not yet recorded: no income has been entered and "
               + ("only some bills" if went_out > 0 else "no bills")
               + (f", so read the year through {before_name}." if before_name else "."))
@@ -500,7 +766,7 @@ def main(argv=None):
             through = this_year[-2]
             word = "ahead" if through >= 0 else "short"
             if last_year:
-                ly_then = last_year[mon - 2]
+                ly_then = last_year[k - 2]
                 cmp = "better" if through >= ly_then else "worse"
                 s2 = (f"The year through {before_name} is {money(through)} {word}, {cmp} than this point last "
                       f"year ({money(ly_then)} {'ahead' if ly_then >= 0 else 'short'}), and last year ended "
@@ -516,11 +782,11 @@ def main(argv=None):
         word = "ahead" if this_year[-1] >= 0 else "short"
         cmp = ("better" if this_year[-1] >= ly_now else "worse") if last_year else ""
         if last_year:
-            s2 = (f"That leaves us {money(this_year[-1])} {word} for the year, {cmp} than this point last year "
+            s2 = (f"That leaves us {money(this_year[-1])} {word} {for_the_year}, {cmp} than this point last year "
                   f"({money(ly_now)} {'ahead' if ly_now >= 0 else 'short'}), and last year ended "
                   f"{money(ly_end)} {'ahead' if ly_end >= 0 else 'short'}.")
         else:
-            s2 = f"That leaves us {money(this_year[-1])} {word} for the year."
+            s2 = f"That leaves us {money(this_year[-1])} {word} {for_the_year}."
     s3 = cash_summary(round(bank[idx]), average_spending)
     if unrecorded_month:
         readiness = (readiness or []) + [{
@@ -539,9 +805,9 @@ def main(argv=None):
         "meta": {"report": "Finance report",
                  "meeting_date": f"{MONTHS[mon % 12]} {year if mon < 12 else year + 1}",
                  "month": args.month, "month_name": mname,
-                 "period_label": f"January to {mname} {year}",
+                 "period_label": period_label,
                  "through": f"{mname} {[31, 29 if year % 4 == 0 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mon - 1]}, {year}",
-                 "months": mon, "status": "draft", "prepared": args.prepared,
+                 "months": k, "status": "draft", "prepared": args.prepared,
                  "reconstructed": args.sample,
                  "previous_report": f"../{prev_path.parent.name}/report.json"},
         "sources": [{"name": "QuickBooks Online", "pulled": args.prepared,
@@ -554,11 +820,9 @@ def main(argv=None):
         "plan": {"budget": plan_cum[mon - 1] if plan_cum else None, "actual": round(ytd_net), "status": "settling",
                  "unrecorded": unrecorded,
                  "running": {"plan": plan_cum, "last_year": last_year, "this_year": this_year,
-                             "last_year_label": str(year - 1), "this_year_label": str(year)}},
-        "income": {"headline": f"Mostly {cfg['income_groups'][0]['name'].lower()}",
-                   "parts": month_parts(cfg["income_groups"], inc_ytd, inc_prior)},
-        "spending": {"headline": f"Mostly {cfg['spending_groups'][0]['name'].lower()}",
-                     "parts": month_parts(cfg["spending_groups"], sp_ytd, sp_prior)},
+                             "last_year_label": last_label, "this_year_label": this_label}},
+        "income": share_section(cfg["income_groups"], inc_ytd, inc_prior),
+        "spending": share_section(cfg["spending_groups"], sp_ytd, sp_prior),
         "watch": watch,
         "readiness": readiness,
         "history_change": history_change,
@@ -575,19 +839,24 @@ def main(argv=None):
     if not prev:
         before = idx - 1
         report["previous"] = {"as_of": f"{MONTHS[(mon - 2) % 12]} end", "bank": round(bank[before]),
-                              "ytd": this_year[-2] if mon > 1 else 0}
+                              "ytd": this_year[-2] if k > 1 else 0}
     report["cash"]["as_of"] = report["meta"]["through"]
     if unrecorded_month:
         report["this_month"]["unrecorded"] = True
     if approval:
         report["meta"]["approval"] = approval
+    if fs != 1:  # a calendar-year church's report keeps exactly its earlier shape
+        report["meta"]["year_starts"] = first_name
+        report["plan"]["running"]["first_month"] = fs
     if set_aside is not None:
         report["cash"]["set_aside"] = set_aside
         report["cash"]["set_aside_total"] = sum(i["amount"] for i in set_aside)
     out = folder / args.month
     out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps(report, indent=2))
+    (out / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    (out / "blocked.json").unlink(missing_ok=True)  # an earlier refusal no longer stands
     todo = [w["title"] for w in watch if w.get("needs_update")]
+    todo.extend(group_notes)
     if new_in_catch_all:
         todo.append("New accounts in 'Everything else' since last report (confirm the grouping): " + ", ".join(new_in_catch_all))
     if history_change:
@@ -597,6 +866,9 @@ def main(argv=None):
     print(json.dumps({"status": "ok", "written": str(out / "report.json"), "ytd_net": round(ytd_net),
                       "bank": round(bank[idx]), "came_in": came_in, "went_out": went_out,
                       "metrics": metrics, "needs_a_person": todo,
+                      "year": {"starts": first_name, "months_so_far": k, "label": period_label,
+                               "saved_to_settings": fs_saved},
+                      "liabilities_below_zero": liabilities_below_zero(months[:idx + 1], [(nm, v[:idx + 1]) for nm, v in bs]),
                       "previous_report": str(prev_path) if prev else None}, indent=1))
 
 

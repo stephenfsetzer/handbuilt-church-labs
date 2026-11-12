@@ -28,7 +28,7 @@ Hidden state lives in `.receipts/reflection/`. Never ask the pastor to manage it
 Run the app-loaded adapter once:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start sermon-reflection
 ```
 
@@ -42,6 +42,11 @@ not run `start` again. Then:
 Follow `workflow_state` and `next_actions`. Read `church.yaml` for the
 church's name, tradition, and people before you ask anything.
 
+If you cannot find the church folder, do not stop there. Say in one sentence
+that you will open their saved research once they tell you where the folder
+is, then begin `draw_out` from what the pastor already told you, with one
+question about their own thinking on the text.
+
 ## `draw_out`
 
 Read [drawing-out.md](references/drawing-out.md) in full.
@@ -54,7 +59,8 @@ Read [drawing-out.md](references/drawing-out.md) in full.
 2. Tell the pastor they can answer out loud. In the Claude and ChatGPT apps
    they can use the voice or dictation button instead of typing. Talking is
    usually closer to how they preach.
-3. Ask one question at a time, and wait for each answer. Follow what they say
+3. Ask one question at a time, and wait for each answer. One message holds
+   one question, never a follow-up tucked behind it. Follow what they say
    rather than working through a list. Stop when they have found something
    they want to say and who they are saying it to, or when they want to start
    writing.

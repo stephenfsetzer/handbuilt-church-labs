@@ -843,6 +843,30 @@ def import_bulletin(
         # missing or damaged. Fall through and rebuild deterministically
         # rather than trusting a cache that does not match what is on disk.
 
+    try:
+        return _write_import(root, import_id, source, data, source_sha256, manifest_path, snapshot_path,
+                             original_filename, dpi, imported_on)
+    except BaseException:
+        # A failed first import leaves nothing behind. A damaged earlier
+        # import or a saved inventory stays for the pastor to recover.
+        import_dir = manifest_path.parent
+        if not manifest_path.is_file() and not (import_dir / "inventory.json").is_file():
+            shutil.rmtree(import_dir, ignore_errors=True)
+        raise
+
+
+def _write_import(
+    root: Path,
+    import_id: str,
+    source: Path,
+    data: bytes,
+    source_sha256: str,
+    manifest_path: Path,
+    snapshot_path: Path,
+    original_filename: str | None,
+    dpi: int,
+    imported_on: str | None,
+) -> dict[str, Any]:
     pages_dir = _confined(root, IMPORT_ROOT, import_id, "pages")
     text_dir = _confined(root, IMPORT_ROOT, import_id, "text")
     assets_dir = _confined(root, IMPORT_ROOT, import_id, "assets")

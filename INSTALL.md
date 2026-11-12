@@ -25,9 +25,9 @@ tone, plain-language explanations, and common snags. In short:
 - Before each step, say what you are doing, why it matters, and what they
   will see. After it, check the result yourself and say what comes next.
 - Explain each new word once, briefly. Treat errors as normal and fixable.
-- Keep the machinery out of what you say. Do not name commands, file paths,
-  backup files, slash commands, or terms like "marketplace" or "catalog" unless
-  the pastor asks. Say "I'm adding Handbuilt to Claude's list of add-ons", not
+- Keep technical detail out of the first explanation, and answer fully whenever
+  the pastor asks. Avoid commands, file paths, backup files, slash commands, and
+  terms like "marketplace" or "catalog" until then. Say "I'm adding Handbuilt to Claude's list of add-ons", not
   "running the claude installer command against the marketplace catalog".
 - Never ask for a password in chat, and never change settings beyond this
   page without a yes.
@@ -41,7 +41,7 @@ Open with a short welcome, for example:
 > It usually takes a few minutes.
 
 Use these progress labels and say which one you are on: **Plugin installed**,
-**Updates turned on**, **Church Labs connected**, **Ready for church setup**.
+**Updates turned on**, **Ready for church setup**.
 
 ## 1. Find out where you are running
 
@@ -69,6 +69,17 @@ The marketplace name and plugin name are both `handbuilt-church-labs`.
 On a Mac without Apple's Command Line Tools, this opens an install pop-up.
 That is expected: explain it with the guided-setup wording, have the pastor
 click **Install**, wait, and check again.
+
+On Windows without Git, install Git for Windows (`winget install --id Git.Git -e`
+when `winget` is available). Claude cannot see a newly installed Git until it
+is fully closed and reopened, and closing the window does not close it. Tell
+the pastor: "Click the menu at the top left, then **File**, then **Exit**.
+Open Claude again and come back to this conversation." Then check
+`git --version` again before going on.
+
+Git is the only thing a pastor may need to install. Do not install Python:
+Handbuilt brings its own (see
+[Guided computer setup](skills/onboarding/references/guided-setup.md)).
 
 **Preferred route, when `claude` is available in your shell:**
 
@@ -153,13 +164,12 @@ first two commands above to the pastor one at a time instead, using
 [Guided computer setup](skills/onboarding/references/guided-setup.md#run-one-command-in-the-terminal).
 Do not edit Codex configuration files by hand.
 
-**Updates in Codex:** the marketplace follows `main`. Codex has no
-automatic-update switch documented for this marketplace, so do not claim one,
-and do not lead with its absence. Tell the pastor that Handbuilt checks for
-verified workflow updates each time church work starts (see section 3), and
-that the agent can refresh the app's
-copy on request with `codex plugin marketplace upgrade handbuilt-church-labs --json`
-followed by the `codex plugin add` line above.
+**Updates in Codex:** the marketplace follows `main`, and Codex normally
+refreshes it when Codex starts, so restarting Codex is the first thing to try
+for a new version. Handbuilt also checks for verified workflow updates each time church work
+starts (see section 3). The agent can refresh the app's copy on request with
+`codex plugin marketplace upgrade handbuilt-church-labs --json` followed by the
+`codex plugin add` line above.
 
 ## 3. Keep it updated
 
@@ -173,11 +183,13 @@ has neither by default:
   that also stops plugin updates unless this is set.
 
 Handbuilt includes a script that merges both into the user settings file,
-keeps every other setting, and saves a backup first. After the preferred
+keeps every other setting, and saves a backup first. Tell the pastor this changes
+a Claude setting that lets all their plugins update, and get a yes before running
+it. After the preferred
 route, run it from the marketplace copy Claude Code just downloaded:
 
 ```bash
-python3 "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
 ```
 
 It prints `turned_on` or `already_on`. If it reports an error, the settings
@@ -187,7 +199,7 @@ merge shown in section 2. The fallback route's settings already include both.
 Then confirm the result:
 
 ```bash
-python3 "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
 ```
 
 `status` reports the installed version, the latest release, and whether both
@@ -218,49 +230,6 @@ workflow updates each time church work starts. See
 [managed workflow updates](handbook/workflow-updates.md). Both keep the
 church's own settings and files.
 
-## 3b. Connect Church Labs
-
-The plugin brings **Church Labs**, Handbuilt's connection for the cohort. With
-it, the pastor can send Stephen a question or report a problem from any chat,
-and see his answers there. It needs a one-time sign-in to Handbuilt. Do this
-step before the hand-off, and tell the pastor first:
-
-> One more thing: I'm connecting Church Labs, so you can send Stephen
-> questions from here. A Handbuilt page will open in your browser. Sign in
-> with the **same email you used to join the cohort**, then press **Connect**
-> and come back here.
-
-If they have no Handbuilt account yet, tell them to choose **Continue with
-Google** or **Create an account** on that page.
-
-**In Codex,** the plugin adds Church Labs but does not sign in by itself. Run:
-
-```bash
-codex mcp login church-labs
-```
-
-It opens the Handbuilt page and finishes once the pastor presses **Connect**.
-Codex may ask permission first; explain that this signs in to Handbuilt.
-`codex mcp list` should then show `church-labs` without "Not logged in". If
-Codex says its model needs a newer version of Codex, update Codex first, then
-run the sign-in again.
-
-**In Claude Code,** a new plugin's connection loads in a new session, so this
-happens right after the hand-off in section 4. Only the pastor can start this
-sign-in, so it is the one slash command to give them: in that new session, ask
-them to type `/mcp`, choose **church-labs**, then choose **Authenticate**. The
-same Handbuilt page opens.
-
-**In the Claude app** (Chat or Cowork, with the plugin added from the
-**Customize** panel), Church Labs is on the plugin's **Connectors** tab: the
-pastor chooses **Connect** there.
-
-To check it worked, ask Church Labs for the pastor's answers. A new pastor
-sees "Nothing yet." If the answer says the account isn't enrolled, they signed
-in with a different email than the one they joined with: sign them out of
-Handbuilt and connect again with that email. If the tools can't be found
-later, run the sign-in step again.
-
 ## 4. Hand off to church setup
 
 A new plugin loads in a new session. Tell the pastor exactly what to do:
@@ -275,6 +244,11 @@ A new plugin loads in a new session. Tell the pastor exactly what to do:
 In Codex, say instead: "Start a new task, outside this one, and type
 **Set up my Church Command Center.**" The plugin is available in new Codex
 tasks, and church work continues there.
+
+If that new session answers in general terms, or asks what a command center
+should do, Claude has not loaded Handbuilt yet. Have the pastor fully quit
+Claude and open it again (Windows: the menu at the top left, **File**,
+**Exit**; Mac: **Claude**, **Quit Claude**), then start a new session.
 
 Do not mention `/reload-plugins` to the pastor. **New session** is the one
 step to give. Only in the terminal version of Claude Code, when the pastor
@@ -300,3 +274,8 @@ including any missing computer tools, with the same guided approach.
   the next best route (for example the point-and-click steps in the README).
 - Do not install other tools, change system settings, or delete anything to
   work around a problem without the pastor's yes.
+- When setup is blocked by the plugin itself, Handbuilt needs to hear about it.
+  If the Church Labs connection will not send a report (for example, the
+  pastor's email is not enrolled), write the report as a short email the
+  pastor can send to hello@gethandbuilt.com: what they were doing, the exact
+  error, the plugin version, and Windows or Mac. Leave out church details.

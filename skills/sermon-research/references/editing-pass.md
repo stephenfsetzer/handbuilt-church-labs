@@ -41,6 +41,12 @@ an unsupported claim. A new factual or interpretive attribution requires source
 support. Keep traditional readings intellectually serious and give credible
 alternatives a fair account without inventing consensus or conflict.
 
+Check every sentence that says a named voice holds, notes, or agrees with
+something, including summaries and the closing questions. It must say no more
+than that source does. When a sentence names several sources, each must support
+all of it; otherwise split it. "Points the same way" and "detaches" are claims
+too. Mark your own inference as yours and do not credit it to the source.
+
 Edit the draft in place with targeted edits. Do not regenerate the brief
 from scratch unless its structure fails; a full rewrite doubles the run's
 cost and time without improving the evidence. Return the edited brief and

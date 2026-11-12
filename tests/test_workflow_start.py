@@ -86,6 +86,18 @@ class WorkflowStartTests(unittest.TestCase):
         self.assertEqual(before, {p.relative_to(self.church): p.read_bytes() for p in self.church.rglob('*')
                                  if p.is_file() and '.handbuilt' not in p.parts and p.name != 'handbuilt.py'})
 
+    def test_first_start_on_a_new_version_passes_on_its_one_line_note(self):
+        notes = self.new / 'handbook'
+        notes.mkdir(parents=True, exist_ok=True)
+        (notes / 'whats-new.md').write_text('## 0.6.0\n\nBulletins print faster.\n')
+        with mock.patch.object(bridge, 'ROOT', self.new):
+            self.assertEqual(bridge._whats_new('0.5.0', '0.6.0'), 'Bulletins print faster.')
+            self.assertIsNone(bridge._whats_new('0.6.0', '0.6.0'))
+            self.assertIsNone(bridge._whats_new(None, '0.6.0'))
+            self.assertIsNone(bridge._whats_new('0.5.0', '0.7.0'))
+            (notes / 'whats-new.md').unlink()
+            self.assertIsNone(bridge._whats_new('0.5.0', '0.6.0'))
+
     def test_offline_old_app_start_keeps_saved_newer_release(self):
         with mock.patch.object(bridge, 'ROOT', self.new):
             bridge.connect(self.church)

@@ -40,7 +40,7 @@ Redirect with the interface so the decision is receipted and the run is not
 archived:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand redirect \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand redirect \
   --round <name> --reason "<what went wrong, in one paragraph>" --rebrief-file <new-brief.md>
 ```
 

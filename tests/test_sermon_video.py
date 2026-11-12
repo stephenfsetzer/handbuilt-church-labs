@@ -443,3 +443,26 @@ class DownloaderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChurchSiteLinkTests(unittest.TestCase):
+    def test_a_bare_domain_from_church_settings_becomes_a_link(self):
+        self.assertEqual(video.church_site("riverbend.invalid"), "https://riverbend.invalid")
+        self.assertEqual(video.church_site("http://example.org/"), "http://example.org/")
+        self.assertEqual(video.church_site(""), "")
+        video.validate_url(video.church_site("riverbend.invalid"))
+
+
+class PreviewServerLifetimeTests(unittest.TestCase):
+    def test_the_preview_stops_on_its_own(self):
+        import subprocess
+        import sys
+        import tempfile
+        import time
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "review.html").write_text("<p>review</p>")
+            started = time.monotonic()
+            done = subprocess.run([sys.executable, str(ROOT / "skills/sermon-video/scripts/serve_review.py"),
+                                   "--run-dir", tmp, "--minutes", "0.02"], capture_output=True, text=True, timeout=30)
+            self.assertLess(time.monotonic() - started, 20)
+            self.assertIn("http://127.0.0.1:", done.stdout)

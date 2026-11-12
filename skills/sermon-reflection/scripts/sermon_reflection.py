@@ -283,11 +283,22 @@ def speaker_copy_html(markdown: str, service_date: str, size: int = 16) -> str:
     day = date.fromisoformat(service_date)
     when = f"{day:%B} {day.day}, {day.year}"
     body = "\n".join(blocks)
+    # The plugin's own serif, so the pulpit copy prints the same on every
+    # computer. Charter and Iowan Old Style exist only on a Mac.
+    fonts = Path(__file__).resolve().parents[2] / "bulletin" / "renderer" / "fonts"
+    faces = "\n".join(
+        f'@font-face {{ font-family: "Source Serif 4"; src: url("{(fonts / name).as_uri()}"); '
+        f'font-weight: {weight}; font-style: {style}; }}'
+        for name, weight, style in (("SourceSerif4-Regular.ttf", "normal", "normal"),
+                                    ("SourceSerif4-Bold.ttf", "700", "normal"),
+                                    ("SourceSerif4-Italic.ttf", "normal", "italic"))
+        if (fonts / name).is_file())
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>
+{faces}
 @page {{ size: letter; margin: 0.9in 1in 0.9in 1.2in;
-  @bottom-left {{ content: "{html.escape(title)}"; font: italic 11pt Charter, 'Iowan Old Style', Georgia, serif; color: #555; }}
-  @bottom-right {{ content: "Page " counter(page) " of " counter(pages); font: 11pt Charter, 'Iowan Old Style', Georgia, serif; color: #555; }} }}
-body {{ font-family: Charter, 'Iowan Old Style', Georgia, 'Times New Roman', serif; font-size: {size}pt; line-height: 1.55; color: #000; }}
+  @bottom-left {{ content: "{html.escape(title)}"; font: italic 11pt 'Source Serif 4', Charter, 'Iowan Old Style', Georgia, serif; color: #555; }}
+  @bottom-right {{ content: "Page " counter(page) " of " counter(pages); font: 11pt 'Source Serif 4', Charter, 'Iowan Old Style', Georgia, serif; color: #555; }} }}
+body {{ font-family: 'Source Serif 4', Charter, 'Iowan Old Style', Georgia, 'Times New Roman', serif; font-size: {size}pt; line-height: 1.55; color: #000; }}
 h1 {{ font-size: {size + 8}pt; margin: 0 0 4pt; }}
 .date {{ font-size: 12pt; color: #444; margin: 0 0 20pt; padding-bottom: 10pt; border-bottom: 1px solid #999; }}
 h2 {{ font-size: {size + 2}pt; margin: 18pt 0 8pt; break-after: avoid; }}

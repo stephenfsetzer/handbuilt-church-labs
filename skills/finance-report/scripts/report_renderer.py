@@ -20,11 +20,15 @@ import math
 import re
 import shutil
 import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
 from cash_position import cash_summary, signed_money
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / "bulletin" / "renderer"))
+from brand_type import brand_faces  # noqa: E402  shared with the bulletin and the brand guide
 
 HERE = Path(__file__).resolve().parent
 SHAPE_VERSION = "1.0"  # the report shape in references/shape.md, fixed on 2026-09-26
@@ -181,12 +185,20 @@ def resolve_theme(brand, church):
 
     heading = typ.get("heading") or DEFAULTS["heading"]
     body = typ.get("body") or DEFAULTS["body"]
+    # An approved brand system's own faces win over the older type names.
+    face_css, faces = brand_faces(brand, CHURCH_ROOT)
+    if faces.get("display"):
+        heading = faces["display"]
+        log.append(f"heading face from the approved brand ({heading})")
+    if faces.get("text"):
+        body = faces["text"]
+        log.append(f"body face from the approved brand ({body})")
     theme = {
         "paper": paper, "ink": ink, "positive": positive, "attention": attention,
         "positive_soft": mix(positive, paper, 0.55), "attention_soft": mix(attention, paper, 0.6),
         "ramp": ramp, "muted": mix(ink, paper, 0.42), "rule": mix(ink, paper, 0.85),
         "panel": colors.get("panel") or mix(positive, paper, 0.94),
-        "heading": heading, "body": body,
+        "heading": heading, "body": body, "face_css": face_css,
         "heading_weight": typ.get("heading_weight", 700),
         "motif": style.get("motif"),
         "positive_word": color_word(positive), "attention_word": color_word(attention),
@@ -220,7 +232,12 @@ def color_word(h):
 def font_css(theme):
     css, used, families = [], [], {theme["heading"], theme["body"]}
     google = []
+    if theme.get("face_css"):
+        css.append(theme["face_css"])
     for fam in sorted(families):
+        if f'font-family: "{fam}"' in theme.get("face_css", ""):
+            used.append(f"{fam}: the church's brand files")
+            continue
         files = BUNDLED.get(fam)
         if files and BUNDLED_FONTS.exists():
             for fname, weight in files:
@@ -402,8 +419,9 @@ def chart_running(d, run, pending, at=None):
     label_left = min(W - lw - 2, max(2, x(i) - 8 - lw))
     o.append(f'<rect x="{label_left:.1f}" y="{ly_ - 11:.1f}" width="{lw:.1f}" height="15" rx="2" fill="#ffffff" opacity="0.92"/>')
     o.append(d.text(label_left + lw - 3, ly_, label, 11, 700, None, "end"))
+    first = int(run.get("first_month", 1)) - 1  # the church's year can start in any month
     for k in range(12):
-        o.append(d.text(x(k), H - 8, MONTH_ABBR[k], 9.5, 600 if k <= i else 400,
+        o.append(d.text(x(k), H - 8, MONTH_ABBR[(first + k) % 12], 9.5, 600 if k <= i else 400,
                         t["ink"] if k <= i else t["muted"], "middle"))
     return d.svg(W, H, o)
 
@@ -563,7 +581,7 @@ def load_previous(report, report_path):
     if rel:
         p = (report_path.parent / rel).resolve()
         if p.exists():
-            prev = json.loads(p.read_text())
+            prev = json.loads(p.read_text(encoding="utf-8"))
             return {"as_of": prev["meta"]["through"].rsplit(",", 1)[0], "bank": prev["cash"]["bank"],
                     "ytd": prev["plan"]["actual"], "watch": prev.get("watch", []), "source": str(p)}
     carried = report.get("previous")
@@ -760,11 +778,14 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     ytd_chg = (f"Through {before_name}; {mname} not yet recorded" if unrecorded
                else f"{delta_text(plan['actual'] - prev['ytd'])} in {mname}" if prev else "&nbsp;")
     ytd_word = "ahead" if year >= 0 else "short"
+    # A church whose year does not start in January names its months: "Year so far, July to August".
+    year_tile = (f"Year so far, {esc(meta['year_starts'])} to {esc(mname)}"
+                 if meta.get("year_starts") and meta["year_starts"] != mname else "Year so far")
     in_chg = ("Nothing entered yet" if unrecorded and not tm["came_in"]
               else f"Most: {esc(tm['top_in']['label'])}, {signed_money(tm['top_in']['amount'])}")
     tiles = f"""<div class="eyebrow" style="margin-bottom:3pt">Since last month</div><div class="tiles">
 <div class="tile"><div class="lab">Bank cash</div><div class="val">{signed_money(cash['bank'])}</div><div class="chg">{bank_chg}</div></div>
-<div class="tile"><div class="lab">Year so far</div><div class="val">{money(year)} {ytd_word}</div><div class="chg">{ytd_chg}</div></div>
+<div class="tile"><div class="lab">{year_tile}</div><div class="val">{money(year)} {ytd_word}</div><div class="chg">{ytd_chg}</div></div>
 <div class="tile"><div class="lab">Money in, {esc(mname)}</div><div class="val">{signed_money(tm['came_in'])}</div>
 <div class="chg">{in_chg}</div></div>
 <div class="tile"><div class="lab">Money out, {esc(mname)}</div><div class="val">{signed_money(tm['went_out'])}</div>
@@ -801,7 +822,8 @@ def build_html(report, church_doc, brand, theme, fonts, prev):
     def share_answer(section, total, monthly, noun):
         parts = section["parts"]
         if share_is_proportional(parts):
-            lead = f"{esc(section['headline'])}: <b>{parts[0]['amount'] / total:.0%}</b> of {noun} this year."
+            named = next((p for p in parts if p["name"] == section.get("lead")), parts[0])
+            lead = f"{esc(section['headline'])}: <b>{named['amount'] / total:.0%}</b> of {noun} this year."
         else:
             lead = "The net total for this year is zero." if not any(p["amount"] for p in parts) else "Credits are included; percentages would be misleading."
         return f"{lead} Total {noun}: {signed_money(total)} this year; {signed_money(monthly)} in {esc(mname)}."
@@ -991,16 +1013,16 @@ def unverified_figures(report):
 def verify(pdf, html):
     checks = {}
     if shutil.which("pdfinfo"):
-        info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True).stdout
+        info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
         pages = int(re.search(r"Pages:\s+(\d+)", info).group(1))
         checks["pages"] = pages
         checks["pages_ok"] = 1 <= pages <= 2
     if shutil.which("pdffonts"):
-        rows = subprocess.run(["pdffonts", str(pdf)], capture_output=True, text=True).stdout.splitlines()[2:]
+        rows = subprocess.run(["pdffonts", str(pdf)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.splitlines()[2:]
         checks["fonts"] = [r.split()[0] for r in rows]
         checks["fonts_embedded"] = all(" yes " in f" {r} " for r in rows)
     if shutil.which("pdftotext"):
-        txt = subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True).stdout
+        txt = subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
         checks["no_dashes"] = "—" not in txt and "–" not in txt
     return checks
 
@@ -1020,14 +1042,14 @@ def main(argv=None):
     import yaml
     import weasyprint
     report_path = Path(args.report).resolve()
-    report = json.loads(report_path.read_text())
-    schema = json.loads((HERE.parent / "schema" / "report.schema.json").read_text())
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    schema = json.loads((HERE.parent / "schema" / "report.schema.json").read_text(encoding="utf-8"))
     problems = validate(report, schema)
     if problems:
         raise SystemExit("report.json does not match the schema:\n  " + "\n  ".join(problems))
     brand_path = Path(args.brand)
-    brand = json.loads(brand_path.read_text()) if brand_path.exists() else {}
-    church_doc = yaml.safe_load(Path(args.church).read_text())
+    brand = json.loads(brand_path.read_text(encoding="utf-8")) if brand_path.exists() else {}
+    church_doc = yaml.safe_load(Path(args.church).read_text(encoding="utf-8"))
     theme, log = resolve_theme(brand, church_doc)
     fonts, font_log = font_css(theme)
 
@@ -1045,7 +1067,7 @@ def main(argv=None):
         doc = weasyprint.HTML(string=html, base_url=str(out)).render()
         if len(doc.pages) <= 2:
             break
-    (out / f"{stem}.html").write_text(html)
+    (out / f"{stem}.html").write_text(html, encoding="utf-8")
     pdf = out / f"{stem}.pdf"
     doc.write_pdf(str(pdf))
     checks = verify(pdf, html)
@@ -1063,7 +1085,7 @@ def main(argv=None):
         "previous_month": (prev or {}).get("source"),
         "sources": report["sources"], "status": report["meta"]["status"],
     }
-    (out / f"{stem}.receipt.json").write_text(json.dumps(receipt, indent=2))
+    (out / f"{stem}.receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
     if not checks["pages_ok"]:
         raise SystemExit("FAIL: report must be one or two pages")
     warnings = []

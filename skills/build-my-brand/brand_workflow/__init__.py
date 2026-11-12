@@ -89,6 +89,25 @@ OPTION_STAGES = {"direction", "develop", "color", "type", "voice"}
 # Stages that present the system in context. Each must show at least what
 # the previous one showed: fidelity only rises.
 PRESENTATION_STAGES = ("direction", "develop", "refine-1", "refine-2")
+# Who stands behind a recorded choice. "decided" means the pastor chose it.
+# "proposed" means the studio suggests it and the pastor has not chosen yet.
+STANDINGS = ("decided", "proposed")
+LABEL_DECIDED = "Decided by the pastor"
+LABEL_PROPOSED = "Proposed by the studio, not yet decided"
+LABEL_UNMARKED = "Recorded before decisions and proposals were marked apart"
+# The governing-body edition explains each choice in the workflow's own words.
+EDITION_ABOUT = {
+    "fork": "Whether the church keeps its current mark or replaces it.",
+    "identity": "Whether programs and ministries live inside one identity.",
+    "direction": "The central idea the brand grows from.",
+    "develop": "Which developed version of that idea to carry forward.",
+    "refine-1": "How the chosen version was tightened.",
+    "refine-2": "The final form of the system and the mark that goes on everything.",
+    "color": "The palette, with each color given one job.",
+    "type": "The typefaces, each with a license the church can use.",
+    "voice": "How the church sounds in writing.",
+}
+FORK_WORDS = {"refresh": "Keep the current mark and redesign around it.", "new": "Replace the mark too."}
 # Stage names from the first scheme that no longer exist.
 LEGACY_STAGES = {
     "mark": "The mark round was replaced by direction development and two refinements; the chosen mark is recorded with refine-2",
@@ -147,6 +166,8 @@ SCRATCH_DIR = STATE_DIR / "scratch"
 GUIDE_FILE = Path("brand") / "guide.md"
 BOOK_FILE = Path("brand") / "book.html"
 BRIEF_FILE = Path("brand") / "brief.md"
+EDITION_FILE = Path("brand") / "governing-body-edition.md"
+EDITION_PDF = Path("brand") / "governing-body-edition.pdf"
 STAGING_DIR = Path("brand") / "staging"
 EXPLORATIONS_DIR = STAGING_DIR / "explorations"
 CHECKS_DIR = STAGING_DIR / "checks"
@@ -154,6 +175,8 @@ ARCHIVE_DIR = Path("brand") / "archive"
 STAGED_SYSTEM_FILE = STAGING_DIR / "brand-system.json"
 ARCHIVED_LIVE_ITEMS = ("marks", "type", "templates", "voice.md")
 FONT_SUFFIXES = {".ttf", ".otf", ".woff", ".woff2"}
+TYPE_ROLES = ("display", "text", "reading")  # brand_type.ROLES; reading is optional
+FONT_FACE_KEYS = ("regular", "italic", "medium", "semibold", "semibold_italic", "bold", "bold_italic")  # brand_type.FACES
 MARK_SUFFIXES = {".svg", ".png"}
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 RENDERER_COLORS = ("ink", "accent", "accent_deep", "paper", "rubric_red")
@@ -214,12 +237,26 @@ def _inside(path: Path, root: Path) -> bool:
         return False
 
 
+def _from_absolute(root: Path, candidate: Path, field: str) -> Path:
+    """A full path pasted by a pastor, as the same path relative to the church folder."""
+    # The last part stays unresolved, so a symlink there is still refused below.
+    settled = Path(os.path.realpath(candidate.parent)) / candidate.name
+    for attempt, base in ((candidate, root), (settled, root.resolve())):
+        try:
+            return attempt.relative_to(base)
+        except ValueError:
+            continue
+    raise WorkflowFailure("invalid_path", f"{field} must be inside the church folder, and this path is outside it: {candidate}", field=field)
+
+
 def _relative(root: Path, raw: Any, field: str) -> Path:
     if not isinstance(raw, str) or not raw.strip():
-        raise WorkflowFailure("invalid_path", f"{field} must be a relative path inside the church folder", field=field)
+        raise WorkflowFailure("invalid_path", f"{field} must be a path inside the church folder", field=field)
     candidate = Path(raw.strip())
-    if candidate.is_absolute() or ".." in candidate.parts or "://" in raw:
-        raise WorkflowFailure("invalid_path", f"{field} must be a relative path inside the church folder", field=field)
+    if ".." in candidate.parts or "://" in raw:
+        raise WorkflowFailure("invalid_path", f"{field} must be a path inside the church folder", field=field)
+    if candidate.is_absolute():
+        candidate = _from_absolute(root, candidate, field)
     path = root / candidate
     if path.is_symlink() or not _inside(path, root):
         raise WorkflowFailure("invalid_path", f"{field} must stay inside the church folder", field=field)
@@ -352,6 +389,34 @@ def _stale_stages(state: dict[str, Any]) -> list[str]:
     return [s for s in STAGES if _recorded(state, s) and state["stages"][s].get("stale")]
 
 
+def _open_proposals(state: dict[str, Any]) -> list[dict[str, str]]:
+    """What the studio has suggested and the pastor has not yet decided."""
+    return [{"stage": s, "title": STAGE_TITLES[s], "proposal": state["stages"][s].get("proposal") or ""}
+            for s in STAGES if s in DECISION_STAGES and _recorded(state, s) and state["stages"][s].get("standing") == "proposed"]
+
+
+def _unmarked_stages(state: dict[str, Any]) -> list[str]:
+    """Choices recorded before the marking existed. They stay as they were."""
+    return [s for s in STAGES if s in DECISION_STAGES and _recorded(state, s) and not state["stages"][s].get("standing")]
+
+
+def _unmarked_warning(unmarked: list[str]) -> str:
+    return ("These were recorded before Handbuilt marked the pastor's decisions apart from the studio's proposals, "
+            "so they are kept as recorded and not checked as open: " + ", ".join(STAGE_TITLES[s] for s in unmarked)
+            + ". Ask the pastor to confirm any that were only the studio's suggestion.")
+
+
+def _open_amendment(state: dict[str, Any]) -> dict[str, Any] | None:
+    for entry in state.get("amendments") or []:
+        if entry.get("status") == "open":
+            return entry
+    return None
+
+
+def _amendments_awaiting_approval(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [e for e in state.get("amendments") or [] if e.get("needs_approval") and not e.get("approved_at")]
+
+
 def _owed_stages(state: dict[str, Any]) -> list[str]:
     """Stages a migrated run skipped and must still record: only the plan so far."""
     if not _recorded(state, "roadmap") and any(_recorded(state, s) for s in STAGES[1:]):
@@ -474,10 +539,20 @@ def _section(state: dict[str, Any], stage: str, body: str, metadata: dict[str, A
             if metadata.get("follows"):
                 lines.append(f"**It follows your earlier pick:** {metadata['follows']}")
                 lines.append("")
-        lines.append(f"**Decision:** {metadata['decision']}")
-        lines.append("")
-        lines.append(f"**Why:** {metadata['rationale']}")
-        lines.append("")
+        if metadata.get("standing") == "proposed":
+            lines.append(f"**{LABEL_PROPOSED}:** {metadata['proposal']}")
+            lines.append("")
+            if metadata.get("rationale"):
+                lines.append(f"**Why the studio suggests it:** {metadata['rationale']}")
+                lines.append("")
+        else:
+            lines.append(f"**Decision:** {metadata['decision']}")
+            lines.append("")
+            if metadata.get("standing") == "decided":
+                lines.append("**Decided by:** the pastor")
+                lines.append("")
+            lines.append(f"**Why:** {metadata['rationale']}")
+            lines.append("")
     if metadata.get("handoff"):
         lines.append(f"**Handoff:** {metadata['handoff']}")
         lines.append("")
@@ -499,6 +574,176 @@ def _upsert_section(root: Path, stage: str, section: str) -> Path:
         text = text.rstrip("\n") + "\n\n" + section
     _write_text(path, text)
     return path
+
+
+def _standing_block(state: dict[str, Any]) -> str:
+    """The label on the working guide, and where every choice stands."""
+    lines = ["<!-- standing -->", "**Your own working record.** This guide keeps your interview answers and the conversation",
+             "behind each choice, so it stays with you. To share the brand's decisions with others, use the",
+             "shareable edition the workflow keeps beside this file, which leaves those out.", "", "## Where things stand", ""]
+    decided = [s for s in STAGES if s in DECISION_STAGES and _recorded(state, s) and state["stages"][s].get("standing") == "decided"]
+    lines.append(f"### {LABEL_DECIDED}")
+    lines.append("")
+    lines.extend([f"- {STAGE_TITLES[s]}: {state['stages'][s].get('decision')}" for s in decided] or ["- Nothing yet."])
+    lines.append("")
+    lines.append(f"### {LABEL_PROPOSED}")
+    lines.append("")
+    lines.extend([f"- {p['title']}: {p['proposal']}" for p in _open_proposals(state)] or ["- Nothing open."])
+    lines.append("")
+    unmarked = _unmarked_stages(state)
+    if unmarked:
+        lines.append(f"### {LABEL_UNMARKED}")
+        lines.append("")
+        lines.append("Kept as they were recorded. Confirm any that were only the studio's suggestion.")
+        lines.append("")
+        lines.extend(f"- {STAGE_TITLES[s]}: {state['stages'][s].get('decision')}" for s in unmarked)
+        lines.append("")
+    lines.append("<!-- /standing -->")
+    return "\n".join(lines) + "\n"
+
+
+def _refresh_standing(root: Path, state: dict[str, Any]) -> None:
+    path = root / GUIDE_FILE
+    if not path.is_file():
+        return
+    text = re.sub(r"<!-- standing -->[\s\S]*?<!-- /standing -->\n*", "", path.read_text(encoding="utf-8"))
+    block = _standing_block(state)
+    if "<!-- stage:" in text:
+        head, rest = text.split("<!-- stage:", 1)
+        text = head.rstrip("\n") + "\n\n" + block + "\n<!-- stage:" + rest
+    else:
+        text = text.rstrip("\n") + "\n\n" + block
+    _write_text(path, text)
+
+
+def _private_runs(state: dict[str, Any]) -> list[list[str]]:
+    """Interview answers as word lists. The name on the wordmark is public by design."""
+    answers = (state["stages"].get("interview") or {}).get("answers") or {}
+    runs = [re.findall(r"[\w'-]+", str(v).casefold()) for k, v in answers.items() if k != "name"]
+    return [r for r in runs if len(r) >= 2]
+
+
+def _not_for_sharing(text: str, private: list[list[str]]) -> bool:
+    """Quoted words, or a run of words lifted from an interview answer."""
+    if re.search('["\u201c\u201d]', text):
+        return True
+    words = re.findall(r"[\w'-]+", text.casefold())
+    for run in private:
+        size = min(4, len(run))
+        pieces = {tuple(run[i:i + size]) for i in range(len(run) - size + 1)}
+        if any(tuple(words[i:i + size]) in pieces for i in range(len(words) - size + 1)):
+            return True
+    return False
+
+
+def _edition(root: Path, state: dict[str, Any]) -> tuple[str, dict[str, list[str]]]:
+    """The edition for a governing body, built only from fields meant for it.
+
+    It never reads the lesson bodies, the rationale, the interview, the brief,
+    handoffs, redirects, receipts, or run details. The rationale is left out on
+    purpose: it is written in the pastor's own terms and may quote them.
+    """
+    private = _private_runs(state)
+    gaps: dict[str, list[str]] = {"needs_reason": [], "held_back": []}
+
+    def shareable(stage: str, text: Any) -> str:
+        cleaned = " ".join(str(text or "").split())
+        if not cleaned or _not_for_sharing(cleaned, private):
+            gaps["held_back"].append(stage)
+            return "Left out of this edition. The pastor can speak to it."
+        return cleaned
+
+    def reason(stage: str) -> str:
+        value = state["stages"][stage].get("reason_for_leaders")
+        if not value:
+            gaps["needs_reason"].append(stage)
+            return "The reason has not been written for this edition yet."
+        return shareable(stage, value)
+
+    def item(stage: str, label: str, value: str, why_label: str) -> list[str]:
+        return [f"### {STAGE_TITLES[stage]}", "", EDITION_ABOUT[stage], "", f"**{label}:** {value}", "", f"**{why_label}:** {reason(stage)}", ""]
+
+    def decision_words(stage: str) -> str:
+        record = state["stages"][stage]
+        decision = record.get("decision")
+        if stage == "fork" and decision in FORK_WORDS:
+            return FORK_WORDS[decision]
+        return shareable(stage, record.get("decision_for_leaders") or decision)
+
+    identity = _church_identity(root)
+    if _amendments_awaiting_approval(state):
+        where = "The brand is approved and in use. An addition is waiting for the pastor's approval and has not changed it."
+    elif state.get("approved"):
+        where = "The brand is approved and in use."
+    else:
+        where = "The brand is still being decided. The church's current look stays in place until the pastor approves the new one."
+    lines = [f"# {identity['name']} Brand Decisions: Governing Body Edition", "",
+             "This edition is for the vestry, council, or other governing body. It lists the brand's decisions and the",
+             "reasons for them. The pastor keeps the full working guide as a separate record.", "", where, "",
+             f"## {LABEL_DECIDED}", ""]
+    decided = [s for s in STAGES if s in DECISION_STAGES and _recorded(state, s) and state["stages"][s].get("standing") == "decided"]
+    for stage in decided:
+        lines.extend(item(stage, "Decision", decision_words(stage), "Why"))
+    if not decided:
+        lines.extend(["Nothing yet.", ""])
+    lines.extend([f"## {LABEL_PROPOSED}", ""])
+    proposals = _open_proposals(state)
+    for proposal in proposals:
+        stage = proposal["stage"]
+        for_leaders = state["stages"][stage].get("decision_for_leaders") or proposal["proposal"]
+        lines.extend(item(stage, "The studio suggests", shareable(stage, for_leaders), "Why the studio suggests it"))
+    if not proposals:
+        lines.extend(["Nothing open.", ""])
+    unmarked = _unmarked_stages(state)
+    if unmarked:
+        lines.extend([f"## {LABEL_UNMARKED}", "", "These are kept as they were recorded. Some may be the studio's suggestions that the pastor has not separately confirmed.", ""])
+        for stage in unmarked:
+            lines.extend(item(stage, "Recorded as", decision_words(stage), "Why"))
+    amendments = state.get("amendments") or []
+    if amendments:
+        lines.extend(["## Additions after the build", ""])
+        for entry in amendments:
+            lines.append(f"- Amendment {entry['number']}: {shareable('amendment', entry.get('what'))} {_amendment_status(entry)}")
+        lines.append("")
+    return "\n".join(lines), gaps
+
+
+def _write_edition(root: Path, state: dict[str, Any]) -> Path:
+    text, _gaps = _edition(root, state)
+    _write_text(root / EDITION_FILE, text)
+    return root / EDITION_FILE
+
+
+def _refresh_documents(root: Path, state: dict[str, Any]) -> Path:
+    """Everything generated from the record: the guide's label and summary, the edition, and the book."""
+    _refresh_standing(root, state)
+    _write_edition(root, state)
+    return _write_book(root)
+
+
+def _amendment_status(entry: dict[str, Any]) -> str:
+    if entry.get("status") == "open":
+        return "Open. Nothing changes until it is finished."
+    if entry.get("approved_at"):
+        return "Approved by the pastor."
+    if entry.get("needs_approval"):
+        return "Waiting for fresh approval. The live brand has not changed."
+    if entry.get("added"):
+        return "Finished. It goes in when the pastor approves the brand."
+    return "Finished with nothing added."
+
+
+def _amendment_section(entry: dict[str, Any]) -> str:
+    key = f"amendment-{entry['number']}"
+    lines = [f"<!-- stage:{key} -->", f"## Amendment {entry['number']}: {entry['what']}", "",
+             "**This is an amendment.** It is a small addition made after the build. Earlier decisions stand as recorded.", "",
+             entry["content"].strip(), ""]
+    if entry.get("closing"):
+        lines.extend([entry["closing"].strip(), ""])
+    if entry.get("added"):
+        lines.extend(["**Added:** " + "; ".join(entry["added"]), ""])
+    lines.extend([f"**Status:** {_amendment_status(entry)}", "", f"<!-- /stage:{key} -->"])
+    return "\n".join(lines) + "\n"
 
 
 def _interview_summary(answers: dict[str, str]) -> str:
@@ -594,6 +839,59 @@ def _validate_mark(root: Path, raw: Any, field: str) -> str:
     return rel.as_posix()
 
 
+def _font_tokens(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.casefold())
+
+
+def _pdf_font_names(path: Path) -> set[str] | None:
+    """Font names embedded in a PDF, without subset prefixes; None if unreadable."""
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return None
+    try:
+        reader = PdfReader(str(path))
+        names: set[str] = set()
+        for page in reader.pages:
+            resources = page.get("/Resources")
+            resources = resources.get_object() if resources is not None else {}
+            fonts = resources.get("/Font")
+            fonts = fonts.get_object() if fonts is not None else {}
+            for ref in fonts.values():
+                base = str(ref.get_object().get("/BaseFont") or "")
+                names.add(base.lstrip("/").split("+", 1)[-1])
+        return names
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _require_brand_faces(after: Path, system: dict[str, Any]) -> None:
+    """The proof must be set in the staged typefaces, not the renderer's defaults."""
+    fonts = system.get("type") if isinstance(system.get("type"), dict) else {}
+    if after.suffix.casefold() != ".pdf" or not fonts:
+        return
+    names = _pdf_font_names(after)
+    if names is None:
+        raise WorkflowFailure("proof_unreadable", "The proof PDF could not be read to check its typefaces; render it again with the staged brand", field="after")
+    embedded = {_font_tokens(n) for n in names}
+    missing = []
+    for role, internal in (("display", "Brand Display"), ("text", "Brand Text")):
+        entry = fonts.get(role)
+        if not isinstance(entry, dict):
+            continue
+        label = str(entry.get("family") or "")
+        wanted = {_font_tokens(internal), _font_tokens(label.split("(")[0])} - {""}
+        if not any(w in e for w in wanted for e in embedded):
+            missing.append(f"{role} ({label.split('(')[0].strip() or role})")
+    if missing:
+        raise WorkflowFailure(
+            "proof_missing_brand_type",
+            "The proof bulletin is not set in the brand's typefaces: " + ", ".join(missing)
+            + ". Render it with the staged brand so the pastor approves what will actually print.",
+            field="after", detail={"embedded": sorted(names)},
+        )
+
+
 def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str, metadata: dict[str, Any]) -> dict[str, Any]:
     if stage not in STAGES:
         raise WorkflowFailure("unknown_stage", f"Unknown stage: {stage}", field="stage")
@@ -605,8 +903,37 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
     if stage == "roadmap":
         record["phases"] = _validate_roadmap(metadata)
     if stage in DECISION_STAGES:
-        record["decision"] = _require_text(metadata.get("decision"), "decision")
-        record["rationale"] = _require_text(metadata.get("rationale"), "rationale")
+        standing = metadata.get("standing")
+        if standing not in STANDINGS:
+            raise WorkflowFailure("standing_required", f"Say who stands behind {STAGE_TITLES[stage]}: standing is decided (the pastor chose it) or proposed (the studio suggests it and the pastor has not chosen). Never mark a studio suggestion as decided", field="standing")
+        record["standing"] = standing
+        if standing == "decided":
+            record["decision"] = _require_text(metadata.get("decision"), "decision")
+            record["rationale"] = _require_text(metadata.get("rationale"), "rationale")
+        else:
+            if stage == "fork":
+                raise WorkflowFailure("pastor_must_answer", "Refresh or new is only the pastor's to answer. Ask, then record the answer as decided", field="standing")
+            if metadata.get("decision"):
+                raise WorkflowFailure("proposal_has_decision", "A proposal carries no decision, because the pastor has not chosen. Put the studio's suggestion in proposal", field="decision")
+            record["proposal"] = _require_text(metadata.get("proposal") or metadata.get("recommendation"), "proposal")
+            if metadata.get("rationale"):
+                record["rationale"] = _require_text(metadata.get("rationale"), "rationale")
+        if metadata.get("reason_for_leaders") is not None:
+            reason = _require_text(metadata.get("reason_for_leaders"), "reason_for_leaders")
+            if _not_for_sharing(reason, _private_runs(state)):
+                raise WorkflowFailure("not_for_sharing", "reason_for_leaders is read by the governing body. Write it in the studio's own words, with no quotation marks and no interview answers", field="reason_for_leaders")
+            record["reason_for_leaders"] = reason
+        # The edition prints the decision (or proposal) itself. When it quotes the
+        # pastor, leaders need the same choice said in the studio's own words.
+        stated = record.get("decision") or record.get("proposal")
+        for_leaders = metadata.get("decision_for_leaders")
+        if for_leaders is not None:
+            for_leaders = _require_text(for_leaders, "decision_for_leaders")
+            if _not_for_sharing(for_leaders, _private_runs(state)):
+                raise WorkflowFailure("not_for_sharing", "decision_for_leaders is read by the governing body. Write it in the studio's own words, with no quotation marks and no interview answers", field="decision_for_leaders")
+            record["decision_for_leaders"] = for_leaders
+        elif stated and stage != "fork" and _not_for_sharing(stated, _private_runs(state)):
+            raise WorkflowFailure("decision_for_leaders_required", "This choice quotes the pastor or repeats an interview answer, so the governing body edition cannot print it. Add decision_for_leaders: the same choice in the studio's own words, with no quotation marks", field="decision_for_leaders")
         options = metadata.get("options")
         if stage in OPTION_STAGES:
             if not isinstance(options, list) or len(options) < 2 or not all(isinstance(o, str) and o.strip() for o in options):
@@ -614,7 +941,7 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
         if options is not None:
             record["options"] = [str(o).strip() for o in options]
     if stage == "fork":
-        if record["decision"] not in FORK_CHOICES:
+        if record.get("decision") not in FORK_CHOICES:
             raise WorkflowFailure("invalid_fork", "The fork decision must be refresh or new", field="decision")
     if stage in DECISION_STAGES or metadata.get("speaker") is not None:
         speaker = _require_text(metadata.get("speaker"), "speaker").casefold()
@@ -678,6 +1005,9 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
     if stage == "prove":
         record["before"] = _existing(root, metadata.get("before"), "before").as_posix()
         record["after"] = _existing(root, metadata.get("after"), "after").as_posix()
+        staged = _read_json(root / STAGED_SYSTEM_FILE, None)
+        if isinstance(staged, dict):
+            _require_brand_faces(root / record["after"], staged.get("brand_system") or {})
         record["announcement"] = _existing(root, metadata.get("announcement"), "announcement").as_posix()
     if stage == "handoff":
         record["volunteer_card"] = _existing(root, metadata.get("volunteer_card"), "volunteer_card").as_posix()
@@ -690,6 +1020,13 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
 
 def _next_action(state: dict[str, Any], nxt: str | None, approved: Any) -> str:
     owed = _owed_stages(state)
+    amendment = _open_amendment(state)
+    if amendment:
+        return f"Amendment {amendment['number']} is open: {amendment['what']}. Make the addition under brand/staging/, show the pastor, then record the amendment's finish step."
+    if _amendments_awaiting_approval(state):
+        return "An amendment is waiting for fresh approval. List it with approve --dry-run, show the pastor, and approve only when they say so. The live brand has not changed."
+    if nxt in {"connect", "handoff"} and not approved and _open_proposals(state):
+        return "Ask the pastor to decide what the studio has only proposed, then ask them to approve the proof: " + ", ".join(p["title"] for p in _open_proposals(state)) + "."
     if nxt is None:
         return "The brand workflow is complete. Use it for small operations: lockups, posters, an announcement image, seasonal color, on-brand checks."
     if nxt == APPROVAL_STAGE and not approved:
@@ -729,6 +1066,8 @@ def orient(church_folder: str | Path) -> dict[str, Any]:
                 "recorded_at": entry.get("recorded_at"),
                 "stale": bool(entry.get("stale")),
                 "decision": entry.get("decision"),
+                "standing": entry.get("standing"),
+                "proposal": entry.get("proposal"),
                 "applications": entry.get("applications"),
             })
         nxt = _next_stage(state)
@@ -741,6 +1080,13 @@ def orient(church_folder: str | Path) -> dict[str, Any]:
             warnings.append("This run began before the plan stage existed; record the plan before the next stage: " + ", ".join(STAGE_TITLES[s] for s in owed))
         if stale:
             warnings.append("Earlier decisions changed after these stages were recorded; revisit them: " + ", ".join(stale))
+        proposals = _open_proposals(state)
+        if proposals:
+            warnings.append("The studio has proposed these and the pastor has not decided them: " + ", ".join(p["title"] for p in proposals))
+        unmarked = _unmarked_stages(state)
+        if unmarked:
+            warnings.append(_unmarked_warning(unmarked))
+        _text, edition_gaps = _edition(root, state)
         roadmap = state["stages"].get("roadmap") or {}
         here = nxt or "handoff"
         floor = None
@@ -758,6 +1104,9 @@ def orient(church_folder: str | Path) -> dict[str, Any]:
             "redirects": len(state["redirects"]),
             "brief": (root / BRIEF_FILE).is_file(), "guide": (root / GUIDE_FILE).is_file(),
             "staged_brand_system": bool(staged), "approved": approved, "migrated_from": state.get("migrated_from"),
+            "open_proposals": proposals, "unmarked_decisions": unmarked,
+            "amendment": _open_amendment(state), "amendments_awaiting_approval": [e["number"] for e in _amendments_awaiting_approval(state)],
+            "governing_edition": {"file": EDITION_FILE.as_posix(), "exists": (root / EDITION_FILE).is_file(), **edition_gaps},
             "live_brand": {"ready": live.get("ready"), "logo": live.get("logo", {}).get("status"), "colors": live.get("colors", {}).get("status")},
             "warnings": warnings, "next_action": _next_action(state, nxt, approved),
         }
@@ -770,6 +1119,8 @@ def record(church_folder: str | Path, stage: str, content: str, metadata: dict[s
         root = _church_root(church_folder)
         state = _load_state(root)
         metadata = metadata or {}
+        if stage == AMENDMENT_STAGE:
+            return _record_amendment(root, state, content, metadata)
         if stage in LEGACY_STAGES:
             raise WorkflowFailure("stage_replaced", LEGACY_STAGES[stage], field="stage")
         if stage not in STAGES:
@@ -784,6 +1135,10 @@ def record(church_folder: str | Path, stage: str, content: str, metadata: dict[s
                     raise WorkflowFailure("roadmap_required", f"This run began before the plan stage existed. Record {STAGE_TITLES[earlier]} (roadmap) before {STAGE_TITLES[stage]}", field="stage")
                 raise WorkflowFailure("stage_out_of_order", f"Record {STAGE_TITLES[earlier]} before {STAGE_TITLES[stage]}", field="stage")
         entry = _validate_stage(root, state, stage, content, metadata)
+        # A pastor who accepts the studio's proposal as it stood changes nothing later.
+        accepted = bool(metadata.get("accepts_proposal"))
+        if accepted and not (already and state["stages"][stage].get("standing") == "proposed" and entry.get("standing") == "decided"):
+            raise WorkflowFailure("nothing_to_accept", f"accepts_proposal is for recording the pastor's yes to an open proposal, with --replace and standing decided. {STAGE_TITLES[stage]} has no open proposal to accept", field="accepts_proposal")
         guide_body = content
         if stage == "interview":
             _write_text(root / BRIEF_FILE, content.rstrip("\n") + "\n")
@@ -796,22 +1151,112 @@ def record(church_folder: str | Path, stage: str, content: str, metadata: dict[s
         state["stages"][stage] = entry
         if stage == "fork":
             state["fork"] = entry["decision"]
-        if already:
+        if already and not accepted:
             for later in STAGES[STAGES.index(stage) + 1:]:
                 if _recorded(state, later):
                     state["stages"][later]["stale"] = True
         _save_state(root, state)
-        book = _write_book(root)
+        book = _refresh_documents(root, state)
         receipt = _receipt(root, f"stage-{stage}", {
             "stage": stage, "replace": already, "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
             "guide": GUIDE_FILE.as_posix(), "guide_sha256": _sha256(guide), "record": entry,
         })
-        warnings = ["Later stages are now marked stale and should be revisited"] if already else []
+        warnings = ["Later stages are now marked stale and should be revisited"] if already and not accepted else []
         return {"status": "recorded", "stage": stage, "title": STAGE_TITLES[stage], "guide": str(guide), "book": str(book),
                 "brief": str(root / BRIEF_FILE) if stage == "interview" else None,
                 "receipt": str(receipt), "next_stage": _next_stage(state), "warnings": warnings}
     except Exception as exc:  # noqa: BLE001
         return _failure(exc)
+
+
+# ---------------------------------------------------------------- amendments
+
+AMENDMENT_STAGE = "amendment"
+
+
+def _reopen_staging(root: Path, state: dict[str, Any]) -> None:
+    """After approval, put the approved system back in staging so an addition goes through the same approval."""
+    approved = _read_json(root / state["approved"]["archive"] / "staged-brand-system.json", None)
+    if not isinstance(approved, dict):
+        raise WorkflowFailure("approved_record_missing", "The approved brand's record is not in its archive, so an amendment cannot start from it. Keep brand/archive/ as it was, or begin a refresh")
+    prefix = STAGING_DIR.as_posix() + "/"
+    items = {"explorations"}
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for inner in value.values():
+                walk(inner)
+        elif isinstance(value, list):
+            for inner in value:
+                walk(inner)
+        elif isinstance(value, str) and value.startswith(prefix):
+            items.add(Path(value[len(prefix):]).parts[0])
+
+    walk(approved)
+    for item in sorted(items):
+        live = root / "brand" / item
+        target = root / STAGING_DIR / item
+        if live.is_symlink() or target.exists():
+            continue
+        if live.is_dir():
+            shutil.copytree(live, target)
+        elif live.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(live, target)
+    _write_json(root / STAGED_SYSTEM_FILE, approved)
+
+
+def _record_amendment(root: Path, state: dict[str, Any], content: str, metadata: dict[str, Any]) -> dict[str, Any]:
+    """A small addition after the build. Earlier decisions and receipts stay; a run is not archived."""
+    if not isinstance(metadata, dict):
+        raise WorkflowFailure("invalid_metadata", "Amendment metadata must be an object")
+    if not _recorded(state, "build"):
+        raise WorkflowFailure("stage_out_of_order", "An amendment is a small addition after the build. Before the build, keep working in the rounds", field="stage")
+    if not content.strip():
+        raise WorkflowFailure("empty_content", "An amendment needs content for the guide", field="content")
+    step = metadata.get("step")
+    amendments = state.setdefault("amendments", [])
+    current = _open_amendment(state)
+    if step == "open":
+        if current:
+            raise WorkflowFailure("amendment_open", f"Amendment {current['number']} is still open; finish it first", field="step")
+        what = " ".join(_require_text(metadata.get("what"), "what").split())
+        if state.get("approved") and not (root / STAGED_SYSTEM_FILE).is_file():
+            _reopen_staging(root, state)
+        entry = {"number": len(amendments) + 1, "what": what, "content": content, "status": "open", "opened_at": _now()}
+        amendments.append(entry)
+        next_action = "Make the addition with explore, draw, edit or import-images, show the pastor, then record the amendment's finish step."
+    elif step == "finish":
+        if not current:
+            raise WorkflowFailure("no_open_amendment", "No amendment is open", field="step")
+        added = metadata.get("added")
+        if not isinstance(added, list):
+            raise WorkflowFailure("added_required", "added lists the files this amendment added under brand/staging/, or is empty when nothing was kept", field="added")
+        entry = current
+        entry["added"] = [_existing(root, f, "added", under=STAGING_DIR).as_posix() for f in added]
+        entry["closing"] = content
+        entry["status"] = "finished"
+        entry["finished_at"] = _now()
+        entry["needs_approval"] = bool(state.get("approved")) and bool(entry["added"])
+        unused = bool(state.get("approved")) and not _amendments_awaiting_approval(state)
+        if unused and (root / STAGING_DIR).is_dir():
+            # Nothing is deleted: the round's sketches move out of the way, so
+            # the approved brand has nothing staged against it.
+            target = root / ARCHIVE_DIR / f"amendment-{entry['number']}-unused-{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H%M%S')}"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(root / STAGING_DIR), str(target))
+        next_action = ("Show the pastor exactly what changes with approve --dry-run. The live brand changes only when they approve."
+                       if entry["needs_approval"] else "The amendment is finished. Earlier decisions stand.")
+    else:
+        raise WorkflowFailure("invalid_amendment_step", "An amendment's step is open or finish", field="step")
+    guide = _upsert_section(root, f"amendment-{entry['number']}", _amendment_section(entry))
+    _save_state(root, state)
+    book_path = _refresh_documents(root, state)
+    receipt = _receipt(root, f"amendment-{step}", {"amendment": entry["number"], "what": entry["what"], "added": entry.get("added"),
+                                                   "needs_approval": bool(entry.get("needs_approval")), "guide_sha256": _sha256(guide)})
+    return {"status": "recorded", "stage": AMENDMENT_STAGE, "amendment": entry["number"], "amendment_status": entry["status"],
+            "needs_approval": bool(entry.get("needs_approval")), "guide": str(guide), "book": str(book_path),
+            "receipt": str(receipt), "next_action": next_action, "warnings": []}
 
 
 # ---------------------------------------------------------------- the brand book
@@ -848,7 +1293,7 @@ def book(church_folder: str | Path) -> dict[str, Any]:
         root = _church_root(church_folder)
         if not (root / GUIDE_FILE).is_file():
             raise WorkflowFailure("guide_missing", "No brand guide exists yet; record the first stage")
-        target = _write_book(root)
+        target = _refresh_documents(root, _load_state(root))
         return {"status": "written", "book": str(target), "next_action": "Open the brand book and keep it on screen while you work."}
     except Exception as exc:  # noqa: BLE001
         return _failure(exc)
@@ -859,8 +1304,8 @@ def book(church_folder: str | Path) -> dict[str, Any]:
 def _exploration_open(state: dict[str, Any]) -> None:
     if not _recorded(state, "direction"):
         raise WorkflowFailure("stage_out_of_order", "Internal exploration opens after the direction round is recorded")
-    if _recorded(state, "build"):
-        raise WorkflowFailure("stage_out_of_order", "The system is built; exploration is over for this run")
+    if _recorded(state, "build") and not _open_amendment(state):
+        raise WorkflowFailure("stage_out_of_order", "The system is built. For a small addition, open an amendment first (record --stage amendment); earlier decisions and receipts stay as they are")
 
 
 def explore(church_folder: str | Path, round_label: str, files: list[str], *, maker: str = "maker", dark: str | None = None) -> dict[str, Any]:
@@ -949,7 +1394,7 @@ def redirect(church_folder: str | Path, round_label: str, reason: str, *, rebrie
 
 def _dark_color(patch: dict[str, Any] | None, explicit: str | None) -> str:
     if explicit:
-        return explicit
+        return survival.normalize_dark(explicit)
     colors = (patch or {}).get("colors") if isinstance(patch, dict) else None
     if isinstance(colors, dict) and isinstance(colors.get("accent_deep"), str) and HEX.fullmatch(colors["accent_deep"]):
         return colors["accent_deep"]
@@ -1075,14 +1520,23 @@ def _validate_brand_system(root: Path, system: Any, *, under: Path) -> dict[str,
     if not isinstance(fonts, dict) or not fonts.get("display") or not fonts.get("text"):
         raise WorkflowFailure("invalid_brand_system", "brand_system.type needs display and text entries", field="type")
     for role, entry in fonts.items():
+        if role not in TYPE_ROLES:
+            raise WorkflowFailure("invalid_type", f"type.{role} is not a type role; use display, text, or reading", field=f"type.{role}")
         if not isinstance(entry, dict):
             raise WorkflowFailure("invalid_type", f"type.{role} must be an object", field=f"type.{role}")
+        variation = entry.get("variation")
+        if variation is not None and (not isinstance(variation, dict) or not all(
+                isinstance(tag, str) and len(tag) == 4 and isinstance(value, (int, float)) and not isinstance(value, bool)
+                for tag, value in variation.items())):
+            raise WorkflowFailure("invalid_type", f"type.{role}.variation maps four-letter axis tags to numbers, such as {{\"opsz\": 12, \"SOFT\": 30}}", field=f"type.{role}.variation")
         _require_text(entry.get("family"), f"type.{role}.family")
         _require_text(entry.get("license"), f"type.{role}.license")
         files = entry.get("files")
         if not isinstance(files, dict) or not files.get("regular"):
             raise WorkflowFailure("invalid_type", f"type.{role}.files needs at least a regular face", field=f"type.{role}.files")
         for face, raw in files.items():
+            if face not in FONT_FACE_KEYS:
+                raise WorkflowFailure("invalid_type", f"type.{role}.files.{face} is not a face renderers know; use one of: {', '.join(FONT_FACE_KEYS)}", field=f"type.{role}.files.{face}")
             rel = _existing(root, raw, f"type.{role}.files.{face}", under=under)
             if rel.suffix.casefold() not in FONT_SUFFIXES:
                 raise WorkflowFailure("invalid_type", f"type.{role}.files.{face} must be a font file", field=f"type.{role}.files.{face}")
@@ -1101,7 +1555,16 @@ def _validate_brand_system(root: Path, system: Any, *, under: Path) -> dict[str,
     if not isinstance(templates, dict) or not templates:
         raise WorkflowFailure("invalid_brand_system", "brand_system.templates lists the weekly templates that were built", field="templates")
     for key, raw in templates.items():
-        _existing(root, raw, f"templates.{key}", under=under)
+        rel = _existing(root, raw, f"templates.{key}", under=under)
+        if rel.suffix.casefold() == ".svg":
+            text = (root / rel).read_text(encoding="utf-8", errors="replace")
+            if "<text" in text and "@font-face" not in text:
+                raise WorkflowFailure(
+                    "template_fonts_missing",
+                    f"templates.{key} sets words without loading the brand's typefaces, so it prints in a stand-in font. "
+                    "Add @font-face rules for the display and text files inside the SVG, or turn the words into outlines.",
+                    field=f"templates.{key}",
+                )
     return system
 
 
@@ -1190,6 +1653,14 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor", dry_run: 
         stale = _stale_stages(state)
         if stale:
             raise WorkflowFailure("stale_stages", "Revisit these stages before approving: " + ", ".join(stale))
+        proposals = _open_proposals(state)
+        if proposals:
+            raise WorkflowFailure("open_proposals", "The pastor has not decided these; the studio only proposed them. Ask, record each decision, then approve: "
+                                  + "; ".join(f"{p['title']} ({p['proposal']})" for p in proposals), detail={"open_proposals": proposals})
+        amendment = _open_amendment(state)
+        if amendment:
+            raise WorkflowFailure("amendment_open", f"Amendment {amendment['number']} is still open; finish it before approving", detail={"amendment": amendment["number"]})
+        unmarked = _unmarked_stages(state)
         staged = _read_json(root / STAGED_SYSTEM_FILE, None)
         if not staged:
             raise WorkflowFailure("brand_system_not_staged", "Nothing is staged to approve")
@@ -1232,9 +1703,16 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor", dry_run: 
             return {"status": "ready_to_approve", "goes_in": goes_in, "staged_files": staged_files,
                     "replaces": replaced, "archived": archived,
                     "brand_json_changes": ["brand_system"] + sorted(patch),
+                    "amendments": [{"number": e["number"], "what": e["what"], "added": e.get("added")} for e in state.get("amendments") or [] if e.get("added") and not e.get("approved_at")],
+                    "warnings": [_unmarked_warning(unmarked)] if unmarked else [],
                     "next_action": "Show the pastor this list in plain words. Approve only when they say so."}
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
         archive = root / ARCHIVE_DIR / stamp
+        repeat = 1
+        while archive.exists():
+            repeat += 1
+            archive = root / ARCHIVE_DIR / f"{stamp}-{repeat}"
+        archive_rel = archive.relative_to(root).as_posix()
         old_brand = (root / "brand.json").read_bytes()
         old_state = json.loads(json.dumps(state))
         moves: list[tuple[Path, Path]] = []
@@ -1280,11 +1758,15 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor", dry_run: 
                 raise WorkflowFailure("brand_write_failed", str(exc)) from exc
             setup._write(root / "brand.json", brand)
             live = setup.status(root)
-            state["approved"] = {"at": _now(), "by": approved_by, "archive": (ARCHIVE_DIR / stamp).as_posix()}
+            state["approved"] = {"at": _now(), "by": approved_by, "archive": archive_rel}
+            included = [e for e in state.get("amendments") or [] if e.get("added") and not e.get("approved_at")]
+            for entry in included:
+                entry["approved_at"] = state["approved"]["at"]
             _save_state(root, state)
             files = {p: _sha256(root / p) for p in sorted({*installed} | {"brand.json"}) if (root / p).is_file()}
             receipt = _receipt(root, "approval", {
-                "approved_by": approved_by, "archive": (ARCHIVE_DIR / stamp).as_posix(), "archived": archived,
+                "approved_by": approved_by, "archive": archive_rel, "archived": archived,
+                "amendments": [e["number"] for e in included],
                 "installed": installed, "brand_json_sha256": _sha256(root / "brand.json"), "files": files,
                 "proof": state["stages"][APPROVAL_STAGE].get("after"), "announcement": state["stages"][APPROVAL_STAGE].get("announcement"),
                 "survival": system["survival"],
@@ -1303,9 +1785,11 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor", dry_run: 
             raise
         if not any(staging.iterdir()):
             staging.rmdir()
-        warnings = []
+        warnings = [_unmarked_warning(unmarked)] if unmarked else []
         try:
-            _write_book(root)
+            for entry in included:
+                _upsert_section(root, f"amendment-{entry['number']}", _amendment_section(entry))
+            _refresh_documents(root, state)
         except Exception as exc:  # noqa: BLE001
             warnings.append(f"The brand is approved, but the brand book was not rewritten: {exc}. Run book.")
         return {"status": "approved", "archive": str(archive), "installed": installed, "live_brand_ready": live.get("ready"),
@@ -1315,7 +1799,7 @@ def approve(church_folder: str | Path, *, approved_by: str = "pastor", dry_run: 
         return _failure(exc)
 
 
-RESTART_ITEMS = ("guide.md", "guide.pdf", "brief.md", "discovery", "staging", "volunteer-card.md")
+RESTART_ITEMS = ("guide.md", "guide.pdf", "brief.md", "discovery", "staging", "volunteer-card.md", EDITION_FILE.name, EDITION_PDF.name)
 
 
 def restart(church_folder: str | Path, *, reason: str = "") -> dict[str, Any]:
@@ -1355,15 +1839,22 @@ def restart(church_folder: str | Path, *, reason: str = "") -> dict[str, Any]:
         return _failure(exc)
 
 
-def render_guide(church_folder: str | Path, out: str | None = None) -> dict[str, Any]:
+def render_guide(church_folder: str | Path, out: str | None = None, *, edition: str | None = None) -> dict[str, Any]:
     try:
         root = _church_root(church_folder)
         guide = root / GUIDE_FILE
         if not guide.is_file():
             raise WorkflowFailure("guide_missing", "No brand guide exists yet; record the first stage")
         from . import guide as guide_renderer  # noqa: WPS433
-        target = root / _relative(root, out, "out") if out else root / "brand" / "guide.pdf"
-        result = guide_renderer.render(root, guide, target)
+        if edition == "governing-body":
+            source = _write_edition(root, _load_state(root))
+            target = root / _relative(root, out, "out") if out else root / EDITION_PDF
+            result = guide_renderer.render(root, source, target, title="Governing Body Edition", kicker="Brand Decisions · Governing Body Edition")
+        elif edition is not None:
+            raise WorkflowFailure("unknown_edition", "The edition to render is governing-body", field="edition")
+        else:
+            target = root / _relative(root, out, "out") if out else root / "brand" / "guide.pdf"
+            result = guide_renderer.render(root, guide, target)
         receipt = _receipt(root, "guide-render", {"pdf": str(target.relative_to(root)), "sha256": _sha256(target), **result})
         return {"status": "rendered", "pdf": str(target), "brand_source": result.get("brand_source"), "receipt": str(receipt)}
     except Exception as exc:  # noqa: BLE001

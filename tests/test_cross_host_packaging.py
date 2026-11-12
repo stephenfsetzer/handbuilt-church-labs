@@ -16,6 +16,10 @@ class CrossHostPackagingTest(unittest.TestCase):
         self.assertEqual(manifest["skills"], "./skills/")
         self.assertEqual(manifest["author"]["name"], "Handbuilt")
         self.assertEqual(manifest["interface"]["displayName"], "Handbuilt Church Labs")
+        self.assertEqual(manifest["interface"]["privacyPolicyURL"], "https://gethandbuilt.com/privacy")
+        onboarding_skill = manifest["extensions"]["com.openai"]["onboardingSkill"]
+        self.assertEqual(onboarding_skill, "./skills/onboarding/SKILL.md")
+        self.assertTrue((REPO_ROOT / onboarding_skill).is_file())
         codex_marketplace = json.loads(
             (REPO_ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8")
         )
@@ -34,6 +38,10 @@ class CrossHostPackagingTest(unittest.TestCase):
         )
         self.assertEqual(claude_manifest["name"], manifest["name"])
         self.assertEqual(claude_manifest["version"], manifest["version"])
+        self.assertEqual(claude_manifest["privacyPolicyUrl"], "https://gethandbuilt.com/privacy")
+        self.assertIn(f"## {manifest['version']}\n\n", (REPO_ROOT / "handbook" / "whats-new.md").read_text(encoding="utf-8"))
+        self.assertNotIn("mcpServers", manifest)
+        self.assertNotIn("mcpServers", claude_manifest)
         claude_marketplace = json.loads(
             (REPO_ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
         )

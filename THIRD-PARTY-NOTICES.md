@@ -341,3 +341,22 @@ restricts distribution outside the licensed congregation and internet
 redistribution beyond the specified worship broadcasts. These congregational
 licenses do not authorize a public plugin text bundle. Permitted private
 church material remains subject to the applicable publisher's terms.
+
+## Python
+
+The plugin does not include Python. On first use it downloads a CPython build
+from the [python-build-standalone](https://github.com/astral-sh/python-build-standalone)
+project, named and checksummed in `tools/python-dist.lock`, into its own folder
+on the computer. CPython is distributed under the
+[Python Software Foundation License](https://docs.python.org/3/license.html).
+Those builds also contain other open-source components under their own
+licenses, which are included inside the download.
+
+## PDF tools
+
+The plugin does not include Pango or Poppler. On a Mac or Windows it downloads
+the [conda-forge](https://conda-forge.org) packages named and checksummed in
+`tools/native-tools.lock` into its own folder. Pango is distributed under the
+GNU Lesser General Public License and Poppler under the GNU General Public
+License; they and the libraries they depend on carry their own licenses, which
+are included inside each package.

@@ -14,16 +14,24 @@ QuickBooks must be connected and the company confirmed (the skill's step 0).
 
 Save each response in `finance/board/setup-pulls/`:
 
+- `company-info.json`: company info, as returned. It says which month the
+  church's year starts.
 - `balance-sheet.json`: balance sheet split by month, from January five years
   ago (or the first month the books have) to the last complete month.
 - `pl-12m.json`: profit and loss for the last twelve complete months.
-- `pl-YYYY.json`: profit and loss for each of the last four full calendar
-  years (fewer if the books are younger).
+- `pl-YYYY.json`: profit and loss for each of the last four whole years of
+  the church's own year (fewer if the books are younger), named by the year
+  each starts in. A July-to-June church's `pl-2025.json` runs July 1, 2025
+  to June 30, 2026. Setup refuses a whole-year pull that does not start in
+  the year's first month.
+- `pl-recent.json` (for finance onboarding's look): profit and loss for the
+  last two complete months.
 
 ## 2. Draft
 
 ```bash
 <launcher> finance-report setup draft \
+  --company-info finance/board/setup-pulls/company-info.json \
   --balance-sheet finance/board/setup-pulls/balance-sheet.json \
   --pl-12m finance/board/setup-pulls/pl-12m.json \
   --pl-year finance/board/setup-pulls/pl-2022.json --pl-year finance/board/setup-pulls/pl-2023.json
@@ -47,7 +55,9 @@ It writes `finance/board/setup-draft.json` and prints a summary.
 3. **Money out.** The same for `spending_groups`. If one area needs a
    separate line (for example, legal fees filed under building costs), add a
    group for it and an `exclude` on the parent.
-4. **Budget.** The connector cannot read budgets. Offer three choices:
+4. **Budget.** The connector cannot read budgets. `--year` is the year the
+   church's year starts in (2026 for July 2026 to June 2027), and the
+   budget's twelve months run from that first month. Offer three choices:
    - export Budget vs. Actuals by month from QuickBooks and share the CSV:
      `<launcher> finance-report setup budget --year YYYY --csv FILE`
    - give the year's planned surplus or shortfall: `--annual AMOUNT`
@@ -77,7 +87,8 @@ It writes `finance/board/setup-draft.json` and prints a summary.
 ```
 
 It refuses to save until the budget is decided, one-time items are reviewed,
-every group has a plain name, and an approver is named, and says which is
+every group has a plain name, an approver is named, and the month the
+church's year starts is known (from company info), and says which is
 missing.
 
 ## 5. Sample edition

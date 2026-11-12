@@ -16,7 +16,7 @@ The app-loaded launcher is the entry point for selection. After the private
 church folder exists, run it once at the start of the workflow:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start <workflow>
 ```
 
@@ -50,7 +50,7 @@ automatic updates. A stable connection can be selected again with the
 app-loaded launcher when the pastor requests it:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" connect --update-policy stable
 ```
 
@@ -58,7 +58,7 @@ To ask Handbuilt to check immediately and keep this church on the stable
 channel, use:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" ensure-latest
 ```
 
@@ -71,7 +71,7 @@ successful update so the task loads the selected release.
 To keep the current app-loaded workflow fixed, use:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" connect --update-policy pinned
 ```
 

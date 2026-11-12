@@ -4,8 +4,11 @@ add a budget, and save the confirmed settings.
 
     # 1. Draft every setting from QuickBooks pulls (the agent then walks the
     #    person through the draft, one question at a time)
-    finance-report setup draft --church-folder . \
+    finance-report setup draft --church-folder . --company-info PULL.json \
         --balance-sheet PULL.json --pl-12m PULL.json [--pl-year PULL.json ...]
+
+    The company info pull says which month the church's year starts. Each
+    --pl-year pull covers one whole year of the church's, from that month.
 
     # 2. Budget: a QuickBooks Budget versus Actuals export, an annual figure,
     #    or none
@@ -34,7 +37,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from build_report_data import load_balance_sheet, load_pl, code, strip_code, INCOME, EXPENSE  # noqa: E402
+from build_report_data import (load_balance_sheet, load_pl, code, strip_code, read_fiscal_start,  # noqa: E402
+                               INCOME, EXPENSE, MONTHS)
 
 PROCESSOR = re.compile(r"stripe|givebutter|paypal|square|venmo|tithe\.?ly|pushpay|vanco|"
                        r"clearing|undeposited|payment", re.I)
@@ -61,7 +65,7 @@ def draft_path(root):
 
 
 def church_info(root):
-    text = (root / "church.yaml").read_text() if (root / "church.yaml").exists() else ""
+    text = (root / "church.yaml").read_text(encoding="utf-8") if (root / "church.yaml").exists() else ""
     trad = re.search(r"^\s*tradition:\s*(.+)$", text, re.M)
     name = re.search(r"^\s*name:\s*(.+)$", text, re.M)
     treas = re.search(r"-\s*name:\s*(.+)\n\s*role:\s*Treasurer", text)
@@ -179,6 +183,7 @@ def cmd_draft(args, root):
     income = draft_groups(items12, INCOME, 3, "Everything else")
     spending = draft_groups(items12, EXPENSE, 4, "Everything else")
     info = church_info(root)
+    fs = read_fiscal_start(args.company_info) if args.company_info else None
 
     # history: first month any everyday bank account held money
     bank_rows = [(strip_code(n), v) for n, v in rows]
@@ -191,6 +196,11 @@ def cmd_draft(args, root):
     years, one_time_candidates = [], []
     for path in args.pl_year or []:
         start, end, items, sections = load_pl(path)
+        if fs is not None:
+            months_long = (int(end[:4]) - int(start[:4])) * 12 + int(end[5:7]) - int(start[5:7]) + 1
+            if int(start[5:7]) != fs or start[8:10] != "01" or months_long != 12:
+                sys.exit(f"CHECK FAILED: {Path(path).name} covers {start} to {end}; each whole-year pull must run "
+                         f"twelve months from {MONTHS[fs - 1]} 1, when the church's year starts")
         inc = sum(sections.get(s, 0) for s in INCOME)
         exp = sum(sections.get(s, 0) for s in EXPENSE)
         year = int(start[:4])
@@ -206,6 +216,7 @@ def cmd_draft(args, root):
         "church": info,
         "report_folder": "finance/board",
         "history_start": first,
+        "fiscal_year_start": fs,
         "accounts_found": accounts,
         "bank_accounts": bank,
         "endowment_accounts": endow,
@@ -237,8 +248,10 @@ def cmd_draft(args, root):
     }
     out = draft_path(root)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(draft, indent=2))
-    print(json.dumps({"status": "ok", "draft": str(out), "history_start": first, "bank_accounts": bank,
+    out.write_text(json.dumps(draft, indent=2), encoding="utf-8")
+    print(json.dumps({"status": "ok", "draft": str(out), "history_start": first,
+                      "year_starts": MONTHS[fs - 1] if fs else "unknown: pull company info and draft again",
+                      "bank_accounts": bank,
                       "endowment_accounts": endow,
                       "set_aside": {a["name"]: a["kind"] for a in accounts if a["kind"] != "bank"},
                       "income_groups": [(g["name"], g["twelve_months"]) for g in income],
@@ -265,7 +278,7 @@ def parse_bva(path):
 
 def cmd_budget(args, root):
     path = draft_path(root)
-    d = json.loads(path.read_text())
+    d = json.loads(path.read_text(encoding="utf-8"))
     year = str(args.year)
     if args.none:
         d["budget_mode"] = "none"
@@ -292,7 +305,7 @@ def cmd_budget(args, root):
                 [w for w in d.get("watch_seed", []) if w.get("id") != "largest-cost"]
         d["budget_mode"] = "export"
         d["budget"][year] = entry
-    path.write_text(json.dumps(d, indent=2))
+    path.write_text(json.dumps(d, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "budget_mode": d["budget_mode"], "year": year,
                       "plan_for_year": round(sum(d["budget"].get(year, {}).get("monthly_net", [])) or 0),
                       "metrics": list(d["metrics"])}, indent=1))
@@ -314,7 +327,7 @@ def one_time_flags(items, inc, exp):
 def cmd_one_time(args, root):
     """Record a confirmed one-time item (it is taken out of that year's result), or none."""
     path = draft_path(root)
-    d = json.loads(path.read_text())
+    d = json.loads(path.read_text(encoding="utf-8"))
     if not args.none:
         for y in d["long_view"]["full_years"]:
             if y["year"] == args.year:
@@ -329,12 +342,12 @@ def cmd_one_time(args, root):
             sys.exit(f"no {args.year} in the draft's full years")
     if args.none or args.done:
         d["one_time_reviewed"] = True
-    path.write_text(json.dumps(d, indent=2))
+    path.write_text(json.dumps(d, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "full_years": d["long_view"]["full_years"], "reviewed": d["one_time_reviewed"]}, indent=1))
 
 
 def cmd_apply(args, root):
-    d = json.loads(draft_path(root).read_text())
+    d = json.loads(draft_path(root).read_text(encoding="utf-8"))
     problems = []
     if d.get("budget_mode") == "ask":
         problems.append("budget not decided: run budget with --csv, --annual, or --none")
@@ -353,11 +366,14 @@ def cmd_apply(args, root):
         problems.append("one-time items not reviewed: run one-time for each, or one-time --none")
     if not d.get("history_start"):
         problems.append("history start not found")
+    if not d.get("fiscal_year_start"):
+        problems.append("the month the church's year starts is not known: pull company info and run draft "
+                        "again with --company-info")
     if not d.get("approver"):
         problems.append("no approver named for the short answer")
     if problems:
         sys.exit("NOT SAVED:\n  " + "\n  ".join(problems))
-    keep = ("report_folder", "history_start", "bank_accounts", "endowment_accounts", "payment_accounts", "labels", "income_groups",
+    keep = ("report_folder", "history_start", "fiscal_year_start", "bank_accounts", "endowment_accounts", "payment_accounts", "labels", "income_groups",
             "spending_groups", "budget", "budget_mode", "metrics", "cash_note", "cash_history_note", "long_view",
             "obligations", "watch_seed", "approver")
     cfg = {"_comment": f"Finance report settings, approved by {args.approved_by} on {date.today().isoformat()}.",
@@ -365,7 +381,7 @@ def cmd_apply(args, root):
     for side in ("income_groups", "spending_groups"):
         cfg[side] = [{k: v for k, v in g.items() if k in ("name", "note", "accounts", "exclude")} for g in cfg[side]]
     out = root / "finance/board/config.json"
-    out.write_text(json.dumps(cfg, indent=2))
+    out.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "saved": str(out)}))
 
 
@@ -377,6 +393,7 @@ def main(argv=None):
     p.add_argument("--balance-sheet", required=True)
     p.add_argument("--pl-12m", required=True)
     p.add_argument("--pl-year", action="append")
+    p.add_argument("--company-info", help="QuickBooks company info pull: the month the church's year starts")
     b = sub.add_parser("budget")
     b.add_argument("--church-folder", default=".")
     b.add_argument("--year", required=True, type=int)
