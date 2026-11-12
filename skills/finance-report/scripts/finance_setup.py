@@ -65,7 +65,7 @@ def draft_path(root):
 
 
 def church_info(root):
-    text = (root / "church.yaml").read_text() if (root / "church.yaml").exists() else ""
+    text = (root / "church.yaml").read_text(encoding="utf-8") if (root / "church.yaml").exists() else ""
     trad = re.search(r"^\s*tradition:\s*(.+)$", text, re.M)
     name = re.search(r"^\s*name:\s*(.+)$", text, re.M)
     treas = re.search(r"-\s*name:\s*(.+)\n\s*role:\s*Treasurer", text)
@@ -248,7 +248,7 @@ def cmd_draft(args, root):
     }
     out = draft_path(root)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(draft, indent=2))
+    out.write_text(json.dumps(draft, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "draft": str(out), "history_start": first,
                       "year_starts": MONTHS[fs - 1] if fs else "unknown: pull company info and draft again",
                       "bank_accounts": bank,
@@ -278,7 +278,7 @@ def parse_bva(path):
 
 def cmd_budget(args, root):
     path = draft_path(root)
-    d = json.loads(path.read_text())
+    d = json.loads(path.read_text(encoding="utf-8"))
     year = str(args.year)
     if args.none:
         d["budget_mode"] = "none"
@@ -305,7 +305,7 @@ def cmd_budget(args, root):
                 [w for w in d.get("watch_seed", []) if w.get("id") != "largest-cost"]
         d["budget_mode"] = "export"
         d["budget"][year] = entry
-    path.write_text(json.dumps(d, indent=2))
+    path.write_text(json.dumps(d, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "budget_mode": d["budget_mode"], "year": year,
                       "plan_for_year": round(sum(d["budget"].get(year, {}).get("monthly_net", [])) or 0),
                       "metrics": list(d["metrics"])}, indent=1))
@@ -327,7 +327,7 @@ def one_time_flags(items, inc, exp):
 def cmd_one_time(args, root):
     """Record a confirmed one-time item (it is taken out of that year's result), or none."""
     path = draft_path(root)
-    d = json.loads(path.read_text())
+    d = json.loads(path.read_text(encoding="utf-8"))
     if not args.none:
         for y in d["long_view"]["full_years"]:
             if y["year"] == args.year:
@@ -342,12 +342,12 @@ def cmd_one_time(args, root):
             sys.exit(f"no {args.year} in the draft's full years")
     if args.none or args.done:
         d["one_time_reviewed"] = True
-    path.write_text(json.dumps(d, indent=2))
+    path.write_text(json.dumps(d, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "full_years": d["long_view"]["full_years"], "reviewed": d["one_time_reviewed"]}, indent=1))
 
 
 def cmd_apply(args, root):
-    d = json.loads(draft_path(root).read_text())
+    d = json.loads(draft_path(root).read_text(encoding="utf-8"))
     problems = []
     if d.get("budget_mode") == "ask":
         problems.append("budget not decided: run budget with --csv, --annual, or --none")
@@ -381,7 +381,7 @@ def cmd_apply(args, root):
     for side in ("income_groups", "spending_groups"):
         cfg[side] = [{k: v for k, v in g.items() if k in ("name", "note", "accounts", "exclude")} for g in cfg[side]]
     out = root / "finance/board/config.json"
-    out.write_text(json.dumps(cfg, indent=2))
+    out.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     print(json.dumps({"status": "ok", "saved": str(out)}))
 
 

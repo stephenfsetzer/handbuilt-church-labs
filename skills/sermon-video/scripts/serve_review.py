@@ -85,7 +85,7 @@ if __name__ == "__main__":
         parser.error("The review page has not been prepared.")
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(root))
     url = f"http://127.0.0.1:{server.server_port}/review.html"
-    (root / "preview-url.txt").write_text(url + "\n")
+    (root / "preview-url.txt").write_text(url + "\n", encoding="utf-8")
     print(url, flush=True)
     if args.minutes > 0:
         stopper = threading.Timer(args.minutes * 60, server.shutdown)

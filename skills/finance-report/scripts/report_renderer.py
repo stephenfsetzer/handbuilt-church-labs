@@ -564,7 +564,7 @@ def load_previous(report, report_path):
     if rel:
         p = (report_path.parent / rel).resolve()
         if p.exists():
-            prev = json.loads(p.read_text())
+            prev = json.loads(p.read_text(encoding="utf-8"))
             return {"as_of": prev["meta"]["through"].rsplit(",", 1)[0], "bank": prev["cash"]["bank"],
                     "ytd": prev["plan"]["actual"], "watch": prev.get("watch", []), "source": str(p)}
     carried = report.get("previous")
@@ -996,16 +996,16 @@ def unverified_figures(report):
 def verify(pdf, html):
     checks = {}
     if shutil.which("pdfinfo"):
-        info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True).stdout
+        info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
         pages = int(re.search(r"Pages:\s+(\d+)", info).group(1))
         checks["pages"] = pages
         checks["pages_ok"] = 1 <= pages <= 2
     if shutil.which("pdffonts"):
-        rows = subprocess.run(["pdffonts", str(pdf)], capture_output=True, text=True).stdout.splitlines()[2:]
+        rows = subprocess.run(["pdffonts", str(pdf)], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.splitlines()[2:]
         checks["fonts"] = [r.split()[0] for r in rows]
         checks["fonts_embedded"] = all(" yes " in f" {r} " for r in rows)
     if shutil.which("pdftotext"):
-        txt = subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True).stdout
+        txt = subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
         checks["no_dashes"] = "—" not in txt and "–" not in txt
     return checks
 
@@ -1025,14 +1025,14 @@ def main(argv=None):
     import yaml
     import weasyprint
     report_path = Path(args.report).resolve()
-    report = json.loads(report_path.read_text())
-    schema = json.loads((HERE.parent / "schema" / "report.schema.json").read_text())
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    schema = json.loads((HERE.parent / "schema" / "report.schema.json").read_text(encoding="utf-8"))
     problems = validate(report, schema)
     if problems:
         raise SystemExit("report.json does not match the schema:\n  " + "\n  ".join(problems))
     brand_path = Path(args.brand)
-    brand = json.loads(brand_path.read_text()) if brand_path.exists() else {}
-    church_doc = yaml.safe_load(Path(args.church).read_text())
+    brand = json.loads(brand_path.read_text(encoding="utf-8")) if brand_path.exists() else {}
+    church_doc = yaml.safe_load(Path(args.church).read_text(encoding="utf-8"))
     theme, log = resolve_theme(brand, church_doc)
     fonts, font_log = font_css(theme)
 
@@ -1050,7 +1050,7 @@ def main(argv=None):
         doc = weasyprint.HTML(string=html, base_url=str(out)).render()
         if len(doc.pages) <= 2:
             break
-    (out / f"{stem}.html").write_text(html)
+    (out / f"{stem}.html").write_text(html, encoding="utf-8")
     pdf = out / f"{stem}.pdf"
     doc.write_pdf(str(pdf))
     checks = verify(pdf, html)
@@ -1068,7 +1068,7 @@ def main(argv=None):
         "previous_month": (prev or {}).get("source"),
         "sources": report["sources"], "status": report["meta"]["status"],
     }
-    (out / f"{stem}.receipt.json").write_text(json.dumps(receipt, indent=2))
+    (out / f"{stem}.receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
     if not checks["pages_ok"]:
         raise SystemExit("FAIL: report must be one or two pages")
     warnings = []

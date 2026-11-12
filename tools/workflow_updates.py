@@ -43,7 +43,7 @@ def version(value):
 
 
 def package_version(root):
-    values = [json.loads((root / directory / 'plugin.json').read_text())
+    values = [json.loads((root / directory / 'plugin.json').read_text(encoding="utf-8"))
               for directory in ('.codex-plugin', '.claude-plugin')]
     if any(not isinstance(item, dict) or item.get('name') != 'handbuilt-church-labs' for item in values):
         raise ValueError('Unexpected workflow package name.')
@@ -151,13 +151,13 @@ def unpack_verified(data, digest, destination, expected_version):
             path = destination / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
-        (destination / '.handbuilt-workflow.json').write_text(json.dumps(manifest))
+        (destination / '.handbuilt-workflow.json').write_text(json.dumps(manifest), encoding="utf-8")
     if package_version(destination) != expected_version:
         raise ValueError('The package version does not match its release.')
 
 
 def verify_installed(root):
-    manifest = json.loads((root / '.handbuilt-workflow.json').read_text())
+    manifest = json.loads((root / '.handbuilt-workflow.json').read_text(encoding="utf-8"))
     if (not isinstance(manifest, dict) or manifest.get('schema_version') != 1
             or manifest.get('version') != package_version(root)
             or not isinstance(manifest.get('files'), dict)
@@ -242,7 +242,7 @@ def select_release(current_root, store, validate, *, download=fetch, now=time.ti
                 return dict(result, status='deferred', reason='another_update_in_progress')
             state_path = store / 'latest-check.json'
             try:
-                state = json.loads(state_path.read_text())
+                state = json.loads(state_path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 state = {}
             if not isinstance(state, dict):

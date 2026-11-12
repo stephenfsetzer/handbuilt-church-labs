@@ -10,11 +10,11 @@ import sys
 def main():
     church = Path(__file__).resolve().parent
     try:
-        connection = json.loads((church / ".handbuilt" / "installation.json").read_text())
+        connection = json.loads((church / ".handbuilt" / "installation.json").read_text(encoding="utf-8"))
         plugin = Path(connection["plugin_root"])
         if not plugin.is_absolute():
             raise ValueError("The plugin connection must use an absolute installation path")
-        manifest = json.loads((plugin / ".codex-plugin" / "plugin.json").read_text())
+        manifest = json.loads((plugin / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
         if manifest.get("name") != "handbuilt-church-labs":
             raise ValueError("The saved location is not Handbuilt Church Labs")
         entry = plugin / "tools" / "church_workflow.py"

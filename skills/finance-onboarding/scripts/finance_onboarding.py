@@ -57,7 +57,7 @@ def state_path(root):
 def load_state(root):
     p = state_path(root)
     if p.exists():
-        st = json.loads(p.read_text())
+        st = json.loads(p.read_text(encoding="utf-8"))
         sync_from_settings(root, st)
         return st
     return {"stage": 1, "stages": {}, "readiness": [dict(r, status="open", reason=None) for r in READINESS],
@@ -69,7 +69,7 @@ def sync_from_settings(root, st):
     cfg_path = root / "finance/board/config.json"
     if not cfg_path.exists():
         return
-    cfg = json.loads(cfg_path.read_text())
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     if cfg.get("budget") or cfg.get("budget_mode") == "none":
         for r in st["readiness"]:
             if r["id"] == "budget" and r["status"] == "open":
@@ -80,7 +80,7 @@ def sync_from_settings(root, st):
 def save_state(root, st):
     p = state_path(root)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(st, indent=2))
+    p.write_text(json.dumps(st, indent=2), encoding="utf-8")
 
 
 def log(st, text):
@@ -284,7 +284,7 @@ def look(args, root):
     out.mkdir(parents=True, exist_ok=True)
     (out / "findings.json").write_text(json.dumps(
         {"pulled_through": months[-1], "bank_accounts": bank, "endowment_accounts": endow,
-         "accounts": accounts, "income_groups": groups, "findings": findings}, indent=2))
+         "accounts": accounts, "income_groups": groups, "findings": findings}, indent=2), encoding="utf-8")
     # data-checked readiness items start from what the books show
     flagged = {f["readiness"] for f in findings if f["readiness"]}
     for r in st["readiness"]:
@@ -344,7 +344,7 @@ def stage_problems(root, st, n):
         for k in ("books_closed_by", "report_by", "approver"):
             if not cal.get(k):
                 p.append(f"calendar: {k} not set")
-        finals = [f for f in board.glob("*/report.json") if json.loads(f.read_text())["meta"]["status"] == "final"]
+        finals = [f for f in board.glob("*/report.json") if json.loads(f.read_text(encoding="utf-8"))["meta"]["status"] == "final"]
         if not finals:
             p.append("no edition approved as final by the treasurer yet")
         return p

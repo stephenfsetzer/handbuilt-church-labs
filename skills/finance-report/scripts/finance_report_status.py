@@ -32,7 +32,7 @@ def main(argv=None):
             blocking = True
 
     church = root / "church.yaml"
-    text = church.read_text() if church.exists() else ""
+    text = church.read_text(encoding="utf-8") if church.exists() else ""
     add("church.yaml", bool(text), "found" if text else "missing: run onboarding first")
     tradition = re.search(r"^\s*tradition:\s*(.+)$", text, re.M)
     body = re.search(r"governing_body:\s*\n\s*label:\s*(.+)$", text, re.M)
@@ -44,7 +44,7 @@ def main(argv=None):
         else "no brand.json yet; the report uses the neutral theme until one exists", blocks=False)
 
     cfg_path = root / "finance/board/config.json"
-    cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else None
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8")) if cfg_path.exists() else None
     add("finance settings", cfg is not None, "found" if cfg else "missing: run first-time setup")
     if cfg:
         for key in ("bank_accounts", "income_groups", "spending_groups", "obligations", "history_start"):

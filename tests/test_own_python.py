@@ -62,8 +62,7 @@ class PythonLock(unittest.TestCase):
         windows = WINDOWS_LAUNCHER.read_bytes()
         self.assertEqual(windows.count(b"\n"), windows.count(b"\r\n"), "a command file needs Windows line endings")
         attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
-        for rule in ("bin/handbuilt-python text eol=lf", "tools/python-dist.lock text eol=lf", "*.cmd -text"):
-            self.assertIn(rule, attributes)
+        self.assertIn("\n* -text\n", attributes, "Git must not rewrite any file's line endings")
 
 
 class Launchers(unittest.TestCase):
@@ -95,7 +94,11 @@ class Launchers(unittest.TestCase):
         self.assertIn("Library/Application Support/Handbuilt Church Labs/runtime", shell)
         self.assertIn("handbuilt-church-labs/runtime", shell)
         self.assertIn("Handbuilt Church Labs/runtime", shell)
-        self.assertIn(r"%LOCALAPPDATA%\Handbuilt Church Labs\runtime", windows)
+        self.assertIn(r"%USERPROFILE%\.handbuilt\runtime", windows)
+        self.assertIn('"$USERPROFILE")/.handbuilt/runtime', shell)
+        # Not AppData: the Claude desktop app redirects it to a folder too deep for Windows.
+        for text in (shell, windows):
+            self.assertNotIn("LOCALAPPDATA", text)
         for text in (shell, windows):
             self.assertIn("HANDBUILT_RUNTIME_HOME", text)
 
@@ -249,6 +252,72 @@ class NativeTools(unittest.TestCase):
                 self.assertIn(needed, names, computer)
             self.assertFalse(names & {"python", "tk"}, computer)
             self.assertLess(sum(int(item["size"]) for item in items), 80 * 1024 * 1024, computer)
+
+
+class WorksOnWindows(unittest.TestCase):
+    """Windows differs from a Mac in ways that stopped real work. Each is pinned here."""
+
+    def product_files(self):
+        for base in ("skills", "tools", "scaffold"):
+            yield from (ROOT / base).rglob("*.py")
+
+    def test_every_text_file_is_read_and_written_as_utf8(self):
+        # Windows reads and writes text in an older encoding unless told otherwise,
+        # and a psalm or a curly quote then stops the work with an encoding error.
+        import ast
+        offenders = []
+        for path in self.product_files():
+            source = path.read_text(encoding="utf-8")
+            for node in ast.walk(ast.parse(source)):
+                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                    continue
+                keywords = {keyword.arg for keyword in node.keywords}
+                if "encoding" in keywords or None in keywords:
+                    continue
+                name = node.func.attr
+                if (name == "read_text" and not node.args) or (name == "write_text" and len(node.args) == 1):
+                    offenders.append(f"{path.relative_to(ROOT)}:{node.lineno} {name}")
+            for number, line in enumerate(source.splitlines(), start=1):
+                if "text=True" in line and "mkstemp" not in line and "encoding=" not in line:
+                    offenders.append(f"{path.relative_to(ROOT)}:{number} text=True")
+        self.assertEqual(offenders, [], "name the encoding: encoding=\"utf-8\"")
+
+    def test_dates_do_not_use_a_format_windows_lacks(self):
+        offenders = [str(path.relative_to(ROOT)) for path in self.product_files()
+                     if re.search(r"strftime\([^)]*%-", path.read_text(encoding="utf-8"))]
+        self.assertEqual(offenders, [], "\"%-d\" fails on Windows; build the date from its parts")
+
+    def test_shipped_worship_text_is_still_recognized_after_git_rewrites_line_endings(self):
+        import hashlib
+        import json
+        from skills.bulletin import sunday_library
+        manifest = json.loads((ROOT / "skills/bulletin/resources/bcp1979/manifest.json").read_text(encoding="utf-8"))
+        identifier, entry = next(iter(manifest["liturgy"].items()))
+        original = (ROOT / "skills/bulletin/renderer/liturgy" / f"{identifier}.md").read_bytes()
+        self.assertNotIn(b"\r\n", original)
+        with tempfile.TemporaryDirectory() as temp:
+            rewritten = Path(temp) / "text.md"
+            rewritten.write_bytes(original.replace(b"\n", b"\r\n"))
+            self.assertNotEqual(hashlib.sha256(rewritten.read_bytes()).hexdigest(), entry["sha256"])
+            self.assertTrue(sunday_library._matches_release(rewritten, entry["sha256"]))
+            rewritten.write_bytes(original.replace(b"\n", b"\r\n") + b"An added line.\r\n")
+            self.assertFalse(sunday_library._matches_release(rewritten, entry["sha256"]), "changed words must still be refused")
+
+    def test_handbuilts_folder_on_windows_is_short(self):
+        """Setup failed with 'path too long' because the Claude app redirects AppData to a deep folder."""
+        from pathlib import PureWindowsPath
+        from tools.handbuilt_runtime import default_runtime_root
+        deep = r"C:\Users\pastor\AppData\Local\Packages\Claude_abcdefghijklm\LocalCache\Local"
+        root = default_runtime_root(system="Windows", home=Path("C:/Users/pastor"),
+                                    environ={"USERPROFILE": r"C:\Users\pastor", "LOCALAPPDATA": deep})
+        parts = PureWindowsPath(str(root).replace("/", "\\")).parts
+        self.assertEqual(parts[-2:], (".handbuilt", "runtime"))
+        self.assertNotIn("Packages", parts)
+        self.assertNotIn("AppData", parts)
+
+    def test_both_launchers_start_python_in_utf8_mode(self):
+        self.assertIn('exec "$py" -X utf8 "$@"', SHELL_LAUNCHER.read_text(encoding="utf-8"))
+        self.assertIn('"%PY%" -X utf8 %*', WINDOWS_LAUNCHER.read_text(encoding="utf-8"))
 
 
 class Instructions(unittest.TestCase):

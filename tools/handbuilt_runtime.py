@@ -142,8 +142,10 @@ def default_runtime_root(
     if system == "Darwin":
         return home / "Library" / "Application Support" / "Handbuilt Church Labs" / "runtime"
     if system == "Windows":
-        base = Path(environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
-        return base / "Handbuilt Church Labs" / "runtime"
+        # A short folder in the user's profile. The Claude desktop app redirects
+        # AppData to a deep folder, and Windows then refuses the long file paths
+        # inside a Python environment ("WinError 206").
+        return Path(environ.get("USERPROFILE") or home) / ".handbuilt" / "runtime"
     base = Path(environ.get("XDG_DATA_HOME", home / ".local" / "share"))
     return base / "handbuilt-church-labs" / "runtime"
 
@@ -283,7 +285,7 @@ class RuntimeManager:
                 list(command),
                 cwd=str(self.repo_root),
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8", errors="replace",
                 timeout=timeout,
                 check=False,
                 env=dict(env) if env is not None else None,

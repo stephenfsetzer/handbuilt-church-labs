@@ -61,6 +61,18 @@ jobs:
         if: runner.os != 'Linux'
         run: |
           bin/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
+          # Time the sample PDF by itself, so a slow first run shows up plainly.
+          bin/handbuilt-python - "$RUNNER_TEMP/native.json" "$HANDBUILT_TEST_PYTHON" <<'PY' || true
+          import json, subprocess, sys, time
+          tools = json.load(open(sys.argv[1], encoding="utf-8"))["native_tools"]["locations"]
+          start = time.time()
+          done = subprocess.run([sys.argv[2], "-I", "-B", "tools/runtime_probe.py",
+                                 *[tools[name] for name in ("pdftoppm", "pdfinfo", "pdffonts", "pdftotext")]],
+                                capture_output=True, text=True, timeout=900)
+          print("sample PDF seconds:", round(time.time() - start), "exit:", done.returncode)
+          print(done.stdout[-1500:])
+          print(done.stderr[-3000:])
+          PY
           bin/handbuilt-python tools/handbuilt_runtime.py verify --format json > "$RUNNER_TEMP/verify.json" || true
           bin/handbuilt-python - "$RUNNER_TEMP/native.json" "$RUNNER_TEMP/verify.json" <<'PY'
           import json, sys
@@ -80,7 +92,7 @@ jobs:
           set "HANDBUILT_RUNTIME_HOME=%RUNNER_TEMP%\handbuilt cmd runtime"
           call bin\handbuilt-python.cmd --where || exit /b 1
           call bin\handbuilt-python.cmd -c "import sys; print(sys.version)" || exit /b 1
-          call bin\handbuilt-python.cmd tools\handbuilt_runtime.py doctor --capability workspace --format json
+          call bin\handbuilt-python.cmd -c "import pathlib; pathlib.Path('utf8-check.txt').write_text(chr(8220) + 'psalm' + chr(8221)); print(pathlib.Path('utf8-check.txt').read_text())" || exit /b 1
 
   suite:
     # The whole regression suite on each system. It reports what does not yet

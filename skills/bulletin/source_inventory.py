@@ -1006,7 +1006,7 @@ def check_rendered_text(
     if not rendered_path.is_file():
         raise InventoryError(f"Rendered bulletin not found: {rendered_pdf}")
     completed = subprocess.run(
-        [_native_pdftotext(), str(rendered_path), "-"], capture_output=True, text=True,
+        [_native_pdftotext(), str(rendered_path), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if completed.returncode != 0:
         raise InventoryError(f"pdftotext failed: {completed.stderr.strip()}")

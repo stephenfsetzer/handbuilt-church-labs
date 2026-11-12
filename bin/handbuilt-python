@@ -30,7 +30,9 @@ case "$(uname -s)" in
         ;;
     MINGW*|MSYS*|CYGWIN*)
         os=windows
-        root="$(cygpath -u "${LOCALAPPDATA:-$USERPROFILE/AppData/Local}")/Handbuilt Church Labs/runtime"
+        # A short folder: the Claude desktop app redirects AppData to a deep one,
+        # and Windows then refuses the long file paths inside.
+        root="$(cygpath -u "$USERPROFILE")/.handbuilt/runtime"
         ;;
     *)
         fail "this kind of computer is not supported: $(uname -s)" 2
@@ -112,4 +114,5 @@ if [ "${1:-}" = "--where" ]; then
     exit 0
 fi
 
-exec "$py" "$@"
+# UTF-8 mode: Windows would otherwise read and write text in an older encoding.
+exec "$py" -X utf8 "$@"

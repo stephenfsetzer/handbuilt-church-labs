@@ -58,6 +58,22 @@ def tool_directories(prefix: str | os.PathLike[str] | None = None, *,
     return [str(item) for item in candidates if item.is_dir()]
 
 
+def use_utf8_on_windows() -> None:
+    """Make Handbuilt's Python on Windows speak UTF-8 to the screen and to the programs it starts.
+
+    Windows otherwise uses an older encoding that cannot hold curly quotes or
+    the characters in a psalm, and a bulletin stops with an encoding error.
+    """
+    if not sys.platform.startswith("win"):
+        return
+    os.environ.setdefault("PYTHONUTF8", "1")
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def prepare(prefix: str | os.PathLike[str] | None = None) -> list[str]:
     """Add the library folders for this process and the ones it starts."""
     directories = library_directories(prefix)
@@ -88,7 +104,8 @@ def prepare(prefix: str | os.PathLike[str] | None = None) -> list[str]:
 
 # Setup installs this file under the name below; only that copy runs at startup.
 if __name__ == "handbuilt_native_libraries":
-    try:
-        prepare()
-    except Exception:  # noqa: BLE001 - a startup hook must never stop Python
-        pass
+    for _step in (use_utf8_on_windows, prepare):
+        try:
+            _step()
+        except Exception:  # noqa: BLE001 - a startup hook must never stop Python
+            pass

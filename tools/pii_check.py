@@ -349,7 +349,7 @@ def git_history_objects(root: Path) -> Iterator[tuple[str, str]]:
         ["git", "rev-list", "--objects", "--all"],
         cwd=root,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         check=False,
     )
     if result.returncode != 0:

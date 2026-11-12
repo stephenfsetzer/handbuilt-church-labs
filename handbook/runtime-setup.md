@@ -207,7 +207,7 @@ The default runtime location is owned by Handbuilt and scoped to the current
 computer user:
 
 - macOS: `~/Library/Application Support/Handbuilt Church Labs/runtime`
-- Windows: `%LOCALAPPDATA%/Handbuilt Church Labs/runtime`
+- Windows: `%USERPROFILE%/.handbuilt/runtime`, kept short because Windows limits how long a file path can be
 - Linux: `$XDG_DATA_HOME/handbuilt-church-labs/runtime`, or the standard local
   data directory when that variable is not set
 

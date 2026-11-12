@@ -282,7 +282,7 @@ def orient(church_folder: str | Path, service_date: str | date, *, service_id: s
             if ".revisions" in receipt_path.parts or ".staging" in receipt_path.parts:
                 continue
             try:
-                saved = json.loads(receipt_path.read_text())
+                saved = json.loads(receipt_path.read_text(encoding="utf-8"))
                 context = saved.get("service_context") or {}
                 if saved.get("service_date") == date_text or receipt_path.parent.name.startswith(date_text + "-"):
                     inherited_legacy = (service_context.get("inherits_legacy_history")
@@ -994,7 +994,9 @@ def _private_liturgy_source(raw: Any, root: Path, field: str) -> Path | None:
     candidate = Path(raw)
     posix = PurePosixPath(raw)
     windows = PureWindowsPath(raw)
-    if windows.is_absolute() and not posix.is_absolute():
+    # A Windows-style absolute path is not a path at all on a Mac or Linux. On
+    # Windows it is an ordinary path, and the check below decides.
+    if windows.is_absolute() and not posix.is_absolute() and os.name != "nt":
         raise StageFailure("unsafe_path", "asset_resolution", f"Liturgy source escapes the church folder: {raw}", field=field)
     if posix.is_absolute() or windows.is_absolute():
         if not _inside(candidate, root):
@@ -1036,7 +1038,7 @@ def _validate_liturgy_sources(bulletin: dict[str, Any], church_root: Path) -> No
     renderer_liturgy = _renderer_dir() / "liturgy"
     from ..sunday_library import SundayLibraryError, verify_shipped_liturgy
     try:
-        manifest = json.loads((_repo_root() / "skills/bulletin/resources/bcp1979/manifest.json").read_text())
+        manifest = json.loads((_repo_root() / "skills/bulletin/resources/bcp1979/manifest.json").read_text(encoding="utf-8"))
         for identifier in manifest["liturgy"]:
             verify_shipped_liturgy(identifier)
     except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -1108,7 +1110,7 @@ def _validate_liturgy_sources(bulletin: dict[str, Any], church_root: Path) -> No
             continue
         bundled = renderer_liturgy / f"{identifier}.md"
         if bundled.is_file():
-            if "[Proper Preface inserted here]" in bundled.read_text() and not str(bulletin.get("proper_preface") or "").strip():
+            if "[Proper Preface inserted here]" in bundled.read_text(encoding="utf-8") and not str(bulletin.get("proper_preface") or "").strip():
                 raise StageFailure(
                     "proper_preface_required", "validation",
                     "The agent must select the verified occasion's proper preface from the bundled Sunday library before printing the full prayer.",
@@ -1898,7 +1900,7 @@ def _run(
     env: dict[str, str] | None = None,
     reject_warnings: bool = False,
 ) -> str:
-    completed = subprocess.run(command, capture_output=True, text=True, env=env)
+    completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
     if completed.returncode:
         detail = (completed.stderr or completed.stdout).strip()
         raise StageFailure(f"{stage}_failed", stage, detail or f"{stage} failed")
@@ -2016,7 +2018,7 @@ def _print_gate(
                "--base-url", base_url]
     if not inside_cover_allowed:
         command.append("--no-inside-cover")
-    completed = subprocess.run(command, capture_output=True, text=True, env=env)
+    completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
     try:
         result = json.loads(completed.stdout)
         findings = result["findings"]

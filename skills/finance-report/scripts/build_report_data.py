@@ -68,7 +68,7 @@ class PullCutOff(SystemExit):
 def record_cut_off(where, cut):
     """Save the refusal next to the work it stopped, so a cut-off pull shows in the record."""
     where.parent.mkdir(parents=True, exist_ok=True)
-    where.write_text(json.dumps(cut.record, indent=2))
+    where.write_text(json.dumps(cut.record, indent=2), encoding="utf-8")
 
 
 def money(v):
@@ -91,7 +91,7 @@ def strip_code(name):
 
 def read_pull(path, convert):
     """A saved pull: the connector's response, or QuickBooks' own report JSON read as the connector's."""
-    d = json.loads(Path(path).read_text())
+    d = json.loads(Path(path).read_text(encoding="utf-8"))
     if quickbooks_native.is_native(d):
         try:
             return convert(d)
@@ -241,7 +241,7 @@ def read_fiscal_start(path):
                     return got
         return None
     try:
-        value = find(json.loads(Path(path).read_text()))
+        value = find(json.loads(Path(path).read_text(encoding="utf-8")))
     except (OSError, ValueError) as problem:
         fail(f"cannot read the company info pull {Path(path).name}: {problem}")
     month = fiscal_month(value)
@@ -286,7 +286,7 @@ def church_year_start(cfg, config_path, company_info):
     if saved is not None:
         return fiscal_month(saved), False
     cfg["fiscal_year_start"] = from_books
-    config_path.write_text(json.dumps(cfg, indent=2))
+    config_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     return from_books, True
 
 
@@ -523,7 +523,7 @@ def build(argv=None):
 
     root = Path(args.church_folder).resolve()
     config_path = root / "finance/board/config.json"
-    cfg = json.loads(config_path.read_text())
+    cfg = json.loads(config_path.read_text(encoding="utf-8"))
     folder = root / cfg["report_folder"]
     _BLOCKED_RECORD.append(folder / args.month / "blocked.json")
     year, mon = int(args.month[:4]), int(args.month[5:])
@@ -667,7 +667,7 @@ def build(argv=None):
 
     # previous report: watch list and obligations carry forward
     prev_path = folder / f"{year if mon > 1 else year - 1}-{(mon - 2) % 12 + 1:02d}" / "report.json"
-    prev = json.loads(prev_path.read_text()) if prev_path.exists() else None
+    prev = json.loads(prev_path.read_text(encoding="utf-8")) if prev_path.exists() else None
     watch = []
     carried = (prev or {}).get("watch") if prev else [dict(w) for w in cfg.get("watch_seed", [])]
     for w in carried or []:
@@ -694,7 +694,7 @@ def build(argv=None):
     readiness = None
     state_file = root / "finance/onboarding-state.json"
     if state_file.exists():
-        state = json.loads(state_file.read_text())
+        state = json.loads(state_file.read_text(encoding="utf-8"))
         readiness = {r["id"]: {k: r.get(k) for k in ("id", "title", "status", "caveat", "reason")}
                      for r in state.get("readiness", []) if r.get("status") != "met"}
         if budget and "budget" in readiness:
@@ -853,7 +853,7 @@ def build(argv=None):
         report["cash"]["set_aside_total"] = sum(i["amount"] for i in set_aside)
     out = folder / args.month
     out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps(report, indent=2))
+    (out / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     (out / "blocked.json").unlink(missing_ok=True)  # an earlier refusal no longer stands
     todo = [w["title"] for w in watch if w.get("needs_update")]
     todo.extend(group_notes)

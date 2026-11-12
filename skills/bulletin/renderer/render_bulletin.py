@@ -395,7 +395,8 @@ def file_uri(p):
 
 def fmt_date(datestr):
     d = datetime.strptime(datestr, "%Y-%m-%d")
-    return d.strftime("%B %-d, %Y")
+    # Not "%-d": Windows does not have it.
+    return f"{d.strftime('%B')} {d.day}, {d.year}"
 
 
 def cover_logo(brand, repo_root, template="classic"):

@@ -16,7 +16,9 @@ if not exist "%LOCK%" (
     exit /b 2
 )
 
-set "ROOT=%LOCALAPPDATA%\Handbuilt Church Labs\runtime"
+rem A short folder: the Claude desktop app redirects AppData to a deep one,
+rem and Windows then refuses the long file paths inside.
+set "ROOT=%USERPROFILE%\.handbuilt\runtime"
 if defined HANDBUILT_RUNTIME_HOME set "ROOT=%HANDBUILT_RUNTIME_HOME%"
 
 set "TAG="
@@ -60,7 +62,8 @@ if "%~1"=="--where" (
     echo %PY%
     exit /b 0
 )
-"%PY%" %*
+rem UTF-8 mode: Windows would otherwise read and write text in an older encoding.
+"%PY%" -X utf8 %*
 exit /b %errorlevel%
 
 :nolock
