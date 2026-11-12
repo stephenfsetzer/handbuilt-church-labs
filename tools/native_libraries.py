@@ -80,7 +80,13 @@ def use_utf8_on_windows() -> None:
 
 
 def prepare(prefix: str | os.PathLike[str] | None = None) -> list[str]:
-    """Add the library folders for this process and the ones it starts."""
+    """Add the library and tool folders for this process and the ones it starts."""
+    # Handbuilt's own PDF tools go first on the path, so "pdfinfo" and the
+    # others are found by name on a computer that has no other copy.
+    tools = tool_directories(prefix)
+    if tools:
+        current = os.environ.get("PATH")
+        os.environ["PATH"] = os.pathsep.join(dict.fromkeys(tools + (current.split(os.pathsep) if current else [])))
     directories = library_directories(prefix)
     if not directories:
         return []

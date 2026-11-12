@@ -179,6 +179,15 @@ class NativeLibraries(unittest.TestCase):
         self.assertNotIn("libpango-1.0.dylib", added, "an existing name is left alone")
         self.assertEqual((lib / "libgobject-2.0.dylib").resolve(), (lib / "libgobject-2.0.0.dylib").resolve())
 
+    def test_handbuilts_pdf_tools_are_found_by_name(self):
+        """On a Mac with no other copy, bulletins stopped: 'pdftoppm is not on PATH'."""
+        from unittest import mock
+        folder = self.native("2026-01")
+        tools = folder / ("Library/bin" if os.name == "nt" else "bin")
+        with mock.patch.dict(os.environ, {"PATH": "/usr/bin"}, clear=False):
+            native_libraries.prepare(self.prefix)
+            self.assertEqual(os.environ["PATH"].split(os.pathsep)[0], str(tools))
+
     def test_importing_the_module_changes_nothing(self):
         # Only the copy that setup installs runs at startup.
         source = (ROOT / "tools" / "native_libraries.py").read_text(encoding="utf-8")
