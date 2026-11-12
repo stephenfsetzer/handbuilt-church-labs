@@ -43,10 +43,15 @@ def library_directories(prefix: str | os.PathLike[str] | None = None, *,
                         platform: str | None = None) -> list[str]:
     platform = platform or sys.platform
     windows = platform.startswith("win")
-    candidates = [root / ("Library/bin" if windows else "lib") for root in native_roots(prefix)]
+    own = [root / ("Library/bin" if windows else "lib") for root in native_roots(prefix)]
+    own = [str(item) for item in own if item.is_dir()]
+    if own:
+        # Handbuilt's own libraries are used alone. Loading them beside
+        # Homebrew's copies of the same libraries crashes the PDF engine.
+        return own[:1]
     if platform == "darwin":
-        candidates += [Path("/opt/homebrew/lib"), Path("/usr/local/lib")]
-    return [str(item) for item in candidates if item.is_dir()]
+        return [str(item) for item in (Path("/opt/homebrew/lib"), Path("/usr/local/lib")) if item.is_dir()]
+    return []
 
 
 def tool_directories(prefix: str | os.PathLike[str] | None = None, *,
@@ -91,8 +96,10 @@ def prepare(prefix: str | os.PathLike[str] | None = None) -> list[str]:
             os.environ[name] = os.pathsep.join(dict.fromkeys(parts))
     elif sys.platform == "darwin":
         current = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH")
-        fallback = current.split(":") if current else [
-            os.path.expanduser("~/lib"), "/usr/local/lib", "/usr/lib"]
+        own = bool(native_roots(prefix))
+        # With Handbuilt's own libraries, look nowhere else but the system.
+        fallback = ["/usr/lib"] if own else (current.split(":") if current else [
+            os.path.expanduser("~/lib"), "/usr/local/lib", "/usr/lib"])
         os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = ":".join(dict.fromkeys(directories + fallback))
     for root in native_roots(prefix):
         fonts = root / ("Library/etc/fonts" if sys.platform.startswith("win") else "etc/fonts")

@@ -144,6 +144,32 @@ def unpack(package: bytes, target: Path, budget: list[int], *, older_format: boo
         raise NativeToolsError(f"A package could not be unpacked: {error}") from error
 
 
+def add_plain_library_names(lib: Path) -> list[str]:
+    """On a Mac, give each library its plain name beside its numbered one.
+
+    A program asks for "libgobject-2.0.dylib". Some packages ship only
+    "libgobject-2.0.0.dylib" and leave the plain name to a developer package
+    this lock leaves out. Without it, the search moves on to other folders and
+    can load a second, different copy of the same library.
+    """
+    import re
+    added: list[str] = []
+    if not lib.is_dir():
+        return added
+    for item in sorted(lib.iterdir()):
+        if not item.name.endswith(".dylib") or not item.is_file():
+            continue
+        # libgobject-2.0.0.dylib also answers to libgobject-2.0.dylib; libz.1.3.2.dylib to libz.dylib.
+        stem = item.name[:-len(".dylib")]
+        while re.search(r"\.\d+$", stem):
+            stem = stem.rsplit(".", 1)[0]
+            plain = lib / f"{stem}.dylib"
+            if not plain.exists() and not plain.is_symlink():
+                plain.symlink_to(item.name)
+                added.append(plain.name)
+    return added
+
+
 def native_home(runtime_root: Path) -> Path:
     return runtime_root / "native"
 
@@ -192,6 +218,7 @@ def install(runtime_root: Path, *, lock: Path = LOCK, fetch=download) -> dict[st
             if hashlib.sha256(data).hexdigest() != package["sha256"]:
                 raise NativeToolsError(f"{name} did not match its recorded checksum, so nothing was installed.")
             unpack(data, work, budget, older_format=name.endswith(".tar.bz2"))
+        add_plain_library_names(work / "lib")
         (work / READY_MARKER).write_text(json.dumps({"release": release, "computer": key}) + "\n", encoding="utf-8")
         final = home / release
         if final.exists():

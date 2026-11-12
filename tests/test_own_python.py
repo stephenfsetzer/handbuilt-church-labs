@@ -160,6 +160,25 @@ class NativeLibraries(unittest.TestCase):
         self.assertEqual(native_libraries.tool_directories(self.prefix, platform="linux"), [str(folder / "bin")])
         self.assertEqual(native_libraries.library_directories(self.root / "a" / "b" / "c" / "d" / "e" / "f", platform="linux"), [])
 
+    def test_handbuilts_own_libraries_are_never_mixed_with_homebrews(self):
+        """The PDF engine crashed on a Mac that had both: two copies of one library were loaded."""
+        folder = self.native("2026-01")
+        self.assertEqual(native_libraries.library_directories(self.prefix, platform="darwin"), [str(folder / "lib")])
+
+    @unittest.skipIf(os.name == "nt", "plain library names are a Mac need")
+    def test_each_library_gets_its_plain_name(self):
+        lib = self.root / "lib"
+        lib.mkdir()
+        (lib / "libgobject-2.0.0.dylib").write_bytes(b"x")
+        (lib / "libpango-1.0.0.dylib").write_bytes(b"x")
+        (lib / "libpango-1.0.dylib").symlink_to("libpango-1.0.0.dylib")
+        (lib / "libz.1.3.2.dylib").write_bytes(b"x")
+        added = native_tools.add_plain_library_names(lib)
+        self.assertIn("libgobject-2.0.dylib", added)
+        self.assertIn("libz.dylib", added)
+        self.assertNotIn("libpango-1.0.dylib", added, "an existing name is left alone")
+        self.assertEqual((lib / "libgobject-2.0.dylib").resolve(), (lib / "libgobject-2.0.0.dylib").resolve())
+
     def test_importing_the_module_changes_nothing(self):
         # Only the copy that setup installs runs at startup.
         source = (ROOT / "tools" / "native_libraries.py").read_text(encoding="utf-8")
