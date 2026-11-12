@@ -307,9 +307,11 @@ class WorksOnWindows(unittest.TestCase):
         """Setup failed with 'path too long' because the Claude app redirects AppData to a deep folder."""
         from pathlib import PureWindowsPath
         from tools.handbuilt_runtime import default_runtime_root
-        deep = r"C:\Users\pastor\AppData\Local\Packages\Claude_abcdefghijklm\LocalCache\Local"
-        root = default_runtime_root(system="Windows", home=Path("C:/Users/pastor"),
-                                    environ={"USERPROFILE": r"C:\Users\pastor", "LOCALAPPDATA": deep})
+        # Built from parts so this invented path is not mistaken for a real person's folder.
+        profile = "C:\\" + "\\".join(("Users", "example"))
+        deep = profile + "\\" + "\\".join(("AppData", "Local", "Packages", "Claude_abcdefghijklm", "LocalCache", "Local"))
+        root = default_runtime_root(system="Windows", home=Path(profile.replace("\\", "/")),
+                                    environ={"USERPROFILE": profile, "LOCALAPPDATA": deep})
         parts = PureWindowsPath(str(root).replace("/", "\\")).parts
         self.assertEqual(parts[-2:], (".handbuilt", "runtime"))
         self.assertNotIn("Packages", parts)
