@@ -46,7 +46,7 @@ _LITURGICAL_MARKING = re.compile(
     r"|stand|sit|kneel|bow|optional|or)\b",
     re.I,
 )
-MAX_FOOTER_ROSTER = 9
+MAX_FOOTER_ROSTER = 12
 
 # Weekly service music uses the same hymn block shape as `hymns`. Keep this
 # list deliberately small so a supplied slot cannot disappear silently.

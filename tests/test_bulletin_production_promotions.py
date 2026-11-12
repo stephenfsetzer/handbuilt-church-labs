@@ -238,7 +238,7 @@ class BulletinProductionPromotionTest(unittest.TestCase):
             _validate_leadership({"leadership": {"staff": ["incomplete"]}})["printed"],
             False,
         )
-        people = [{"name": f"Person {i}", "role": "Staff"} for i in range(10)]
+        people = [{"name": f"Person {i}", "role": "Staff"} for i in range(13)]
         with self.assertRaises(StageFailure) as caught:
             _validate_leadership({"leadership": {"print_in_bulletin": True, "placement": "footer", "staff": people}})
         self.assertEqual(caught.exception.code, "leadership_roster_capacity")
