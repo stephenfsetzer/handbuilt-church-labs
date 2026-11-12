@@ -724,6 +724,29 @@ class BrandFieldRegressions(unittest.TestCase):
         self.assertEqual(self.bw.record(self.church, "direction", "Directions.", metadata, replace=True)["errors"][0]["code"], "invalid_path")
 
 
+class SetupFieldRegressions(unittest.TestCase):
+    def test_f18_setup_can_install_its_package_tool_on_windows(self):
+        """On every Windows computer, setup stopped with 'To modify pip, please run ...'."""
+        from tools import handbuilt_runtime as runtime
+        match = re.search(r'sys\.argv=\["([^"]+)"', runtime.INSTALL_PIP_SCRIPT)
+        self.assertIsNotNone(match, "the install script no longer sets its program name")
+        program = match.group(1)
+        self.assertNotRegex(program.lower(), r"^pip(\d+(\.\d+)?)?(\.exe)?$",
+                            "pip refuses to install itself on Windows when started under this name")
+        try:
+            from pip._internal.exceptions import CommandError
+            from pip._internal.utils import misc
+        except ImportError:
+            return
+        # Ask pip itself, told that it is on Windows.
+        with mock.patch.object(misc, "WINDOWS", True):
+            with mock.patch.object(sys, "argv", [program, "install"]):
+                misc.protect_pip_from_modification_on_windows(modifying_pip=True)
+            with mock.patch.object(sys, "argv", ["pip", "install"]):
+                with self.assertRaises(CommandError):
+                    misc.protect_pip_from_modification_on_windows(modifying_pip=True)
+
+
 class WorkspaceFieldRegressions(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

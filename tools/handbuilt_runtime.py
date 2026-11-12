@@ -88,10 +88,12 @@ with open(destination,"xb") as output:
     output.write(data)
 print(json.dumps({"final_url":final_url,"size":len(data)}))
 '''
+# The program name must not be "pip": on Windows, pip refuses to install itself
+# when it was started under that name, and setup stops for every Windows user.
 INSTALL_PIP_SCRIPT = r'''import runpy,sys
 wheel=sys.argv[1]
 sys.path.insert(0,wheel)
-sys.argv=["pip","--isolated","install","--no-index","--no-deps","--no-cache-dir","--disable-pip-version-check",wheel]
+sys.argv=["handbuilt-pip-bootstrap","--isolated","install","--no-index","--no-deps","--no-cache-dir","--disable-pip-version-check",wheel]
 runpy.run_module("pip",run_name="__main__")
 '''
 
@@ -458,10 +460,13 @@ class RuntimeManager:
             message = "Handbuilt cannot use a supported, security-patched Python runtime."
             reason = managed_error if environment_exists and managed_error else bootstrap_error
             next_action = (
-                f"Use Python {'.'.join(map(str, MINIMUM_PYTHON))} through "
-                f"{'.'.join(map(str, max(runtime_security.SUPPORTED_RUNTIME_BRANCHES)))} "
-                "at the patch levels in tools/runtime_security.py with --bootstrap-python, "
-                f"then run setup. {reason or ''}"
+                "Run this tool with Handbuilt's own Python instead: "
+                '"<plugin-root>/bin/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" setup '
+                "(on Windows without Git Bash, bin\\handbuilt-python.cmd). It downloads a checked copy of "
+                "Python into Handbuilt's folder; the pastor installs nothing. Only when that download is "
+                f"blocked, pass a Python {'.'.join(map(str, MINIMUM_PYTHON))} through "
+                f"{'.'.join(map(str, max(runtime_security.SUPPORTED_RUNTIME_BRANCHES)))} at the patch levels "
+                f"in tools/runtime_security.py with --bootstrap-python. {reason or ''}"
             ).strip()
         elif missing_packages or mismatched_packages or package_error:
             status = "python-package-missing"
@@ -707,7 +712,7 @@ class RuntimeManager:
             which=self.which,
             downloader=self.downloader,
         )
-        _, candidate_error = candidate_manager._probe_version(str(candidate_paths.python))
+        candidate_version, candidate_error = candidate_manager._probe_version(str(candidate_paths.python))
         if candidate_error:
             raise RuntimeSetupError(candidate_error)
 
@@ -756,6 +761,7 @@ class RuntimeManager:
         wheel.unlink(missing_ok=True)
         candidate_lock.unlink(missing_ok=True)
         wheel.parent.rmdir()
+        self._install_native_library_hook(environment, candidate_version)
 
         report = candidate_manager.doctor(capability="workspace")
         if report["status"] != "ready":
@@ -774,6 +780,29 @@ class RuntimeManager:
         report["installation_policy"] = {"binary_only": True, "require_hashes": True,
                                          "wheel_lock_sha256": hashlib.sha256(locked_bytes).hexdigest()}
         return report
+
+    def _install_native_library_hook(self, environment: Path, version: Optional[list[int]]) -> None:
+        """Let the private Python find Pango and the PDF tools outside itself.
+
+        Handbuilt's own Python does not search Homebrew or Handbuilt's native
+        folder for libraries. This copies tools/native_libraries.py into the
+        environment and loads it at startup through a one-line .pth file.
+        """
+        source = Path(__file__).with_name("native_libraries.py")
+        if not source.is_file():
+            raise RuntimeSetupError("The plugin is missing tools/native_libraries.py.")
+        if self.system == "Windows":
+            site_packages = environment / "Lib" / "site-packages"
+        else:
+            major, minor = (version or [sys.version_info[0], sys.version_info[1]])[:2]
+            site_packages = environment / "lib" / f"python{major}.{minor}" / "site-packages"
+        try:
+            site_packages.mkdir(parents=True, exist_ok=True)
+            (site_packages / "handbuilt_native_libraries.py").write_bytes(source.read_bytes())
+            (site_packages / "handbuilt_native_libraries.pth").write_text(
+                "import handbuilt_native_libraries\n", encoding="utf-8")
+        except OSError as error:
+            raise RuntimeSetupError(f"Could not add the PDF library finder: {error}") from error
 
     def _stage_and_activate(self, *, operation: str) -> dict[str, object]:
         if self.paths.pointer_error:
