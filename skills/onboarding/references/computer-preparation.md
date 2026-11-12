@@ -49,10 +49,10 @@ dropped connection; on a network that blocks it, offer to continue on another
 network, or pass an already-installed supported interpreter with
 `--bootstrap-python`. Do not send the pastor to install Python.
 
-Use the existing managed environment and native installer. When Homebrew
-itself is absent on macOS, consult the official [Homebrew installation
-guide](https://docs.brew.sh/Installation) for the actual host before guiding
-installation. Do not invent download URLs, repeatedly trigger developer-tools
+Use the existing managed environment and the doctor's `native_install` plan.
+On a Mac or Windows that plan is Handbuilt's own PDF tools, which need no
+Homebrew, no installer window and no password. Do not install Homebrew for
+Handbuilt. Do not invent download URLs, repeatedly trigger developer-tools
 installation, or change the pastor's preferred app. Recheck after each repair
 and continue from the first incomplete stage. If a repair fails, inspect the
 new error rather than repeating the same installation without new evidence.

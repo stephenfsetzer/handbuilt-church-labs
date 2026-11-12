@@ -135,21 +135,26 @@ New installation receipts record the binary-only policy and wheel-lock digest.
 ## Finish computer preparation
 
 If the result is `native-tool-missing`, read the `native_install` plan from the
-JSON result. Explain that this is a computer-level PDF tool, ask for approval,
-then run the proposed command through the host workflow:
+JSON result. On a Mac or Windows the plan is **Handbuilt PDF tools**: Handbuilt
+downloads the Pango text libraries and the Poppler PDF tools from conda-forge,
+checks every package against the SHA-256 in `tools/native-tools.lock`, and
+unpacks them into its own folder. It needs no Homebrew, no installer and no
+password, and takes a minute or two. Tell the pastor in one sentence, then run
+the proposed command through the host workflow:
 
 ```bash
 handbuilt-python tools/handbuilt_runtime.py native-install --format json
 ```
 
-Run `doctor` again after the operation. On macOS, the supported first adapter
-uses Homebrew to install Poppler. On Linux, it uses an available distribution
-package manager. If no supported manager is available, do not invent a
-download URL or ask the pastor to guess a command.
+Run `doctor` again after the operation. On Linux, the plan uses an available
+distribution package manager. If `verify` later says a library could not be
+loaded on a computer that already has PDF tools, run
+`native-install --own-tools` to add Handbuilt's own copy, then `verify` again.
+Do not invent a download URL or ask the pastor to guess a command.
 
-If Python or Homebrew itself is absent, follow the
+Follow the
 [computer preparation reference](../skills/onboarding/references/computer-preparation.md)
-for host inspection and official installation guidance. When an installer
+for host inspection. When an installer
 needs human interaction, identify the app/window, give one next action, and
 verify the result after the person completes it. Preserve progress on retries.
 
@@ -242,12 +247,11 @@ commands.
 
 ## Current integration boundary
 
-The plugin prepares and selects verified private runtime generations and can
-install Poppler through a supported system package manager. It does not
-bundle or install Python or Homebrew themselves. Computer-level changes use
-the host's installer and permission surface. There is no graphical bootstrap
-when Python is absent; the host must inspect the computer and guide that
-preparation before this Python helper can run. Nothing in this update replaces
+The plugin prepares and selects verified private runtime generations. It
+downloads its own Python and, on a Mac or Windows, its own PDF tools into its
+own folder, each checked against a recorded SHA-256. On Linux it can install
+Poppler through a supported system package manager. It never installs
+Homebrew or changes the computer's own Python. Nothing in this update replaces
 the existing installer or changes the church's customizable workspace.
 
 Input size and processing limits are documented in [input limits](input-limits.md).

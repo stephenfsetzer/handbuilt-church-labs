@@ -66,12 +66,17 @@ jobs:
           import json, subprocess, sys, time
           tools = json.load(open(sys.argv[1], encoding="utf-8"))["native_tools"]["locations"]
           start = time.time()
-          done = subprocess.run([sys.argv[2], "-I", "-B", "tools/runtime_probe.py",
+          import os
+          done = subprocess.run([sys.argv[2], "-I", "-B", "-X", "faulthandler", "tools/runtime_probe.py",
                                  *[tools[name] for name in ("pdftoppm", "pdfinfo", "pdffonts", "pdftotext")]],
-                                capture_output=True, text=True, timeout=900)
+                                capture_output=True, text=True, timeout=900,
+                                env={**os.environ, "DYLD_PRINT_LIBRARIES": "1"})
           print("sample PDF seconds:", round(time.time() - start), "exit:", done.returncode)
           print(done.stdout[-1500:])
-          print(done.stderr[-3000:])
+          loaded = [line for line in done.stderr.splitlines() if "dyld" in line and ("native" in line or "homebrew" in line or "/usr/local" in line)]
+          print("libraries loaded from outside the system:", len(loaded))
+          print("\n".join(loaded[-60:]))
+          print("\n".join(line for line in done.stderr.splitlines() if "dyld" not in line)[-3500:])
           PY
           bin/handbuilt-python tools/handbuilt_runtime.py verify --format json > "$RUNNER_TEMP/verify.json" || true
           bin/handbuilt-python - "$RUNNER_TEMP/native.json" "$RUNNER_TEMP/verify.json" <<'PY'

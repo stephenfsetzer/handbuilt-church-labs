@@ -127,9 +127,8 @@ its own copy. Git is the one thing to install, with `winget` when the host
 reports it is available. After Git is installed, Claude must be fully closed
 and reopened before it can see it. Closing the window is not enough: have the
 pastor click the menu at the top left, then **File**, then **Exit**, and open
-Claude again. Bulletin PDF tools on Windows have no supported installer in this
-plugin yet; say so plainly, and continue with church setup and sermon
-research.
+Claude again. Bulletin PDF tools work on Windows: the doctor's plan installs
+Handbuilt's own copy with no installer window.
 
 ## Common snags
 
@@ -148,25 +147,17 @@ Read the actual message first. Match it to a row only when the evidence fits.
 | Network errors, timeouts, or `Could not resolve host` | The internet connection dropped or a network blocks the download. | Ask them to check Wi-Fi, then retry once. On a church or diocese network, offer to wait until they are on another network. |
 | The same error twice after a retry | Repeating will not help. | Stop, explain what you learned, and either try a different supported route or record the item as pending with one clear next step. |
 
-## Install Homebrew with the pastor
+## PDF tools need no Homebrew
 
-Only install Homebrew when the doctor reports PDF tools missing, the host is a
-Mac with Apple silicon or a supported tier, and the pastor wants bulletin work
-now. Otherwise record it as pending.
+When the doctor reports PDF tools missing on a Mac or Windows, run its
+`native_install` plan. Handbuilt downloads its own PDF tools into its own
+folder, checks each file, and finishes in a minute or two. The pastor does
+nothing. Say what is happening in one sentence, for example: "I'm adding the
+small tools Handbuilt uses to make and check PDFs. They stay inside
+Handbuilt's own folder."
 
-1. Explain Homebrew in one or two sentences and ask whether to go ahead.
-2. Read the [official installation guide](https://docs.brew.sh/Installation)
-   or [brew.sh](https://brew.sh) for the current install command. Do not
-   rewrite it from memory.
-3. Have the pastor open the Terminal and run that one command (see above). It
-   asks for their password, then may ask them to press Return to continue.
-   It can take 5 to 15 minutes and may install Apple's Command Line Tools.
-4. At the end, Homebrew prints "Next steps" with lines to run. Ask the pastor
-   to paste that output. Give those lines back one at a time if they are
-   needed.
-5. Check `brew --version` yourself using the full path, then return to the
-   runtime doctor and its `native-install` plan. That step installs the PDF
-   tool without a password.
+Do not install Homebrew for Handbuilt. If a Mac already has Homebrew, leave it
+alone.
 
 ## Close each step
 
@@ -174,6 +165,6 @@ After every repaired item, say in one or two sentences what is now installed,
 where it lives when that helps, and the next step. When setup is done, give a
 short recap the pastor could repeat to a colleague, for example:
 
-> Your computer is ready. We added Handbuilt's private Python helpers, and
-> Homebrew with a small PDF reader so I can import your bulletins. None of it
-> touches your other apps. Next, we'll set up your church folder.
+> Your computer is ready. We added Handbuilt's own Python helpers and PDF
+> tools, all inside Handbuilt's own folder. None of it touches your other
+> apps. Next, we'll set up your church folder.

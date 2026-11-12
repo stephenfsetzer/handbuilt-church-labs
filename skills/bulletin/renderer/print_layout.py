@@ -444,14 +444,19 @@ def missing_assets(html: str, base_url: str | None = None) -> list[str]:
     longer exists, so this is checked before trusting any layout.
     """
     from urllib.parse import unquote, urlparse
+    from urllib.request import url2pathname
 
-    base = Path(base_url[7:] if base_url and base_url.startswith("file://") else base_url or ".")
+    def local(url: str) -> Path:
+        # url2pathname turns "file:///C:/folder/x.ttf" into C:\folder\x.ttf on Windows.
+        return Path(url2pathname(urlparse(url).path))
+
+    base = local(base_url) if base_url and base_url.startswith("file://") else Path(base_url or ".")
     missing: list[str] = []
     for raw in _ASSET_URL.findall(html):
         if raw.startswith(("data:", "http:", "https:", "#")):
             continue
         if raw.startswith("file://"):
-            path = Path(unquote(urlparse(raw).path))
+            path = local(raw)
         else:
             path = base / unquote(raw)
         if not path.exists() and str(path) not in missing:

@@ -492,6 +492,7 @@ def _resolve_moved_assets(html: str, html_path: Path) -> tuple[str, list[dict], 
     folder (and its hymn-images/), then in the plugin's bundled fonts.
     """
     from urllib.parse import unquote, urlparse
+    from urllib.request import url2pathname
 
     week = _week_folder(html_path)
     fonts = ROOT / "skills/bulletin/renderer/fonts"
@@ -502,7 +503,7 @@ def _resolve_moved_assets(html: str, html_path: Path) -> tuple[str, list[dict], 
         if raw.startswith(("data:", "http:", "https:", "#")):
             continue
         if raw.startswith("file://"):
-            path = Path(unquote(urlparse(raw).path))
+            path = Path(url2pathname(urlparse(raw).path))
         else:
             path = html_path.parent / unquote(raw)
         if path.exists():

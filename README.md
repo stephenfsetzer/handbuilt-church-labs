@@ -411,6 +411,9 @@ Python tools, and it reaches these places only for the work you ask for:
   time it runs, it also downloads its own copy of Python from the
   python-build-standalone project's releases, and uses it only when the file
   matches the checksum recorded in `tools/python-dist.lock`.
+- **conda-forge (conda.anaconda.org):** on a Mac or Windows, before PDF work, it
+  downloads the Pango and Poppler packages listed in `tools/native-tools.lock`
+  into its own folder, each checked against its recorded hash.
 - **Python Package Index (PyPI):** it downloads the Python packages listed in
   `requirements.lock`, each checked against its recorded hash.
 - **Websites you name or need:** your church website, published lectionary and

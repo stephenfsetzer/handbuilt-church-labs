@@ -2089,6 +2089,7 @@ def _font_key(name: str) -> str:
 def _body_font_family(html: str) -> tuple[str, list[Path]] | None:
     """Return the body text's declared @font-face family and its font files."""
     from urllib.parse import unquote, urlparse
+    from urllib.request import url2pathname
 
     css = "\n".join(re.findall(r"<style\b[^>]*>(.*?)</style>", html, re.I | re.S))
     css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
@@ -2101,7 +2102,7 @@ def _body_font_family(html: str) -> tuple[str, list[Path]] | None:
         name = family.group(1).strip().strip("\"'")
         files = faces.setdefault(_font_key(name), [])
         if source and source.group(1).startswith("file://"):
-            files.append(Path(unquote(urlparse(source.group(1)).path)))
+            files.append(Path(url2pathname(urlparse(source.group(1)).path)))
     rules = re.sub(r"@font-face\s*\{[^}]*\}", "", css, flags=re.I)
     body = None
     for declarations in re.findall(r"(?:^|\})\s*body\s*\{([^}]*)\}", rules, re.I):

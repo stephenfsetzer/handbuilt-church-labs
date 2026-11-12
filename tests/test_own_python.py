@@ -317,6 +317,25 @@ class WorksOnWindows(unittest.TestCase):
         self.assertNotIn("Packages", parts)
         self.assertNotIn("AppData", parts)
 
+    def test_file_addresses_are_turned_into_paths_the_windows_way(self):
+        """Every bulletin on Windows was refused: its fonts 'could not be found'."""
+        offenders = []
+        for path in self.product_files():
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                # urlparse("file:///C:/x").path is "/C:/x", which is not a Windows path.
+                if re.search(r"Path\(unquote\(urlparse\(", line) or "[7:]" in line and "file://" in line:
+                    offenders.append(f"{path.relative_to(ROOT)}:{number}")
+        self.assertEqual(offenders, [], "use urllib.request.url2pathname for file addresses")
+        from skills.bulletin.renderer import print_layout
+        with tempfile.TemporaryDirectory() as temp:
+            font = Path(temp).resolve() / "a font.ttf"
+            font.write_bytes(b"x")
+            html = f'<style>@font-face {{ src: url("{font.as_uri()}"); }}</style>'
+            self.assertEqual(print_layout.missing_assets(html), [])
+            (Path(temp) / "picture.png").write_bytes(b"x")
+            self.assertEqual(print_layout.missing_assets('<img src="picture.png">', base_url=Path(temp).resolve().as_uri()), [])
+            self.assertEqual(len(print_layout.missing_assets('<img src="gone.png">', base_url=Path(temp).resolve().as_uri())), 1)
+
     def test_both_launchers_start_python_in_utf8_mode(self):
         self.assertIn('exec "$py" -X utf8 "$@"', SHELL_LAUNCHER.read_text(encoding="utf-8"))
         self.assertIn('"%PY%" -X utf8 %*', WINDOWS_LAUNCHER.read_text(encoding="utf-8"))
