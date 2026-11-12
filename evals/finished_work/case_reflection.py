@@ -104,8 +104,9 @@ COMMON_NAMES = {"God", "Jesus", "Christ", "Lord", "Spirit", "Holy", "Gospel", "S
                 "Sunday", "Amen", "Father", "Son", "Church", "Christian", "Christians", "Kingdom", "Heaven",
                 "Pentecost", "Proper", "November", "Episcopal", "Tuesday", "Monday", "Text", "Reflections",
                 "Talents", "Parable", "Servant", "Master", "Well", "Okay", "Look", "Fear", "Keys", "Lights"}
-# Words in a PDF stand this many times taller than the type size in common serif faces.
-PDF_HEIGHT_PER_POINT = 1.22
+# Words in a PDF stand this many times taller than the type size in Source Serif 4,
+# the serif the speaker's copy is set in on every computer.
+PDF_HEIGHT_PER_POINT = 1.37
 MIN_KEPT = 0.5
 PHRASE_COVERED = 0.75
 PAGE_HOLDS = 0.9
