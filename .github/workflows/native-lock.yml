@@ -28,7 +28,8 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/solve"
           for computer in osx-arm64 osx-64 win-64; do
-            MAMBA_ROOT_PREFIX="$RUNNER_TEMP/root-$computer" "$RUNNER_TEMP/micromamba" create --yes \
+            # Tell the solver which macOS to assume; without it, it picks years-old builds.
+            CONDA_OVERRIDE_OSX=13.0 MAMBA_ROOT_PREFIX="$RUNNER_TEMP/root-$computer" "$RUNNER_TEMP/micromamba" create --yes \
               --prefix "$RUNNER_TEMP/env-$computer" --platform "$computer" \
               --channel conda-forge --override-channels --dry-run --json \
               pango poppler > "$RUNNER_TEMP/solve/$computer.json"
@@ -36,17 +37,29 @@ jobs:
       - name: Write the lock
         run: |
           python3 - "$RUNNER_TEMP/solve" > "$RUNNER_TEMP/native-tools.lock" <<'PY'
-          import json, sys
+          import json, re, sys
           from datetime import date
           from pathlib import Path
           names = {"osx-arm64": "darwin-aarch64", "osx-64": "darwin-x86_64", "win-64": "windows-x86_64"}
+          # Packages the PDF tools never load: Python and its helpers, Tk, fonts, headers.
+          skip = re.compile(r"^(python|python_abi|tk|tzdata|packaging|libsqlite|libmpdec|readline|ncurses|"
+                            r"glib|glib-tools|font-ttf-.*|fonts-conda-.*|.*-devel|pip|setuptools|wheel)$")
           print("# Handbuilt's own PDF tools: Pango and Poppler from conda-forge.")
+          print("#")
+          print("# tools/native_tools.py downloads these packages, checks each against the SHA-256")
+          print("# recorded here, and unpacks them into Handbuilt's private folder. The list comes")
+          print("# from the \"Refresh the PDF tools lock\" workflow, which solves `pango poppler` for")
+          print("# each computer. Packages the PDF tools do not load (Python, Tk, fonts, headers)")
+          print("# are left out.")
+          print("#")
           print("# <computer> <sha256> <size> <url>")
-          print(f"release {date.today():%Y%m%d}")
+          print(f"release conda-forge-{date.today():%Y%m%d}")
           for path in sorted(Path(sys.argv[1]).glob("*.json")):
               actions = json.loads(path.read_text())["actions"]
               packages = actions.get("FETCH") or actions.get("LINK") or []
               for package in sorted(packages, key=lambda item: item["name"]):
+                  if skip.match(package["name"]):
+                      continue
                   url = package.get("url") or f'{package["channel"].rstrip("/")}/{package["subdir"]}/{package["fn"]}'
                   print(names[path.stem], package["sha256"], package.get("size", 0), url)
           PY
