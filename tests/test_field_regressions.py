@@ -747,6 +747,15 @@ class SetupFieldRegressions(unittest.TestCase):
                     misc.protect_pip_from_modification_on_windows(modifying_pip=True)
 
 
+    def test_f19_every_package_windows_needs_is_in_the_lock(self):
+        """Setup stopped on Windows: a package wanted there only (colorama) was not in the lock."""
+        root = Path(__file__).resolve().parents[1]
+        lock = (root / "requirements.lock").read_text(encoding="utf-8")
+        pins = (root / "requirements.txt").read_text(encoding="utf-8")
+        self.assertRegex(pins, r"(?m)^colorama==\d")
+        self.assertRegex(lock, r"(?m)^colorama==\d[\d.]* \\\n    --hash=sha256:[0-9a-f]{64}")
+
+
 class WorkspaceFieldRegressions(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

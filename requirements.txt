@@ -10,6 +10,9 @@ certifi==2026.10.19
 setuptools==84.1.0
 brotli==1.2.1
 cffi==2.0.0
+# qrcode needs colorama on Windows only. It is pinned for every computer so
+# that Windows setup finds it in the lock.
+colorama==0.4.6
 cssselect2==0.8.0
 fonttools==4.60.2
 pycparser==2.23
