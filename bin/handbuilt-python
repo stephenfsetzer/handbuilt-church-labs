@@ -1,0 +1,115 @@
+#!/bin/sh
+# Handbuilt's own Python.
+#
+# Runs Python with the arguments given. The first time, it downloads the build
+# named in tools/python-dist.lock, checks it against the SHA-256 recorded there,
+# and unpacks it into Handbuilt's private folder. It needs no installer, no
+# administrator password, and changes nothing else on the computer.
+#
+#   handbuilt-python --where     print the path to this Python and stop
+#   handbuilt-python script.py   run a script
+set -eu
+
+fail() {
+    echo "handbuilt-python: $1" >&2
+    exit "${2:-1}"
+}
+
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+lock="$here/../tools/python-dist.lock"
+[ -f "$lock" ] || fail "tools/python-dist.lock is missing from the plugin." 2
+
+case "$(uname -s)" in
+    Darwin)
+        os=darwin
+        root="$HOME/Library/Application Support/Handbuilt Church Labs/runtime"
+        ;;
+    Linux)
+        os=linux
+        root="${XDG_DATA_HOME:-$HOME/.local/share}/handbuilt-church-labs/runtime"
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        os=windows
+        root="$(cygpath -u "${LOCALAPPDATA:-$USERPROFILE/AppData/Local}")/Handbuilt Church Labs/runtime"
+        ;;
+    *)
+        fail "this kind of computer is not supported: $(uname -s)" 2
+        ;;
+esac
+if [ -n "${HANDBUILT_RUNTIME_HOME:-}" ]; then
+    root=$HANDBUILT_RUNTIME_HOME
+    [ "$os" = windows ] && root=$(cygpath -u "$root")
+fi
+
+# Windows always uses the x86-64 build. It runs on ARM Windows too.
+if [ "$os" = windows ]; then
+    arch=x86_64
+else
+    case "$(uname -m)" in
+        arm64|aarch64) arch=aarch64 ;;
+        x86_64|amd64) arch=x86_64 ;;
+        *) fail "this processor is not supported: $(uname -m)" 2 ;;
+    esac
+fi
+
+key="$os-$arch"
+# Drop any carriage return, in case Git rewrote the lock file's line endings.
+tag=$(awk '{ sub(/\r$/, "") } $1 == "release" { print $2 }' "$lock")
+sha=$(awk -v k="$key" '{ sub(/\r$/, "") } $1 == k { print $2 }' "$lock")
+url=$(awk -v k="$key" '{ sub(/\r$/, "") } $1 == k { print $3 }' "$lock")
+[ -n "$tag" ] && [ -n "$sha" ] && [ -n "$url" ] || fail "tools/python-dist.lock has no build for $key." 2
+
+dist="$root/python-dist/$tag"
+if [ "$os" = windows ]; then
+    py="$dist/python/python.exe"
+else
+    py="$dist/python/bin/python3"
+fi
+
+if [ ! -x "$py" ]; then
+    mkdir -p "$root/python-dist"
+    tmp=$(mktemp -d "$root/python-dist/.tmp.XXXXXX")
+    trap 'rm -rf "$tmp"' EXIT
+    echo "Handbuilt is getting its own copy of Python. This happens once and takes about a minute." >&2
+    if command -v curl >/dev/null 2>&1; then
+        curl --proto '=https' --tlsv1.2 -fsSL --connect-timeout 20 --speed-limit 20000 --speed-time 20 \
+            --retry 4 -C - -o "$tmp/python.tar.gz" "$url" \
+            || fail "the download failed. Check the internet connection and try again."
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q --https-only --timeout=30 --tries=4 -O "$tmp/python.tar.gz" "$url" \
+            || fail "the download failed. Check the internet connection and try again."
+    else
+        fail "this computer has neither curl nor wget to download with." 2
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        got=$(sha256sum "$tmp/python.tar.gz" | awk '{ print $1 }')
+    elif command -v shasum >/dev/null 2>&1; then
+        got=$(shasum -a 256 "$tmp/python.tar.gz" | awk '{ print $1 }')
+    else
+        fail "this computer has no tool to check the download (sha256sum or shasum)." 2
+    fi
+    [ "$got" = "$sha" ] || fail "the download did not match its recorded checksum, so it was not used."
+    mkdir "$tmp/x"
+    tar -xzf "$tmp/python.tar.gz" -C "$tmp/x" || fail "the download could not be unpacked."
+    if [ "$os" = windows ]; then
+        [ -f "$tmp/x/python/python.exe" ] || fail "the download did not contain Python."
+    else
+        [ -x "$tmp/x/python/bin/python3" ] || fail "the download did not contain Python."
+    fi
+    # Another run may have finished first. Keep whichever copy is already there.
+    [ -e "$dist" ] || mv "$tmp/x" "$dist"
+    rm -rf "$tmp"
+    trap - EXIT
+    [ -x "$py" ] || fail "Python was unpacked but cannot be started."
+fi
+
+if [ "${1:-}" = "--where" ]; then
+    if [ "$os" = windows ]; then
+        cygpath -w "$py"
+    else
+        printf '%s\n' "$py"
+    fi
+    exit 0
+fi
+
+exec "$py" "$@"

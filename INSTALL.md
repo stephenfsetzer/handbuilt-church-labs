@@ -70,6 +70,17 @@ On a Mac without Apple's Command Line Tools, this opens an install pop-up.
 That is expected: explain it with the guided-setup wording, have the pastor
 click **Install**, wait, and check again.
 
+On Windows without Git, install Git for Windows (`winget install --id Git.Git -e`
+when `winget` is available). Claude cannot see a newly installed Git until it
+is fully closed and reopened, and closing the window does not close it. Tell
+the pastor: "Click the menu at the top left, then **File**, then **Exit**.
+Open Claude again and come back to this conversation." Then check
+`git --version` again before going on.
+
+Git is the only thing a pastor may need to install. Do not install Python:
+Handbuilt brings its own (see
+[Guided computer setup](skills/onboarding/references/guided-setup.md)).
+
 **Preferred route, when `claude` is available in your shell:**
 
 ```bash
@@ -178,7 +189,7 @@ it. After the preferred
 route, run it from the marketplace copy Claude Code just downloaded:
 
 ```bash
-python3 "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
 ```
 
 It prints `turned_on` or `already_on`. If it reports an error, the settings
@@ -188,7 +199,7 @@ merge shown in section 2. The fallback route's settings already include both.
 Then confirm the result:
 
 ```bash
-python3 "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
 ```
 
 `status` reports the installed version, the latest release, and whether both
@@ -234,6 +245,11 @@ In Codex, say instead: "Start a new task, outside this one, and type
 **Set up my Church Command Center.**" The plugin is available in new Codex
 tasks, and church work continues there.
 
+If that new session answers in general terms, or asks what a command center
+should do, Claude has not loaded Handbuilt yet. Have the pastor fully quit
+Claude and open it again (Windows: the menu at the top left, **File**,
+**Exit**; Mac: **Claude**, **Quit Claude**), then start a new session.
+
 Do not mention `/reload-plugins` to the pastor. **New session** is the one
 step to give. Only in the terminal version of Claude Code, when the pastor
 asks to stay in this session, may you suggest it, then confirm the
@@ -258,3 +274,8 @@ including any missing computer tools, with the same guided approach.
   the next best route (for example the point-and-click steps in the README).
 - Do not install other tools, change system settings, or delete anything to
   work around a problem without the pastor's yes.
+- When setup is blocked by the plugin itself, Handbuilt needs to hear about it.
+  If the Church Labs connection will not send a report (for example, the
+  pastor's email is not enrolled), write the report as a short email the
+  pastor can send to hello@gethandbuilt.com: what they were doing, the exact
+  error, the plugin version, and Windows or Mac. Leave out church details.

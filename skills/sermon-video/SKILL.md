@@ -16,17 +16,19 @@ whether the app-loaded plugin (the one containing this `skills/sermon-video`)
 updates itself:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/claude_updates.py" check
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/claude_updates.py" check
 ```
 
 It needs no church folder and changes nothing. If the result has a
 `next_action`, follow it before continuing; it asks the pastor's permission
 first. `nothing_to_ask` means continue. It never blocks the video work.
 
-Use the skill-owned helper:
+Use the skill-owned helper. `handbuilt-python` is Handbuilt's own Python, at `<app-loaded-plugin-root>/bin/handbuilt-python`
+(`bin\handbuilt-python.cmd` on Windows without Git Bash). Use that full path when the
+short name is not found. Never ask the pastor to install Python.
 
 ```bash
-python3 <skill>/scripts/sermon_video.py doctor
+handbuilt-python <skill>/scripts/sermon_video.py doctor
 ```
 
 It needs FFmpeg and ffprobe for editing, yt-dlp for supported public sources,
@@ -48,7 +50,7 @@ white cards, near-black type and a slate accent. Given a parish page, inspect it
 before choosing a platform:
 
 ```bash
-python3 <skill>/scripts/sermon_video.py discover --url <parish-page> \
+handbuilt-python <skill>/scripts/sermon_video.py discover --url <parish-page> \
   --output <run-folder>/source/discovery.json
 ```
 
@@ -64,7 +66,7 @@ private, paid, or disabled access. Stop acquisition with a concrete explanation
 if neither a usable source nor authorized access is available.
 
 ```bash
-python3 <skill>/scripts/sermon_video.py acquire --url <recording-url> \
+handbuilt-python <skill>/scripts/sermon_video.py acquire --url <recording-url> \
   --run-dir <run-folder> --max-height 1080
 ```
 
@@ -82,7 +84,7 @@ website. The helper catches that before downloading and says so. Then:
    offer the recording too. Record it with `adopt`:
 
 ```bash
-python3 <skill>/scripts/sermon_video.py adopt --url <recording-url> \
+handbuilt-python <skill>/scripts/sermon_video.py adopt --url <recording-url> \
   --run-dir <run-folder> --path <video-file>
 ```
 
@@ -127,7 +129,7 @@ or the church publishes no photo. Preserve the photograph's identity.
 ## Produce the review package
 
 ```bash
-python3 <skill>/scripts/sermon_video.py artwork --plan <run-folder>/plan.json
+handbuilt-python <skill>/scripts/sermon_video.py artwork --plan <run-folder>/plan.json
 ```
 
 This writes editable HTML artwork and a responsive review page. Render the four
@@ -175,7 +177,7 @@ directly; it already uses source time, so no origin is needed. Plain `.vtt` or
 across the cue and the timing is approximate.
 
 ```bash
-python3 <skill>/scripts/sermon_video.py captions --plan <run-folder>/plan.json \
+handbuilt-python <skill>/scripts/sermon_video.py captions --plan <run-folder>/plan.json \
   --transcription <run-folder>/source/service.en.json3
 ```
 
@@ -184,7 +186,7 @@ JSON) with its source origin. If no transcriber is installed, tell the pastor
 and ask before installing one; never install software unasked.
 
 ```bash
-python3 <skill>/scripts/sermon_video.py captions --plan <run-folder>/plan.json \
+handbuilt-python <skill>/scripts/sermon_video.py captions --plan <run-folder>/plan.json \
   --transcription <word-timed.json> --origin-seconds <source-start-of-audio>
 ```
 
@@ -193,8 +195,8 @@ corrections in the private transcription, never in the shared script. Captions
 are a draft until reviewed. The helper shifts timestamps for opening cards.
 
 ```bash
-python3 <skill>/scripts/sermon_video.py render --plan <run-folder>/plan.json
-python3 <skill>/scripts/sermon_video.py verify --plan <run-folder>/plan.json
+handbuilt-python <skill>/scripts/sermon_video.py render --plan <run-folder>/plan.json
+handbuilt-python <skill>/scripts/sermon_video.py verify --plan <run-folder>/plan.json
 ```
 
 The helper exports H.264/AAC MP4, a thumbnail, captions when supplied, draft upload
@@ -219,7 +221,7 @@ higher, especially on narrow screens. Check thumbnail crop, contrast, clipping,
 and font loading.
 
 ```bash
-python3 <skill>/scripts/serve_review.py --run-dir <run-folder>
+handbuilt-python <skill>/scripts/serve_review.py --run-dir <run-folder>
 ```
 
 It binds to localhost, prints the review URL, and saves `preview-url.txt`.

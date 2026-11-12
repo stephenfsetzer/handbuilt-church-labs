@@ -28,7 +28,7 @@ Hidden state lives in `.receipts/reflection/`. Never ask the pastor to manage it
 Run the app-loaded adapter once:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start sermon-reflection
 ```
 

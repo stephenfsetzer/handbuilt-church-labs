@@ -20,7 +20,7 @@ the report says plainly as a caveat.
 Run the app-loaded adapter once:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start finance-report
 ```
 

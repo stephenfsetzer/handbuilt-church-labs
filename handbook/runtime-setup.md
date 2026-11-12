@@ -6,10 +6,19 @@ the result.
 
 ## Host workflow
 
+Handbuilt brings its own Python. `bin/handbuilt-python` in the plugin runs it
+(`bin\handbuilt-python.cmd` on Windows without Git Bash). The first time, it
+downloads the build listed in `tools/python-dist.lock` from the
+python-build-standalone project on GitHub, checks it against the SHA-256
+recorded there, and unpacks it into Handbuilt's private folder. It needs no
+installer window and no administrator password, and it does not touch any
+Python already on the computer. `handbuilt-python --where` prints its path.
+Never ask the pastor to install Python.
+
 For **Set up my Church Command Center**, check from the installed plugin directory:
 
 ```bash
-python3 tools/handbuilt_runtime.py doctor --capability workspace --format json
+bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json
 ```
 
 `doctor` is read-only. It does not create folders, install packages, or change
@@ -32,15 +41,16 @@ rejected. Review both security floors and wheel coverage when changing support.
 The check inspects the managed interpreter itself. Updating another Python on
 the computer does not update an existing private environment.
 
-If preparation needs a different host interpreter, inspect an installed,
-patched interpreter and pass its exact path with `--bootstrap-python`.
-The plugin does not download Python or replace the computer's Python.
+Handbuilt's own Python meets these floors, so this check passes whenever the
+tools run through `handbuilt-python`. Only when a network blocks that download,
+inspect an installed, patched interpreter and pass its exact path with
+`--bootstrap-python`. The plugin never replaces the computer's Python.
 
 If the result is `python-package-missing`, prepare the isolated runtime with
 one host operation:
 
 ```bash
-python3 tools/handbuilt_runtime.py setup --format json
+handbuilt-python tools/handbuilt_runtime.py setup --format json
 ```
 
 `setup` creates a new private runtime generation with `venv --without-pip`.
@@ -70,7 +80,7 @@ pointer stops preparation without falling back to another environment.
 To select a retained previous generation, use the host operation:
 
 ```bash
-python3 tools/handbuilt_runtime.py rollback --format json
+handbuilt-python tools/handbuilt_runtime.py rollback --format json
 ```
 
 Rollback verifies the previous environment against the current security policy
@@ -83,13 +93,13 @@ The plugin does not remove retained generations as part of setup or rollback.
 The host can preview obsolete owned environments with:
 
 ```bash
-python3 tools/handbuilt_runtime.py prune --format json
+handbuilt-python tools/handbuilt_runtime.py prune --format json
 ```
 
 Review `prune.candidates`, then pause all Handbuilt workflows before applying:
 
 ```bash
-python3 tools/handbuilt_runtime.py prune --apply --workflows-stopped --format json
+handbuilt-python tools/handbuilt_runtime.py prune --apply --workflows-stopped --format json
 ```
 
 The host must establish that workflows have stopped. Older processes can still
@@ -102,7 +112,7 @@ directory can be removed once it is outside the selected and previous pair.
 The receipt lists candidates, completed removals, skipped paths and errors.
 If deletion fails partway, `prune.partial_removal_possible` requires inspection.
 
-From a connected church folder, use `python3 handbuilt.py runtime prune`.
+From a connected church folder, use `handbuilt-python handbuilt.py runtime prune`.
 The cleanup flags are host operations; present a plain-language
 maintenance plan to the pastor.
 
@@ -129,7 +139,7 @@ JSON result. Explain that this is a computer-level PDF tool, ask for approval,
 then run the proposed command through the host workflow:
 
 ```bash
-python3 tools/handbuilt_runtime.py native-install --format json
+handbuilt-python tools/handbuilt_runtime.py native-install --format json
 ```
 
 Run `doctor` again after the operation. On macOS, the supported first adapter
@@ -166,10 +176,10 @@ and sermon research, and `verify` for bulletin operations. Existing commands
 remain valid. To inspect from a connected church folder:
 
 ```bash
-python3 handbuilt.py runtime doctor --capability workspace
-python3 handbuilt.py runtime verify
-python3 handbuilt.py runtime setup --bootstrap-python "<inspected patched Python>"
-python3 handbuilt.py runtime rollback
+handbuilt-python handbuilt.py runtime doctor --capability workspace
+handbuilt-python handbuilt.py runtime verify
+handbuilt-python handbuilt.py runtime setup --bootstrap-python "<inspected patched Python>"
+handbuilt-python handbuilt.py runtime rollback
 ```
 
 The sample verifies the computer tools. Every church bulletin still needs its

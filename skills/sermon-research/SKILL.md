@@ -39,7 +39,7 @@ Plugin updates preserve these files; never replace them with a newer scaffold.
 Run the app-loaded adapter once:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start sermon-research
 ```
 

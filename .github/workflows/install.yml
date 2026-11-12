@@ -1,0 +1,98 @@
+name: Install on a pastor's computer
+
+# Runs the real setup on Windows, macOS and Linux, the way an agent would on a
+# computer with no usable Python: Handbuilt fetches its own Python, builds its
+# private environment, and passes the Church Command Center readiness check.
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: Setup on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Handbuilt fetches its own Python
+        run: |
+          export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt runtime"
+          printf 'HANDBUILT_RUNTIME_HOME=%s\n' "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
+          bin/handbuilt-python --where
+          bin/handbuilt-python -c "import sys, ssl; print(sys.version); print(ssl.OPENSSL_VERSION)"
+
+      - name: Build the private environment and check readiness
+        run: |
+          bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
+          cat "$RUNNER_TEMP/setup.json"
+          bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
+          bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          import json, sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          print(report["status"], "-", report["message"])
+          if report["status"] != "ready":
+              raise SystemExit("The Church Command Center readiness check did not pass: " + str(report.get("next_action")))
+          print(report["runtime"]["python"])
+          PY
+
+      - name: Create a church folder with the private environment
+        run: |
+          python_path=$(bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          import json, sys
+          print(json.load(open(sys.argv[1], encoding="utf-8"))["runtime"]["python"])
+          PY
+          )
+          printf 'HANDBUILT_TEST_PYTHON=%s\n' "$python_path" >> "$GITHUB_ENV"
+          "$python_path" -m unittest tests.test_own_python tests.test_handbuilt_runtime tests.test_church_workflow tests.test_onboarding_contract -v 2>&1 | tail -40
+
+      - name: The Windows command launcher works without Git Bash
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          set "HANDBUILT_RUNTIME_HOME=%RUNNER_TEMP%\handbuilt cmd runtime"
+          call bin\handbuilt-python.cmd --where || exit /b 1
+          call bin\handbuilt-python.cmd -c "import sys; print(sys.version)" || exit /b 1
+          call bin\handbuilt-python.cmd tools\handbuilt_runtime.py doctor --capability workspace --format json
+
+  suite:
+    # The whole regression suite on each system. It reports what does not yet
+    # work there without blocking a release; setup above is the gate.
+    name: Regression suite on ${{ matrix.os }} (report only)
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+      - name: Prepare Handbuilt's environment
+        run: |
+          export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt runtime"
+          printf 'HANDBUILT_RUNTIME_HOME=%s\n' "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
+          bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
+          bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
+      - name: Run the regression suite
+        run: |
+          python_path=$(bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          import json, sys
+          print(json.load(open(sys.argv[1], encoding="utf-8"))["runtime"]["python"])
+          PY
+          )
+          "$python_path" -m unittest discover -s tests -p 'test_*.py' 2>&1 | tail -150

@@ -40,16 +40,17 @@ below before presenting that plan. This detects native rendering-library
 failures early; record them as pending PDF preparation without blocking a
 ready workspace. After repairs, repeat only the checks that establish readiness.
 
-If Python cannot start the helper, use the host's available tools to inspect
-the OS/architecture, installed Python interpreters, package manager, and the
-four PDF tools together before offering recovery. On a Mac, do not assume
-the presence of `python3` proves a usable interpreter: an OS stub or old
-interpreter may fail. Prefer an already-installed supported interpreter and
-pass its exact path with `--bootstrap-python`.
+Run every Handbuilt tool through `handbuilt-python`, Handbuilt's own Python.
+It downloads and checks its own copy the first time, so the pastor never
+installs Python and the computer's own Python does not matter. Tell the pastor
+in one sentence that Handbuilt is fetching its own tools and that it takes
+about a minute. If that download fails, read the message: retry once for a
+dropped connection; on a network that blocks it, offer to continue on another
+network, or pass an already-installed supported interpreter with
+`--bootstrap-python`. Do not send the pastor to install Python.
 
-Use the existing managed environment and native installer. When Python or
-Homebrew itself is absent on macOS, consult the official [Python macOS
-downloads](https://www.python.org/downloads/macos/) or [Homebrew installation
+Use the existing managed environment and native installer. When Homebrew
+itself is absent on macOS, consult the official [Homebrew installation
 guide](https://docs.brew.sh/Installation) for the actual host before guiding
 installation. Do not invent download URLs, repeatedly trigger developer-tools
 installation, or change the pastor's preferred app. Recheck after each repair

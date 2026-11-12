@@ -10,7 +10,7 @@ workflow. A different saved root can be the newer managed release or an
 intentional development connection. Do not reconnect merely because roots differ.
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start onboarding
 ```
 

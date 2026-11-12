@@ -1,0 +1,7 @@
+# Git on Windows rewrites line endings by default. These files stop working
+# when that happens, so their line endings are fixed here.
+bin/handbuilt-python text eol=lf
+tools/python-dist.lock text eol=lf
+*.sh text eol=lf
+# Windows command files need Windows line endings, stored as they are.
+*.cmd -text

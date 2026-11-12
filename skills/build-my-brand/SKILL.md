@@ -131,9 +131,13 @@ Compare the saved plugin root in `.handbuilt/installation.json` with this
 skill's plugin root. If they differ, reconnect using the installed
 [onboarding connection reference](../onboarding/references/connection-and-brand.md).
 
+`handbuilt-python` is Handbuilt's own Python, at `<app-loaded-plugin-root>/bin/handbuilt-python`
+(`bin\handbuilt-python.cmd` on Windows without Git Bash). Use that full path when the
+short name is not found. Never ask the pastor to install Python.
+
 ```bash
-python3 "<church-folder>/handbuilt.py" start build-my-brand
-python3 "<church-folder>/handbuilt.py" build-my-brand orient
+handbuilt-python "<church-folder>/handbuilt.py" start build-my-brand
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand orient
 ```
 
 `orient` returns every stage's recorded state, the plan and where the pastor
@@ -157,7 +161,7 @@ use an [amendment](#small-additions-after-the-build) instead; it keeps every
 decision.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand restart --reason "<why>"
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand restart --reason "<why>"
 ```
 
 The guide, the brief, discovery evidence, staged work, and the run's record
@@ -174,7 +178,7 @@ will see at each, what they decide, and about how long each takes. Follow
 on, opens every guide section with where the pastor is and what comes next.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand record --stage roadmap \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage roadmap \
   --content-file <plan.md> --metadata-file <plan.json>
 ```
 
@@ -320,11 +324,11 @@ take reactions, draw again or make precise edits of the chosen image, then
 vectorize the one the pastor keeps.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand draw --round <name> --brief-file <brief.md> [--n 4] [--reference <png> ...] [--provider openai|gemini|recraft]
-python3 "<church-folder>/handbuilt.py" build-my-brand edit --round <name> --source <chosen.png> --instruction-file <edit.md> [--n 2] [--provider openai|gemini]
-python3 "<church-folder>/handbuilt.py" build-my-brand vectorize --source <chosen.png> --out brand/staging/marks/mark.svg
-python3 "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <brief.md> --tool "<tool>"
-python3 "<church-folder>/handbuilt.py" build-my-brand keys status
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand draw --round <name> --brief-file <brief.md> [--n 4] [--reference <png> ...] [--provider openai|gemini|recraft]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand edit --round <name> --source <chosen.png> --instruction-file <edit.md> [--n 2] [--provider openai|gemini]
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand vectorize --source <chosen.png> --out brand/staging/marks/mark.svg
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand import-images --round <name> --files <png> ... --prompt-file <brief.md> --tool "<tool>"
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand keys status
 ```
 
 Every image is flattened onto white before review (a transparent PNG
@@ -391,9 +395,9 @@ weekly templates including the announcement. See
 stage the system and record the build:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand check-marks --primary <mark.svg> --small <mark-small.svg> --dark <hex>
-python3 "<church-folder>/handbuilt.py" build-my-brand stage-brand --patch-file <staged.json>
-python3 "<church-folder>/handbuilt.py" build-my-brand record --stage build \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand check-marks --primary <mark.svg> --small <mark-small.svg> --dark <hex>
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand stage-brand --patch-file <staged.json>
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage build \
   --content-file <section.md> --metadata-file <meta.json>
 ```
 
@@ -414,10 +418,10 @@ receipts and appears in the guide labeled as an amendment. Changing a decision
 is a `--replace`, and beginning again is a restart.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand record --stage amendment \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage amendment \
   --content-file <what-and-why.md> --metadata-file <open.json>
 # open.json: {"step": "open", "what": "One more variation of the mark"}
-python3 "<church-folder>/handbuilt.py" build-my-brand record --stage amendment \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage amendment \
   --content-file <what-the-pastor-kept.md> --metadata-file <finish.json>
 # finish.json: {"step": "finish", "added": ["brand/staging/marks/mark-youth.svg"]}
 ```
@@ -447,8 +451,8 @@ replaces, and what is archived, from the dry run, so the pastor approves a
 list and not an impression:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand approve --dry-run
-python3 "<church-folder>/handbuilt.py" build-my-brand approve --approved-by "<pastor's name>"
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand approve --dry-run
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand approve --approved-by "<pastor's name>"
 ```
 
 Approval archives the current `brand.json` and live brand assets, re-runs the
@@ -470,7 +474,7 @@ announcement image, or a lockup, and what the agent will do. Then render the
 guide:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand render-guide
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand render-guide
 ```
 
 The PDF is set in the church's own marks, type, and colors. A generic-looking

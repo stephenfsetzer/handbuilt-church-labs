@@ -68,7 +68,7 @@ rendered library or public channel response to select a past broadcast.
 The helper can list public BoxCast broadcasts with:
 
 ```bash
-python3 <skill>/scripts/sermon_video.py boxcast --channel <channel-id> \
+handbuilt-python <skill>/scripts/sermon_video.py boxcast --channel <channel-id> \
   --output <run-folder>/source/broadcasts.json
 ```
 

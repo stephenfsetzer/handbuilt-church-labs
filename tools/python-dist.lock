@@ -1,0 +1,18 @@
+# Handbuilt's own Python.
+#
+# bin/handbuilt-python downloads one of these builds the first time it runs,
+# checks the file against the SHA-256 recorded here, and unpacks it into
+# Handbuilt's private folder. Nothing else on the computer changes.
+#
+# The builds are CPython from https://github.com/astral-sh/python-build-standalone
+# (release 20261110). To move to a newer build, change every line together and
+# keep the version at or above the floor in tools/runtime_security.py.
+#
+# <computer> <sha256> <url>
+release cpython-3.14.10-20261110
+version 3.14.10
+darwin-aarch64 f15ec3d15460dd66c2eb88639b152cd9040e7d1ece11e38bf89e8f53f0171e02 https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.14.10+20261110-aarch64-apple-darwin-install_only_stripped.tar.gz
+darwin-x86_64 85f8e54798e8e6aa58d2253f013d815c5616343cc0d15cbea882fca78bdfeae2 https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.14.10+20261110-x86_64-apple-darwin-install_only_stripped.tar.gz
+linux-aarch64 38fd50f07170adc29d481913d1c30b17ecb538fbe290315fe1f83d84fdd5b694 https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.14.10+20261110-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz
+linux-x86_64 c2ff2e97422f5d3896a16e0317fd212ba977bbf2688d93a6f7a03d817506bd30 https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.14.10+20261110-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz
+windows-x86_64 32b6cf90a03e2bc15fda8d2ab7ff78c4870f138887d612932650ce764efaab8f https://github.com/astral-sh/python-build-standalone/releases/download/20261110/cpython-3.14.10+20261110-x86_64-pc-windows-msvc-install_only_stripped.tar.gz

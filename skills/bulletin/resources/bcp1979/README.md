@@ -16,7 +16,7 @@ Checksums detect accidental changes; they do not replace source review.
 To reproduce the data from the exact source PDF, run from the repository root:
 
 ```bash
-python3 tools/import_bcp_sunday.py --pdf /path/to/book-of-common-prayer-2006.pdf --output-dir /tmp/bcp-review
+handbuilt-python tools/import_bcp_sunday.py --pdf /path/to/book-of-common-prayer-2006.pdf --output-dir /tmp/bcp-review
 ```
 
 The importer rejects a different PDF checksum. It needs Poppler's `pdftotext`

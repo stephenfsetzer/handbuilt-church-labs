@@ -45,7 +45,7 @@ of the exploration that was set aside and why, and the recommendation with
 its reason. Then record:
 
 ```bash
-python3 "<church-folder>/handbuilt.py" build-my-brand record --stage develop \
+handbuilt-python "<church-folder>/handbuilt.py" build-my-brand record --stage develop \
   --content-file develop.md --metadata-file develop.json
 ```
 

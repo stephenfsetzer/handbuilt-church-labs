@@ -26,7 +26,7 @@ Run the app-loaded adapter once, for this workflow and for the finance
 report, whose operations stages 1, 2, and 4 use:
 
 ```bash
-python3 "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start finance-onboarding
 ```
 

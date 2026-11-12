@@ -48,8 +48,8 @@ details used in print belong in `bulletin.footer`, which also accepts
 `contact_name`, `phone`, and `email`.
 
 ```bash
-python3 "<church-folder>/handbuilt.py" onboarding update --scope standing --patch-file "<church-folder>/.onboarding-standing-patch.json"
-python3 "<church-folder>/handbuilt.py" onboarding status
+handbuilt-python "<church-folder>/handbuilt.py" onboarding update --scope standing --patch-file "<church-folder>/.onboarding-standing-patch.json"
+handbuilt-python "<church-folder>/handbuilt.py" onboarding status
 ```
 
 Read back `church.yaml` and `ONBOARDING.md` against the confirmed values.

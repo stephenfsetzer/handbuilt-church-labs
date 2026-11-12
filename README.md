@@ -317,7 +317,7 @@ Then turn on automatic updates. This sets `autoUpdate` for the marketplace and
 backs up your settings first:
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py enable
+~/.claude/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python ~/.claude/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py enable
 ```
 
 Start a new task and ask, “Set up my Church Command Center.”
@@ -368,8 +368,9 @@ users can also inspect the host-installed version with
 The agent checks the required local Python and print tools during setup and
 guides you through any missing dependencies. See [runtime setup](handbook/runtime-setup.md)
 and the [managed workflow update policy](handbook/workflow-updates.md).
-You need Python 3.10 or newer. Handbuilt installs its Python packages into its
-own managed environment.
+You do not need to install Python. Handbuilt downloads its own copy into its
+own folder and installs its Python packages into its own managed environment.
+On Windows, installing from GitHub needs Git for Windows.
 
 Installation and workflow behavior depend on your app, model, account, and
 operating system. The plugin has isolated Codex and Claude Code rehearsals and
@@ -399,12 +400,17 @@ Python tools, and it reaches these places only for the work you ask for:
 
 - **Your computer:** it runs the plugin's Python tools in a separate managed
   environment, creates your church folder, and with your approval installs tools
-  such as Python, PDF tools and FFmpeg when they are missing. During install it
+  such as Git, PDF tools and FFmpeg when they are missing. It keeps its own copy
+  of Python in its own folder and does not change any Python already on the
+  computer. During install it
   can add Handbuilt's automatic-update settings to your Claude settings file,
   including `FORCE_AUTOUPDATE_PLUGINS`, which applies to all plugins. It saves a
   backup first and changes nothing else.
 - **GitHub:** it checks this repository for a new release and downloads verified
-  release files. The check sends no church content or credentials.
+  release files. The check sends no church content or credentials. The first
+  time it runs, it also downloads its own copy of Python from the
+  python-build-standalone project's releases, and uses it only when the file
+  matches the checksum recorded in `tools/python-dist.lock`.
 - **Python Package Index (PyPI):** it downloads the Python packages listed in
   `requirements.lock`, each checked against its recorded hash.
 - **Websites you name or need:** your church website, published lectionary and
