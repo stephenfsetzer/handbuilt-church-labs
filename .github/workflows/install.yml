@@ -55,7 +55,7 @@ jobs:
           PY
           )
           printf 'HANDBUILT_TEST_PYTHON=%s\n' "$python_path" >> "$GITHUB_ENV"
-          "$python_path" -m unittest tests.test_own_python tests.test_field_regressions.SetupFieldRegressions -v 2>&1 | tail -40
+          "$python_path" -m unittest tests.test_own_python -v 2>&1 | tail -40
 
       - name: Handbuilt's own PDF tools build and check a sample PDF
         if: runner.os != 'Linux'
@@ -116,3 +116,9 @@ jobs:
           grep -E "^(FAIL|ERROR): |^Ran |^OK|^FAILED" "$RUNNER_TEMP/suite.log" | head -300
           tail -5 "$RUNNER_TEMP/suite.log"
           grep -q "^OK" "$RUNNER_TEMP/suite.log"
+      - name: Save the full suite log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-log-${{ matrix.os }}
+          path: ${{ runner.temp }}/suite.log
