@@ -164,7 +164,13 @@ def build_good_run(run_dir: Path) -> Path:
     assert staged["status"] == "staged", staged
     assert record(church, "build", "Built into staging.", {"staged_files": ["brand/staging/marks/mark.svg"]})["status"] == "recorded"
     bulletin = next((church / "bulletins").rglob("*.pdf"))
-    shutil.copy2(bulletin, staging / "proof" / "after.pdf")
+    # The proof is the bulletin set in the staged faces; the workflow refuses any other.
+    import weasyprint
+    faces = "".join(f'@font-face {{ font-family: "Brand {role}"; src: url("{(staging / "type" / f"{role}-Regular.ttf").as_uri()}"); }}'
+                    for role in ("Display", "Text"))
+    weasyprint.HTML(string=f'<style>{faces} @page {{ size: letter; }} h1 {{ font-family: "Brand Display"; }} '
+                           'p { font-family: "Brand Text"; }</style><h1>Proper 28</h1><p>Sundays at 10:30</p>'
+                    ).write_pdf(staging / "proof" / "after.pdf")
     Image.new("RGB", (10, 10), "white").save(staging / "proof" / "announcement.png")
     proof = record(church, "prove", "Old beside new.", {"before": bulletin.relative_to(church).as_posix(),
                                                        "after": "brand/staging/proof/after.pdf",

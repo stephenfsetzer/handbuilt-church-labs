@@ -476,10 +476,11 @@ def _print_layout():
 
 
 def _week_folder(html_path: Path) -> Path:
-    """The dated week folder, also for an archived copy under .revisions/<v>/."""
+    """The dated week folder, also for a copy under .revisions/<v>/ or revisions/<v>/."""
     parts = html_path.parent.parts
-    if ".revisions" in parts:
-        return Path(*parts[:parts.index(".revisions")])
+    for marker in (".revisions", "revisions"):
+        if marker in parts:
+            return Path(*parts[:parts.index(marker)])
     return html_path.parent
 
 
@@ -510,9 +511,10 @@ def _resolve_moved_assets(html: str, html_path: Path) -> tuple[str, list[dict], 
             continue
         name = path.name
         candidates = [week / name]
-        images = week / "hymn-images"
-        if images.is_dir():
-            candidates += sorted(images.rglob(name))
+        for folder in ("hymn-images", "announcement-images"):
+            images = week / folder
+            if images.is_dir():
+                candidates += sorted(images.rglob(name))
         candidates.append(fonts / name)
         found = next((item for item in candidates if item.is_file()), None)
         if found is None:

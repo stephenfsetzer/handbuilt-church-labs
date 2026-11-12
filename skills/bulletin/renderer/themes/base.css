@@ -1,12 +1,13 @@
 /* Base structure shared by all bulletin templates.
-   Brand tokens: $ink $accent $accent_deep $rubric  */
+   Brand tokens: $ink $accent $accent_deep $rubric
+   Type tokens: $face_label (labels, page numbers)  */
 
 @page {
     size: letter;
     margin: 0.55in 0.6in 0.7in 0.6in;
     @bottom-center {
         content: counter(page);
-        font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+        font-family: $face_label;
         font-size: 10pt;
         color: #999;
     }
@@ -221,7 +222,7 @@ body {
     display: table-cell;
     width: 1.15in;
     vertical-align: top;
-    font-family: "Source Sans 3", Helvetica, Arial, sans-serif;
+    font-family: $face_label;
     font-size: 9.5pt;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -279,6 +280,29 @@ body {
 }
 .ann-text { margin: 1pt 0 0 0; }
 .ann-lead-text { break-after: avoid; }
+/* A featured announcement: one boxed block with a photo, a figure, a
+   progress bar, and a QR code. Everything but the photo and the code is
+   text. It sizes to its column and never splits across pages. */
+.announcement.featured {
+    background: $paper;
+    padding: 12pt 14pt 14pt 14pt;
+    border-radius: 10pt;
+    break-inside: avoid;
+}
+.announcement.featured .ann-title { font-weight: 700; font-size: 13pt; margin: 0 0 4pt 0; }
+.feature-row { width: 100%; border-collapse: collapse; margin-top: 10pt; }
+.feature-row td { vertical-align: middle; padding: 0; }
+.f-photo { width: 1.25in; }
+.f-photo img { width: 1.25in; height: 1.5625in; object-fit: cover; display: block; border-radius: 6pt; }
+.feature-row td.f-middle { padding: 0 14pt; }
+.f-figure { font-family: $face_display; font-size: 30pt; line-height: 1; color: $accent;
+            text-transform: uppercase; margin: 0 0 4pt 0; }
+.f-note { font-family: $face_label; font-size: 10pt; margin: 0 0 8pt 0; }
+.f-bar { height: 7pt; background: rgba(0, 0, 0, 0.1); }
+.f-fill { height: 7pt; background: $rubric; }
+.f-qr { width: 1.1in; text-align: center; }
+.f-qr img { width: 1.1in; height: 1.1in; display: block; }
+.f-scan { font-family: $face_label; font-size: 9pt; font-weight: 600; margin: 4pt 0 0 0; }
 .qr-row {
     display: table;
     width: 70%;

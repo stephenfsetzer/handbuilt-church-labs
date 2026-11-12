@@ -444,7 +444,9 @@ beside the current one, and render the church's own test announcement from
 the image-language rules. Use the bulletin skill's production interface with
 a brand file that points at the staged assets; do not hand-edit the live
 `brand.json`. Put the pages in the guide section side by side. Record `prove`
-with `before`, `after`, and `announcement` paths. Then show the pastor and
+with `before`, `after`, and `announcement` paths. The interface refuses an
+`after` PDF that is not set in the staged display and text faces, so the
+pastor never approves type that will not print. Then show the pastor and
 ask for approval in plain words: this replaces the live brand, and the old
 one is kept under `brand/archive/`. First list exactly what goes in, what it
 replaces, and what is archived, from the dry run, so the pastor approves a

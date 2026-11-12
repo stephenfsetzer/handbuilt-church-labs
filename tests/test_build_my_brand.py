@@ -88,6 +88,21 @@ class BuildMyBrandTest(unittest.TestCase):
         except ImportError:
             self.skipTest("WeasyPrint is not available in this interpreter")
 
+    def _proof_pdf(self, name: str, *, brand_faces: bool) -> str:
+        """A one-page proof, set in the staged faces or in the renderer's defaults."""
+        import weasyprint
+        staging = self.church / "brand" / "staging" / "type"
+        faces = ""
+        families = ('"Source Serif 4", serif', '"Source Sans 3", sans-serif')
+        if brand_faces:
+            faces = (f'@font-face {{ font-family: "Brand Display"; src: url("{(staging / "Display-Regular.ttf").as_uri()}"); }}'
+                     f'@font-face {{ font-family: "Brand Text"; src: url("{(staging / "Text-Regular.ttf").as_uri()}"); }}')
+            families = ('"Brand Display"', '"Brand Text"')
+        html = (f"<style>{faces} h1 {{ font-family: {families[0]}; }} p {{ font-family: {families[1]}; }}</style>"
+                "<h1>The Twenty-second Sunday after Pentecost</h1><p>Sundays at 11</p>")
+        weasyprint.HTML(string=html).write_pdf(self.church / name)
+        return name
+
     def _record_through(self, last: str) -> None:
         for stage in STAGES:
             result = record(self.church, stage, f"Lesson text for {stage}.", _metadata(stage))
@@ -459,6 +474,24 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertTrue((self.church / failed["errors"][0]["detail"]["report"]).is_file())
         bad_waiver = dict(fragile, waivers=[{"check": "reversal", "reason": "no"}])
         self.assertEqual(stage_brand(self.church, bad_waiver)["errors"][0]["code"], "invalid_waivers")
+        sign = self.church / "brand" / "staging" / "templates" / "sign.svg"
+        sign.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text x="0" y="20">Sundays at 11</text></svg>')
+        unloaded = json.loads(json.dumps(patch))
+        unloaded["brand_system"]["templates"]["sign_concept"] = "brand/staging/templates/sign.svg"
+        self.assertEqual(stage_brand(self.church, unloaded)["errors"][0]["code"], "template_fonts_missing")
+        sign.write_text('<svg xmlns="http://www.w3.org/2000/svg"><style>@font-face{font-family:"Brand Display";src:url(../type/Display-Regular.ttf)}</style><text x="0" y="20">Sundays at 11</text></svg>')
+        self.assertEqual(stage_brand(self.church, unloaded)["status"], "staged")
+        reading = json.loads(json.dumps(patch))
+        reading["brand_system"]["type"]["reading"] = {"family": "Test Reading", "license": "OFL", "files": {"regular": "brand/staging/type/Display-Regular.ttf"}, "variation": {"opsz": "12"}}
+        self.assertEqual(stage_brand(self.church, reading)["errors"][0]["field"], "type.reading.variation")
+        reading["brand_system"]["type"]["reading"]["variation"] = {"opsz": 12, "SOFT": 30}
+        self.assertEqual(stage_brand(self.church, reading)["status"], "staged")
+        caption = json.loads(json.dumps(patch))
+        caption["brand_system"]["type"]["caption"] = {"family": "Test", "license": "OFL", "files": {"regular": "brand/staging/type/Display-Regular.ttf"}}
+        self.assertEqual(stage_brand(self.church, caption)["errors"][0]["field"], "type.caption")
+        odd_face = json.loads(json.dumps(patch))
+        odd_face["brand_system"]["type"]["display"]["files"]["heavy"] = "brand/staging/type/Display-Regular.ttf"
+        self.assertEqual(stage_brand(self.church, odd_face)["errors"][0]["field"], "type.display.files.heavy")
         staged = stage_brand(self.church, patch)
         self.assertEqual(staged["status"], "staged", staged)
         self.assertTrue((self.church / staged["survival"]).is_file())
@@ -467,7 +500,14 @@ class BuildMyBrandTest(unittest.TestCase):
         build = record(self.church, "build", "Built the system.", {"staged_files": ["brand/staging/marks/mark.svg"]})
         self.assertEqual(build["status"], "recorded", build)
         (self.church / "before.pdf").write_bytes(b"%PDF-1.4 before")
-        (self.church / "after.pdf").write_bytes(b"%PDF-1.4 after")
+        (self.church / "fake.pdf").write_bytes(b"%PDF-1.4 after")
+        unreadable = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "fake.pdf"})
+        self.assertEqual(unreadable["errors"][0]["code"], "proof_unreadable", unreadable)
+        self._proof_pdf("old-type.pdf", brand_faces=False)
+        old_type = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "old-type.pdf"})
+        self.assertEqual(old_type["errors"][0]["code"], "proof_missing_brand_type", old_type)
+        self.assertIn("display (Test Display)", old_type["errors"][0]["message"])
+        self._proof_pdf("after.pdf", brand_faces=True)
         no_announcement = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf"})
         self.assertEqual(no_announcement["errors"][0]["field"], "announcement")
         Image.new("RGB", (10, 10), "blue").save(self.church / "announcement.png")
@@ -530,7 +570,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(staged["status"], "staged", staged)
         self.assertEqual(record(self.church, "build", "Built.", {"staged_files": ["brand/staging/marks/mark.svg"]})["status"], "recorded")
         (self.church / "before.pdf").write_bytes(b"%PDF-1.4 before")
-        (self.church / "after.pdf").write_bytes(b"%PDF-1.4 after")
+        self._proof_pdf("after.pdf", brand_faces=True)
         Image.new("RGB", (10, 10), "blue").save(self.church / "announcement.png")
         proof = record(self.church, "prove", "Old beside new.", {"before": "before.pdf", "after": "after.pdf", "announcement": "announcement.png"})
         self.assertEqual(proof["status"], "recorded", proof)
@@ -721,11 +761,23 @@ class BuildMyBrandTest(unittest.TestCase):
         neutral = render_guide(self.church)
         self.assertEqual(neutral["status"], "rendered", neutral)
         self.assertEqual(neutral["brand_source"], "neutral")
-        self.assertEqual(stage_brand(self.church, self._stage_files())["status"], "staged")
+        patch = self._stage_files()
+        patch["brand_system"]["name"]["short"] = "St. Test’s"
+        self.assertEqual(stage_brand(self.church, patch)["status"], "staged")
         staged = render_guide(self.church, "brand/guide-draft.pdf")
         self.assertEqual(staged["status"], "rendered", staged)
         self.assertEqual(staged["brand_source"], "staged")
         self.assertTrue((self.church / "brand" / "guide-draft.pdf").read_bytes().startswith(b"%PDF"))
+        from brand_workflow import _pdf_font_names
+        from brand_workflow.guide import build_html
+        fonts = _pdf_font_names(self.church / "brand" / "guide-draft.pdf")
+        self.assertTrue(any("Brand-Display" in f for f in fonts), fonts)
+        self.assertTrue(any("Brand-Text" in f for f in fonts), fonts)
+        _source, document = build_html(self.church, "# X\n\n## Head\n\nBody.\n")
+        self.assertIn('content: "St. Test’s · Brand Guide"', document)
+        self.assertNotIn("&#x27;", document.split("</style>")[0], "an apostrophe in the page footer was escaped as HTML")
+        self.assertIn('body { font-family: "Brand Text"', document)
+        self.assertIn("border-left: 3pt solid #224466", document)
 
     def test_help_is_not_a_failed_run_and_bad_arguments_answer_in_json(self):
         for argv in (["--help"], ["record", "--help"], ["check-marks", "-h"]):

@@ -24,6 +24,19 @@ from tools.image_limits import MAX_IMAGE_BYTES
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 BUNDLED_FONTS = SKILL_DIR.parent / "bulletin" / "renderer" / "fonts"
+
+
+def _load_brand_type():
+    """The bulletin renderer's brand_type module, shared by every renderer."""
+    import importlib.util
+    path = SKILL_DIR.parent / "bulletin" / "renderer" / "brand_type.py"
+    spec = importlib.util.spec_from_file_location("handbuilt_brand_type", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+brand_faces = _load_brand_type().brand_faces
 NEUTRAL = {"ink": "#1a1a1a", "accent": "#4a5d7e", "accent_deep": "#2e3a52", "paper": "#ffffff", "rubric_red": "#8B3A3A"}
 
 INLINE_CODE = re.compile(r"`([^`]+)`")
@@ -169,39 +182,30 @@ def _brand_source(root: Path) -> tuple[str, dict[str, Any], dict[str, str]]:
     return "neutral", {}, colors
 
 
-def _font_faces(root: Path, system: dict[str, Any]) -> tuple[str, str, str]:
-    """Return (@font-face css, display family, text family)."""
-    fonts = system.get("type") if isinstance(system.get("type"), dict) else {}
-    css = []
-    families = {}
-    weights = {"regular": ("normal", "normal"), "bold": ("700", "normal"), "italic": ("normal", "italic"),
-               "bold_italic": ("700", "italic"), "semibold": ("600", "normal")}
-    for role in ("display", "text"):
-        entry = fonts.get(role) if isinstance(fonts.get(role), dict) else None
-        if entry and isinstance(entry.get("files"), dict):
-            family = entry["family"]
-            for face, rel in entry["files"].items():
-                original_path = root / rel
-                if original_path.is_symlink():
-                    raise ValueError(f"Font file for {role}.{face} must be a regular file inside the church folder")
-                font_path = original_path.resolve()
-                if root.resolve() not in font_path.parents or not font_path.is_file():
-                    raise ValueError(f"Font file for {role}.{face} must stay inside the church folder")
-                if font_path.stat().st_size > MAX_IMAGE_BYTES:
-                    raise ValueError(f"Font file for {role}.{face} exceeds the {MAX_IMAGE_BYTES // (1024 * 1024)} MiB limit")
-                weight, style = weights.get(face, ("normal", "normal"))
-                src = font_path.as_uri()
-                css.append(f'@font-face {{ font-family: "{family}"; src: url("{src}"); font-weight: {weight}; font-style: {style}; }}')
-            families[role] = family
+def _font_faces(root: Path, system: dict[str, Any]) -> tuple[str, str, str, str]:
+    """Return (@font-face css, display family, text family, body family).
+
+    The approved or staged brand's own files come first (see the bulletin
+    renderer's brand_type module). Without them the guide uses the bundled
+    Source Serif 4 and Source Sans 3, with running text in the serif.
+    """
+    css, families = brand_faces({"brand_system": system}, root)
+    css = [css] if css else []
     if "display" not in families:
         for face, weight, style in (("SourceSerif4-Regular.ttf", "normal", "normal"), ("SourceSerif4-Bold.ttf", "700", "normal"), ("SourceSerif4-Italic.ttf", "normal", "italic")):
             css.append(f'@font-face {{ font-family: "Source Serif 4"; src: url("{(BUNDLED_FONTS / face).as_uri()}"); font-weight: {weight}; font-style: {style}; }}')
         families["display"] = "Source Serif 4"
+    body = families.get("text", families["display"])
     if "text" not in families:
         for face, weight, style in (("SourceSans3-Regular.ttf", "normal", "normal"), ("SourceSans3-Bold.ttf", "700", "normal"), ("SourceSans3-Italic.ttf", "normal", "italic")):
             css.append(f'@font-face {{ font-family: "Source Sans 3"; src: url("{(BUNDLED_FONTS / face).as_uri()}"); font-weight: {weight}; font-style: {style}; }}')
         families["text"] = "Source Sans 3"
-    return "\n".join(css), families["display"], families["text"]
+    return "\n".join(css), families["display"], families["text"], body
+
+
+def _css_string(value: str) -> str:
+    """Quote text for a CSS string, such as a running footer's content."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _palette(system: dict[str, Any], colors: dict[str, str]) -> dict[str, str]:
@@ -217,7 +221,9 @@ def _palette(system: dict[str, Any], colors: dict[str, str]) -> dict[str, str]:
         "accent": pick("primary", "accent", fallback=colors["accent"]),
         "deep": pick("deep", "accent_deep", "secondary", fallback=colors["accent_deep"]),
         "paper": pick("paper", "background", fallback=colors["paper"]),
-        "rubric": pick("rubric", "highlight", fallback=colors["rubric_red"]),
+        # A brand system without a rubric color marks decisions in its accent,
+        # not in a renderer default it never chose.
+        "rubric": pick("rubric", "highlight", fallback=pick("primary", "accent", fallback=colors["accent"]) if palette else colors["rubric_red"]),
     }
 
 
@@ -275,7 +281,7 @@ def _cover(root: Path, system: dict[str, Any], church_name: str, source: str, ki
 
 def build_html(root: Path, markdown: str, *, title: str = "Brand Guide", kicker: str = "Brand Guide · The pastor's own record") -> tuple[str, str]:
     source, system, colors = _brand_source(root)
-    faces, display, text = _font_faces(root, system)
+    faces, display, text, body_face = _font_faces(root, system)
     pal = _palette(system, colors)
     church_name = (system.get("name") or {}).get("short") if isinstance(system.get("name"), dict) else None
     church_name = church_name or _church_name(root)
@@ -284,11 +290,12 @@ def build_html(root: Path, markdown: str, *, title: str = "Brand Guide", kicker:
     css = f"""
 {faces}
 @page {{ size: letter; margin: 0.9in 0.85in 0.9in 0.85in;
-  @bottom-left {{ content: "{html.escape(church_name)} · {html.escape(title)}"; font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; letter-spacing: 0.04em; }}
+  @bottom-left {{ content: {_css_string(church_name + " · " + title)}; font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; letter-spacing: 0.04em; }}
   @bottom-right {{ content: counter(page); font-family: "{text}"; font-size: 8.5pt; color: {pal['deep']}; }} }}
 @page cover {{ margin: 0; @bottom-left {{ content: none; }} @bottom-right {{ content: none; }} }}
 html {{ color: {pal['ink']}; background: {pal['paper']}; }}
-body {{ font-family: "{display}", Georgia, serif; font-size: 11.5pt; line-height: 1.5; }}
+body {{ font-family: "{body_face}", Georgia, serif; font-size: 11.5pt; line-height: 1.5; }}
+h1, h2, .cover-title, .cover-direction {{ font-family: "{display}", Georgia, serif; font-weight: 700; font-style: normal; }}
 .cover {{ page: cover; height: 11in; padding: 1.4in 1.1in; box-sizing: border-box; background: {pal['accent']}; color: {pal['paper']}; page-break-after: always; }}
 .cover-mark {{ max-height: 1.6in; max-width: 2.4in; margin-bottom: 0.6in; }}
 .cover-wordmark {{ max-width: 5.5in; max-height: 1.6in; display: block; }}

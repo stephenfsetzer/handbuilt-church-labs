@@ -27,3 +27,4 @@
 14,087     # finance evals: Lantern Hill (invented) year so far, July to August 2026
 8,793      # finance evals: Lantern Hill (invented) last church year result
 2,400      # finance evals: Millbrook (invented) deferred rental revenue below zero
+8,000      # bulletin schema and tests: an invented goal in a featured announcement

@@ -94,14 +94,33 @@ Rules the check enforces:
   the dark ground.
 - `type.display` and `type.text` are required, each with `family`, a named
   `license`, and at least a `regular` file. Font files are TTF, OTF, WOFF, or
-  WOFF2.
+  WOFF2. File keys are `regular`, `italic`, `medium`, `semibold`,
+  `semibold_italic`, `bold`, and `bold_italic`. `family` is a label for
+  people and may carry settings ("Fraunces (tailored: weight 700)");
+  renderers load the files under fixed internal names, so the label never
+  has to be a font name. A headline cut with fixed settings goes under
+  `bold`.
+- `type.reading` is optional and is for a church that prints liturgy: the
+  face for prayers, psalms and responses at 10 to 12 point. It needs
+  `regular`, a true `italic` (instructions are set in italic) and, unless the
+  file is variable, `bold` (the people's parts). The bulletin uses it for
+  running text; without it the bulletin keeps its own reading serif.
+- Any role may carry `variation`, axis settings for a variable font, such as
+  `{"opsz": 12, "SOFT": 30, "WONK": 0}`. Renderers apply them to the text
+  that uses the face.
+- The instruction color (rubrics: stand, sit, respond) is a palette entry
+  with that job, and `colors.rubric_red` carries the same hex for the
+  bulletin. Check it at 4.5:1 or better on paper, clearly apart from the text
+  color, and in black and white, where only the italic is left.
 - Every palette entry has a six-digit `hex` and a `job` in words.
 - `imagery` is required: `made_from` (what imagery is made from),
   `announcement` (how a program announcement is composed), and `forbidden`
   (a list). Other text fields such as `photography` are kept. These are the
   rules an agent follows when the pastor says "I need an image for an
   announcement."
-- `voice` and every template path exist. Include an `announcement` template
+- `voice` and every template path exist. An SVG template that sets words
+  must load the display and text files with `@font-face` inside the SVG, or
+  turn the words into outlines; otherwise it prints in a stand-in font. Include an `announcement` template
   built from the imagery rules; the church's own test announcement is part
   of the proof.
 - `colors`, if supplied, gives all five renderer colors. `logo`, if supplied,
@@ -114,7 +133,10 @@ Rules the check enforces:
   was and nothing is archived.
 
 The `brand_system` object is additive. It lives beside the fields onboarding
-and the bulletin already use in `brand.json`, and the renderer ignores it.
+and the bulletin already use in `brand.json`. Renderers read one part of it:
+`type`. The bulletin sets titles in the display face, labels, times and page
+numbers in the text face, and running liturgy in the reading face when there
+is one; the finance report and the guide use display and text.
 `church.yaml` remains the authority for identity; do not copy church fields
 into the brand system.
 

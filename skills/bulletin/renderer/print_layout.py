@@ -10,7 +10,15 @@ page turn.
 When a bulletin fails, ``fit`` tries small, bounded layout adjustments
 (a blank inside cover, looser line spacing, larger body type, music at 95%
 to 100%, one section starting a new page). It never changes wording or
-order, never shrinks body type, and never scales music below 95%.
+order, never shrinks body type, and never scales music below 95%, or below
+the church's own smallest music scale when it sets one.
+
+Fitting checks what it changes (2026-11-12). Larger body type is kept only
+when no line of a text said together wraps: a said text that would wrap
+stays at the theme's size, and one that still wraps prints its speaker label
+above the text. A heading never ends a page; the section-start step repairs
+it. A piece of music that splits across two pages moves onto one page when
+it fits at the church's smallest music scale or larger.
 
 This module is self-contained on purpose: it depends only on WeasyPrint and
 the standard library, so the same file can run in the plugin, a web render
@@ -30,7 +38,7 @@ import json
 import re
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 PRINT_MODES = ("booklet", "duplex", "single")
@@ -44,6 +52,8 @@ CHECK_NAMES = (
     "music_page_turn",
     "opening_music_whole",
     "prayer_page_turn",
+    "said_line_wrap",
+    "stranded_heading",
     "page_fill",
     "wording_unchanged",
     "assets_resolved",
@@ -56,12 +66,19 @@ LINE_HEIGHT_STEP = 0.05
 MAX_BODY_PT = 13.0
 BODY_PT_STEP = 0.25
 MUSIC_SCALES = (1.00, 0.99, 0.98, 0.97, 0.96, 0.95)
-DEFAULT_MAX_RENDERS = 40
+MUSIC_MIN_SCALE = 0.95
+MUSIC_MIN_SCALE_FLOOR = 0.75
+DEFAULT_MAX_RENDERS = 100
+# A heading is stranded when less than this share of the page follows it
+# before the page ends and its text continues overleaf (about five lines).
+STRANDED_LEAD = 0.12
 
 # Relative cost of each fitting step, used to try the smallest change first.
 COST_INSIDE_COVER = 1.0
 COST_LINE_HEIGHT_STEP = 1.25
 COST_TYPE_STEP = 2.5
+COST_SAID_HOLD = 0.5
+COST_SAID_STACK = 0.5
 
 PX_PER_PT = 96.0 / 72.0
 
@@ -86,6 +103,27 @@ class Unit:
 
 
 @dataclass
+class SaidWrap:
+    """A line of a text said together that wrapped onto a second line."""
+
+    id: str | None
+    page: int
+    line: str
+
+
+@dataclass
+class Heading:
+    """Where a heading lands and how much of its text follows on that page."""
+
+    kind: str  # "section" or "title"
+    id: str | None
+    page: int
+    lead: float  # share of the page height from the heading's top to the page's last ink
+    continues: bool  # its text runs on past this page
+    section: str | None = None  # for a title, the section that follows it on its page
+
+
+@dataclass
 class LayoutReport:
     pages: int
     fill: list[float]
@@ -93,6 +131,8 @@ class LayoutReport:
     units: list[Unit]
     text: str
     missing_assets: list[str] = field(default_factory=list)
+    said_wraps: list[SaidWrap] = field(default_factory=list)
+    headings: list[Heading] = field(default_factory=list)
 
 
 @dataclass
@@ -136,6 +176,9 @@ class _Layout:
     back_line_height: float | None
     has_inside_cover: bool
     marked: bool
+    said_wrap_refs: list[str] = field(default_factory=list)
+    heading_refs: list[str | None] = field(default_factory=list)
+    said_labels: dict[str, str | None] = field(default_factory=dict)
 
 
 def _classes(el) -> list[str]:
@@ -347,6 +390,32 @@ def _layout(html: str, base_url: str | None) -> _Layout:
     back_line_height = None
     wanted_classes = ("dialogue", "dlg-line", "lyrics-group", "reading-text")
 
+    # Said lines: each line of a text said together, and the block it sits in.
+    said_line_els = {}
+    for el in root.iter():
+        if not isinstance(el.tag, str):
+            continue
+        cls = _classes(el)
+        if "dlg-line" not in cls and "cong-line" not in cls:
+            continue
+        node = parents.get(el)
+        while node is not None:
+            node_cls = _classes(node)
+            if ("dialogue" in node_cls and "response" in node_cls) or "congregational" in node_cls:
+                said_line_els[id(el)] = (el, node)
+                break
+            if "dialogue" in node_cls:
+                break
+            node = parents.get(node)
+    said_lines: dict[int, list] = {}  # id -> [line boxes, first page]
+    title_els = [el for el in root.iter("h1") if "service-title" in _classes(el)]
+    title_ids = {id(el): i for i, el in enumerate(title_els)}
+    title_pos: dict[int, tuple[int, float, float]] = {}  # index -> (page, top, bottom)
+    unit_top: dict[int, dict[int, float]] = {}
+    page_lowest: list[float | None] = []
+    page_top: list[float] = []
+    page_height: list[float] = []
+
     for number, page in enumerate(document.pages, start=1):
         page_box = page._page_box
         roots = [c for c in page_box.children if not isinstance(c, wboxes.MarginBox)]
@@ -367,6 +436,21 @@ def _layout(html: str, base_url: str | None) -> _Layout:
                 any_pages[idx].add(number)
                 if ink:
                     ink_pages[idx].add(number)
+            own = unit_index.get(id(el))
+            if own is not None and not isinstance(box, wboxes.LineBox):
+                tops = unit_top.setdefault(own, {})
+                y = box.position_y + (box.margin_top or 0)
+                tops[number] = min(tops.get(number, y), y)
+            if id(el) in said_line_els and isinstance(box, wboxes.BlockBox):
+                lines = sum(1 for child in (box.children or [])
+                            if isinstance(child, wboxes.LineBox))
+                entry = said_lines.setdefault(id(el), [0, number])
+                entry[0] += lines
+            if id(el) in title_ids and isinstance(box, wboxes.BlockBox):
+                index = title_ids[id(el)]
+                if index not in title_pos:
+                    top_y = box.position_y + (box.margin_top or 0)
+                    title_pos[index] = (number, top_y, top_y + box.border_height())
             ref = el.get(_REF_ATTR)
             if ref and ref not in ref_first_page:
                 ref_first_page[ref] = number
@@ -381,6 +465,9 @@ def _layout(html: str, base_url: str | None) -> _Layout:
                                          or el.get("data-print-unit") == "back-cover"):
                 back_font_pt = float(box.style["font_size"]) / PX_PER_PT
                 back_line_height = _ratio_line_height(box.style)
+        page_lowest.append(lowest)
+        page_top.append(top)
+        page_height.append(height)
         if lowest is None:
             fill.append(0.0)
             blank.append(True)
@@ -408,6 +495,70 @@ def _layout(html: str, base_url: str | None) -> _Layout:
                           first_page=min(span), last_page=max(span), module=module))
         unit_refs.append(el.get(_REF_ATTR))
 
+    # Said lines that wrapped, named by the section they sit in.
+    said_wraps: list[SaidWrap] = []
+    said_wrap_refs: list[str] = []
+    said_labels: dict[str, str | None] = {}
+    for key, (line_el, block) in said_line_els.items():
+        label = None
+        node = parents.get(block)
+        while node is not None:
+            if "section" in _classes(node):
+                label = node.get("data-print-id") or _heading_label(node, ("section-head",))
+                break
+            node = parents.get(node)
+        if block.get(_REF_ATTR):
+            said_labels[block.get(_REF_ATTR)] = label
+        count, page = said_lines.get(key, (0, 0))
+        if count <= 1:
+            continue
+        said_wraps.append(SaidWrap(id=label, page=page, line=_element_text(line_el)))
+        ref = block.get(_REF_ATTR)
+        if ref and ref not in said_wrap_refs:
+            said_wrap_refs.append(ref)
+
+    # Headings: each named section's start, and each service title.
+    def lead_from(page: int, y: float) -> float:
+        lowest = page_lowest[page - 1]
+        if lowest is None:
+            return 0.0
+        return round(max(0.0, (lowest - y) / (page_height[page - 1] or 1)), 4)
+
+    headings: list[Heading] = []
+    heading_refs: list[str | None] = []
+    order = {id(el): i for i, el in enumerate(root.iter())}
+    section_spans = []
+    for i, (el, kind, role, uid) in enumerate(unit_items):
+        if kind != "section" or not ink_pages[i]:
+            continue
+        first, last = min(ink_pages[i]), max(ink_pages[i])
+        y = unit_top.get(i, {}).get(first)
+        lead = lead_from(first, y) if y is not None else None
+        section_spans.append((order[id(el)], first, last, uid, lead))
+        if lead is None:
+            continue
+        headings.append(Heading(kind="section", id=uid, page=first,
+                                lead=lead, continues=last > first))
+        heading_refs.append(el.get(_REF_ATTR))
+    for index, el in enumerate(title_els):
+        if index not in title_pos:
+            continue
+        page, _top_y, bottom = title_pos[index]
+        after = [span for span in section_spans if span[0] > order[id(el)]]
+        following = min(after) if after else None
+        lead, section = lead_from(page, bottom), None
+        if following is None:
+            continues = False
+        else:
+            continues = following[1] > page or following[2] > page
+            if following[1] == page and following[4] is not None:
+                # The title and its first section share the page: the title is
+                # stranded exactly when that section is.
+                lead, section = following[4], following[3]
+        headings.append(Heading(kind="title", id=_element_text(el) or None, page=page,
+                                lead=lead, continues=continues, section=section))
+        heading_refs.append(el.get(_REF_ATTR))
+
     cover_ref = None
     for el in root.iter("div"):
         if "cover" in _classes(el):
@@ -422,14 +573,17 @@ def _layout(html: str, base_url: str | None) -> _Layout:
 
     report = LayoutReport(pages=len(document.pages), fill=fill, blank=blank,
                           units=units, text=_clean(" ".join(texts)),
-                          missing_assets=missing_assets(html, base_url))
+                          missing_assets=missing_assets(html, base_url),
+                          said_wraps=said_wraps, headings=headings)
     return _Layout(report=report, unit_refs=unit_refs, img_refs=img_refs,
                    img_px=img_px, ref_first_page=ref_first_page,
                    cover_ref=cover_ref, base_font_pt=round(base_font_pt, 3),
                    base_line_height=round(base_line_height, 4),
                    class_line_heights=class_line_heights,
                    back_font_pt=back_font_pt, back_line_height=back_line_height,
-                   has_inside_cover=has_inside_cover, marked=_is_marked(root))
+                   has_inside_cover=has_inside_cover, marked=_is_marked(root),
+                   said_wrap_refs=said_wrap_refs, heading_refs=heading_refs,
+                   said_labels=said_labels)
 
 
 _ASSET_URL = re.compile(r"""(?:\bsrc\s*=\s*["']|url\(\s*["']?)([^"')\s]+)""", re.I)
@@ -668,6 +822,9 @@ def check(report: LayoutReport, *, print_mode: str = "booklet",
             "No prayer continues across a page turn." if prayers
             else "There are no prayers to check.", []))
 
+    findings.append(_said_wrap_finding(report))
+    findings.append(_stranded_finding(report))
+
     exempt = _exempt_pages(report)
     low, thin = [], []
     for i, value in enumerate(report.fill):
@@ -714,6 +871,61 @@ def check(report: LayoutReport, *, print_mode: str = "booklet",
     return findings
 
 
+def _said_name(label: str | None) -> str:
+    if not label:
+        return "a text said together"
+    if label.startswith(("The ", "the ")):
+        return "the " + label[4:]
+    if label.startswith(("A ", "An ")):
+        return label[0].lower() + label[1:]
+    return f"the {label}"
+
+
+def _said_wrap_finding(report: LayoutReport) -> Finding:
+    """No line of a text said together may wrap onto a second line."""
+    if not report.said_wraps:
+        return Finding("said_line_wrap", True, True,
+                       "Every line said together fits on one line.", [])
+    groups: dict[str | None, list[SaidWrap]] = {}
+    for wrap in report.said_wraps:
+        groups.setdefault(wrap.id, []).append(wrap)
+    clauses = []
+    for label, wraps in groups.items():
+        count = len(wraps)
+        noun = "line wraps" if count == 1 else "lines wrap"
+        clauses.append(f"in {_said_name(label)} {count} {noun} (for example "
+                       f"\"{wraps[0].line}\")")
+    return Finding(
+        "said_line_wrap", False, True,
+        _cap(_join(clauses)) + ", so the text said together would not read cleanly.",
+        sorted({w.page for w in report.said_wraps}))
+
+
+def _stranded(report: LayoutReport) -> list[tuple[int, Heading]]:
+    exempt = _exempt_pages(report)
+    found = [(i, h) for i, h in enumerate(report.headings)
+             if h.continues and h.lead < STRANDED_LEAD and h.page not in exempt]
+    # A section that sits under a stranded title is the same problem; the
+    # title is the heading to move.
+    under_title = {(h.section, h.page) for _, h in found if h.kind == "title" and h.section}
+    found = [(i, h) for i, h in found
+             if not (h.kind == "section" and (h.id, h.page) in under_title)]
+    return sorted(found, key=lambda item: (item[1].page, item[1].kind != "title"))
+
+
+def _stranded_finding(report: LayoutReport) -> Finding:
+    """A heading never ends a page with its text overleaf."""
+    stranded = [h for _, h in _stranded(report)]
+    if not stranded:
+        return Finding("stranded_heading", True, True,
+                       "No heading is left at the foot of a page.", [])
+    clauses = [f"{_named(Unit('section', None, h.id, h.page, h.page), 'a heading')} "
+               f"sits at the foot of page {h.page} with its text on page {h.page + 1}"
+               for h in stranded]
+    return Finding("stranded_heading", False, True, _cap(_join(clauses)) + ".",
+                   sorted({h.page for h in stranded}))
+
+
 def _wording_finding(before: str, after: str) -> Finding:
     if re.sub(r"\s+", "", before) == re.sub(r"\s+", "", after):
         return Finding("wording_unchanged", True, True,
@@ -738,6 +950,8 @@ class _Params:
     font_pt: float | None = None
     music: tuple[tuple[str, float], ...] = ()
     sections: tuple[str, ...] = ()
+    said_hold: tuple[str, ...] = ()   # said blocks kept at the theme's size
+    said_stack: tuple[str, ...] = ()  # said blocks with the speaker label above
 
 
 def _annotate(html: str) -> str:
@@ -776,6 +990,16 @@ def _add_style(tag: str, declaration: str) -> str:
         return tag[:match.start()] + f' style="{joined}"' + tag[match.end():]
     end = -2 if tag.endswith("/>") else -1
     return tag[:end] + f' style="{declaration}"' + tag[end:]
+
+
+def _add_class(tag: str, name: str) -> str:
+    match = re.search(r'\sclass\s*=\s*"([^"]*)"', tag, re.IGNORECASE)
+    if match:
+        if name in match.group(1).split():
+            return tag
+        return tag[:match.start()] + f' class="{match.group(1)} {name}"' + tag[match.end():]
+    end = -2 if tag.endswith("/>") else -1
+    return tag[:end] + f' class="{name}"' + tag[end:]
 
 
 def _edit_tag(html: str, ref: str, edit) -> str:
@@ -852,6 +1076,20 @@ def _insert_inside_cover(html: str, base: _Layout) -> str:
     return html[:span[0]] + div + "\n" + html[span[0]:]
 
 
+# A long said text prints its speaker label above the text, so every line
+# gets the full text column.
+_SAID_STACK_CSS = (
+    ".dialogue.said-stack, .dialogue.said-stack > .line { display: block; }\n"
+    ".dialogue.said-stack > .speaker { display: block; width: auto; margin: 0 0 3pt 0; }\n"
+    ".congregational.said-stack { margin-left: 0; }")
+
+
+def _music_scales(min_scale: float) -> tuple[float, ...]:
+    """Music scales from 100% down to the smallest allowed, one percent apart."""
+    floor = int(round(min_scale * 100))
+    return tuple(round(k / 100, 2) for k in range(100, floor - 1, -1))
+
+
 def _build(source: str, params: _Params, base: _Layout) -> str:
     html = source
     css: list[str] = []
@@ -893,6 +1131,15 @@ def _build(source: str, params: _Params, base: _Layout) -> str:
                                  lambda tag, m=measured: _scale_img_tag(tag, scale, m))
     for ref in params.sections:
         html = _edit_tag(html, ref, lambda tag: _add_style(tag, "break-before: page"))
+    if params.said_hold and params.font_pt is not None:
+        for ref in params.said_hold:
+            html = _edit_tag(html, ref, lambda tag: _add_class(tag, "said-hold"))
+        css.append(f".said-hold .dlg-line, .said-hold .cong-line "
+                   f"{{ font-size: {_format_number(base.base_font_pt)}pt; }}")
+    if params.said_stack:
+        for ref in params.said_stack:
+            html = _edit_tag(html, ref, lambda tag: _add_class(tag, "said-stack"))
+        css.append(_SAID_STACK_CSS)
     if css:
         block = '<style data-print-fit="1">\n' + "\n".join(css) + "\n</style>\n"
         head_end = re.search(r"</head\s*>", html, re.IGNORECASE)
@@ -920,17 +1167,21 @@ class _Budget(Exception):
 
 
 class _Fitter:
-    def __init__(self, html, base_url, print_mode, inside_cover_allowed, pinned, max_renders):
+    def __init__(self, html, base_url, print_mode, inside_cover_allowed, pinned, max_renders,
+                 max_body_pt=MAX_BODY_PT, music_min_scale=MUSIC_MIN_SCALE):
         self.source = _annotate(html)
         self.base_url = base_url
         self.print_mode = print_mode
         self.inside_cover_allowed = inside_cover_allowed
         self.pinned = set(pinned)
         self.max_renders = max_renders
+        self.max_body_pt = max_body_pt
+        self.scales = _music_scales(music_min_scale)
         self.renders = 0
         self.cache: dict[_Params, tuple[_Layout, list[Finding]]] = {}
         self.best: tuple | None = None
         self.base: _Layout | None = None
+        self.said_pages: dict[tuple, int] = {}
 
     def render(self, params: _Params) -> tuple[_Layout, list[Finding]]:
         if params in self.cache:
@@ -961,6 +1212,7 @@ class _Fitter:
             cost += COST_TYPE_STEP * round((params.font_pt - base.base_font_pt) / BODY_PT_STEP)
         cost += sum(0.5 + (1.0 - k) * 20 for _, k in params.music)
         cost += 3.0 * len(params.sections)
+        cost += COST_SAID_HOLD * len(params.said_hold) + COST_SAID_STACK * len(params.said_stack)
         return cost
 
     def count_ok(self, findings: list[Finding]) -> bool:
@@ -973,19 +1225,46 @@ class _Fitter:
                 and not base.has_inside_cover):
             ic_options.append(True)
         lh_values = [None] + _steps(base.base_line_height, MAX_LINE_HEIGHT, LINE_HEIGHT_STEP)[1:]
-        fs_values = [None] + _steps(base.base_font_pt, MAX_BODY_PT, BODY_PT_STEP)[1:]
+        fs_values = [None]
+        if self.max_body_pt > base.base_font_pt + 1e-6:
+            fs_values += _steps(base.base_font_pt, self.max_body_pt, BODY_PT_STEP)[1:]
         options = [_Params(inside_cover=ic, line_height=lh, font_pt=fs)
                    for ic in ic_options for lh in lh_values for fs in fs_values]
         return sorted(options, key=lambda p: (self.cost(p), p.font_pt or 0, p.line_height or 0))
 
     def predicted_pages(self, params: _Params) -> int | None:
-        """The inside cover adds exactly one page, so its twin predicts the count."""
-        twin = _Params(inside_cover=not params.inside_cover, line_height=params.line_height,
-                       font_pt=params.font_pt)
-        if twin in self.cache:
-            pages = self.cache[twin][0].report.pages
+        """The inside cover adds exactly one page, so its twin predicts the count.
+
+        The twin's count is read after its said-text fixes, which can change
+        the page count themselves.
+        """
+        twin = (not params.inside_cover, params.line_height, params.font_pt)
+        if twin in self.said_pages:
+            pages = self.said_pages[twin]
             return pages + 1 if params.inside_cover else pages - 1
         return None
+
+    def fix_said(self, params: _Params) -> _Params:
+        """Keep every said line on one line.
+
+        A said text that wraps at the larger body type stays at the theme's
+        size. One that still wraps prints its speaker label above the text,
+        so its lines get the whole column.
+        """
+        layout, _ = self.render(params)
+        wrapping = [ref for ref in layout.said_wrap_refs if ref not in params.said_stack]
+        if not wrapping:
+            return params
+        if params.font_pt is not None:
+            held = tuple(r for r in wrapping if r not in params.said_hold)
+            if held:
+                params = replace(params, said_hold=params.said_hold + held)
+                layout, _ = self.render(params)
+                wrapping = [ref for ref in layout.said_wrap_refs if ref not in params.said_stack]
+        if wrapping:
+            params = replace(params, said_stack=params.said_stack + tuple(wrapping))
+            self.render(params)
+        return params
 
     def unit_failing(self, layout: _Layout, ref: str) -> bool:
         for unit, unit_ref in zip(layout.report.units, layout.unit_refs):
@@ -996,6 +1275,10 @@ class _Fitter:
                     return True
                 return False
         return False
+
+    def _with_music(self, params: _Params, ref: str, scale: float) -> _Params:
+        music = tuple((r, k) for r, k in params.music if r != ref) + ((ref, scale),)
+        return replace(params, music=music)
 
     def fix_music(self, params: _Params) -> tuple[_Params, bool]:
         layout, findings = self.render(params)
@@ -1011,38 +1294,71 @@ class _Fitter:
             done.add(ref)
 
             def attempt(scale: float) -> tuple[bool, _Params]:
-                trial = _Params(params.inside_cover, params.line_height, params.font_pt,
-                                params.music + ((ref, scale),), params.sections)
+                trial = self._with_music(params, ref, scale)
                 trial_layout, trial_findings = self.render(trial)
                 ok = (not self.unit_failing(trial_layout, ref)) and self.count_ok(trial_findings)
                 return ok, trial
 
-            ok, trial = attempt(MUSIC_SCALES[0])
-            chosen = trial if ok else None
-            if not ok:
-                ok_low, trial_low = attempt(MUSIC_SCALES[-1])
-                if ok_low:
-                    chosen = trial_low
-                    lo, hi = 1, len(MUSIC_SCALES) - 2
-                    while lo <= hi:
-                        mid = (lo + hi) // 2
-                        ok_mid, trial_mid = attempt(MUSIC_SCALES[mid])
-                        if ok_mid:
-                            chosen = trial_mid
-                            hi = mid - 1
-                        else:
-                            lo = mid + 1
+            chosen = self._largest_scale(attempt)
             if chosen is not None:
                 params = chosen
                 layout, findings = self.render(params)
                 changed = True
 
+    def _largest_scale(self, attempt) -> _Params | None:
+        """The trial at the largest scale that works, assuming smaller scales fit more."""
+        scales = self.scales
+        ok, trial = attempt(scales[0])
+        if ok:
+            return trial
+        if len(scales) == 1:
+            return None
+        ok_low, trial_low = attempt(scales[-1])
+        if not ok_low:
+            return None
+        chosen = trial_low
+        lo, hi = 1, len(scales) - 2
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            ok_mid, trial_mid = attempt(scales[mid])
+            if ok_mid:
+                chosen = trial_mid
+                hi = mid - 1
+            else:
+                lo = mid + 1
+        return chosen
+
+    def fix_stranded(self, params: _Params) -> tuple[_Params, bool]:
+        """Start a page at each heading left at the foot of a page."""
+        def weight(layout: _Layout, findings: list[Finding]) -> tuple[int, int]:
+            # Other failing checks first, then how many headings are stranded,
+            # so fixing one of two stranded headings counts as progress.
+            others = sum(1 for f in _blocking_failures(findings) if f.check != "stranded_heading")
+            return others, len(_stranded(layout.report))
+
+        changed = False
+        for _ in range(4):
+            layout, findings = self.render(params)
+            stranded = [(h, layout.heading_refs[i]) for i, h in _stranded(layout.report)]
+            stranded = [(h, ref) for h, ref in stranded
+                        if ref and ref not in params.sections and h.id not in self.pinned]
+            if not stranded:
+                break
+            heading, ref = stranded[0]
+            trial = replace(params, sections=params.sections + (ref,))
+            trial_layout, trial_findings = self.render(trial)
+            if weight(trial_layout, trial_findings) < weight(layout, findings):
+                params, changed = trial, True
+            else:
+                break
+        return params, changed
+
     def fix_sections(self, params: _Params) -> tuple[_Params, bool]:
+        params, changed = self.fix_stranded(params)
         layout, findings = self.render(params)
         report = layout.report
         exempt = _exempt_pages(report)
         failures = len(_blocking_failures(findings))
-        changed = False
         low_pages = [i + 1 for i, v in enumerate(report.fill)
                      if v < FILL_BLOCK and (i + 1) not in exempt and not report.blank[i]]
         for page in low_pages:
@@ -1053,8 +1369,7 @@ class _Fitter:
             if not options:
                 continue
             unit, ref = options[-1]
-            trial = _Params(params.inside_cover, params.line_height, params.font_pt,
-                            params.music, params.sections + (ref,))
+            trial = replace(params, sections=params.sections + (ref,))
             trial_layout, trial_findings = self.render(trial)
             trial_failures = len(_blocking_failures(trial_findings))
             if self.count_ok(trial_findings) and trial_failures < failures:
@@ -1071,31 +1386,107 @@ class _Fitter:
             params, section_changed = self.fix_sections(params)
             if not _blocking_failures(self.render(params)[1]):
                 return params
-            if not (music_changed or section_changed):
+            # Music split over two pages can make room by moving onto one.
+            params, compact_changed = self.music_onto_one_page(params, require_pass=False)
+            if not _blocking_failures(self.render(params)[1]):
+                return params
+            if not (music_changed or section_changed or compact_changed):
                 break
         return None
+
+    def settle(self, params: _Params) -> _Params | None:
+        """Said text first, then music and section repairs; None if it still fails."""
+        key = (params.inside_cover, params.line_height, params.font_pt)
+        params = self.fix_said(params)
+        layout, findings = self.render(params)
+        self.said_pages[key] = layout.report.pages
+        if not self.count_ok(findings):
+            # Music split over two pages may give back the page that breaks the fold.
+            params, _ = self.music_onto_one_page(params, require_pass=False)
+            layout, findings = self.render(params)
+            if not self.count_ok(findings):
+                return None
+        if not _blocking_failures(findings):
+            return params
+        return self.repair(params)
 
     def run(self) -> _Params | None:
         _, findings = self.render(_Params())
         if not _blocking_failures(findings):
             return _Params()
+        settled = self.settle(_Params())
+        if settled is not None:
+            return settled
         for params in self.candidates():
             predicted = self.predicted_pages(params)
             if (predicted is not None and self.print_mode == "booklet"
                     and predicted % 4 != 0):
                 continue
-            _, findings = self.render(params)
-            if not self.count_ok(findings):
-                continue
-            if not _blocking_failures(findings):
-                return params
-            repaired = self.repair(params)
-            if repaired is not None:
-                return repaired
+            settled = self.settle(params)
+            if settled is not None:
+                return settled
         return None
 
+    def music_onto_one_page(self, params: _Params, require_pass: bool = True
+                            ) -> tuple[_Params, bool]:
+        """Move a piece of music split over two pages onto one page.
 
-def _adjustments(params: _Params, base: _Layout, final: _Layout, print_mode: str) -> list[dict]:
+        Allowed only at the church's smallest music scale or larger. When
+        polishing a bulletin that already passes, every check must still
+        pass; as a repair, the move must leave fewer failing checks. A page
+        start the move needs is allowed too; one the person pinned is not.
+        """
+        layout, findings = self.render(params)
+        failures = len(_blocking_failures(findings))
+        if require_pass and failures:
+            return params, False
+        changed = False
+        tried: set[str] = set()
+        while True:
+            split = [ref for unit, ref in zip(layout.report.units, layout.unit_refs)
+                     if unit.kind == "music" and ref and ref not in tried
+                     and unit.last_page == unit.first_page + 1]
+            if not split:
+                return params, changed
+            ref = split[0]
+            tried.add(ref)
+            start = dict(params.music).get(ref, 1.0)
+
+            def attempt(scale: float, ref=ref, base=params, before=failures
+                        ) -> tuple[bool, _Params]:
+                if scale > start:
+                    return False, base
+                trial = self._with_music(base, ref, scale)
+                trial_layout, trial_findings = self.render(trial)
+                if any(f.check == "stranded_heading" for f in _blocking_failures(trial_findings)):
+                    trial, _ = self.fix_stranded(trial)
+                    trial_layout, trial_findings = self.render(trial)
+                one_page = any(u.first_page == u.last_page
+                               for u, r in zip(trial_layout.report.units, trial_layout.unit_refs)
+                               if r == ref)
+                left = len(_blocking_failures(trial_findings))
+                ok = left == 0 if require_pass else (self.count_ok(trial_findings) and left < before)
+                return one_page and ok, trial
+
+            chosen = self._largest_scale(attempt)
+            if chosen is not None:
+                params, changed = chosen, True
+                layout, findings = self.render(params)
+                failures = len(_blocking_failures(findings))
+
+
+def _said_names(refs: tuple[str, ...], base: _Layout) -> str:
+    names = []
+    for ref in refs:
+        name = _said_name(base.said_labels.get(ref))
+        if name not in names:
+            names.append(name)
+    return _join(names)
+
+
+def _adjustments(params: _Params, base: _Layout, final: _Layout, print_mode: str,
+                 max_body_pt: float = MAX_BODY_PT,
+                 music_min_scale: float = MUSIC_MIN_SCALE) -> list[dict]:
     pages = final.report.pages
     common = {"pages": pages, "pages_before": base.report.pages, "print_mode": print_mode}
     result: list[dict] = []
@@ -1110,9 +1501,25 @@ def _adjustments(params: _Params, base: _Layout, final: _Layout, print_mode: str
     if params.font_pt is not None:
         result.append({"step": "type_size",
                        "detail": {"from_pt": base.base_font_pt, "to_pt": params.font_pt,
-                                  **common},
+                                  "max_pt": max_body_pt, **common},
                        "summary": f"body type is a little larger "
                                   f"({_format_number(params.font_pt)}pt)"})
+    held = tuple(r for r in params.said_hold) if params.font_pt is not None else ()
+    if held:
+        names = _said_names(held, base)
+        result.append({"step": "said_text_size",
+                       "detail": {"ids": [base.said_labels.get(r) for r in held],
+                                  "pt": base.base_font_pt, **common},
+                       "summary": f"{names} {'stays' if len(set(map(base.said_labels.get, held))) == 1 else 'stay'} "
+                                  f"at {_format_number(base.base_font_pt)}pt "
+                                  "so no line said together wraps"})
+    if params.said_stack:
+        names = _said_names(params.said_stack, base)
+        result.append({"step": "said_label_above",
+                       "detail": {"ids": [base.said_labels.get(r) for r in params.said_stack],
+                                  **common},
+                       "summary": f"{names} {'prints' if len(set(map(base.said_labels.get, params.said_stack))) == 1 else 'print'} "
+                                  "the speaker label above the text so each line fits"})
     by_ref = dict(zip(final.unit_refs, final.report.units))
     for ref, scale in params.music:
         unit = by_ref.get(ref)
@@ -1126,14 +1533,18 @@ def _adjustments(params: _Params, base: _Layout, final: _Layout, print_mode: str
             summary = f"{name} is kept together on {where}"
         result.append({"step": "music_scale",
                        "detail": {"id": unit.id if unit else None, "scale": scale,
-                                  "page": page, **common},
+                                  "min_scale": music_min_scale, "page": page, **common},
                        "summary": summary})
+    heading_by_ref = dict(zip(final.heading_refs, final.report.headings))
     for ref in params.sections:
         unit = by_ref.get(ref)
-        label = unit.id if unit and unit.id else "a section"
-        page = unit.first_page if unit else None
+        heading = heading_by_ref.get(ref)
+        label = (unit.id if unit and unit.id else heading.id if heading and heading.id
+                 else "a section")
+        page = unit.first_page if unit else heading.page if heading else None
         result.append({"step": "section_start",
-                       "detail": {"id": unit.id if unit else None, "page": page, **common},
+                       "detail": {"id": label if label != "a section" else None,
+                                  "page": page, **common},
                        "summary": f"{label} starts a new page"
                                   + (f" (page {page})" if page else "")})
     return result
@@ -1158,17 +1569,35 @@ def describe_adjustments(adjustments: list[dict]) -> str:
 
 def fit(html: str, *, base_url: str | None = None, print_mode: str = "booklet",
         inside_cover_allowed: bool = True, pinned_section_ids: tuple[str, ...] = (),
-        max_renders: int = DEFAULT_MAX_RENDERS) -> FitResult:
-    """Fit a bulletin to its print mode with the smallest allowed adjustments."""
+        max_renders: int = DEFAULT_MAX_RENDERS, max_body_pt: float | None = None,
+        music_min_scale: float | None = None) -> FitResult:
+    """Fit a bulletin to its print mode with the smallest allowed adjustments.
+
+    ``max_body_pt`` is the church's body type size (``bulletin.body_size``):
+    fitting never sets body type above it. ``music_min_scale`` is the
+    church's smallest music scale (``bulletin.music_min_scale``, default 95%).
+    """
     if print_mode not in PRINT_MODES:
         raise ValueError(f"print_mode must be one of {', '.join(PRINT_MODES)}")
+    max_body_pt = MAX_BODY_PT if max_body_pt is None else float(max_body_pt)
+    music_min_scale = MUSIC_MIN_SCALE if music_min_scale is None else float(music_min_scale)
+    if not MUSIC_MIN_SCALE_FLOOR <= music_min_scale <= 1.0:
+        raise ValueError(f"music_min_scale must be between {MUSIC_MIN_SCALE_FLOOR} and 1.0")
     started = time.monotonic()
     fitter = _Fitter(html, base_url, print_mode, inside_cover_allowed,
-                     pinned_section_ids, max(1, max_renders))
+                     pinned_section_ids, max(1, max_renders), max_body_pt, music_min_scale)
     try:
         chosen = fitter.run()
     except _Budget:
         chosen = None
+    if chosen is not None:
+        # Polishing may spend more renders than the search did; it only ever
+        # returns a candidate that passes every check.
+        fitter.max_renders += DEFAULT_MAX_RENDERS
+        try:
+            chosen, _ = fitter.music_onto_one_page(chosen)
+        except _Budget:
+            pass
     base = fitter.base
     if chosen == _Params():
         layout, findings = fitter.cache[_Params()]
@@ -1180,7 +1609,7 @@ def fit(html: str, *, base_url: str | None = None, print_mode: str = "booklet",
         chosen = fitter.best[1]
     layout, findings = fitter.cache[chosen]
     fitted = html if chosen == _Params() else _strip_refs(_build(fitter.source, chosen, base))
-    adjustments = _adjustments(chosen, base, layout, print_mode)
+    adjustments = _adjustments(chosen, base, layout, print_mode, max_body_pt, music_min_scale)
     return FitResult(status, fitted, layout.report, findings, adjustments,
                      fitter.renders, round(time.monotonic() - started, 2))
 
@@ -1208,6 +1637,10 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--pin", action="append", default=[],
                                  help="a section name whose page start must not move")
             command.add_argument("--max-renders", type=int, default=DEFAULT_MAX_RENDERS)
+            command.add_argument("--max-body-pt", type=float, default=None,
+                                 help="the church's body type size; fitting never goes above it")
+            command.add_argument("--music-min-scale", type=float, default=None,
+                                 help="the smallest scale music may print at (default 0.95)")
     args = parser.parse_args(argv)
     path = Path(args.html)
     html = path.read_text(encoding="utf-8")
@@ -1221,7 +1654,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if _blocking_failures(findings) else 0
     result = fit(html, base_url=base_url, print_mode=args.print_mode,
                  inside_cover_allowed=allowed, pinned_section_ids=tuple(args.pin),
-                 max_renders=args.max_renders)
+                 max_renders=args.max_renders, max_body_pt=args.max_body_pt,
+                 music_min_scale=args.music_min_scale)
     Path(args.out).write_text(result.html, encoding="utf-8")
     print(json.dumps({"status": result.status, "pages": result.report.pages,
                       "adjustments": result.adjustments,

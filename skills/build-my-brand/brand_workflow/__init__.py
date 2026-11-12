@@ -175,6 +175,8 @@ ARCHIVE_DIR = Path("brand") / "archive"
 STAGED_SYSTEM_FILE = STAGING_DIR / "brand-system.json"
 ARCHIVED_LIVE_ITEMS = ("marks", "type", "templates", "voice.md")
 FONT_SUFFIXES = {".ttf", ".otf", ".woff", ".woff2"}
+TYPE_ROLES = ("display", "text", "reading")  # brand_type.ROLES; reading is optional
+FONT_FACE_KEYS = ("regular", "italic", "medium", "semibold", "semibold_italic", "bold", "bold_italic")  # brand_type.FACES
 MARK_SUFFIXES = {".svg", ".png"}
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 RENDERER_COLORS = ("ink", "accent", "accent_deep", "paper", "rubric_red")
@@ -837,6 +839,59 @@ def _validate_mark(root: Path, raw: Any, field: str) -> str:
     return rel.as_posix()
 
 
+def _font_tokens(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.casefold())
+
+
+def _pdf_font_names(path: Path) -> set[str] | None:
+    """Font names embedded in a PDF, without subset prefixes; None if unreadable."""
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return None
+    try:
+        reader = PdfReader(str(path))
+        names: set[str] = set()
+        for page in reader.pages:
+            resources = page.get("/Resources")
+            resources = resources.get_object() if resources is not None else {}
+            fonts = resources.get("/Font")
+            fonts = fonts.get_object() if fonts is not None else {}
+            for ref in fonts.values():
+                base = str(ref.get_object().get("/BaseFont") or "")
+                names.add(base.lstrip("/").split("+", 1)[-1])
+        return names
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _require_brand_faces(after: Path, system: dict[str, Any]) -> None:
+    """The proof must be set in the staged typefaces, not the renderer's defaults."""
+    fonts = system.get("type") if isinstance(system.get("type"), dict) else {}
+    if after.suffix.casefold() != ".pdf" or not fonts:
+        return
+    names = _pdf_font_names(after)
+    if names is None:
+        raise WorkflowFailure("proof_unreadable", "The proof PDF could not be read to check its typefaces; render it again with the staged brand", field="after")
+    embedded = {_font_tokens(n) for n in names}
+    missing = []
+    for role, internal in (("display", "Brand Display"), ("text", "Brand Text")):
+        entry = fonts.get(role)
+        if not isinstance(entry, dict):
+            continue
+        label = str(entry.get("family") or "")
+        wanted = {_font_tokens(internal), _font_tokens(label.split("(")[0])} - {""}
+        if not any(w in e for w in wanted for e in embedded):
+            missing.append(f"{role} ({label.split('(')[0].strip() or role})")
+    if missing:
+        raise WorkflowFailure(
+            "proof_missing_brand_type",
+            "The proof bulletin is not set in the brand's typefaces: " + ", ".join(missing)
+            + ". Render it with the staged brand so the pastor approves what will actually print.",
+            field="after", detail={"embedded": sorted(names)},
+        )
+
+
 def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str, metadata: dict[str, Any]) -> dict[str, Any]:
     if stage not in STAGES:
         raise WorkflowFailure("unknown_stage", f"Unknown stage: {stage}", field="stage")
@@ -950,6 +1005,9 @@ def _validate_stage(root: Path, state: dict[str, Any], stage: str, content: str,
     if stage == "prove":
         record["before"] = _existing(root, metadata.get("before"), "before").as_posix()
         record["after"] = _existing(root, metadata.get("after"), "after").as_posix()
+        staged = _read_json(root / STAGED_SYSTEM_FILE, None)
+        if isinstance(staged, dict):
+            _require_brand_faces(root / record["after"], staged.get("brand_system") or {})
         record["announcement"] = _existing(root, metadata.get("announcement"), "announcement").as_posix()
     if stage == "handoff":
         record["volunteer_card"] = _existing(root, metadata.get("volunteer_card"), "volunteer_card").as_posix()
@@ -1462,14 +1520,23 @@ def _validate_brand_system(root: Path, system: Any, *, under: Path) -> dict[str,
     if not isinstance(fonts, dict) or not fonts.get("display") or not fonts.get("text"):
         raise WorkflowFailure("invalid_brand_system", "brand_system.type needs display and text entries", field="type")
     for role, entry in fonts.items():
+        if role not in TYPE_ROLES:
+            raise WorkflowFailure("invalid_type", f"type.{role} is not a type role; use display, text, or reading", field=f"type.{role}")
         if not isinstance(entry, dict):
             raise WorkflowFailure("invalid_type", f"type.{role} must be an object", field=f"type.{role}")
+        variation = entry.get("variation")
+        if variation is not None and (not isinstance(variation, dict) or not all(
+                isinstance(tag, str) and len(tag) == 4 and isinstance(value, (int, float)) and not isinstance(value, bool)
+                for tag, value in variation.items())):
+            raise WorkflowFailure("invalid_type", f"type.{role}.variation maps four-letter axis tags to numbers, such as {{\"opsz\": 12, \"SOFT\": 30}}", field=f"type.{role}.variation")
         _require_text(entry.get("family"), f"type.{role}.family")
         _require_text(entry.get("license"), f"type.{role}.license")
         files = entry.get("files")
         if not isinstance(files, dict) or not files.get("regular"):
             raise WorkflowFailure("invalid_type", f"type.{role}.files needs at least a regular face", field=f"type.{role}.files")
         for face, raw in files.items():
+            if face not in FONT_FACE_KEYS:
+                raise WorkflowFailure("invalid_type", f"type.{role}.files.{face} is not a face renderers know; use one of: {', '.join(FONT_FACE_KEYS)}", field=f"type.{role}.files.{face}")
             rel = _existing(root, raw, f"type.{role}.files.{face}", under=under)
             if rel.suffix.casefold() not in FONT_SUFFIXES:
                 raise WorkflowFailure("invalid_type", f"type.{role}.files.{face} must be a font file", field=f"type.{role}.files.{face}")
@@ -1488,7 +1555,16 @@ def _validate_brand_system(root: Path, system: Any, *, under: Path) -> dict[str,
     if not isinstance(templates, dict) or not templates:
         raise WorkflowFailure("invalid_brand_system", "brand_system.templates lists the weekly templates that were built", field="templates")
     for key, raw in templates.items():
-        _existing(root, raw, f"templates.{key}", under=under)
+        rel = _existing(root, raw, f"templates.{key}", under=under)
+        if rel.suffix.casefold() == ".svg":
+            text = (root / rel).read_text(encoding="utf-8", errors="replace")
+            if "<text" in text and "@font-face" not in text:
+                raise WorkflowFailure(
+                    "template_fonts_missing",
+                    f"templates.{key} sets words without loading the brand's typefaces, so it prints in a stand-in font. "
+                    "Add @font-face rules for the display and text files inside the SVG, or turn the words into outlines.",
+                    field=f"templates.{key}",
+                )
     return system
 
 

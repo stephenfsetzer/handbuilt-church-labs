@@ -660,7 +660,7 @@ class BrandFieldRegressions(unittest.TestCase):
         self.assertEqual(self.bw.stage_brand(self.church, self.helper._stage_files())["status"], "staged")
         self.assertEqual(self.bw.record(self.church, "build", "Built.", {"staged_files": ["brand/staging/marks/mark.svg"]})["status"], "recorded")
         (self.church / "before.pdf").write_bytes(b"%PDF-1.4 before")
-        (self.church / "after.pdf").write_bytes(b"%PDF-1.4 after")
+        self.helper._proof_pdf("after.pdf", brand_faces=True)
         (self.church / "announcement.pdf").write_bytes(b"%PDF-1.4 announcement")
         self.assertEqual(self.bw.record(self.church, "prove", "Proof.", {"before": "before.pdf", "after": "after.pdf", "announcement": "announcement.pdf"})["status"], "recorded")
         for dry_run in (True, False):

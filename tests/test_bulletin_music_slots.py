@@ -109,7 +109,7 @@ class ServiceMusicRenderingTests(unittest.TestCase):
             "qr_block": lambda *args: "<qr>",
             "doxology_block": lambda *args: "<doxology>",
             "blessing_block": lambda *args: "<blessing>",
-            "announcements_block": lambda *args: "<announcements>",
+            "announcements_block": lambda *args, **kwargs: "<announcements>",
             "can_merge_back_page": lambda *args: False,
         }
         with patch.multiple(render_bulletin, **stubs):

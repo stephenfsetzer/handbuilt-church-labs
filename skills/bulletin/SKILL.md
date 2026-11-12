@@ -260,11 +260,23 @@ left blank on purpose. Both may be saved once as standing preferences under
 `bulletin` in `church.yaml`; a weekly option overrides them. In booklet mode
 the page-by-page PDF must already be a multiple of 4 pages, with no padding
 blank and the back page last. No hymn or prayer may continue across a page
-turn, and the opening hymn prints whole. A missing font or picture blocks in
-every print mode.
+turn, and the opening hymn prints whole. No line of a text said together
+(the Creed, the Lord's Prayer, a confession) may wrap, and no heading may sit
+at the foot of a page with its text overleaf. A missing font or picture blocks
+in every print mode.
 When a rule fails, production fits the bulletin with small, bounded changes: a
 blank inside cover, looser line spacing, slightly larger type, music at 95% to
 100%, or one section starting a new page. It never changes wording or order.
+Larger type is kept only when no said line wraps: a said text that would wrap
+stays at the theme's size, and one that still wraps prints its speaker label
+above the text. A piece of music split over two pages moves onto one page when
+it fits at the church's smallest music scale or larger.
+
+Two standing settings under `bulletin` in `church.yaml` bound fitting:
+`body_size` (for example `12pt`; fitting never sets body type above it, and
+13pt is the ceiling when unset) and `music_min_scale` (for example `0.85`; the
+smallest a piece of music may print to stay on one page, 95% when unset).
+`orient` returns them as `print_settings`, and the receipt records them.
 
 Show the pastor the sequential PDF and booklet PDF, and explain any warnings.
 Keep the receipt for your own later steps; a pastor never needs to open it.
@@ -312,8 +324,11 @@ A pastor naming a heading means the large line printed at the top of that
 part, not the small label beside it. To reword the psalm's heading, revise
 `readings.psalm.heading`.
 
-The replacement is rendered and verified before the prior package moves to a
-recoverable `.revisions/` folder. The new receipt links the predecessor run,
+The replacement is rendered and verified before the files the prior run made
+move to a recoverable `.revisions/` folder. Files the church or agent added to
+the week folder (a README, a photo, a script) stay where they are; the result
+and receipt list them as `preserved_files`. A church file that sits exactly
+where the new package writes is archived too and named in a warning. The new receipt links the predecessor run,
 receipt hash, archive location, and source-config digest. Repeating the same
 revision is idempotent. An ordinary revision can never change an approved
 package or an approved history entry; step 6 covers an error found after

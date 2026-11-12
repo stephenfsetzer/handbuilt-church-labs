@@ -20,11 +20,15 @@ import math
 import re
 import shutil
 import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
 from cash_position import cash_summary, signed_money
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / "bulletin" / "renderer"))
+from brand_type import brand_faces  # noqa: E402  shared with the bulletin and the brand guide
 
 HERE = Path(__file__).resolve().parent
 SHAPE_VERSION = "1.0"  # the report shape in references/shape.md, fixed on 2026-09-26
@@ -181,12 +185,20 @@ def resolve_theme(brand, church):
 
     heading = typ.get("heading") or DEFAULTS["heading"]
     body = typ.get("body") or DEFAULTS["body"]
+    # An approved brand system's own faces win over the older type names.
+    face_css, faces = brand_faces(brand, CHURCH_ROOT)
+    if faces.get("display"):
+        heading = faces["display"]
+        log.append(f"heading face from the approved brand ({heading})")
+    if faces.get("text"):
+        body = faces["text"]
+        log.append(f"body face from the approved brand ({body})")
     theme = {
         "paper": paper, "ink": ink, "positive": positive, "attention": attention,
         "positive_soft": mix(positive, paper, 0.55), "attention_soft": mix(attention, paper, 0.6),
         "ramp": ramp, "muted": mix(ink, paper, 0.42), "rule": mix(ink, paper, 0.85),
         "panel": colors.get("panel") or mix(positive, paper, 0.94),
-        "heading": heading, "body": body,
+        "heading": heading, "body": body, "face_css": face_css,
         "heading_weight": typ.get("heading_weight", 700),
         "motif": style.get("motif"),
         "positive_word": color_word(positive), "attention_word": color_word(attention),
@@ -220,7 +232,12 @@ def color_word(h):
 def font_css(theme):
     css, used, families = [], [], {theme["heading"], theme["body"]}
     google = []
+    if theme.get("face_css"):
+        css.append(theme["face_css"])
     for fam in sorted(families):
+        if f'font-family: "{fam}"' in theme.get("face_css", ""):
+            used.append(f"{fam}: the church's brand files")
+            continue
         files = BUNDLED.get(fam)
         if files and BUNDLED_FONTS.exists():
             for fname, weight in files:
