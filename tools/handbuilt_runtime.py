@@ -26,7 +26,7 @@ from typing import Callable, Mapping, Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from tools import runtime_security
+from tools import native_libraries, runtime_security
 from tools.runtime_lock import RuntimeLockError, validate_runtime_lock
 
 
@@ -362,8 +362,49 @@ class RuntimeManager:
                 requirements[_normalize_distribution(match.group(1))] = match.group(2)
         return requirements
 
+    def _native_tool(self, tool: str) -> Optional[str]:
+        """Find a PDF tool: Handbuilt's own copy first, then the computer's."""
+        suffix = ".exe" if self.system == "Windows" else ""
+        folder = "Library/bin" if self.system == "Windows" else "bin"
+        for root in native_libraries.roots_under(self.paths.root):
+            candidate = root / folder / f"{tool}{suffix}"
+            if candidate.is_file():
+                return str(candidate)
+        return self.which(tool)
+
+    def _own_native_tools(self) -> Optional[dict[str, object]]:
+        """Handbuilt's own PDF tools, when the plugin has them for this computer."""
+        lock = self.repo_root / "tools" / "native-tools.lock"
+        if self.system not in {"Darwin", "Windows"} or not lock.is_file():
+            return None
+        try:
+            from tools import native_tools
+            release, packages = native_tools.read_lock(lock)
+            key = native_tools.computer_key(self.system)
+        except Exception:  # noqa: BLE001 - a broken lock means this route is unavailable
+            return None
+        if not key or not packages.get(key):
+            return None
+        return {
+            "release": release,
+            "installed": native_tools.installed(self.paths.root, release) is not None,
+            "command": [self._resolved_bootstrap() or sys.executable, "-I",
+                        str(Path(__file__).with_name("native_tools.py")),
+                        "install", "--runtime-root", str(self.paths.root)],
+        }
+
     def native_install_plan(self) -> dict[str, object]:
         """Return a platform command without running or approving it."""
+        own = self._own_native_tools()
+        if own is not None:
+            return {
+                "available": True,
+                "method": "Handbuilt PDF tools",
+                "command": own["command"],
+                "scope": "handbuilt-folder",
+                "requires_elevation": False,
+                "installed": own["installed"],
+            }
         if self.system == "Darwin":
             brew = self.which("brew")
             if brew:
@@ -449,7 +490,7 @@ class RuntimeManager:
         else:
             missing_packages = list(PACKAGE_IMPORTS)
 
-        native_locations = {tool: self.which(tool) for tool in NATIVE_TOOLS}
+        native_locations = {tool: self._native_tool(tool) for tool in NATIVE_TOOLS}
         missing_native_tools = [tool for tool, path in native_locations.items() if path is None]
         native_install = self.native_install_plan()
 
@@ -561,7 +602,7 @@ class RuntimeManager:
             report.update({
                 "status": "install-failed", "ready": False,
                 "message": "Handbuilt's bulletin tools did not pass their working check.",
-                "next_action": "Use the check detail to repair the failing PDF component, then run verify again. Church Command Center and sermon work can continue if their check is ready.",
+                "next_action": "Use the check detail to repair the failing PDF component, then run verify again. When the detail says a library could not be loaded, run native-install --own-tools to add Handbuilt's own PDF libraries first. Church Command Center and sermon work can continue if their check is ready.",
                 "technical_detail": (str(probe.get("error"))[:800] if isinstance(probe, dict) and probe.get("error")
                                      else _command_detail(completed)),
                 "verification": {"ok": False},
@@ -1264,14 +1305,19 @@ class RuntimeManager:
                 report.update({"status": "install-failed", "ready": False})
             return report
 
-    def native_install(self) -> dict[str, object]:
-        """Install Poppler through a detected platform package manager."""
+    def native_install(self, *, own_tools: bool = False) -> dict[str, object]:
+        """Install the PDF tools: Handbuilt's own copy, or a detected package manager.
+
+        own_tools adds Handbuilt's own copy even when the computer already has
+        PDF tools, for a computer whose text libraries cannot be loaded.
+        """
         current = self.doctor(operation="native-install")
         native_tools = current.get("native_tools", {})
-        if isinstance(native_tools, Mapping) and not native_tools.get("missing"):
+        plan = current.get("native_install", self.native_install_plan())
+        add_own = own_tools and plan.get("method") == "Handbuilt PDF tools" and not plan.get("installed")
+        if isinstance(native_tools, Mapping) and not native_tools.get("missing") and not add_own:
             return current
 
-        plan = current.get("native_install", self.native_install_plan())
         if not plan["available"] or not plan["command"]:
             current["next_action"] = "Provide a tested platform-specific native-tool installer before retrying."
             return current
@@ -1299,7 +1345,7 @@ class RuntimeManager:
         detail: str,
         changed: bool = True,
     ) -> dict[str, object]:
-        native_locations = {tool: self.which(tool) for tool in NATIVE_TOOLS}
+        native_locations = {tool: self._native_tool(tool) for tool in NATIVE_TOOLS}
         missing_native_tools = [tool for tool, path in native_locations.items() if path is None]
         bootstrap = self._resolved_bootstrap()
         return {
@@ -1385,7 +1431,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("doctor", "Check runtime readiness without changing anything."),
         ("verify", "Render and inspect a temporary sample PDF without installing anything."),
         ("setup", "Create and install the private runtime, then verify it."),
-        ("native-install", "Install native PDF tools through a detected package manager."),
+        ("native-install", "Install the PDF tools: Handbuilt's own copy, or a detected package manager."),
         ("create", "Create the private Python environment without installing packages."),
         ("install", "Install repository requirements into the existing private environment."),
         ("rollback", "Restore the retained runtime after validating it against current security policy."),
@@ -1395,6 +1441,9 @@ def build_parser() -> argparse.ArgumentParser:
         child.add_argument("--format", choices=("human", "json"), default="human")
         child.add_argument("--runtime-root", type=Path)
         child.add_argument("--bootstrap-python", default=os.environ.get("HANDBUILT_BOOTSTRAP_PYTHON", sys.executable))
+        if operation == "native-install":
+            child.add_argument("--own-tools", action="store_true",
+                               help="Add Handbuilt's own PDF tools even when the computer has some.")
         if operation == "doctor":
             child.add_argument("--capability", choices=("workspace", "bulletin"), default="bulletin")
         if operation == "prune":
@@ -1419,7 +1468,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     elif args.operation == "setup":
         result = manager.setup()
     elif args.operation == "native-install":
-        result = manager.native_install()
+        result = manager.native_install(own_tools=args.own_tools)
     elif args.operation == "create":
         result = manager.create_environment()
     elif args.operation == "rollback":

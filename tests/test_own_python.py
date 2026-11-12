@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from tools import native_libraries, runtime_security  # noqa: E402
+from tools import native_libraries, native_tools, runtime_security  # noqa: E402
 
 LOCK = ROOT / "tools" / "python-dist.lock"
 SHELL_LAUNCHER = ROOT / "bin" / "handbuilt-python"
@@ -161,6 +161,94 @@ class NativeLibraries(unittest.TestCase):
         # Only the copy that setup installs runs at startup.
         source = (ROOT / "tools" / "native_libraries.py").read_text(encoding="utf-8")
         self.assertIn('if __name__ == "handbuilt_native_libraries":', source)
+
+
+def conda_package(files: dict[str, bytes]) -> bytes:
+    """A package in conda-forge's .conda format, built in memory."""
+    import io
+    import tarfile
+    import zipfile
+    inner = io.BytesIO()
+    with tarfile.open(fileobj=inner, mode="w:zst") as archive:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            info.mode = 0o755
+            archive.addfile(info, io.BytesIO(data))
+    outer = io.BytesIO()
+    with zipfile.ZipFile(outer, "w") as package:
+        package.writestr("metadata.json", "{}")
+        package.writestr("info-sample-1.0-0.tar.zst", b"")
+        package.writestr("pkg-sample-1.0-0.tar.zst", inner.getvalue())
+    return outer.getvalue()
+
+
+@unittest.skipIf(sys.version_info < (3, 14), "the package format needs Python 3.14")
+class NativeTools(unittest.TestCase):
+    URL = "https://conda.anaconda.org/conda-forge/osx-arm64/sample-1.0-0.conda"
+
+    def setUp(self):
+        from unittest import mock
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve() / "runtime"
+        self.lock = Path(self.temp.name) / "native-tools.lock"
+        patcher = mock.patch.object(native_tools, "computer_key", return_value="darwin-aarch64")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def write_lock(self, package: bytes, *, sha256: str | None = None, url: str | None = None) -> None:
+        import hashlib
+        self.lock.write_text(
+            "# test\nrelease conda-forge-20260101\n"
+            f"darwin-aarch64 {sha256 or hashlib.sha256(package).hexdigest()} {len(package)} {url or self.URL}\n",
+            encoding="utf-8")
+
+    def test_checked_packages_are_unpacked_and_found(self):
+        package = conda_package({"bin/pdfinfo": b"tool", "lib/libpango-1.0.dylib": b"library"})
+        self.write_lock(package)
+        result = native_tools.install(self.root, lock=self.lock, fetch=lambda url, limit: package)
+        self.assertTrue(result["installed"] and result["changed"])
+        folder = self.root / "native" / "conda-forge-20260101"
+        self.assertEqual((folder / "bin" / "pdfinfo").read_bytes(), b"tool")
+        self.assertEqual(native_libraries.roots_under(self.root), [folder])
+        again = native_tools.install(self.root, lock=self.lock, fetch=lambda url, limit: self.fail("downloaded twice"))
+        self.assertFalse(again["changed"])
+
+    def test_a_package_that_does_not_match_installs_nothing(self):
+        package = conda_package({"bin/pdfinfo": b"tool"})
+        self.write_lock(package, sha256="0" * 64)
+        with self.assertRaisesRegex(native_tools.NativeToolsError, "did not match its recorded checksum"):
+            native_tools.install(self.root, lock=self.lock, fetch=lambda url, limit: package)
+        self.assertEqual(list((self.root / "native").iterdir()), [])
+
+    def test_a_package_cannot_write_outside_its_folder(self):
+        package = conda_package({"../../escaped.txt": b"x"})
+        self.write_lock(package)
+        with self.assertRaises(native_tools.NativeToolsError):
+            native_tools.install(self.root, lock=self.lock, fetch=lambda url, limit: package)
+        self.assertFalse((self.root.parent / "escaped.txt").exists())
+        self.assertEqual(native_libraries.roots_under(self.root), [])
+
+    def test_only_the_approved_source_is_accepted(self):
+        package = conda_package({"bin/pdfinfo": b"tool"})
+        for url in ("https://example.org/conda-forge/osx-arm64/sample-1.0-0.conda",
+                    "http://conda.anaconda.org/conda-forge/osx-arm64/sample-1.0-0.conda",
+                    "https://conda.anaconda.org/conda-forge/osx-arm64/sample-1.0-0.exe"):
+            self.write_lock(package, url=url)
+            with self.assertRaises(native_tools.NativeToolsError, msg=url):
+                native_tools.read_lock(self.lock)
+
+    def test_the_real_lock_covers_mac_and_windows_with_pango_and_poppler(self):
+        release, packages = native_tools.read_lock()
+        self.assertTrue(release.startswith("conda-forge-"))
+        self.assertEqual(set(packages), {"darwin-aarch64", "darwin-x86_64", "windows-x86_64"})
+        for computer, items in packages.items():
+            names = {str(item["url"]).rsplit("/", 1)[-1].rsplit("-", 2)[0] for item in items}
+            for needed in ("pango", "libpango", "poppler", "libharfbuzz", "fontconfig", "fribidi", "libglib"):
+                self.assertIn(needed, names, computer)
+            self.assertFalse(names & {"python", "tk"}, computer)
+            self.assertLess(sum(int(item["size"]) for item in items), 80 * 1024 * 1024, computer)
 
 
 class Instructions(unittest.TestCase):

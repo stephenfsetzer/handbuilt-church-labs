@@ -55,7 +55,23 @@ jobs:
           PY
           )
           printf 'HANDBUILT_TEST_PYTHON=%s\n' "$python_path" >> "$GITHUB_ENV"
-          "$python_path" -m unittest tests.test_own_python tests.test_handbuilt_runtime tests.test_church_workflow tests.test_onboarding_contract -v 2>&1 | tail -40
+          "$python_path" -m unittest tests.test_own_python tests.test_field_regressions.SetupFieldRegressions -v 2>&1 | tail -40
+
+      - name: Handbuilt's own PDF tools build and check a sample PDF
+        if: runner.os != 'Linux'
+        run: |
+          bin/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
+          bin/handbuilt-python tools/handbuilt_runtime.py verify --format json > "$RUNNER_TEMP/verify.json" || true
+          bin/handbuilt-python - "$RUNNER_TEMP/native.json" "$RUNNER_TEMP/verify.json" <<'PY'
+          import json, sys
+          native = json.load(open(sys.argv[1], encoding="utf-8"))
+          verify = json.load(open(sys.argv[2], encoding="utf-8"))
+          print("native-install:", native["status"], "-", native["message"], "-", native.get("technical_detail"))
+          print("tools:", native["native_tools"]["locations"])
+          print("verify:", verify["status"], "-", verify["message"], "-", verify.get("technical_detail"))
+          if verify["status"] != "ready" or not verify.get("verification", {}).get("ok"):
+              raise SystemExit("A sample PDF could not be built and checked with Handbuilt's own PDF tools.")
+          PY
 
       - name: The Windows command launcher works without Git Bash
         if: runner.os == 'Windows'
@@ -87,6 +103,7 @@ jobs:
           export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt runtime"
           printf 'HANDBUILT_RUNTIME_HOME=%s\n' "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
           bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
+          bin/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
           bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
       - name: Run the regression suite
         run: |
@@ -95,4 +112,7 @@ jobs:
           print(json.load(open(sys.argv[1], encoding="utf-8"))["runtime"]["python"])
           PY
           )
-          "$python_path" -m unittest discover -s tests -p 'test_*.py' 2>&1 | tail -150
+          "$python_path" -m unittest discover -s tests -p 'test_*.py' > "$RUNNER_TEMP/suite.log" 2>&1 || true
+          grep -E "^(FAIL|ERROR): |^Ran |^OK|^FAILED" "$RUNNER_TEMP/suite.log" | head -300
+          tail -5 "$RUNNER_TEMP/suite.log"
+          grep -q "^OK" "$RUNNER_TEMP/suite.log"

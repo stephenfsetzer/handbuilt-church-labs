@@ -22,16 +22,20 @@ READY_MARKER = ".handbuilt-native-ready"
 _DLL_HANDLES: list[object] = []
 
 
+def roots_under(runtime_root: str | os.PathLike[str]) -> list[Path]:
+    """Handbuilt's own PDF tool folders in this runtime folder, newest first."""
+    native = Path(runtime_root) / "native"
+    if not native.is_dir():
+        return []
+    return sorted((item for item in native.iterdir() if (item / READY_MARKER).is_file()), reverse=True)
+
+
 def native_roots(prefix: str | os.PathLike[str] | None = None) -> list[Path]:
-    """Handbuilt's own PDF tool folders, newest first."""
+    """Handbuilt's own PDF tool folders, newest first, found from a Python inside the runtime."""
     start = Path(prefix or sys.prefix).resolve()
     for parent in list(start.parents)[:4]:
-        native = parent / "native"
-        if native.is_dir():
-            return sorted(
-                (item for item in native.iterdir() if (item / READY_MARKER).is_file()),
-                reverse=True,
-            )
+        if (parent / "native").is_dir():
+            return roots_under(parent)
     return []
 
 
