@@ -38,7 +38,7 @@ FONTS_DIR = HERE / "fonts"
 THEMES_DIR = HERE / "themes"
 
 SPEAKERS = ("Priest", "People", "Together", "Leader", "Reader", "Deacon",
-            "Presider", "Celebrant", "Bishop")
+            "Presider", "Celebrant", "Bishop", "Family")
 
 NEUTRAL_BRAND = {
     "church": {
@@ -555,6 +555,12 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
         head = label or (f"Hymn {num}" if num else "")
     sub = esc(title) + (f' <span class="tune">({esc(tune)})</span>' if tune else "")
     imgs = hymn.get("images") or ([hymn["image"]] if hymn.get("image") else [])
+    # An optional church-chosen print width (inches) narrows the music, for
+    # example so a congregational setting fits beside the text before it.
+    try:
+        print_width = float(hymn.get("print_width") or 0) or None
+    except (TypeError, ValueError):
+        print_width = None
     if max_h is None:
         max_h = 8.2 if full_page else 5.2
     systems = []
@@ -564,6 +570,8 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
             # Inline music sits inside the modern theme's left-rail section,
             # so its usable width is the text column, not the full page.
             image_w = content_w if content_w is not None else (5.75 if not full_page else 7.3)
+            if print_width:
+                image_w = min(image_w, print_width)
             systems.append(sized_img(p, "hymn-img", content_w=image_w, max_h=max_h))
     if hymn.get("custom_text"):
         systems.append(f'<p class="rubric">{esc(hymn["custom_text"])}</p>')
@@ -573,7 +581,11 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
                  if head else "")
     composer_html = (f'<p class="hymn-composer">Composer: {esc(str(composer))}</p>'
                      if str(composer or "").strip() else "")
-    header = lead_in + head_html + f'<p class="hymn-title">{sub}</p>' + composer_html
+    # An optional posture or other instruction ("Please stand.") prints under
+    # the title, above the music.
+    rubric_html = (f'<p class="rubric">{esc(str(hymn["rubric"]))}</p>'
+                   if str(hymn.get("rubric") or "").strip() else "")
+    header = lead_in + head_html + f'<p class="hymn-title">{sub}</p>' + composer_html + rubric_html
     # Keep any caller-supplied lead-in (a subtitle and rubric, say) with the
     # heading and only the first system, all as one unit. A long piece's
     # later systems then flow across pages on their own, instead of the
@@ -1045,7 +1057,24 @@ def _announcement_images(entry, repo_root):
     return paths
 
 
-def announcements_block(cfg, brand, repo_root, include_qr=False):
+ANNOUNCEMENT_PLACEMENTS = ("back_page", "after_connect_give")
+
+
+def announcements_placement(cfg):
+    """Resolve where dated announcements print.
+
+    ``back_page`` is the long-standing default. ``after_connect_give``
+    prints them directly after the Connect and Give section instead, for a
+    church that wants them read during the offertory. Any other or missing
+    value keeps the default.
+    """
+    options = cfg.get("options") or {}
+    value = str(options.get("announcements_placement", "")).strip() if isinstance(options, dict) else ""
+    return value if value in ANNOUNCEMENT_PLACEMENTS else "back_page"
+
+
+def announcements_section(cfg, repo_root):
+    """Render the dated announcements as one section, or nothing."""
     items = cfg.get("announcements", [])
     lis_parts = []
     for a in items:
@@ -1087,6 +1116,13 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
             body = keep(title_html, text_html)
         lis_parts.append(f'<div class="announcement">{body}</div>')
     lis = "\n".join(lis_parts)
+    if not items:
+        return ""
+    return f'<div class="section">{section_head("Announcements")}{lis}</div>'
+
+
+def announcements_block(cfg, brand, repo_root, include_qr=False, include_items=True):
+    items = cfg.get("announcements", []) if include_items else []
     svc = cfg["service"]
     options = cfg.get("options", {}) or {}
     serving_enabled = options.get("include_serving_today") is True
@@ -1132,7 +1168,7 @@ def announcements_block(cfg, brand, repo_root, include_qr=False):
     # label beside it.
     sections = []
     if items:
-        sections.append(f'<div class="section">{section_head("Announcements")}{lis}</div>')
+        sections.append(announcements_section(cfg, repo_root))
     if include_qr:
         sections.append(qr_block(brand, repo_root))
     after_service = parish_information_block(cfg, "after_service")
@@ -1446,6 +1482,9 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
                                    default_unit="absolution" if standard_form_vi else "confession-of-sin"))
     parts.append(liturgy_steps(variant, "peace", ctx))
     parts.append(qr_block(brand, repo_root))
+    inline_announcements = announcements_placement(cfg) == "after_connect_give"
+    if inline_announcements:
+        parts.append(announcements_section(cfg, repo_root))
 
     parts.append(hymn_block("Offertory Anthem", music.get("offertory_anthem"), config_dir,
                             full_page=False))
@@ -1510,7 +1549,8 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     else:
         parts.append(dismissal_markup)
         closing = closing_hymn_markup + postlude_markup
-    back = announcements_block(cfg, brand, repo_root)
+    back = (announcements_block(cfg, brand, repo_root, include_items=False)
+            if inline_announcements else announcements_block(cfg, brand, repo_root))
     if can_merge_back_page(cfg, closing_hymn, back):
         parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')
     else:

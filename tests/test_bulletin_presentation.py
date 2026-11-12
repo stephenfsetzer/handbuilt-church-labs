@@ -11,6 +11,7 @@ from skills.bulletin.renderer.render_bulletin import (
     NEUTRAL_BRAND,
     doxology_block,
     gospel_block,
+    hymn_block,
     parse_liturgy,
     psalm_block,
     reading_block,
@@ -72,6 +73,28 @@ class BulletinPresentationTest(unittest.TestCase):
         self.assertNotIn("continued on another", html)
         self.assertNotIn("Weekly assignment", html)
         self.assertNotIn("&lt;!--", html)
+
+    def test_family_speaker_label_prints_for_baptism_answers(self):
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "baptism-presentation.md"
+            path.write_text("# Presentation\nPriest\tWill you by your prayers and witness help this child?\n"
+                            "**Family\tI will, with God's help.**\n", encoding="utf-8")
+            blocks = parse_liturgy(path)
+            html = render_blocks(blocks, {})
+        dialogue = [payload for kind, payload in blocks if kind == "dialogue"]
+        self.assertEqual([d["speaker"] for d in dialogue], ["Priest", "Family"])
+        self.assertTrue(dialogue[1]["bold"])
+        self.assertIn(">Family<", html)
+        self.assertIn("I will, with God", html)
+
+    def test_hymn_rubric_prints_above_the_music(self):
+        with TemporaryDirectory() as temp:
+            html = hymn_block("Entrance Hymn", {"number": 602, "title": "Jesu, Jesu",
+                                                "rubric": "Please stand.",
+                                                "custom_text": "Stanzas 1 to 3 only"}, Path(temp))
+        self.assertIn('<p class="rubric">Please stand.</p>', html)
+        self.assertLess(html.index("Jesu, Jesu"), html.index("Please stand."))
+        self.assertLess(html.index("Please stand."), html.index("Stanzas 1 to 3 only"))
 
     def test_cover_title_uses_resolved_service_without_internal_variant_label(self):
         cfg = {"liturgy": {"service_plan": "episcopal-rite-ii",

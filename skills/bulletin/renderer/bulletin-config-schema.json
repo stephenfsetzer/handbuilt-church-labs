@@ -78,6 +78,7 @@
       "properties": {
         "include_serving_today": {"type": "boolean", "default": false},
         "merge_back_page": {"type": "boolean", "default": false},
+        "announcements_placement": {"type": "string", "enum": ["back_page", "after_connect_give"], "default": "back_page"},
         "serving_roles": {"type": "array", "items": {"type": "string"}},
         "print_mode": {
           "type": "string",
@@ -168,6 +169,7 @@
         "images": {"type": "array", "items": {"type": "string"}},
         "image": {"type": "string"},
         "lyric_columns": {"type": "integer", "enum": [1, 2]},
+        "print_width": {"type": "number", "exclusiveMinimum": 0, "description": "Optional maximum printed width of the music images, in inches."},
         "lyrics": {
           "type": "array",
           "items": {
