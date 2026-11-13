@@ -346,8 +346,10 @@ Service keys are an operator's setup, not a pastor's. They live on the
 computer, never in the church folder: the environment (`OPENAI_API_KEY`,
 `GEMINI_API_KEY`, `RECRAFT_API_KEY`) or a key file in the Handbuilt support
 folder. `keys status` shows which services are set up without printing a
-key, and `keys set --provider <name>` reads a key from standard input for
-whoever looks after the computer. Explorations stay under staging as the
+key, and `keys set --provider <name>` reads a key as one pasted line for
+whoever looks after the computer: they paste it and press Enter, and nothing
+else. A key never goes into the chat. When someone offers one, say first that
+no key is needed and give the way forward without it. Explorations stay under staging as the
 record, and the chosen mark is always an editable SVG.
 
 ### Without an image service
