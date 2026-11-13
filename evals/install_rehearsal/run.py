@@ -183,6 +183,9 @@ def main(argv=None) -> int:
     # Act one: the pastor pastes the install request into a clean Claude.
     history, _stream, timed_out = converse(INSTALL_MESSAGE.format(source=args.source), INSTALL_PERSONA, run, "install",
                                            env, args.model, args.judge_model, timeout=1500, exchanges=6)
+    if re.search(r"(?i)failed to authenticate|invalid bearer token|not logged in", history[-1]["text"]):
+        print("Claude rejected the credential, so nothing was rehearsed:", history[-1]["text"][:200])
+        return 2
     install_checks = grade_install(run, env, history)
     install_judge = J.rubric_judge("Grade this message an assistant left for a pastor after installing a plugin for them.",
                                    INSTALL_RUBRIC, history[-1]["text"], INSTALL_CONTEXT, args.judge_model, run)

@@ -52,6 +52,20 @@ jobs:
           npm install -g @anthropic-ai/claude-code
           claude --version
 
+      - name: Check that Claude accepts the credential
+        run: |
+          export CLAUDE_CONFIG_DIR="$RUNNER_TEMP/credential check"
+          if ! claude -p "Reply with the single word OK." --max-turns 1 > "$RUNNER_TEMP/credential.txt" 2>&1; then
+            echo "::error::Claude rejected the credential in CLAUDE_CODE_OAUTH_TOKEN. Create a new token with 'claude setup-token' and set the secret again."
+            head -c 300 "$RUNNER_TEMP/credential.txt"
+            exit 1
+          fi
+          if grep -qi "authenticate\|401\|not logged in" "$RUNNER_TEMP/credential.txt"; then
+            echo "::error::Claude rejected the credential in CLAUDE_CODE_OAUTH_TOKEN. Create a new token with 'claude setup-token' and set the secret again."
+            exit 1
+          fi
+          echo "Claude accepted the credential."
+
       - name: Use the line-ending setting Git for Windows installs with
         if: runner.os == 'Windows'
         run: git config --global core.autocrlf true
