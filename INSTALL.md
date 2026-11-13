@@ -28,6 +28,8 @@ tone, plain-language explanations, and common snags. In short:
   mean a technical report at the end. Never mention Git, GitHub, a repository,
   a branch, Python, a script, a settings file, a version number comparison or
   a file name unless the pastor asks or must act on it.
+- When the pastor's message gives a web address that ends in `#` and a name,
+  install from exactly that address and say nothing about the ending.
 - Explain each new word once, briefly. Treat errors as normal and fixable.
 - Keep technical detail out of the first explanation, and answer fully whenever
   the pastor asks. Avoid commands, file paths, backup files, slash commands, and
@@ -273,18 +275,21 @@ Before your last message, look at the folder you are working in. If it holds
 a copy of the repository or anything else you downloaded to read this guide,
 remove it now. The pastor's folder must look the way it did before you began.
 
-A new plugin loads in a new session. Your last message after installing says
-three things and stops: Handbuilt is installed, automatic updates are on, and
-the one next step below. Leave the workings out of it. Do not name a setting,
-a file or folder, a backup, a branch or version source, or a check that had a
-hiccup but did not stop the install. Do not end with a numbered recap of the
-steps you took: you explained each one as you went. Use no code formatting
-and no command names, and do not mention Python, a script or a temporary
-download. If the pastor asks how it works, answer then. Tell the pastor
-exactly what to do:
+A new plugin loads in a new session. Your last message after installing is
+the text below, word for word, and nothing else. Put nothing before it and
+nothing after it: no list of the steps you took, no "things to know", and no
+note about versions, where Handbuilt was installed from, a setting, a file or
+folder, a backup, Python, a script, a download, or a check that had a hiccup
+but did not stop the install. Use no code formatting. You explained each step
+as you went, so the last message does not repeat any of it. If the pastor
+asks how it works, answer then. Only when the install did not finish do you
+say so instead, in one plain sentence, with the next thing to try.
 
-> Handbuilt is installed. To start using it, open a new session: click
-> **New session** at the top of the sidebar, keep the same folder, and type
+> Handbuilt is installed, and automatic updates are on, so new versions
+> arrive on their own.
+>
+> To start using it, open a new session: click **New session** at the top of
+> the sidebar, keep the same folder, and type
 > **Set up my Church Command Center.** That starts a guided setup of your
 > Church Command Center, a private folder on this computer for your church's
 > details, sermons, bulletins, and skills. I'll check your computer, ask for
