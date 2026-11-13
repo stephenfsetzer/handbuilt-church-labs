@@ -1541,6 +1541,11 @@ def _stage_effective_brand(
             printed["public_name"] = printed.get("name", "")
         services = identity.get("regular_services")
         if isinstance(services, list) and services:
+            # The back cover's church panel lists every regular service.
+            printed["regular_services"] = [
+                {key: str(service.get(key) or "") for key in ("day", "time", "label")}
+                for service in services if isinstance(service, dict)
+            ]
             printed["service_time"] = (
                 str(services[0].get("time") or "")
                 if len(services) == 1 and isinstance(services[0], dict) else ""

@@ -1207,6 +1207,44 @@ def announcements_section(cfg, repo_root, template=None):
     return f'<div class="section">{section_head("Announcements")}{lis}</div>'
 
 
+def church_panel(brand):
+    """Say who the church is and when it worships, for a back cover with nothing else on it.
+
+    A new church often has no announcements, welcome text or roster yet. Its
+    back cover would print blank, which a folded booklet cannot carry. This
+    panel uses only what the church has already saved.
+    """
+    church = brand.get("church", {}) or {}
+    contact = bulletin_footer(brand)
+    name = str(church.get("public_name") or church.get("name") or contact["contact_name"] or "").strip()
+
+    def row(label, value):
+        return (f'<div class="dialogue"><span class="speaker">{esc(label)}</span>'
+                f'<span class="line">{esc(value)}</span></div>')
+
+    services = []
+    for service in church.get("regular_services") or []:
+        if not isinstance(service, dict):
+            continue
+        day, time, label = (str(service.get(key) or "").strip() for key in ("day", "time", "label"))
+        detail = "  \N{MIDDLE DOT}  ".join(part for part in (time, label) if part)
+        if day or detail:
+            services.append(row(day, detail))
+    find_us = [row(label, str(contact[key]).strip())
+               for label, key in (("Address", "address"), ("Phone", "phone"), ("Email", "email"),
+                                  ("Online", "website"))
+               if str(contact[key] or "").strip()]
+    if not (name or services or find_us):
+        return ""
+    parts = []
+    if services:
+        parts.append(keep(section_head("Worship with Us"), *services))
+    if find_us:
+        parts.append(keep(section_head("Find Us"), *find_us))
+    title = f'<p class="ann-title">{esc(name)}</p>' if name else ""
+    return f'<div class="section church-panel">{title}{"".join(parts)}</div>'
+
+
 def announcements_block(cfg, brand, repo_root, include_qr=False, include_items=True,
                         template=None):
     items = cfg.get("announcements", []) if include_items else []
@@ -1266,6 +1304,10 @@ def announcements_block(cfg, brand, repo_root, include_qr=False, include_items=T
     directory = leadership_directory_block(brand)
     if directory:
         sections.append(directory)
+    if not sections:
+        panel = church_panel(brand)
+        if panel:
+            sections.append(panel)
     roster = leadership_block(brand)
     footline = footer_line(brand, escaped=True)
     roster = (f'<div class="bp-running">{roster}'
