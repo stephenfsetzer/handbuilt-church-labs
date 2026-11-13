@@ -361,8 +361,10 @@ the Lord's Prayer in traditional words, "Glory to you, Lord Christ", the closing
 which lectionary track, how the psalm is divided, or how optional verses are handled; asking each of those once is
 correct. The pastor sent no bulletin file and asked to use the sample order of service. The pastor confirmed 10:30 is
 current, chose Eucharistic Prayer B, whole-verse psalm with the leader first, RCL Track 2, NRSV, appointed optional
-verses, Gospel preaching, no logo, neutral colors, and no QR codes for now. The pastor left undecided: Classic or Modern
-look, a leadership or vestry list, the choir's music setting, research preferences. The pastor wants setup only today.
+verses and Gospel preaching. When asked about the look, the pastor chooses no logo, neutral colors and no QR codes for
+now; if the assistant never asked, those are still open and saying so is correct. The pastor left undecided: Classic or
+Modern look, a leadership or vestry list, the choir's music setting, research preferences, and whether to print a
+doxology, which is a standing choice the setup tracks. The pastor wants setup only today.
 Three regular services are correct: Sunday 8:00 AM, Sunday 10:30 AM and Wednesday 12:00 PM. Naming the church folder
 or its setup record file (ONBOARDING.md) is telling the pastor where things are, not technical workings."""
 

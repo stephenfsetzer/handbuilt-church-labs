@@ -81,8 +81,8 @@ read back the answer in plain language, then batch and verify the update.
 Report the pastor-facing result, not an internal
 file inventory.
 
-Ask no more than three questions in one turn (prefer none when sources answer
-them); ask further open choices after the pastor answers, never all at once. Use one question for an unfamiliar or consequential choice.
+Ask no more than three questions in one turn (prefer none when sources answer them), counting each thing the
+pastor must answer, not the numbers on a list; ask the rest after they answer. Say each choice in plain words, not only its letter. Never ask again what a source settled.
 “Later,” “not sure,” “unknown,” and “not applicable” are valid; require no magic confirmation phrase.
 
 ## Runtime gate
@@ -154,12 +154,12 @@ candidate is not a confirmed standing setting.
 ## Identity and private folder
 
 Use website findings to propose the formal name, short name, tradition, city,
-address, website, and regular services. Bundle the proposed identity, folder
-name, location, and any conflicts into one confirmation. Do not confirm each
-website field in a separate turn. Read back the exact folder name and location
-before creating it.
+address, website, and regular services. Bundle the identity, folder name,
+location, conflicts and the look into one confirmation, not a turn each. With
+no logo or colors on the website, the look to confirm is "neutral colors and
+no logo for now"; save the answer, never leave it for the first bulletin.
 
-The default location is the Desktop. Say what will happen:
+The default location is the Desktop. Read back the exact folder name and location, and say what will happen:
 
 > I have the folder name as “...” and the location as “...”. I’ll create that
 > private folder now. It will contain a visible onboarding record showing what
