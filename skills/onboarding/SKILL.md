@@ -219,7 +219,7 @@ When a setup value must be saved or changed, use the skill's
 small named patch, and writes only standing settings the bulletin and sermon
 workflows already consume; it refuses paths inside the Labs repository,
 either plugin cache, or a symlink into those locations. `status` reports
-actual folder, bulletin, sermon, and first-result readiness from the files.
+actual folder, bulletin, sermon, and first-result readiness from the files. Write every patch file inside the church folder (`<church-folder>/.onboarding-standing-patch.json`), never anywhere else on the computer, and remove it once its values are saved.
 Use `--scope standing` for church defaults and `--scope service --service-id
 <id>` for a saved service's usual choices. See the service-design reference
 for previews, affected services, and stale-update protection. Keep dated

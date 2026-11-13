@@ -326,6 +326,11 @@ remain required, and both lesson flags cannot be false.
 | Usual reading practice | `lectionary` and `sermon.selection_mode` / `sermon.primary_text` |
 | Reusable layout | `bulletin.template`: `classic` or `modern` |
 
+Write the patch inside the church folder, as
+`<church-folder>/.onboarding-standing-patch.json`, the same file the identity
+stage uses. Never write a working file anywhere else on the computer, and
+remove the patch once its values are saved.
+
 These are keys in the setup helper's standing patch. Its `worship_profile`
 object updates the existing worship file; it does not change the file pointer.
 Set `worship_profile.status` to `confirmed` after the pastor has supplied or
