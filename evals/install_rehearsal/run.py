@@ -174,6 +174,12 @@ def grade_install(run: Path, env: dict, history: list[dict]) -> list[dict]:
     said = "\n".join(t["text"] for t in history if t["who"] == "assistant")
     check(out, "never_told_to_install_python", not re.search(r"(?i)\b(install|download)\b[^.\n]{0,40}\bpython\b[^.\n]{0,40}\b(yourself|you'?ll need|please|python\.org)", said), "")
     check(out, "final_message_present", bool(history[-1]["text"].strip()) if history else False, "")
+    # INSTALL.md limits the last message to three plain things. A recap of the workings
+    # is what a pastor on camera should never have to read.
+    last = history[-1]["text"] if history else ""
+    workings = sorted(set(m.lower() for m in re.findall(
+        r"(?i)`[^`]+`|settings\.json|\bbranch\b|\bpython\b|\bscript\b|\bgithub\b|\brepository\b|\bbackup\b", last)))
+    check(out, "last_message_leaves_out_the_workings", not workings, ", ".join(workings)[:200])
     return out
 
 
