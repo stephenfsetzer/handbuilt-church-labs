@@ -36,8 +36,9 @@ tone, plain-language explanations, and common snags. In short:
 - Never ask for a password in chat, and never change settings beyond this
   page without a yes.
 - Read this file where it is, on the web or in the installed plugin. If you
-  download a copy of the repository to read it, use a temporary folder and
-  remove it when you finish. Leave nothing new in the pastor's folders.
+  download a copy of the repository to read it, put it in the computer's own
+  temporary folder, never in the folder you are working in, and remove it
+  when you finish. Leave nothing new in the pastor's folders.
 
 Open with a short welcome, for example:
 
@@ -267,6 +268,10 @@ If it is not ready and you cannot fix it, write the short email described
 under "If something goes wrong" for the pastor to send.
 
 ## 4. Hand off to church setup
+
+Before your last message, look at the folder you are working in. If it holds
+a copy of the repository or anything else you downloaded to read this guide,
+remove it now. The pastor's folder must look the way it did before you began.
 
 A new plugin loads in a new session. Your last message after installing says
 three things and stops: Handbuilt is installed, automatic updates are on, and

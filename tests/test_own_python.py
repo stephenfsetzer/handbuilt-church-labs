@@ -404,6 +404,11 @@ class Instructions(unittest.TestCase):
                     offenders.append(f"{path.relative_to(ROOT)}:{number}")
         self.assertEqual(offenders, [], "use handbuilt-python; a pastor's computer may have no Python")
 
+    def test_the_install_guide_has_the_agent_clean_up_before_it_finishes(self):
+        text = " ".join((ROOT / "INSTALL.md").read_text(encoding="utf-8").split())
+        self.assertIn("never in the folder you are working in", text)
+        self.assertIn("Before your last message, look at the folder you are working in", text)
+
     def test_the_install_guide_covers_what_stopped_the_first_bootcamp(self):
         install = (ROOT / "INSTALL.md").read_text(encoding="utf-8")
         for needed in ("Do not install Python", "**File**, then **Exit**", "has not loaded Handbuilt yet"):
