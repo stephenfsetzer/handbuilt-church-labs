@@ -15,7 +15,7 @@ from tools import handbuilt_runtime as runtime
 
 WHEEL_BYTES = b"synthetic verified pip wheel bytes"
 REQUIREMENTS = """weasyprint==70.0
-pypdf==6.21.2
+pypdf==6.21.4
 Pillow==13.0.0
 PyYAML==6.0.3
 qrcode[pil]==8.2

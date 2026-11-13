@@ -230,6 +230,35 @@ workflow updates each time church work starts. See
 [managed workflow updates](handbook/workflow-updates.md). Both keep the
 church's own settings and files.
 
+## 3b. Check that this computer is ready
+
+A pastor may be asked to check their computer before a class or a working
+session, with a message such as: "Check that Handbuilt Church Labs is ready
+on this computer." Do the checking yourself and report in plain words.
+
+1. Confirm the plugin is installed and enabled. If it is not, install it
+   (section 2).
+2. Run `status` (section 3). Turn updates on if they are off, and update if
+   the installed version is behind the latest release.
+3. Run the workspace check, and prepare what is missing:
+
+   ```bash
+   "<plugin-root>/bin/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
+   ```
+
+   If it is not `ready`, run `setup` and check again. Handbuilt fetches its
+   own tools; the pastor installs nothing.
+4. Reply with three short lines (the version installed, whether updates are
+   on, whether the computer is prepared) and end with exactly one of these
+   sentences, so the pastor can pass it on:
+
+   > This computer is ready for Handbuilt.
+
+   > This computer is not ready yet: (one plain reason).
+
+If it is not ready and you cannot fix it, write the short email described
+under "If something goes wrong" for the pastor to send.
+
 ## 4. Hand off to church setup
 
 A new plugin loads in a new session. Tell the pastor exactly what to do:

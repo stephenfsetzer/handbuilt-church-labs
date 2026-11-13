@@ -87,12 +87,12 @@ jobs:
           import os, sys
           from pathlib import Path
           source, target = Path(sys.argv[1]), Path(sys.argv[2])
-          secret = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or ""
+          hidden = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or ""
           for path in [source / "result.json", *sorted(source.glob("*-conversation.md"))]:
               if path.is_file():
                   text = path.read_text(encoding="utf-8", errors="replace")
-                  if secret:
-                      text = text.replace(secret, "[credential removed]")
+                  if hidden:
+                      text = text.replace(hidden, "[credential removed]")
                   (target / path.name).write_text(text, encoding="utf-8")
           PY
 

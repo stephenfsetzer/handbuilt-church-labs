@@ -18,8 +18,8 @@ Primary sources:
   https://pypi.org/project/setuptools/84.1.0/
 - Pillow 13.0.0 release metadata:
   https://pypi.org/project/Pillow/13.0.0/
-- pypdf 6.21.2 release metadata:
-  https://pypi.org/project/pypdf/6.21.2/
+- pypdf 6.21.4 release metadata:
+  https://pypi.org/project/pypdf/6.21.4/
 - Brotli 1.2.1 release metadata:
   https://pypi.org/project/Brotli/1.2.1/
 - PyYAML 6.0.3 release metadata and platform wheel files:

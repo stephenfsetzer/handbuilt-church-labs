@@ -1,7 +1,7 @@
 # Versions are resolved against PyPI and checked by the runtime doctor.
 # Keep pip inside the managed venv so setup never writes to global site-packages.
 weasyprint==70.0
-pypdf==6.21.2
+pypdf==6.21.4
 Pillow==13.0.0
 PyYAML==6.0.3
 qrcode[pil]==8.2
