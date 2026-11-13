@@ -39,8 +39,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
                 "prayers_of_the_people": "custom",
                 "doxology": "custom",
                 "sources": {
-                    "prayers_of_the_people": str(prayers.relative_to(church)),
-                    "doxology": str(doxology.relative_to(church)),
+                    "prayers_of_the_people": prayers.relative_to(church).as_posix(),
+                    "doxology": doxology.relative_to(church).as_posix(),
                 },
             }}
             stage = church / "stage"
@@ -52,8 +52,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             self.assertNotEqual(files["prayers_of_the_people"], files["doxology"])
             self.assertTrue(files["prayers_of_the_people"].startswith("church-prayers_of_the_people-"))
             self.assertTrue(files["doxology"].startswith("church-doxology-"))
-            self.assertIn("Field prayers unique text.", (staged / f'{files["prayers_of_the_people"]}.md').read_text())
-            self.assertIn("Field doxology unique text.", (staged / f'{files["doxology"]}.md').read_text())
+            self.assertIn("Field prayers unique text.", (staged / f'{files["prayers_of_the_people"]}.md').read_text(encoding="utf-8"))
+            self.assertIn("Field doxology unique text.", (staged / f'{files["doxology"]}.md').read_text(encoding="utf-8"))
             self.assertEqual(prayers.read_bytes(), original_prayers)
             self.assertEqual(doxology.read_bytes(), original_doxology)
 
@@ -70,8 +70,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             )
             bulletin = {"liturgy": {
                 "prayers_of_the_people": "III",
-                "sources": {"prayers_of_the_people": str(generated.relative_to(church))},
-                "files": {"prayers-of-the-people": str(explicit.relative_to(church))},
+                "sources": {"prayers_of_the_people": generated.relative_to(church).as_posix()},
+                "files": {"prayers-of-the-people": explicit.relative_to(church).as_posix()},
             }}
             stage = church / "stage"
             stage.mkdir()
@@ -80,8 +80,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             self.assertIsNotNone(staged)
             files = bulletin["liturgy"]["files"]
             self.assertNotEqual(files["prayers_of_the_people"], files["prayers-of-the-people"])
-            self.assertIn("Generated field text.", (staged / f'{files["prayers_of_the_people"]}.md').read_text())
-            self.assertIn("Explicit unit text.", (staged / f'{files["prayers-of-the-people"]}.md').read_text())
+            self.assertIn("Generated field text.", (staged / f'{files["prayers_of_the_people"]}.md').read_text(encoding="utf-8"))
+            self.assertIn("Explicit unit text.", (staged / f'{files["prayers-of-the-people"]}.md').read_text(encoding="utf-8"))
 
     def test_sanitized_logical_keys_cannot_collide_in_staging(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -89,8 +89,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             first = self._source(church, "first.md", "# First\n\nFirst text.\n")
             second = self._source(church, "second.md", "# Second\n\nSecond text.\n")
             bulletin = {"liturgy": {"files": {
-                "field/one": str(first.relative_to(church)),
-                "field:one": str(second.relative_to(church)),
+                "field/one": first.relative_to(church).as_posix(),
+                "field:one": second.relative_to(church).as_posix(),
             }}}
             stage = church / "stage"
             stage.mkdir()
@@ -99,8 +99,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             self.assertIsNotNone(staged)
             files = bulletin["liturgy"]["files"]
             self.assertNotEqual(files["field/one"], files["field:one"])
-            self.assertIn("First text.", (staged / f'{files["field/one"]}.md').read_text())
-            self.assertIn("Second text.", (staged / f'{files["field:one"]}.md').read_text())
+            self.assertIn("First text.", (staged / f'{files["field/one"]}.md').read_text(encoding="utf-8"))
+            self.assertIn("Second text.", (staged / f'{files["field:one"]}.md').read_text(encoding="utf-8"))
 
     def test_custom_prayers_and_doxology_render_once_in_html_and_pdf(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -117,8 +117,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             profile_path = church / "worship" / "profile.yaml"
             profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
             profile["sources"].update({
-                "prayers_of_the_people": str(prayers.relative_to(church)),
-                "doxology": str(doxology.relative_to(church)),
+                "prayers_of_the_people": prayers.relative_to(church).as_posix(),
+                "doxology": doxology.relative_to(church).as_posix(),
             })
             profile_path.write_text(yaml.safe_dump(profile), encoding="utf-8")
             request = bulletin_input()
@@ -135,8 +135,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
                 self.assertLess(rendered.index("Custom prayers appear once."), rendered.index("Custom doxology appears once."))
 
             source_config = json.loads((folder / "bulletin-config.json").read_text(encoding="utf-8"))
-            self.assertEqual(source_config["liturgy"]["sources"]["prayers_of_the_people"], str(prayers.relative_to(church)))
-            self.assertEqual(source_config["liturgy"]["sources"]["doxology"], str(doxology.relative_to(church)))
+            self.assertEqual(source_config["liturgy"]["sources"]["prayers_of_the_people"], prayers.relative_to(church).as_posix())
+            self.assertEqual(source_config["liturgy"]["sources"]["doxology"], doxology.relative_to(church).as_posix())
 
     def test_profile_communion_welcome_prints_without_a_default_and_persists_next_week(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -148,7 +148,7 @@ class BulletinFieldSourceTest(unittest.TestCase):
             )
             profile_path = church / "worship" / "profile.yaml"
             profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
-            profile["sources"]["communion_welcome"] = str(welcome.relative_to(church))
+            profile["sources"]["communion_welcome"] = welcome.relative_to(church).as_posix()
             profile_path.write_text(yaml.safe_dump(profile), encoding="utf-8")
 
             first = bulletin_input()

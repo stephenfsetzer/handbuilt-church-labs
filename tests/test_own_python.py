@@ -286,7 +286,9 @@ class WorksOnWindows(unittest.TestCase):
     """Windows differs from a Mac in ways that stopped real work. Each is pinned here."""
 
     def product_files(self):
-        for base in ("skills", "tools", "scaffold"):
+        # Tests and evals count too: a test that reads text the Mac way fails on
+        # Windows and hides whether the product works there.
+        for base in ("skills", "tools", "scaffold", "tests", "evals"):
             yield from (ROOT / base).rglob("*.py")
 
     def test_every_text_file_is_read_and_written_as_utf8(self):
@@ -306,12 +308,14 @@ class WorksOnWindows(unittest.TestCase):
                 if (name == "read_text" and not node.args) or (name == "write_text" and len(node.args) == 1):
                     offenders.append(f"{path.relative_to(ROOT)}:{node.lineno} {name}")
             for number, line in enumerate(source.splitlines(), start=1):
+                if path == Path(__file__).resolve():
+                    break  # this file names the pattern it looks for
                 if "text=True" in line and "mkstemp" not in line and "encoding=" not in line:
                     offenders.append(f"{path.relative_to(ROOT)}:{number} text=True")
         self.assertEqual(offenders, [], "name the encoding: encoding=\"utf-8\"")
 
     def test_dates_do_not_use_a_format_windows_lacks(self):
-        offenders = [str(path.relative_to(ROOT)) for path in self.product_files()
+        offenders = [path.relative_to(ROOT).as_posix() for path in self.product_files()
                      if re.search(r"strftime\([^)]*%-", path.read_text(encoding="utf-8"))]
         self.assertEqual(offenders, [], "\"%-d\" fails on Windows; build the date from its parts")
 
@@ -349,6 +353,8 @@ class WorksOnWindows(unittest.TestCase):
         """Every bulletin on Windows was refused: its fonts 'could not be found'."""
         offenders = []
         for path in self.product_files():
+            if path == Path(__file__).resolve():
+                continue  # this file names the pattern it looks for
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                 # urlparse("file:///C:/x").path is "/C:/x", which is not a Windows path.
                 if re.search(r"Path\(unquote\(urlparse\(", line) or "[7:]" in line and "file://" in line:
@@ -363,6 +369,20 @@ class WorksOnWindows(unittest.TestCase):
             (Path(temp) / "picture.png").write_bytes(b"x")
             self.assertEqual(print_layout.missing_assets('<img src="picture.png">', base_url=Path(temp).resolve().as_uri()), [])
             self.assertEqual(len(print_layout.missing_assets('<img src="gone.png">', base_url=Path(temp).resolve().as_uri())), 1)
+
+    def test_recorded_paths_use_forward_slashes(self):
+        # A church folder may be opened on a Mac and on Windows. A path saved in a
+        # receipt as "brand\\guide.pdf" on one does not match on the other.
+        import ast
+        offenders = []
+        for base in ("skills", "tools", "scaffold", "evals", "tests"):
+            for path in (ROOT / base).rglob("*.py"):
+                for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "str"
+                            and len(node.args) == 1 and isinstance(node.args[0], ast.Call)
+                            and isinstance(node.args[0].func, ast.Attribute) and node.args[0].func.attr == "relative_to"):
+                        offenders.append(f"{path.relative_to(ROOT).as_posix()}:{node.lineno}")
+        self.assertEqual(offenders, [], "write it as path.relative_to(root).as_posix()")
 
     def test_both_launchers_start_python_in_utf8_mode(self):
         self.assertIn('exec "$py" -X utf8 "$@"', SHELL_LAUNCHER.read_text(encoding="utf-8"))
@@ -383,6 +403,11 @@ class Instructions(unittest.TestCase):
                 if re.match(r"\s*(\$ )?python3? ", line) or "`python3 " in line:
                     offenders.append(f"{path.relative_to(ROOT)}:{number}")
         self.assertEqual(offenders, [], "use handbuilt-python; a pastor's computer may have no Python")
+
+    def test_the_install_guide_has_the_agent_clean_up_before_it_finishes(self):
+        text = " ".join((ROOT / "INSTALL.md").read_text(encoding="utf-8").split())
+        self.assertIn("never in the folder you are working in", text)
+        self.assertIn("Before your last message, look at the folder you are working in", text)
 
     def test_the_install_guide_covers_what_stopped_the_first_bootcamp(self):
         install = (ROOT / "INSTALL.md").read_text(encoding="utf-8")

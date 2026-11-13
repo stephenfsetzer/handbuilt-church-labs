@@ -104,7 +104,7 @@ class BulletinRevisionTest(unittest.TestCase):
                     raise interface.StageFailure("render_failed", "render", "synthetic render failure")
                 return fake_run(command, stage=stage, env=env, reject_warnings=reject_warnings)
 
-            with patch.multiple(interface, _load_church_configuration=lambda root: ({}, json.loads((church / "brand.json").read_text())), _run=fail_render, _quality_gate=lambda *args: []):
+            with patch.multiple(interface, _load_church_configuration=lambda root: ({}, json.loads((church / "brand.json").read_text(encoding="utf-8"))), _run=fail_render, _quality_gate=lambda *args: []):
                 failed = revise(church, prior_receipt, {"announcements": [{"title": "Changed", "text": "Changed."}]})
             self.assertEqual(failed["status"], "blocked")
             self.assertEqual(failed["errors"][0]["code"], "render_failed")

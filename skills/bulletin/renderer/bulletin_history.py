@@ -147,7 +147,7 @@ def cmd_backfill():
         if d in log:
             continue  # rendered entries and earlier backfills win
         entry["templates"] = {}
-        entry["backfilled_from"] = str(cfg_path.relative_to(WEEKLY))
+        entry["backfilled_from"] = cfg_path.relative_to(WEEKLY).as_posix()
         log[d] = entry
         added += 1
     ordered = {k: log[k] for k in sorted(log)}

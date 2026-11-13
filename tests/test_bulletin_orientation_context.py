@@ -18,7 +18,7 @@ class BulletinOrientationContextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             church = make_church(Path(temporary))
             config_path = church / "church.yaml"
-            config = yaml.safe_load(config_path.read_text())
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             roster = [
                 {"name": "The Rev. Morgan Example", "role": "Rector"},
                 {"name": "The Rev. Avery Example", "role": "Associate Rector"},
@@ -26,7 +26,7 @@ class BulletinOrientationContextTest(unittest.TestCase):
             config["leadership"] = {"clergy_and_staff": roster, "print_in_bulletin": False}
             config["bulletin"] = {"template": "modern", "serving_roles": ["Reader"]}
             config["people"]["celebrant"] = "A past standing value"
-            config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+            config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
             before = {path: path.read_bytes() for path in church.rglob("*") if path.is_file()}
 
             result = orient(church, "2026-09-20")
@@ -44,13 +44,13 @@ class BulletinOrientationContextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             church = make_church(Path(temporary))
             path = church / "church.yaml"
-            config = yaml.safe_load(path.read_text())
+            config = yaml.safe_load(path.read_text(encoding="utf-8"))
             config["bulletin"] = {"template": "modern"}
             config["church"]["name"] = "Synthetic Harbor Parish"
             config["church"]["regular_services"] = [{"day": "Sunday", "time": "10:30 am"}]
-            path.write_text(yaml.safe_dump(config))
+            path.write_text(yaml.safe_dump(config), encoding="utf-8")
             old = {"2026-09-13": {"templates": {"classic": {}}, "preacher": "A previous preacher"}}
-            (church / "bulletins" / "bulletin-log.json").write_text(json.dumps(copy.deepcopy(old)))
+            (church / "bulletins" / "bulletin-log.json").write_text(json.dumps(copy.deepcopy(old)), encoding="utf-8")
 
             result = orient(church, "2026-09-20")
 
@@ -62,9 +62,9 @@ class BulletinOrientationContextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             church = make_church(Path(temporary))
             path = church / "church.yaml"
-            config = yaml.safe_load(path.read_text())
+            config = yaml.safe_load(path.read_text(encoding="utf-8"))
             config["worship_profile"] = "../outside-profile.yaml"
-            path.write_text(yaml.safe_dump(config))
+            path.write_text(yaml.safe_dump(config), encoding="utf-8")
             result = orient(church, "2026-09-20")
             self.assertEqual(result["status"], "blocked")
             self.assertEqual(result["errors"][0]["code"], "unsafe_path")
@@ -73,11 +73,11 @@ class BulletinOrientationContextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             church = make_church(Path(temporary))
             path = church / "church.yaml"
-            config = yaml.safe_load(path.read_text())
+            config = yaml.safe_load(path.read_text(encoding="utf-8"))
             config["bulletin"] = {"template": "modern"}
             config["church"]["name"] = "Synthetic Harbor Parish"
             config["church"]["regular_services"] = [{"day": "Sunday", "time": "10:30 am"}]
-            path.write_text(yaml.safe_dump(config))
+            path.write_text(yaml.safe_dump(config), encoding="utf-8")
             before = path.read_bytes()
             weekly = bulletin_input()
             del weekly["template"]

@@ -19,31 +19,31 @@ class LiturgySourceVerificationTest(unittest.TestCase):
         self.church = make_church(Path(self.temp.name))
         self.text = self.church / 'worship/liturgy/local.md'
         self.text.parent.mkdir(parents=True, exist_ok=True)
-        self.text.write_text('# Local Prayer\n\nCelebrant\tSynthetic first prayer.\n')
+        self.text.write_text('# Local Prayer\n\nCelebrant\tSynthetic first prayer.\n', encoding="utf-8")
 
     def test_missing_and_stale_evidence_block_before_render(self):
         request = bulletin_input()
-        request['liturgy']['files'] = {'blessing': str(self.text.relative_to(self.church))}
+        request['liturgy']['files'] = {'blessing': self.text.relative_to(self.church).as_posix()}
         with patch('skills.bulletin.bulletin_production.interface._run') as render:
             result = produce(self.church, request)
             self.assertEqual(result['errors'][0]['code'], 'unverified_liturgy_source')
             render.assert_not_called()
-        ok, reason = _private_source_status(str(self.text.relative_to(self.church)), choice='prayer', church_root=self.church, field='liturgy.sources.prayer')
+        ok, reason = _private_source_status(self.text.relative_to(self.church).as_posix(), choice='prayer', church_root=self.church, field='liturgy.sources.prayer')
         self.assertFalse(ok)
         self.assertIn('record', reason)
         verify_liturgy_source(self.church, self.text)
         self.assertEqual(inspect_source(self.church, self.text)['status'], 'verified')
-        self.text.write_text('Changed after verification.')
+        self.text.write_text('Changed after verification.', encoding="utf-8")
         result = produce(self.church, request)
         self.assertEqual(result['errors'][0]['code'], 'unverified_liturgy_source')
 
     def test_public_record_binds_original_and_formatted_text(self):
         original = self.church / 'worship/original.txt'
-        original.write_text('Synthetic original source.')
+        original.write_text('Synthetic original source.', encoding="utf-8")
         args = dict(source_file=original, label='Synthetic source', location='https://source.invalid/prayer', verified_on='2026-09-08', method='public_source')
         record_source(self.church, self.text, **args)
         self.assertEqual(inspect_source(self.church, self.text)['status'], 'verified')
-        original.write_text('Changed original.')
+        original.write_text('Changed original.', encoding="utf-8")
         self.assertEqual(inspect_source(self.church, self.text)['status'], 'needs_input')
         with self.assertRaises(LiturgySourceError):
             record_source(self.church, self.text, **{**args, 'source_file': self.text})
@@ -52,15 +52,15 @@ class LiturgySourceVerificationTest(unittest.TestCase):
 
     def test_shipped_name_shadow_and_tampered_record_cannot_bypass(self):
         shadow = self.church / 'doxology'
-        shadow.write_text('Unverified local shadow.')
+        shadow.write_text('Unverified local shadow.', encoding="utf-8")
         request = bulletin_input()
         request['liturgy'].update(doxology='custom', sources={'doxology': 'doxology'})
         self.assertEqual(produce(self.church, request)['errors'][0]['code'], 'unverified_liturgy_source')
         verify_liturgy_source(self.church, self.text)
         record_path = Path(str(self.text) + '.source.json')
-        record = json.loads(record_path.read_text())
+        record = json.loads(record_path.read_text(encoding="utf-8"))
         record['source']['path'] = '../outside.txt'
-        record_path.write_text(json.dumps(record))
+        record_path.write_text(json.dumps(record), encoding="utf-8")
         self.assertEqual(inspect_source(self.church, self.text)['status'], 'needs_input')
 
     def test_inactive_doxology_source_does_not_block_a_weekly_omission(self):
@@ -74,15 +74,15 @@ class LiturgySourceVerificationTest(unittest.TestCase):
         renderer = Path(self.temp.name) / 'renderer'
         (renderer / 'liturgy').mkdir(parents=True)
         shipped = renderer / 'liturgy/doxology.md'
-        shipped.write_text('First synthetic public source.')
+        shipped.write_text('First synthetic public source.', encoding="utf-8")
         with patch('skills.bulletin.bulletin_production.interface._renderer_dir', return_value=renderer):
             before = _authority_fingerprint(self.church, bulletin_input())
-            shipped.write_text('Changed synthetic public source.')
+            shipped.write_text('Changed synthetic public source.', encoding="utf-8")
             self.assertNotEqual(before, _authority_fingerprint(self.church, bulletin_input()))
 
     def test_record_refuses_paths_outside_private_church(self):
         outside = Path(self.temp.name) / 'outside.txt'
-        outside.write_text('Outside source.')
+        outside.write_text('Outside source.', encoding="utf-8")
         with self.assertRaises(LiturgySourceError):
             verify_liturgy_source(self.church, outside)
 

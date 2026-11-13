@@ -15,7 +15,7 @@ from tools import handbuilt_runtime as runtime
 
 WHEEL_BYTES = b"synthetic verified pip wheel bytes"
 REQUIREMENTS = """weasyprint==70.0
-pypdf==6.21.2
+pypdf==6.21.4
 Pillow==13.0.0
 PyYAML==6.0.3
 qrcode[pil]==8.2
@@ -55,12 +55,13 @@ class FakeRunner:
             python = environment / "bin" / "python"
             python.parent.mkdir(parents=True, exist_ok=True)
             python.write_bytes(b"synthetic interpreter")
-            (environment / "pyvenv.cfg").write_text("home = /synthetic/python\n")
+            (environment / "pyvenv.cfg").write_text("home = /synthetic/python\n", encoding="utf-8")
             self.package_versions[str(python)] = {}
             return subprocess.CompletedProcess(command, 0, "", "")
         if runtime.VERSION_PROBE in command:
             executable = command[0]
-            version = self.versions.get(str(Path(executable).resolve()), (3, 14, 10, "final"))
+            # Look up the name as given first: on Windows, resolving "/synthetic/python3" adds a drive letter.
+            version = self.versions.get(executable, self.versions.get(str(Path(executable).resolve()), (3, 14, 10, "final")))
             result = {"version": list(version[:3]), "releaselevel": version[3]}
             return subprocess.CompletedProcess(command, 0, json.dumps(result), "")
         if runtime.DOWNLOAD_SCRIPT in command:
@@ -71,7 +72,7 @@ class FakeRunner:
             self.installed.add(command[0])
             return subprocess.CompletedProcess(command, 0, "", "")
         if len(command) > 5 and command[1:5] == ["-I", "-m", "pip", "--isolated"]:
-            self.installed_lock_text = Path(command[command.index("--requirement") + 1]).read_text()
+            self.installed_lock_text = Path(command[command.index("--requirement") + 1]).read_text(encoding="utf-8")
             if self.fail_stage == "requirements-install":
                 return subprocess.CompletedProcess(command, 1, "", "synthetic requirements failure")
             self.package_versions[command[0]] = self._requirements()
@@ -99,7 +100,7 @@ class FakeRunner:
                     "importable": not missing,
                 })
             return subprocess.CompletedProcess(command, 0, json.dumps(distributions), "")
-        if any(str(value).endswith("/runtime_probe.py") for value in command):
+        if any(Path(str(value)).name == "runtime_probe.py" for value in command):
             executable = command[0]
             self.runtime_probe_counts[executable] = self.runtime_probe_counts.get(executable, 0) + 1
             if self.fail_stage == "runtime-probe":
@@ -132,14 +133,15 @@ class RuntimeManagerTests(unittest.TestCase):
     def write_test_lock(self, pip_hash=None):
         pip_hash = pip_hash or runtime.runtime_security.PIP_WHEEL_SHA256
         lines = []
-        for line in self.requirements.read_text().splitlines():
+        for line in self.requirements.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
             name = line.split("==", 1)[0].split("[", 1)[0].lower()
             digest = pip_hash if name == "pip" else hashlib.sha256(("synthetic " + line).encode()).hexdigest()
             lines.append(line + " --hash=sha256:" + digest)
-        self.lock.write_text("\n".join(lines) + "\n")
+        # newline="\n": Windows would otherwise write CRLF, and the lock is hashed byte for byte.
+        self.lock.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
     def which(self, missing=()):
         missing = set(missing)
@@ -179,7 +181,7 @@ class RuntimeManagerTests(unittest.TestCase):
         python = self.support / "python" / "bin" / "python"
         python.parent.mkdir(parents=True)
         python.write_bytes(b"keep this legacy interpreter")
-        (python.parent.parent / "pyvenv.cfg").write_text("home = /synthetic/python\n")
+        (python.parent.parent / "pyvenv.cfg").write_text("home = /synthetic/python\n", encoding="utf-8")
         return python
 
     def test_doctor_is_read_only_when_runtime_is_absent(self):
@@ -276,14 +278,14 @@ class RuntimeManagerTests(unittest.TestCase):
                 original = run._mock_wraps
                 run.side_effect = lambda command, **kw: (
                     subprocess.CompletedProcess(command, 0, output, "")
-                    if any(str(value).endswith("/runtime_probe.py") for value in command)
+                    if any(Path(str(value)).name == "runtime_probe.py" for value in command)
                     else original(command, **kw))
                 self.assertFalse(manager.verify()["ready"])
 
         runner = FakeRunner(self.requirements)
 
         def timeout_probe(command, **kwargs):
-            if any(str(value).endswith("/runtime_probe.py") for value in command):
+            if any(Path(str(value)).name == "runtime_probe.py" for value in command):
                 raise subprocess.TimeoutExpired(command, 60)
             return runner(command, **kwargs)
 
@@ -426,8 +428,8 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertTrue(receipt["verified"])
         self.assertTrue(receipt["retained_previous"])
         self.assertEqual(Path(receipt["previous_environment"]), (self.support / "python").resolve())
-        self.assertTrue(str(receipt["current_environment"]).endswith("/generations/" + Path(receipt["current_environment"]).parent.name + "/python"))
-        pointer = json.loads((self.support / runtime.ACTIVE_RUNTIME_POINTER).read_text())
+        self.assertEqual(Path(receipt["current_environment"]).parts[-3::2], ("generations", "python"))
+        pointer = json.loads((self.support / runtime.ACTIVE_RUNTIME_POINTER).read_text(encoding="utf-8"))
         self.assertEqual(pointer["environment"], Path(receipt["current_environment"]).relative_to(self.support.resolve()).as_posix())
         self.assertEqual(pointer["previous_environment"], "python")
         self.assertEqual(old_python.read_bytes(), old_bytes)
@@ -439,7 +441,7 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertIn("--index-url", pip_install)
         self.assertIn("--require-hashes", pip_install)
         self.assertIn("--only-binary=:all:", pip_install)
-        self.assertTrue(pip_install[pip_install.index("--requirement") + 1].endswith("/.bootstrap/requirements.lock"))
+        self.assertTrue(Path(pip_install[pip_install.index("--requirement") + 1]).as_posix().endswith("/.bootstrap/requirements.lock"))
         self.assertIn("--hash=sha256:", runner.installed_lock_text)
         self.assertTrue((Path(receipt["current_environment"]).parent / runtime.GENERATION_MARKER).is_file())
         self.assertEqual(result["installation_policy"], {"binary_only": True, "require_hashes": True,
@@ -549,7 +551,7 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertEqual(result["status"], "install-failed")
         self.assertTrue(result["changed"])
         self.assertTrue(result["migration"]["recovery_required"])
-        pointer = json.loads((self.support / runtime.ACTIVE_RUNTIME_POINTER).read_text())
+        pointer = json.loads((self.support / runtime.ACTIVE_RUNTIME_POINTER).read_text(encoding="utf-8"))
         selected = self.support / pointer["environment"]
         self.assertTrue(selected.is_dir())
         self.assertTrue((selected / "bin" / "python").is_file())
@@ -608,7 +610,7 @@ class RuntimeManagerTests(unittest.TestCase):
         pointer = self.support / runtime.ACTIVE_RUNTIME_POINTER
         pointer.write_text(json.dumps({"schema_version": 1,
             "environment": active.relative_to(self.support).as_posix(),
-            "previous_environment": "python"}))
+            "previous_environment": "python"}), encoding="utf-8")
         manager = self.manager(runner)
         original_write = manager._write_pointer_bytes
         writes = 0
@@ -628,7 +630,7 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertTrue(result["migration"]["recovery_required"])
         self.assertTrue(active_python.is_file())
         self.assertEqual(old_python.read_bytes(), b"keep this legacy interpreter")
-        self.assertEqual(json.loads(pointer.read_text())["environment"], "python")
+        self.assertEqual(json.loads(pointer.read_text(encoding="utf-8"))["environment"], "python")
 
     def test_explicit_install_cannot_report_success_without_a_patched_bootstrap(self):
         self.make_legacy_runtime()
@@ -699,7 +701,7 @@ class RuntimeManagerTests(unittest.TestCase):
                 if content is None:
                     self.lock.unlink()
                 else:
-                    self.lock.write_text(content)
+                    self.lock.write_text(content, encoding="utf-8", newline="\n")
                 runner = FakeRunner(self.requirements)
                 manager = self.manager(runner)
                 self.assertFalse(manager.doctor()["ready"])
@@ -728,16 +730,16 @@ class RuntimeManagerTests(unittest.TestCase):
             executable = environment / "bin/python"
             executable.parent.mkdir(parents=True)
             executable.write_bytes(character.encode())
-            (environment / "pyvenv.cfg").write_text("home = /synthetic/python\n")
+            (environment / "pyvenv.cfg").write_text("home = /synthetic/python\n", encoding="utf-8")
             (generation / runtime.GENERATION_MARKER).write_text(json.dumps({
                 "schema_version": 1, "owner": "handbuilt-church-labs", "environment": "python",
-                "wheel_lock_sha256": "0" * 64}))
+                "wheel_lock_sha256": "0" * 64}), encoding="utf-8")
             environments[character] = environment
         legacy_python = self.make_legacy_runtime()
         pointer = self.support / runtime.ACTIVE_RUNTIME_POINTER
         pointer.write_text(json.dumps({"schema_version": 1,
             "environment": environments["a"].relative_to(self.support).as_posix(),
-            "previous_environment": environments["b"].relative_to(self.support).as_posix()}))
+            "previous_environment": environments["b"].relative_to(self.support).as_posix()}), encoding="utf-8")
         return environments, legacy_python, pointer
 
     def test_prune_previews_then_removes_only_obsolete_owned_runtimes(self):
@@ -745,7 +747,7 @@ class RuntimeManagerTests(unittest.TestCase):
         before = pointer.read_bytes()
         outside = self.base / "outside"
         outside.mkdir()
-        (outside / "keep.txt").write_text("Keep this outside directory")
+        (outside / "keep.txt").write_text("Keep this outside directory", encoding="utf-8")
         linked = self.support / "generations" / ("g-" + "d" * 32)
         linked.symlink_to(outside, target_is_directory=True)
         unknown = self.support / "generations" / ("g-" + "e" * 32)
@@ -765,7 +767,7 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertEqual((environments["a"] / "bin/python").read_bytes(), b"a")
         self.assertEqual((environments["b"] / "bin/python").read_bytes(), b"b")
         self.assertEqual(pointer.read_bytes(), before)
-        self.assertEqual((outside / "keep.txt").read_text(), "Keep this outside directory")
+        self.assertEqual((outside / "keep.txt").read_text(encoding="utf-8"), "Keep this outside directory")
         self.assertTrue(linked.is_symlink())
         self.assertTrue(unknown.is_dir())
         self.assertEqual(manager.prune(apply=True, workflows_stopped=True)["prune"]["removed"], [])
@@ -783,7 +785,7 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertFalse(result["ready"])
         self.assertFalse(result["prune"]["applied"])
         self.assertEqual(pointer.read_bytes(), before)
-        pointer.write_text('{"schema_version":1,"environment":"../outside","previous_environment":null}')
+        pointer.write_text('{"schema_version":1,"environment":"../outside","previous_environment":null}', encoding="utf-8")
         result = manager.prune(apply=True, workflows_stopped=True)
         self.assertEqual(result["status"], "install-failed")
         self.assertTrue(environments["c"].is_dir())
@@ -886,7 +888,7 @@ class RuntimeManagerTests(unittest.TestCase):
             cwd=self.base,
             env=env,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=30,
             check=False,
         )
@@ -914,7 +916,7 @@ class RuntimeManagerTests(unittest.TestCase):
             cwd=self.base,
             env=env,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=30,
             check=False,
         )

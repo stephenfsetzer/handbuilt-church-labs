@@ -133,9 +133,9 @@ class ServiceOccurrencesTest(unittest.TestCase):
             self.assertEqual(orient(church, DATE, service_id="sunday")
                              ["last_approved_bulletin"]["occurrence_id"], "main")
             self.assertEqual(orient(church, DATE)["existing_work"],
-                             [str(Path(main["week_folder"]).resolve().relative_to(church.resolve()))])
+                             [Path(main["week_folder"]).resolve().relative_to(church.resolve()).as_posix()])
             self.assertEqual(orient(church, DATE, occurrence_id="evening")["existing_work"],
-                             [str(Path(evening["week_folder"]).resolve().relative_to(church.resolve()))])
+                             [Path(evening["week_folder"]).resolve().relative_to(church.resolve()).as_posix()])
 
     def test_revision_targets_one_occurrence_without_changing_the_other(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -212,7 +212,7 @@ class ServiceOccurrencesTest(unittest.TestCase):
             oriented = orient(church, DATE)
             self.assertEqual(oriented["initialization_state"], "returning")
             self.assertEqual(oriented["last_approved_bulletin"]["date"], DATE)
-            self.assertIn(str(Path(legacy["week_folder"]).resolve().relative_to(church.resolve())), oriented["existing_work"])
+            self.assertIn(Path(legacy["week_folder"]).resolve().relative_to(church.resolve()).as_posix(), oriented["existing_work"])
             self.assertEqual(orient(church, DATE, service_id="family")["initialization_state"], "first_run")
             self.assertEqual(orient(church, DATE, service_id="sunday", occurrence_id="evening")["initialization_state"], "first_run")
             self.assertEqual(history_path.read_bytes(), old_history)

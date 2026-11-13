@@ -71,7 +71,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_logo_background_removal_keeps_vector_logos_on_the_browser_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             logo = Path(tmp) / "mark.svg"
-            logo.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>')
+            logo.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>', encoding="utf-8")
             self.assertFalse(video.knock_out_light_background(logo, Path(tmp) / "review.png"))
 
     def test_logo_background_removal_uses_bounded_tiles_and_preserves_color(self):
@@ -126,7 +126,7 @@ class PlanTests(unittest.TestCase):
 
     def load(self, plan):
         path = self.run_dir / "plan.json"
-        path.write_text(json.dumps(plan))
+        path.write_text(json.dumps(plan), encoding="utf-8")
         return video.plan(path)
 
     def test_valid_plan_fills_video_defaults(self):
@@ -188,7 +188,7 @@ class PlanTests(unittest.TestCase):
         plan["brand"] = {**plan.get("brand", {}), "heading_font": "Source Serif 4"}
         root, data = self.load(plan)
         video.artwork(root, data)
-        self.assertIn('font:500 118px/1.08 "Source Serif 4",serif', (root / "intro.html").read_text())
+        self.assertIn('font:500 118px/1.08 "Source Serif 4",serif', (root / "intro.html").read_text(encoding="utf-8"))
 
 class CaptionTests(unittest.TestCase):
     DATA = {"sermon": {"start": 100.0, "end": 130.0}, "video": {"intro_seconds": 2.5}}
@@ -231,9 +231,9 @@ class CaptionTests(unittest.TestCase):
                 "video": {"intro_seconds": 2.5, "lower_start": 7, "lower_duration": 10}}
         with tempfile.TemporaryDirectory() as temp:
             given = Path(temp) / "service.en.srt"
-            given.write_text("1\n00:01:50,000 --> 00:01:52,000\nGrace and peace to you.\n")
+            given.write_text("1\n00:01:50,000 --> 00:01:52,000\nGrace and peace to you.\n", encoding="utf-8")
             video.write_captions(Path(temp), data, given)
-            return (Path(temp) / "sermon.en.vtt").read_text()
+            return (Path(temp) / "sermon.en.vtt").read_text(encoding="utf-8")
 
     def test_captions_rise_over_a_name_panel_and_stay_low_without_one(self):
         named = {"preacher": {"text": "The Rev. Jordan Lee", "status": "verified", "evidence": "Bulletin"}}
@@ -251,7 +251,7 @@ class CaptionTests(unittest.TestCase):
     def test_cue_level_captions_spread_words_across_the_cue(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "service.en.srt"
-            path.write_text("1\n00:00:10,000 --> 00:00:12,000\nGrace and peace\n")
+            path.write_text("1\n00:00:10,000 --> 00:00:12,000\nGrace and peace\n", encoding="utf-8")
             result = video.read_platform_captions(path)
         words = [w for segment in result["segments"] for w in segment["words"]]
         self.assertEqual([w["word"].strip() for w in words], ["Grace", "and", "peace"])
@@ -264,7 +264,7 @@ class CaptionTests(unittest.TestCase):
                                                          {"utf8": " [Music]", "tOffsetMs": 700}]}]}
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "service.en.json3"
-            path.write_text(json.dumps(events))
+            path.write_text(json.dumps(events), encoding="utf-8")
             result = video.read_platform_captions(path)
         words = [w for segment in result["segments"] for w in segment["words"]]
         self.assertEqual([(w["start"], w["word"].strip()) for w in words], [(4.0, "Grace"), (4.4, "to")])
@@ -276,7 +276,7 @@ class LayoutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "assets").mkdir()
-            (root / "assets/layout.json").write_text(json.dumps(layout))
+            (root / "assets/layout.json").write_text(json.dumps(layout), encoding="utf-8")
             return video.overlay_audit(root)
 
     def test_unmeasured_layout_is_reported_not_passed(self):
@@ -303,7 +303,7 @@ class LayoutTests(unittest.TestCase):
         self.assertIn("too close to the bottom edge", problems)
 
     def test_thumbnail_words_keep_left_of_every_play_button(self):
-        template = (Path(video.__file__).resolve().parents[1] / "assets/thumbnail.html").read_text()
+        template = (Path(video.__file__).resolve().parents[1] / "assets/thumbnail.html").read_text(encoding="utf-8")
         column = re.search(r"\.copy\{position:absolute;left:(\d+)px;top:\d+px;width:(\d+)px\}", template)
         self.assertIsNotNone(column)
         self.assertEqual(int(column[1]) + int(column[2]), video.TEXT_COLUMN_RIGHT)
@@ -460,9 +460,9 @@ class PreviewServerLifetimeTests(unittest.TestCase):
         import tempfile
         import time
         with tempfile.TemporaryDirectory() as tmp:
-            (Path(tmp) / "review.html").write_text("<p>review</p>")
+            (Path(tmp) / "review.html").write_text("<p>review</p>", encoding="utf-8")
             started = time.monotonic()
             done = subprocess.run([sys.executable, str(ROOT / "skills/sermon-video/scripts/serve_review.py"),
-                                   "--run-dir", tmp, "--minutes", "0.02"], capture_output=True, text=True, timeout=30)
+                                   "--run-dir", tmp, "--minutes", "0.02"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
             self.assertLess(time.monotonic() - started, 20)
             self.assertIn("http://127.0.0.1:", done.stdout)

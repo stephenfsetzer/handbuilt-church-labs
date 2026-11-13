@@ -153,7 +153,7 @@ class BulletinSourceReadinessTest(unittest.TestCase):
             profile = {"status": "confirmed", "tradition_pack": "lutheran-elca-elw",
                        "defaults": {"eucharistic_prayer": "local", "lords_prayer": "custom", "blessing": "omit"},
                        "sources": files}
-            (church / "worship" / "profile.yaml").write_text(yaml.safe_dump(profile))
+            (church / "worship" / "profile.yaml").write_text(yaml.safe_dump(profile), encoding="utf-8")
             result = resolve_worship_profile(church)
             self.assertEqual(result["status"], "resolved", result)
             self.assertEqual(result["liturgy"]["files"], files)
@@ -167,7 +167,7 @@ class BulletinSourceReadinessTest(unittest.TestCase):
             church = make_church(Path(tmp))
             source = church / "worship" / "liturgy" / "private-prayer.md"
             source.parent.mkdir(parents=True, exist_ok=True)
-            source.write_text("Synthetic private prayer for testing.")
+            source.write_text("Synthetic private prayer for testing.", encoding="utf-8")
             profile = self._profile("B")
             profile["status"] = "needs_onboarding"
             profile["sources"] = {"eucharistic_prayer": "worship/liturgy/private-prayer.md"}

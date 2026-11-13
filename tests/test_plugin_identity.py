@@ -87,7 +87,7 @@ class PluginIdentityTests(unittest.TestCase):
 
         connection = self.church / ".handbuilt" / "installation.json"
         connection.parent.mkdir()
-        connection.write_text("not json")
+        connection.write_text("not json", encoding="utf-8")
         malformed = inspect_installation(loaded, self.church)
         self.assertEqual(malformed["connection"]["status"], "invalid")
         self.assertEqual(malformed["connection"]["errors"], [{"code": "connection_malformed"}])
@@ -124,7 +124,7 @@ class PluginIdentityTests(unittest.TestCase):
 
     def _manifest(self, path, version):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"name": "handbuilt-church-labs", "version": version}, indent=2) + "\n")
+        path.write_text(json.dumps({"name": "handbuilt-church-labs", "version": version}, indent=2) + "\n", encoding="utf-8")
 
     def _connection(self, root, version=None, sha=None):
         codex = root / ".codex-plugin" / "plugin.json"
@@ -137,7 +137,7 @@ class PluginIdentityTests(unittest.TestCase):
         }
         path = self.church / ".handbuilt" / "installation.json"
         path.parent.mkdir(exist_ok=True)
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
 
 
 if __name__ == "__main__":

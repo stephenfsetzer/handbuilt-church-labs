@@ -132,13 +132,40 @@ def _installed_version(directory: Path) -> Optional[str]:
     return next((version for version in versions if version), None)
 
 
+def _app_folders() -> list:
+    """Where the Claude desktop app keeps the plugins added through its Customize panel."""
+    home = Path.home()
+    folders = [home / "Library" / "Application Support" / "Claude"]
+    if os.environ.get("APPDATA"):
+        folders.append(Path(os.environ["APPDATA"]) / "Claude")
+    if os.environ.get("LOCALAPPDATA"):
+        folders.extend(sorted(Path(os.environ["LOCALAPPDATA"]).glob("Packages/Claude_*/LocalCache/Roaming/Claude")))
+    folders.append(home / ".config" / "Claude")
+    return folders
+
+
 def _synced_version(directory: Path) -> Optional[str]:
-    for manifest in sorted((directory / "plugins" / "synced").glob(f"*/{NAME}/.claude-plugin/plugin.json")):
+    """The oldest Handbuilt copy the Claude app shares onto this computer, if there is one.
+
+    The app can load its own copy in place of the one installed here, and that
+    copy stays at the version it was added with unless its sync is on.
+    """
+    manifests = list((directory / "plugins" / "synced").glob(f"*/{NAME}/.claude-plugin/plugin.json"))
+    for folder in _app_folders():
+        manifests.extend(folder.glob("local-agent-mode-sessions/*/*/rpm/plugin_*/.claude-plugin/plugin.json"))
+    versions = []
+    for manifest in manifests:
         try:
-            return json.loads(manifest.read_text(encoding="utf-8"))["version"]
-        except (OSError, ValueError, KeyError):
+            plugin = json.loads(manifest.read_text(encoding="utf-8"))
+            if plugin.get("name") == NAME and isinstance(plugin.get("version"), str):
+                versions.append(plugin["version"])
+        except (OSError, ValueError, AttributeError):
             continue
-    return None
+    oldest = None
+    for version in versions:
+        if oldest is None or _older(version, oldest):
+            oldest = version
+    return oldest
 
 
 def _older(installed: str, latest: str) -> bool:
@@ -187,6 +214,14 @@ def status(directory: Path, offline: bool = False) -> Dict[str, Any]:
         gaps.append(f"{FORCE_VARIABLE} is not set, so desktop app sessions skip plugin updates")
     if installed and latest and _older(installed, latest):
         gaps.append(f"version {installed} is installed and {latest} is the latest release")
+    synced = result["synced_app_copy_version"]
+    if installed and synced and synced != installed and _older(synced, installed):
+        gaps.append(f"an older copy of Handbuilt, version {synced}, was added through the Claude app's "
+                    f"Customize panel and can load in place of version {installed}")
+        result["tell_the_pastor"] = (
+            "One more thing before you start. An older copy of Handbuilt was added to your Claude app "
+            "earlier, and the app may open that one. Click Customize in the sidebar, find Handbuilt "
+            "Church Labs, and remove it. The copy I just installed takes its place and keeps itself current.")
     result["status"] = "current" if not gaps else "needs_attention"
     summary = "; ".join(gaps)
     result["message"] = ("Handbuilt is installed, current, and set to update itself."

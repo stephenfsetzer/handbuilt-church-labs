@@ -2,8 +2,8 @@
 """Set POSIX resource limits, then replace this process with the target command.
 
 This helper avoids ``subprocess.Popen(preexec_fn=...)``, which is unsafe when
-the parent process has threads. On non-POSIX platforms it simply execs the
-command; callers must keep their wall-clock and output limits enabled. macOS
+the parent process has threads. On Windows it runs the command as a child and
+returns its exit code; callers must keep their wall-clock and output limits enabled. macOS
 omits RLIMIT_AS because address-space limits can conflict with dyld mappings.
 """
 from __future__ import annotations
@@ -41,6 +41,17 @@ def main(argv: list[str] | None = None) -> int:
         except (ImportError, OSError, ValueError) as exc:
             print(f"Could not apply native process limits: {exc}", file=sys.stderr)
             return 126
+
+    if os.name != "posix":
+        # Windows cannot replace a process with another. "exec" there starts the
+        # command, detaches from it and returns at once, so the caller would read
+        # no output and a wrong exit code. Run it as a child and pass both back.
+        import subprocess
+        try:
+            return subprocess.run(command, check=False).returncode
+        except OSError as exc:
+            print(f"Could not start the command: {exc}", file=sys.stderr)
+            return 127
 
     os.execvpe(command[0], command, os.environ)
     return 127

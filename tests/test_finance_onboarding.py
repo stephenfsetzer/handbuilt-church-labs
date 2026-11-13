@@ -28,7 +28,7 @@ class FinanceOnboardingTests(unittest.TestCase):
 
     def call(self, script: Path, operation: str, *args: str) -> tuple[dict, int, str]:
         process = subprocess.run([sys.executable, str(script), operation, "--church-folder", str(self.church), *args],
-                                 capture_output=True, text=True, cwd=self.church)
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=self.church)
         try:
             return json.loads(process.stdout), process.returncode, process.stderr
         except ValueError:
@@ -49,7 +49,7 @@ class FinanceOnboardingTests(unittest.TestCase):
     def edited_balance_sheet(self, edit) -> Path:
         """The fixture's August balance sheet with its bank rows changed by edit(name, values) -> (name, values)."""
         path = self.board / "2026-08/pulls/balance-sheet.json"
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         for row in data["reportData"]["rows"]:
             cells = row["cells"]
             name, values = edit(cells[0]["value"], [c.get("value") for c in cells[1:]])
@@ -57,7 +57,7 @@ class FinanceOnboardingTests(unittest.TestCase):
             for cell, value in zip(cells[1:], values):
                 cell["value"] = value
         out = Path(self.temp.name) / "balance-sheet-edited.json"
-        out.write_text(json.dumps(data))
+        out.write_text(json.dumps(data), encoding="utf-8")
         return out
 
     def test_overdrawn_cash_reads_as_overdrawn_never_as_money_in_the_bank(self):
@@ -99,7 +99,7 @@ class FinanceOnboardingTests(unittest.TestCase):
         self.assertIn("Stripe $1,250", summary)
         self.assertIn("Pledge Payments is 51% of income", summary)  # the account under the Giving heading
         self.assertTrue(any("reconciled" in q for q in look["questions_for_treasurer"]))
-        (self.church / "finance/finance-overview.md").write_text("# Finance overview\n")
+        (self.church / "finance/finance-overview.md").write_text("# Finance overview\n", encoding="utf-8")
         self.assertEqual(self.ob("stage", "--done", "1")[1], 0)
 
         # Stage 2: setup and a sample edition
@@ -128,11 +128,11 @@ class FinanceOnboardingTests(unittest.TestCase):
         self.assertEqual(self.build()[1], 0)
         rendered, code, err = self.report("render", str(self.board / "2026-08/report.json"))
         self.assertEqual(code, 0, err)
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         states = {r["id"]: r["status"] for r in report["readiness"]}
         self.assertEqual(states["reconciliation"], "waived")
         self.assertEqual(states["payment_services"], "open")
-        html = next((self.board / "2026-08").glob("*.html")).read_text()
+        html = next((self.board / "2026-08").glob("*.html")).read_text(encoding="utf-8")
         text = " ".join(re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", " ", html, flags=re.S)).split())
         self.assertIn("Books readiness", text)
         self.assertIn("$1,250 in Stripe", text)
@@ -143,7 +143,7 @@ class FinanceOnboardingTests(unittest.TestCase):
         self.ob("calendar", "--books-closed-by", "the 15th", "--report-by", "the 20th",
                 "--meeting", "second Tuesday", "--approver", "Pat Example")
         report["meta"]["status"] = "final"
-        (self.board / "2026-08/report.json").write_text(json.dumps(report))
+        (self.board / "2026-08/report.json").write_text(json.dumps(report), encoding="utf-8")
         self.assertEqual(self.ob("stage", "--done", "4")[1], 0)
         self.assertTrue(self.ob("orient")[0]["locked"])
 

@@ -76,8 +76,8 @@ class BuildMyBrandTest(unittest.TestCase):
         (staging / "explorations").mkdir(parents=True)
         (staging / "marks").mkdir()
         Image.new("RGB", (80, 40), "white").save(staging / "explorations" / "board.png")
-        (staging / "marks" / "mark.svg").write_text(MARK)
-        (staging / "marks" / "mark-small.svg").write_text(SMALL)
+        (staging / "marks" / "mark.svg").write_text(MARK, encoding="utf-8")
+        (staging / "marks" / "mark-small.svg").write_text(SMALL, encoding="utf-8")
 
     def tearDown(self):
         self.temp.cleanup()
@@ -114,14 +114,14 @@ class BuildMyBrandTest(unittest.TestCase):
         staging = self.church / "brand" / "staging"
         (staging / "type").mkdir()
         (staging / "templates").mkdir()
-        (staging / "marks" / "wordmark.svg").write_text(MARK)
+        (staging / "marks" / "wordmark.svg").write_text(MARK, encoding="utf-8")
         Image.new("RGB", (40, 20), "white").save(staging / "marks" / "banner.png")
         font = ROOT / "skills" / "bulletin" / "renderer" / "fonts" / "SourceSans3-Regular.ttf"
         (staging / "type" / "Display-Regular.ttf").write_bytes(font.read_bytes())
         (staging / "type" / "Text-Regular.ttf").write_bytes(font.read_bytes())
-        (staging / "voice.md").write_text("# Voice\n\nPlain, warm, specific.\n")
-        (staging / "templates" / "social-square.md").write_text("Square post template.\n")
-        (staging / "templates" / "announcement.md").write_text("Announcement image template.\n")
+        (staging / "voice.md").write_text("# Voice\n\nPlain, warm, specific.\n", encoding="utf-8")
+        (staging / "templates" / "social-square.md").write_text("Square post template.\n", encoding="utf-8")
+        (staging / "templates" / "announcement.md").write_text("Announcement image template.\n", encoding="utf-8")
         return {
             "brand_system": {
                 "schema_version": 2,
@@ -167,7 +167,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(record(self.church, "roadmap", "The plan.", {"phases": twice})["errors"][0]["code"], "phases_required")
         ok = record(self.church, "roadmap", "Here is the whole engagement on one page.", _metadata("roadmap"))
         self.assertEqual(ok["status"], "recorded", ok)
-        guide = (self.church / "brand" / "guide.md").read_text()
+        guide = (self.church / "brand" / "guide.md").read_text(encoding="utf-8")
         self.assertIn("| Phase | What you will see | What you decide | About how long |", guide)
         self.assertIn("| The idea |", guide)
         self.assertIn("**Where you are:** step 1 of 16, The plan.", guide)
@@ -215,11 +215,11 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertIn("admired", INTERVIEW_KEYS)
 
     def test_no_image_key_never_stops_the_pastor(self):
-        skill = (Path(__file__).resolve().parents[1] / "skills" / "build-my-brand" / "SKILL.md").read_text()
+        skill = (Path(__file__).resolve().parents[1] / "skills" / "build-my-brand" / "SKILL.md").read_text(encoding="utf-8")
         section = skill.split("### Without an image service", 1)[1].split("\n## ", 1)[0]
         self.assertIn("never asked for a key", section)
         self.assertIn("by default", section)
-        apps = (Path(__file__).resolve().parents[1] / "skills" / "build-my-brand" / "references" / "image-apps.md").read_text()
+        apps = (Path(__file__).resolve().parents[1] / "skills" / "build-my-brand" / "references" / "image-apps.md").read_text(encoding="utf-8")
         self.assertIn("https://chatgpt.com", apps)
         self.assertIn("import-images", apps)
         self.assertIn("brand/inbox/", section)
@@ -228,7 +228,7 @@ class BuildMyBrandTest(unittest.TestCase):
 
     def test_every_section_opens_with_where_the_pastor_is(self):
         self._record_through("direction")
-        guide = (self.church / "brand" / "guide.md").read_text()
+        guide = (self.church / "brand" / "guide.md").read_text(encoding="utf-8")
         self.assertIn("# Public Test Parish Brand Guide", guide)
         self.assertIn("**Where you are:** step 6 of 16, Your direction, in the phase \"The idea\".", guide)
         self.assertIn("**You decide today:** Your reactions to each direction, then which idea (or blend) to develop.", guide)
@@ -237,7 +237,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertIn("**Shown on:** the bulletin cover; the church's own test announcement; a social post in the feed", guide)
         self.assertIn("**Decision:** direction choice", guide)
         self.assertIn("**Why:** Because the direction lesson showed why.", guide)
-        self.assertIn("Lesson text for interview.", (self.church / "brand" / "brief.md").read_text())
+        self.assertIn("Lesson text for interview.", (self.church / "brand" / "brief.md").read_text(encoding="utf-8"))
         self.assertIn("answer for audience", guide)
 
     def test_replacing_an_earlier_stage_marks_later_stages_stale(self):
@@ -248,7 +248,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(redo["status"], "recorded")
         state = orient(self.church)
         self.assertEqual([s["stage"] for s in state["stages"] if s["stale"]], ["develop", "refine-1"])
-        guide = (self.church / "brand" / "guide.md").read_text()
+        guide = (self.church / "brand" / "guide.md").read_text(encoding="utf-8")
         self.assertEqual(guide.count("<!-- stage:direction -->"), 1)
         self.assertIn("Revised direction.", guide)
 
@@ -283,7 +283,7 @@ class BuildMyBrandTest(unittest.TestCase):
                     references=[{"name": "Whitney Museum, Experimental Jetset", "learn": "One form, endless layouts."}])
         done = record(self.church, "develop", "developed", good)
         self.assertEqual(done["status"], "recorded", done)
-        guide = (self.church / "brand" / "guide.md").read_text()
+        guide = (self.church / "brand" / "guide.md").read_text(encoding="utf-8")
         self.assertIn("**Recommended:** Version A, because the arch carries.", guide)
         self.assertIn("the mark beside a stand-in partner mark", guide)
         bad_refs = dict(good, references=[{"name": "x"}])
@@ -328,7 +328,7 @@ class BuildMyBrandTest(unittest.TestCase):
         loose.pop("follows")
         self.assertEqual(record(self.church, "develop", "developed", loose)["errors"][0]["field"], "follows")
         self.assertEqual(record(self.church, "develop", "developed", _metadata("develop"))["status"], "recorded")
-        guide = (self.church / "brand" / "guide.md").read_text()
+        guide = (self.church / "brand" / "guide.md").read_text(encoding="utf-8")
         self.assertIn("**It follows your earlier pick:** The direction pick: the open door is the whole idea.", guide)
         self._record_through_from("refine-1", "type")
         color_pick = _metadata("voice")
@@ -344,7 +344,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(record(self.church, "fork", "text", named)["errors"][0]["code"], "invalid_speaker")
         handed = dict(_metadata("fork"), handoff="Keeping your mark. Over to the researcher, who will look at how you appear today.")
         self.assertEqual(record(self.church, "fork", "Refresh or new.", handed)["status"], "recorded")
-        guide = (self.church / "brand" / "guide.md").read_text()
+        guide = (self.church / "brand" / "guide.md").read_text(encoding="utf-8")
         self.assertIn("**Creative director · Refresh or start new**", guide)
         self.assertIn("**Handoff:** Keeping your mark. Over to the researcher", guide)
         self._record_through_from("discover", "type")
@@ -353,7 +353,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(refused["errors"][0]["code"], "invalid_speaker")
         self.assertIn("writer", refused["errors"][0]["message"])
         self.assertEqual(record(self.church, "voice", "voice", _metadata("voice"))["status"], "recorded")
-        self.assertIn("**Writer · Your voice**", (self.church / "brand" / "book.html").read_text().replace("<strong>", "**").replace("</strong>", "**"))
+        self.assertIn("**Writer · Your voice**", (self.church / "brand" / "book.html").read_text(encoding="utf-8").replace("<strong>", "**").replace("</strong>", "**"))
 
     def _record_through_from(self, first: str, last: str) -> None:
         for stage in STAGES[STAGES.index(first): STAGES.index(last) + 1]:
@@ -364,14 +364,14 @@ class BuildMyBrandTest(unittest.TestCase):
         first = record(self.church, "roadmap", "Here is the whole engagement on one page.", _metadata("roadmap"))
         book_path = self.church / "brand" / "book.html"
         self.assertEqual(Path(first["book"]).resolve(), book_path.resolve())
-        page = book_path.read_text()
+        page = book_path.read_text(encoding="utf-8")
         self.assertIn('<base href="../">', page)
         self.assertIn("The plan", page)
         self.assertNotIn("Refresh or start new</h2>", page)
         record(self.church, "fork", "Refresh keeps the mark; new replaces it.", _metadata("fork"))
-        self.assertIn("Refresh or start new</h2>", book_path.read_text())
+        self.assertIn("Refresh or start new</h2>", book_path.read_text(encoding="utf-8"))
         book_path.unlink()
-        rebuilt = subprocess.run([sys.executable, str(CLI), "book", "--church-folder", str(self.church)], capture_output=True, text=True)
+        rebuilt = subprocess.run([sys.executable, str(CLI), "book", "--church-folder", str(self.church)], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(json.loads(rebuilt.stdout)["status"], "written", rebuilt.stdout)
         self.assertTrue(book_path.is_file())
 
@@ -388,11 +388,11 @@ class BuildMyBrandTest(unittest.TestCase):
         stages.update(extra or {})
         state_dir = self.church / ".handbuilt" / "build-my-brand"
         state_dir.mkdir(parents=True)
-        (state_dir / "state.json").write_text(json.dumps({"schema_version": 1, "stages": stages, "fork": "refresh", "approved": None, "implementation_version": "0.1.0"}))
+        (state_dir / "state.json").write_text(json.dumps({"schema_version": 1, "stages": stages, "fork": "refresh", "approved": None, "implementation_version": "0.1.0"}), encoding="utf-8")
         guide = ["# Public Test Parish Brand Guide", ""]
         for stage in stages:
             guide += [f"<!-- stage:{stage} -->", f"## {stage}", "", "old text", f"<!-- /stage:{stage} -->", ""]
-        (self.church / "brand" / "guide.md").write_text("\n".join(guide))
+        (self.church / "brand" / "guide.md").write_text("\n".join(guide), encoding="utf-8")
 
     def test_a_run_from_the_first_scheme_resumes_at_direction_development(self):
         self._legacy_state()
@@ -411,7 +411,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(too_soon["errors"][0]["code"], "roadmap_required")
         plan = record(self.church, "roadmap", "The plan, shown now that we are at direction development.", _metadata("roadmap"))
         self.assertEqual(plan["status"], "recorded", plan)
-        guide = (self.church / "brand" / "guide.md").read_text()
+        guide = (self.church / "brand" / "guide.md").read_text(encoding="utf-8")
         self.assertLess(guide.index("<!-- stage:roadmap -->"), guide.index("<!-- stage:fork -->"))
         self.assertIn("You are at step 7 of 16, Your direction, developed.", guide)
         self.assertEqual(orient(self.church)["owed_stages"], [])
@@ -422,7 +422,7 @@ class BuildMyBrandTest(unittest.TestCase):
         done = record(self.church, "develop", "Open Door, developed three ways.", _metadata("develop"))
         self.assertEqual(done["status"], "recorded", done)
         self.assertEqual(done["next_stage"], "refine-1")
-        saved = json.loads((self.church / ".handbuilt" / "build-my-brand" / "state.json").read_text())
+        saved = json.loads((self.church / ".handbuilt" / "build-my-brand" / "state.json").read_text(encoding="utf-8"))
         self.assertEqual(saved["schema_version"], 2)
         self.assertEqual(saved["stages"]["direction"]["applications_source"].split(":")[0], "Migration baseline")
 
@@ -438,7 +438,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertTrue(color["stale"])
         self.assertNotIn("mark", [s["stage"] for s in state["stages"]])
         self.assertEqual(record(self.church, "roadmap", "plan", _metadata("roadmap"))["status"], "recorded")
-        saved = json.loads((self.church / ".handbuilt" / "build-my-brand" / "state.json").read_text())
+        saved = json.loads((self.church / ".handbuilt" / "build-my-brand" / "state.json").read_text(encoding="utf-8"))
         self.assertEqual(saved["legacy_stages"]["mark"]["finalist"], "r3-01")
         self.assertIn("developed system", saved["stages"]["color"]["stale_reason"])
 
@@ -465,7 +465,7 @@ class BuildMyBrandTest(unittest.TestCase):
         escaped["brand_system"]["marks"]["primary"] = "brand/marks/mark.svg"
         self.assertEqual(stage_brand(self.church, escaped)["errors"][0]["code"], "outside_staging")
         thin = self.church / "brand" / "staging" / "marks" / "thin.svg"
-        thin.write_text(THIN)
+        thin.write_text(THIN, encoding="utf-8")
         fragile = json.loads(json.dumps(patch))
         fragile["brand_system"]["marks"]["primary"] = "brand/staging/marks/thin.svg"
         failed = stage_brand(self.church, fragile)
@@ -475,11 +475,11 @@ class BuildMyBrandTest(unittest.TestCase):
         bad_waiver = dict(fragile, waivers=[{"check": "reversal", "reason": "no"}])
         self.assertEqual(stage_brand(self.church, bad_waiver)["errors"][0]["code"], "invalid_waivers")
         sign = self.church / "brand" / "staging" / "templates" / "sign.svg"
-        sign.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text x="0" y="20">Sundays at 11</text></svg>')
+        sign.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text x="0" y="20">Sundays at 11</text></svg>', encoding="utf-8")
         unloaded = json.loads(json.dumps(patch))
         unloaded["brand_system"]["templates"]["sign_concept"] = "brand/staging/templates/sign.svg"
         self.assertEqual(stage_brand(self.church, unloaded)["errors"][0]["code"], "template_fonts_missing")
-        sign.write_text('<svg xmlns="http://www.w3.org/2000/svg"><style>@font-face{font-family:"Brand Display";src:url(../type/Display-Regular.ttf)}</style><text x="0" y="20">Sundays at 11</text></svg>')
+        sign.write_text('<svg xmlns="http://www.w3.org/2000/svg"><style>@font-face{font-family:"Brand Display";src:url(../type/Display-Regular.ttf)}</style><text x="0" y="20">Sundays at 11</text></svg>', encoding="utf-8")
         self.assertEqual(stage_brand(self.church, unloaded)["status"], "staged")
         reading = json.loads(json.dumps(patch))
         reading["brand_system"]["type"]["reading"] = {"family": "Test Reading", "license": "OFL", "files": {"regular": "brand/staging/type/Display-Regular.ttf"}, "variation": {"opsz": "12"}}
@@ -522,7 +522,7 @@ class BuildMyBrandTest(unittest.TestCase):
         archive = Path(approved["archive"])
         self.assertEqual((archive / "brand.json").read_bytes(), old_brand)
         self.assertTrue((archive / "staged-brand-system.json").is_file())
-        brand = json.loads((self.church / "brand.json").read_text())
+        brand = json.loads((self.church / "brand.json").read_text(encoding="utf-8"))
         system = brand["brand_system"]
         self.assertEqual(system["marks"]["primary"], "brand/marks/mark.svg")
         self.assertEqual(system["marks"]["small"], "brand/marks/mark-small.svg")
@@ -537,12 +537,12 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertFalse((self.church / "brand" / "staging").exists())
         self.assertTrue(brand_setup.status(self.church)["ready"])
         self.assertEqual(record(self.church, "connect", "The same file drives everything.", {})["status"], "recorded")
-        (self.church / "brand" / "volunteer-card.md").write_text("Ask for a flyer.\n")
+        (self.church / "brand" / "volunteer-card.md").write_text("Ask for a flyer.\n", encoding="utf-8")
         handoff = record(self.church, "handoff", "Keep it.", {"volunteer_card": "brand/volunteer-card.md"})
         self.assertEqual(handoff["status"], "recorded", handoff)
         self.assertIsNone(orient(self.church)["next_stage"])
         receipts = list((self.church / ".handbuilt" / "build-my-brand" / "receipts").glob("*.json"))
-        kinds = {json.loads(p.read_text())["kind"] for p in receipts}
+        kinds = {json.loads(p.read_text(encoding="utf-8"))["kind"] for p in receipts}
         self.assertIn("approval", kinds)
         self.assertIn("stage-brand", kinds)
         self.assertEqual(len([k for k in kinds if k.startswith("stage-") and k != "stage-brand"]), len(STAGES))
@@ -552,17 +552,17 @@ class BuildMyBrandTest(unittest.TestCase):
         self._record_through("voice")
         patch = self._stage_files()
         thin = self.church / "brand" / "staging" / "marks" / "thin.svg"
-        thin.write_text(THIN)
+        thin.write_text(THIN, encoding="utf-8")
         patch["brand_system"]["marks"]["primary"] = "brand/staging/marks/thin.svg"
         reason = "Hairline mark by design; small sizes and embroidery use the small variant."
         patch["waivers"] = [{"check": check, "reason": reason} for check in ("sign", "footer", "embroidery")]
         result = stage_brand(self.church, patch)
         self.assertEqual(result["status"], "staged", result)
-        report = json.loads((self.church / result["survival"]).read_text())
+        report = json.loads((self.church / result["survival"]).read_text(encoding="utf-8"))
         waived = {c["check"] for m in report["marks"] for c in m["checks"] if c.get("waived")}
         self.assertIn("embroidery", waived)
         self.assertFalse(waived & {"one_color", "reversal"})
-        self.assertEqual(json.loads((self.church / "brand" / "staging" / "brand-system.json").read_text())["waivers"][0]["reason"], reason)
+        self.assertEqual(json.loads((self.church / "brand" / "staging" / "brand-system.json").read_text(encoding="utf-8"))["waivers"][0]["reason"], reason)
 
     def _ready_to_approve(self, patch: dict | None = None) -> None:
         self._record_through("voice")
@@ -577,9 +577,9 @@ class BuildMyBrandTest(unittest.TestCase):
 
     def _set_live_logo(self, **logo: str) -> None:
         path = self.church / "brand.json"
-        brand = json.loads(path.read_text())
+        brand = json.loads(path.read_text(encoding="utf-8"))
         brand.setdefault("logo", {}).update(logo)
-        path.write_text(json.dumps(brand))
+        path.write_text(json.dumps(brand), encoding="utf-8")
 
     def _snapshot(self) -> dict:
         # Approval re-runs the survival checks, which rewrites their report.
@@ -594,7 +594,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self._ready_to_approve()
         approved = approve(self.church)
         self.assertEqual(approved["status"], "approved", approved)
-        brand = json.loads((self.church / "brand.json").read_text())
+        brand = json.loads((self.church / "brand.json").read_text(encoding="utf-8"))
         self.assertEqual(brand["logo"]["social"], "images/avatar.png")
         self.assertEqual(brand["logo"]["banner"], "brand/marks/banner.png")
         self.assertEqual(brand["colors"]["accent"], "#224466")
@@ -608,7 +608,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self._ready_to_approve(patch)
         approved = approve(self.church)
         self.assertEqual(approved["status"], "approved", approved)
-        brand = json.loads((self.church / "brand.json").read_text())
+        brand = json.loads((self.church / "brand.json").read_text(encoding="utf-8"))
         self.assertEqual(brand["logo"]["social"], "brand/marks/avatar.png")
         self.assertTrue((self.church / "brand" / "marks" / "avatar.png").is_file())
 
@@ -625,10 +625,10 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertIn("colors", listing["brand_json_changes"])
         self.assertEqual(self._snapshot(), before)
         self.assertFalse(orient(self.church)["approved"])
-        cli = subprocess.run([sys.executable, str(CLI), "approve", "--church-folder", str(self.church), "--dry-run"], capture_output=True, text=True)
+        cli = subprocess.run([sys.executable, str(CLI), "approve", "--church-folder", str(self.church), "--dry-run"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(json.loads(cli.stdout)["status"], "ready_to_approve", cli.stdout)
         self.assertEqual(approve(self.church)["status"], "approved")
-        self.assertIn("Approved", (self.church / "brand" / "book.html").read_text())
+        self.assertIn("Approved", (self.church / "brand" / "book.html").read_text(encoding="utf-8"))
 
     def test_approval_checks_the_live_logo_before_anything_moves(self):
         self._needs_renderer()
@@ -641,14 +641,14 @@ class BuildMyBrandTest(unittest.TestCase):
             self.assertEqual(self._snapshot(), before)
             self.assertFalse((self.church / "brand" / "archive").exists())
             path = self.church / "brand.json"
-            brand = json.loads(path.read_text())
+            brand = json.loads(path.read_text(encoding="utf-8"))
             brand["logo"].pop(next(iter(logo)))
-            path.write_text(json.dumps(brand))
+            path.write_text(json.dumps(brand), encoding="utf-8")
 
     def test_a_failed_approval_puts_every_file_back(self):
         self._needs_renderer()
         (self.church / "brand" / "marks").mkdir()
-        (self.church / "brand" / "marks" / "old.svg").write_text(MARK)
+        (self.church / "brand" / "marks" / "old.svg").write_text(MARK, encoding="utf-8")
         self._ready_to_approve()
         before = self._snapshot()
         import brand_workflow  # noqa: PLC0415
@@ -667,7 +667,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(failed["status"], "failed", failed)
         self.assertEqual(self._snapshot(), before)
         self.assertFalse((self.church / "brand" / "archive").exists())
-        self.assertIsNone(json.loads((self.church / ".handbuilt" / "build-my-brand" / "state.json").read_text())["approved"])
+        self.assertIsNone(json.loads((self.church / ".handbuilt" / "build-my-brand" / "state.json").read_text(encoding="utf-8"))["approved"])
         self.assertEqual(approve(self.church)["status"], "approved")
 
     def test_restart_archives_the_run_and_begins_again_at_the_plan(self):
@@ -680,7 +680,7 @@ class BuildMyBrandTest(unittest.TestCase):
         archive = Path(result["archive"])
         for kept in ("guide.md", "brief.md", "discovery/site.png", "staging/marks/mark.svg", "workflow-record/state.json", "run.json"):
             self.assertTrue((archive / kept).is_file(), kept)
-        self.assertEqual(json.loads((archive / "run.json").read_text())["stages_recorded"], ["roadmap", "fork", "discover", "interview"])
+        self.assertEqual(json.loads((archive / "run.json").read_text(encoding="utf-8"))["stages_recorded"], ["roadmap", "fork", "discover", "interview"])
         self.assertFalse((self.church / "brand" / "guide.md").exists())
         state = orient(self.church)
         self.assertEqual(state["next_stage"], "roadmap")
@@ -690,8 +690,8 @@ class BuildMyBrandTest(unittest.TestCase):
     def test_brand_system_rejects_font_files_over_byte_limit(self):
         patch = self._stage_files()
         staging = self.church / "brand" / "staging"
-        (staging / "marks" / "mark.svg").write_text(MARK)
-        (staging / "marks" / "mark-small.svg").write_text(SMALL)
+        (staging / "marks" / "mark.svg").write_text(MARK, encoding="utf-8")
+        (staging / "marks" / "mark-small.svg").write_text(SMALL, encoding="utf-8")
         font = staging / "type" / "Display-Regular.ttf"
         with font.open("wb") as handle:
             handle.truncate(16 * 1024 * 1024 + 1)
@@ -732,9 +732,9 @@ class BuildMyBrandTest(unittest.TestCase):
 
     def test_guide_names_the_church_from_church_yaml_when_brand_fields_are_blank(self):
         from brand_workflow.guide import build_html
-        brand = json.loads((self.church / "brand.json").read_text())
+        brand = json.loads((self.church / "brand.json").read_text(encoding="utf-8"))
         brand["church"] = {"public_name": "", "name": "", "short_name": ""}
-        (self.church / "brand.json").write_text(json.dumps(brand))
+        (self.church / "brand.json").write_text(json.dumps(brand), encoding="utf-8")
         _source, document = build_html(self.church, "# X\n\n## Head\n\nBody.\n")
         self.assertIn("Public Test Parish", document)
         self.assertNotIn("Your church", document)
@@ -745,7 +745,7 @@ class BuildMyBrandTest(unittest.TestCase):
         marks = self.church / "brand" / "marks"
         marks.mkdir(parents=True, exist_ok=True)
         (marks / "mark.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
-                                         '<path fill="currentColor" d="M0 0h10v10H0z"/></svg>')
+                                         '<path fill="currentColor" d="M0 0h10v10H0z"/></svg>', encoding="utf-8")
         system = {"marks": {"primary": "brand/marks/mark.svg", "wordmark": "brand/marks/mark.svg"}}
         cover = _cover(self.church, system, "Test Parish", "approved", "Brand Guide", "#fafaf7")
         sources = [part.split('"')[0] for part in cover.split('src="')[1:]]
@@ -781,22 +781,22 @@ class BuildMyBrandTest(unittest.TestCase):
 
     def test_help_is_not_a_failed_run_and_bad_arguments_answer_in_json(self):
         for argv in (["--help"], ["record", "--help"], ["check-marks", "-h"]):
-            done = subprocess.run([sys.executable, str(CLI), *argv], capture_output=True, text=True)
+            done = subprocess.run([sys.executable, str(CLI), *argv], capture_output=True, text=True, encoding="utf-8", errors="replace")
             self.assertEqual(done.returncode, 0, done.stderr)
             payload = json.loads(done.stdout)
             self.assertEqual(payload["status"], "help")
             self.assertIn("usage", payload["usage"])
-        bad = subprocess.run([sys.executable, str(CLI), "record", "--church-folder", str(self.church), "--stage", "nope", "--content-file", "x"], capture_output=True, text=True)
+        bad = subprocess.run([sys.executable, str(CLI), "record", "--church-folder", str(self.church), "--stage", "nope", "--content-file", "x"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(bad.returncode, 2)
         self.assertEqual(json.loads(bad.stdout)["errors"][0]["code"], "invalid_arguments")
         self.assertEqual(bad.stderr, "")
-        orient_run = subprocess.run([sys.executable, str(CLI), "orient", "--church-folder", str(self.church)], capture_output=True, text=True)
+        orient_run = subprocess.run([sys.executable, str(CLI), "orient", "--church-folder", str(self.church)], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(json.loads(orient_run.stdout)["next_stage"], "roadmap")
 
     def test_an_amendment_after_approval_that_keeps_nothing_leaves_the_brand_approved(self):
         self._ready_to_approve()
         self.assertEqual(approve(self.church)["status"], "approved")
-        live = (self.church / "brand.json").read_text()
+        live = (self.church / "brand.json").read_text(encoding="utf-8")
         self.assertEqual(record(self.church, "amendment", "Trying a lockup.", {"step": "open", "what": "A lockup"})["status"], "recorded")
         self.assertTrue((self.church / "brand" / "staging" / "brand-system.json").is_file(), "the approved system is the starting point")
         finished = record(self.church, "amendment", "The pastor kept none of it.", {"step": "finish", "added": []})
@@ -804,9 +804,9 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertFalse(finished["needs_approval"])
         self.assertFalse((self.church / "brand" / "staging").exists(), "nothing should stay staged against the approved brand")
         self.assertTrue(list((self.church / "brand" / "archive").glob("amendment-1-unused-*")), "the sketches are kept")
-        self.assertEqual((self.church / "brand.json").read_text(), live)
+        self.assertEqual((self.church / "brand.json").read_text(encoding="utf-8"), live)
         self.assertEqual(orient(self.church)["amendments_awaiting_approval"], [])
-        self.assertIn("Finished with nothing added", (self.church / "brand" / "guide.md").read_text())
+        self.assertIn("Finished with nothing added", (self.church / "brand" / "guide.md").read_text(encoding="utf-8"))
 
     def test_an_amendment_comes_after_the_build_and_takes_one_step_at_a_time(self):
         self._record_through("voice")
@@ -826,10 +826,10 @@ class BuildMyBrandTest(unittest.TestCase):
         self._record_through("voice")
         self.assertEqual(stage_brand(self.church, self._stage_files())["status"], "staged")
         self.assertEqual(record(self.church, "build", "Built.", {"staged_files": ["brand/staging/marks/mark.svg"]})["status"], "recorded")
-        (self.church / "note.md").write_text("A small addition.\n")
-        (self.church / "meta.json").write_text(json.dumps({"step": "open", "what": "A lockup"}))
+        (self.church / "note.md").write_text("A small addition.\n", encoding="utf-8")
+        (self.church / "meta.json").write_text(json.dumps({"step": "open", "what": "A lockup"}), encoding="utf-8")
         opened = subprocess.run([sys.executable, str(CLI), "record", "--church-folder", str(self.church), "--stage", "amendment",
-                                 "--content-file", str(self.church / "note.md"), "--metadata-file", str(self.church / "meta.json")], capture_output=True, text=True)
+                                 "--content-file", str(self.church / "note.md"), "--metadata-file", str(self.church / "meta.json")], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(json.loads(opened.stdout)["status"], "recorded", opened.stdout)
         rendered = render_guide(self.church, edition="governing-body")
         self.assertEqual(rendered["status"], "rendered", rendered)
@@ -847,7 +847,7 @@ class BuildMyBrandTest(unittest.TestCase):
         self.assertEqual(record(self.church, "direction", "Directions.", meta)["errors"][0]["code"], "invalid_path")
 
     def test_the_launcher_registers_the_new_operations(self):
-        source = (ROOT / "tools" / "church_workflow.py").read_text()
+        source = (ROOT / "tools" / "church_workflow.py").read_text(encoding="utf-8")
         for operation in ("explore", "redirect", "check-marks", "stage-brand", "book"):
             self.assertIn(f'"{operation}"', source)
         self.assertNotIn('"studio"', source)

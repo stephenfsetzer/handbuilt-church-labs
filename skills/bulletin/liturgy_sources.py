@@ -61,8 +61,8 @@ def record_source(church_folder: str | Path, file: str | Path, *, source_file: s
             raise LiturgySourceError("A public source needs its URL and a separate retained original source file")
     record = {
         "schema_version": 1, "method": method,
-        "text": {"path": str(text.relative_to(root)), "sha256": _hash(text)},
-        "source": {"path": str(source.relative_to(root)), "sha256": _hash(source),
+        "text": {"path": text.relative_to(root).as_posix(), "sha256": _hash(text)},
+        "source": {"path": source.relative_to(root).as_posix(), "sha256": _hash(source),
                    "label": label.strip(), "location": location.strip(), "verified_on": verified_on},
     }
     sidecar = Path(str(text) + ".source.json")

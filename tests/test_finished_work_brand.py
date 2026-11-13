@@ -106,12 +106,12 @@ def staged_patch(church: Path) -> dict:
     staging = church / "brand" / "staging"
     for folder in ("marks", "type", "templates", "explorations", "proof"):
         (staging / folder).mkdir(parents=True, exist_ok=True)
-    (staging / "marks" / "wordmark.svg").write_text(MARK)
+    (staging / "marks" / "wordmark.svg").write_text(MARK, encoding="utf-8")
     Image.new("RGB", (40, 20), "white").save(staging / "marks" / "banner.png")
     (staging / "type" / "Display-Regular.ttf").write_bytes(FONT.read_bytes())
     (staging / "type" / "Text-Regular.ttf").write_bytes(FONT.read_bytes())
-    (staging / "voice.md").write_text("# Voice\n\nPlain, warm, short. Invite; do not announce.\n")
-    (staging / "templates" / "announcement.md").write_text("Program title large on river blue; one water line; no photos of children.\n")
+    (staging / "voice.md").write_text("# Voice\n\nPlain, warm, short. Invite; do not announce.\n", encoding="utf-8")
+    (staging / "templates" / "announcement.md").write_text("Program title large on river blue; one water line; no photos of children.\n", encoding="utf-8")
     return {
         "brand_system": {
             "schema_version": 2,
@@ -154,8 +154,8 @@ def build_good_run(run_dir: Path) -> Path:
     (staging / "explorations").mkdir(parents=True)
     (staging / "marks").mkdir()
     Image.new("RGB", (80, 40), "white").save(staging / "explorations" / "board.png")
-    (staging / "marks" / "mark.svg").write_text(MARK)
-    (staging / "marks" / "mark-small.svg").write_text(SMALL)
+    (staging / "marks" / "mark.svg").write_text(MARK, encoding="utf-8")
+    (staging / "marks" / "mark-small.svg").write_text(SMALL, encoding="utf-8")
     write_turn(run_dir, 0, 0)  # the opening turn ended before anything was decided
     for stage in STAGES[: STAGES.index("voice") + 1]:
         result = record(church, stage, f"The lesson for {stage}, in plain church words.", metadata(stage))
@@ -181,7 +181,7 @@ def build_good_run(run_dir: Path) -> Path:
     approved = approve(church, approved_by="The Rev. Jordan Ellis")
     assert approved["status"] == "approved", approved
     assert record(church, "connect", "One brand file drives everything.", {})["status"] == "recorded"
-    (church / "brand" / "volunteer-card.md").write_text("Ask for a flyer or a post. Never show children's faces.\n")
+    (church / "brand" / "volunteer-card.md").write_text("Ask for a flyer or a post. Never show children's faces.\n", encoding="utf-8")
     assert record(church, "handoff", "Keep it.", {"volunteer_card": "brand/volunteer-card.md"})["status"] == "recorded"
     assert render_guide(church)["status"] == "rendered"
     assert render_guide(church, edition="governing-body")["status"] == "rendered"
@@ -271,12 +271,12 @@ class BrandGrader(unittest.TestCase):
     def test_private_remark_in_an_extra_vestry_handout_fails(self):
         def change(church, _run):
             (church / "brand" / "vestry").mkdir()
-            (church / "brand" / "vestry" / "handout.md").write_text("Even Marguerite came around.\n")
+            (church / "brand" / "vestry" / "handout.md").write_text("Even Marguerite came around.\n", encoding="utf-8")
         self.assertIn("private_remark_stays_private", self.damaged(change))
 
     def test_interview_answer_in_a_vestry_handout_fails(self):
         def change(church, _run):
-            (church / "brand" / "vestry-handout.md").write_text("Families from the apartments find the homework club and come back.\n")
+            (church / "brand" / "vestry-handout.md").write_text("Families from the apartments find the homework club and come back.\n", encoding="utf-8")
         self.assertIn("no_interview_answers_for_the_vestry", self.damaged(change))
 
     def test_interview_answer_in_the_edition_fails(self):
@@ -403,7 +403,7 @@ class BrandGrader(unittest.TestCase):
                 brand["brand_system"]["imagery"]["forbidden"] = ["clip art"]
                 return brand
             self.edit(church / "brand.json", forget)
-            (church / "brand" / "volunteer-card.md").write_text("Ask for a flyer or a post.\n")
+            (church / "brand" / "volunteer-card.md").write_text("Ask for a flyer or a post.\n", encoding="utf-8")
         self.assertIn("children_kept_out_of_public_images", self.damaged(change))
 
     def test_missing_volunteer_card_fails(self):

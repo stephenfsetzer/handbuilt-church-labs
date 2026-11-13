@@ -1,4 +1,5 @@
 """Exercise recovery through the church's actual launcher."""
+import os
 import hashlib
 import json
 from pathlib import Path
@@ -25,7 +26,7 @@ class InstructionRecoveryIntegrationTests(unittest.TestCase):
     def command(self, *arguments, expected=0):
         result = subprocess.run(
             [sys.executable, str(self.church / "handbuilt.py"), "recovery", *arguments],
-            cwd=self.church.parent, capture_output=True, text=True,
+            cwd=self.church.parent, capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         return json.loads(result.stdout)
@@ -66,7 +67,8 @@ class InstructionRecoveryIntegrationTests(unittest.TestCase):
         before = {name: (self.church / name).read_bytes() for name in ("CLAUDE.md", "AGENTS.md")}
         bridge._load_setup().create(self.church.parent, self.church.name)
         self.assertEqual(before, {name: (self.church / name).read_bytes() for name in before})
-        self.assertEqual(self.instructions.stat().st_mode & 0o777, 0o640)
+        if os.name != "nt":  # Windows has no permission bits
+            self.assertEqual(self.instructions.stat().st_mode & 0o777, 0o640)
 
 
 if __name__ == "__main__":

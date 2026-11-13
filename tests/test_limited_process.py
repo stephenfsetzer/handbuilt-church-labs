@@ -30,7 +30,7 @@ class LimitedProcessTests(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(HELPER), "--cpu-seconds", "5", "--memory-bytes", str(2 * 1024**3),
              "--file-bytes", "1048576", "--", sys.executable, "-c", source, "forwarded"],
-            capture_output=True, text=True, timeout=10, check=False,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         values = json.loads(result.stdout)

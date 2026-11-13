@@ -30,7 +30,7 @@ _spec.loader.exec_module(fixture)
 
 def run(church: Path, operation: str, *args: str) -> tuple[dict, int, str]:
     process = subprocess.run([sys.executable, str(ENTRY), operation, "--church-folder", str(church), *args],
-                             capture_output=True, text=True, cwd=church)
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=church)
     try:
         return json.loads(process.stdout), process.returncode, process.stderr
     except ValueError:
@@ -38,7 +38,7 @@ def run(church: Path, operation: str, *args: str) -> tuple[dict, int, str]:
 
 
 def page_text(church: Path, month: str) -> str:
-    html = next((church / "finance/board" / month).glob("*.html")).read_text()
+    html = next((church / "finance/board" / month).glob("*.html")).read_text(encoding="utf-8")
     text = re.sub(r"<style>.*?</style>", " ", html, flags=re.S)
     return " ".join(re.sub(r"<[^>]+>", " ", text).split())
 
@@ -62,12 +62,12 @@ class FinanceReportTests(unittest.TestCase):
     def two_editions(self):
         self.assertEqual(self.build("2026-07")[1], 0)
         path = self.board / "2026-07/report.json"
-        report = json.loads(path.read_text())
+        report = json.loads(path.read_text(encoding="utf-8"))
         report["watch"] = [{"id": "building", "title": "Building costs over plan", "status": "New",
                             "metric_key": "building_over_plan", "metric": report["metrics"]["building_over_plan"],
                             "better": "down", "latest": "Watching.", "next": "Council to review repairs.",
                             "latest_template": "{building_over_plan} {building_over_plan_word} plan through {month_name}."}]
-        path.write_text(json.dumps(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
         self.assertEqual(self.render("2026-07")[1], 0)
         self.assertEqual(self.build("2026-08")[1], 0)
 
@@ -75,11 +75,11 @@ class FinanceReportTests(unittest.TestCase):
 
     def test_status_reports_missing_settings_and_brand_is_not_blocking(self):
         config = self.board / "config.json"
-        saved = config.read_text()
+        saved = config.read_text(encoding="utf-8")
         config.unlink()
         result, code, _ = run(self.church, "status")
         self.assertEqual(result["status"], "blocked")
-        config.write_text(saved)
+        config.write_text(saved, encoding="utf-8")
         result, code, _ = run(self.church, "status", "--month", "2026-07")
         self.assertEqual((result["status"], code), ("ready", 0))
 
@@ -88,7 +88,7 @@ class FinanceReportTests(unittest.TestCase):
         result, code, err = self.render("2026-08")
         self.assertEqual(code, 0, err)
         self.assertEqual(result["checks"]["pages"], 2)
-        receipt = json.loads(Path(result["receipt"]).read_text())
+        receipt = json.loads(Path(result["receipt"]).read_text(encoding="utf-8"))
         self.assertEqual(receipt["shape_version"], "1.0")
         self.assertTrue(any("fallback" in line for line in receipt["brand_resolution"]))
         self.assertTrue(all("bundled" in line for line in receipt["fonts"]), receipt["fonts"])
@@ -103,11 +103,11 @@ class FinanceReportTests(unittest.TestCase):
 
     def test_a_total_that_disagrees_with_quickbooks_stops_the_build(self):
         pulls = self.board / "2026-08/pulls/pl-ytd.json"
-        data = json.loads(pulls.read_text())
+        data = json.loads(pulls.read_text(encoding="utf-8"))
         for row in data["reportData"]["data"]["rows"]:
             if row["cells"][0]["value"] == "6520 Repairs":
                 row["cells"][1]["value"] += 500
-        pulls.write_text(json.dumps(data))
+        pulls.write_text(json.dumps(data), encoding="utf-8")
         _, code, err = self.build("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("CHECK FAILED", err)
@@ -122,55 +122,55 @@ class FinanceReportTests(unittest.TestCase):
 
     def test_partial_prior_rows_cannot_inflate_the_current_month(self):
         pulls = self.board / "2026-08/pulls/pl-prior.json"
-        original = json.loads(pulls.read_text())
+        original = json.loads(pulls.read_text(encoding="utf-8"))
         data = json.loads(json.dumps(original))
         data["reportData"]["data"]["rows"] = [r for r in data["reportData"]["data"]["rows"] if r["cells"][0]["value"] != "6520 Repairs"]
-        pulls.write_text(json.dumps(data))
+        pulls.write_text(json.dumps(data), encoding="utf-8")
         _, code, err = self.build("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("pl-prior.json: the Expenses lines add up to", err)
         for row in original["reportData"]["data"]["rows"]:
             if row["cells"][0]["value"] in ("6520 Repairs", "Expenses"):
                 row["cells"][1]["value"] += 500
-        pulls.write_text(json.dumps(original))
+        pulls.write_text(json.dumps(original), encoding="utf-8")
         _, code, err = self.build("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("prior profit and loss net", err)
 
     def test_last_years_line_must_match_last_years_recorded_result(self):
         config = self.board / "config.json"
-        settings = json.loads(config.read_text())
+        settings = json.loads(config.read_text(encoding="utf-8"))
         settings["long_view"]["full_years"] = [{"year": 2025, "result": 1, "reported": 1}]
-        config.write_text(json.dumps(settings))
+        config.write_text(json.dumps(settings), encoding="utf-8")
         _, code, err = self.build("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("books for 2025 have changed", err)
 
     def test_the_settings_note_on_whole_years_is_printed(self):
         config_path = self.church / "finance/board/config.json"
-        config = json.loads(config_path.read_text())
+        config = json.loads(config_path.read_text(encoding="utf-8"))
         config["long_view"]["note"] = "Whole years leave out the organ fund."
-        config_path.write_text(json.dumps(config))
+        config_path.write_text(json.dumps(config), encoding="utf-8")
         self.assertEqual(self.build("2026-08")[1], 0)
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         self.assertEqual(report["full_years_note"], "Whole years leave out the organ fund.")
         self.assertEqual(self.render("2026-08")[1], 0)
         self.assertIn("Whole years leave out the organ fund.", page_text(self.church, "2026-08"))
 
     def test_books_closed_into_a_fund_read_monthly_results_from_profit_and_loss_pulls(self):
         self.assertEqual(self.build("2026-08")[1], 0)
-        expected = json.loads((self.board / "2026-08/report.json").read_text())["plan"]["running"]
+        expected = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))["plan"]["running"]
         # The year's results are moved out of retained earnings into a fund balance in June 2025 and
         # February 2026: equity on the balance sheet drops with nothing earned or spent.
         pulls = self.board / "2026-08/pulls"
-        sheet = json.loads((pulls / "balance-sheet.json").read_text())
+        sheet = json.loads((pulls / "balance-sheet.json").read_text(encoding="utf-8"))
         cols = [c["key"] for c in sheet["displayColumns"][1:]]
         moved = next(r for r in sheet["reportData"]["rows"] if r["cells"][0]["value"] == "Retained Earnings")
         for i, key in enumerate(cols):
             shift = (500 if key not in ("Dec 2024", "Jan 2025", "Feb 2025", "Mar 2025", "Apr 2025", "May 2025") else 0) \
                 + (700 if key.endswith("2026") and key not in ("Jan 2026",) else 0)
             moved["cells"][i + 1]["value"] -= shift
-        (pulls / "balance-sheet.json").write_text(json.dumps(sheet))
+        (pulls / "balance-sheet.json").write_text(json.dumps(sheet), encoding="utf-8")
         result, code, err = self.build("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("last year's line ends at", err + json.dumps(result))
@@ -178,11 +178,11 @@ class FinanceReportTests(unittest.TestCase):
         for y, upto in ((2025, 12), (2026, 6)):
             for m in range(1, upto + 1):
                 path = pulls / f"pl-through-{y}-{m:02d}.json"
-                path.write_text(json.dumps(fixture.pl(y, m)))
+                path.write_text(json.dumps(fixture.pl(y, m)), encoding="utf-8")
                 through += ["--pl-through", f"{y}-{m:02d}={path}"]
         result, code, err = self.build("2026-08", *through)
         self.assertEqual(code, 0, err + json.dumps(result))
-        self.assertEqual(json.loads((self.board / "2026-08/report.json").read_text())["plan"]["running"], expected)
+        self.assertEqual(json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))["plan"]["running"], expected)
         # A pull that does not run January 1 to its month end is refused.
         result, code, err = self.build("2026-08", *through[:-1], f"2026-06={pulls / 'pl-through-2026-05.json'}")
         self.assertNotEqual(code, 0)
@@ -190,23 +190,23 @@ class FinanceReportTests(unittest.TestCase):
 
     def test_each_watch_item_carries_its_status_against_last_month(self):
         self.two_editions()
-        july = json.loads((self.board / "2026-07/report.json").read_text())["watch"][0]["metric"]
-        august = json.loads((self.board / "2026-08/report.json").read_text())
+        july = json.loads((self.board / "2026-07/report.json").read_text(encoding="utf-8"))["watch"][0]["metric"]
+        august = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         item = august["watch"][0]
         expected = "No change" if item["metric"] == july else ("Better" if item["metric"] < july else "Worse")
         self.assertEqual(item["status"], expected)
         # With no report the month before, every item is new.
         (self.board / "2026-07/report.json").unlink()
         self.assertEqual(self.build("2026-08")[1], 0)
-        self.assertEqual({w["status"] for w in json.loads((self.board / "2026-08/report.json").read_text())["watch"]} or {"New"}, {"New"})
+        self.assertEqual({w["status"] for w in json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))["watch"]} or {"New"}, {"New"})
 
     def test_changed_earlier_months_and_new_catch_all_accounts_are_raised(self):
         self.two_editions()
         july = self.board / "2026-07/report.json"
-        report = json.loads(july.read_text())
+        report = json.loads(july.read_text(encoding="utf-8"))
         report["plan"]["actual"] += 1500
         report["catch_all_accounts"] = [a for a in report["catch_all_accounts"] if not a.startswith("7510")]
-        july.write_text(json.dumps(report))
+        july.write_text(json.dumps(report), encoding="utf-8")
         result, code, _ = self.build("2026-08")
         self.assertEqual(code, 0)
         needs = " ".join(result["needs_a_person"])
@@ -228,13 +228,13 @@ class FinanceReportTests(unittest.TestCase):
 
         pulls = self.board / "2026-08/pulls"
         with mock.patch.object(fixture, "month_values", unposted_august):
-            (pulls / "balance-sheet.json").write_text(json.dumps(fixture.balance_sheet((2026, 8))))
-            (pulls / "pl-ytd.json").write_text(json.dumps(fixture.pl(2026, 8)))
+            (pulls / "balance-sheet.json").write_text(json.dumps(fixture.balance_sheet((2026, 8))), encoding="utf-8")
+            (pulls / "pl-ytd.json").write_text(json.dumps(fixture.pl(2026, 8)), encoding="utf-8")
         result, code, err = self.build("2026-08")
         self.assertEqual(code, 0, err)
         self.assertEqual(result["came_in"], 0)
         self.assertTrue(any("August looks unrecorded" in item for item in result["needs_a_person"]))
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         self.assertIs(report["this_month"]["unrecorded"], True)
         answer = report["short_answer"]
         self.assertTrue(answer.startswith("August is not yet recorded: no income has been entered and only some bills, "
@@ -254,7 +254,7 @@ class FinanceReportTests(unittest.TestCase):
         self.assertNotIn(f"${abs(report['plan']['actual']):,} {'ahead' if report['plan']['actual'] >= 0 else 'short'}", page)
         # A recorded month is unchanged: no flag, no caveat, and the month's own sentence.
         self.assertEqual(self.build("2026-07")[1], 0)
-        july = json.loads((self.board / "2026-07/report.json").read_text())
+        july = json.loads((self.board / "2026-07/report.json").read_text(encoding="utf-8"))
         self.assertNotIn("unrecorded", july["this_month"])
         self.assertNotIn("month_unrecorded", [r["id"] for r in july["readiness"] or []])
         self.assertTrue(july["short_answer"].startswith("July:"), july["short_answer"])
@@ -262,14 +262,14 @@ class FinanceReportTests(unittest.TestCase):
     def test_an_unmatched_figure_warns_on_a_draft_and_blocks_a_final_report(self):
         self.two_editions()
         path = self.board / "2026-08/report.json"
-        report = json.loads(path.read_text())
+        report = json.loads(path.read_text(encoding="utf-8"))
         report["short_answer"] += " We also received a gift of $12,345."
-        path.write_text(json.dumps(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
         result, code, _ = self.render("2026-08")
         self.assertEqual(code, 0)
         self.assertIn("$12,345", " ".join(result["warnings"]))
         report["meta"]["status"] = "final"
-        path.write_text(json.dumps(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
         _, code, err = self.render("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("match nothing in the data", err)
@@ -277,9 +277,9 @@ class FinanceReportTests(unittest.TestCase):
     def test_a_report_missing_a_required_part_is_refused(self):
         self.two_editions()
         path = self.board / "2026-08/report.json"
-        report = json.loads(path.read_text())
+        report = json.loads(path.read_text(encoding="utf-8"))
         del report["obligations"]
-        path.write_text(json.dumps(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
         _, code, err = self.render("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("missing 'obligations'", err)
@@ -288,30 +288,30 @@ class FinanceReportTests(unittest.TestCase):
 
     def configure(self, **keys):
         config = self.board / "config.json"
-        settings = json.loads(config.read_text())
+        settings = json.loads(config.read_text(encoding="utf-8"))
         settings.update(keys)
-        config.write_text(json.dumps(settings))
+        config.write_text(json.dumps(settings), encoding="utf-8")
 
     def add_balance_sheet_rows(self, month: str, rows: dict[str, float]):
         path = self.board / month / "pulls/balance-sheet.json"
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         columns = len(data["displayColumns"]) - 1
         for name, value in rows.items():
             data["reportData"]["rows"].append(
                 {"cells": [{"id": "1", "name": "ACCOUNT_NAME", "value": name}] +
                  [{"name": "x", "value": value, "localizedValue": f"{value:,.2f}"}] * columns, "depth": 3})
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
 
     def rendered_words(self, month: str) -> str:
         pdf = next((self.board / month).glob("*.pdf"))
         words = page_text(self.church, month)
         if shutil.which("pdftotext"):
-            words += " " + subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True).stdout
+            words += " " + subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
         return words
 
     def test_default_marker_is_unchanged_and_report_json_has_no_new_keys(self):
         self.assertEqual(self.build("2026-08")[1], 0)
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         self.assertNotIn("approval", report["meta"])
         self.assertNotIn("set_aside", report["cash"])
         self.assertNotIn("set_aside_total", report["cash"])
@@ -319,7 +319,7 @@ class FinanceReportTests(unittest.TestCase):
         self.assertIn("Draft for review", page_text(self.church, "2026-08"))
         self.assertNotIn("Books through", page_text(self.church, "2026-08"))
         report["meta"]["status"] = "final"
-        (self.board / "2026-08/report.json").write_text(json.dumps(report))
+        (self.board / "2026-08/report.json").write_text(json.dumps(report), encoding="utf-8")
         self.assertEqual(self.render("2026-08")[1], 0)
         text = page_text(self.church, "2026-08")
         self.assertIn("Final", text)
@@ -328,7 +328,7 @@ class FinanceReportTests(unittest.TestCase):
     def test_approval_none_prints_what_the_report_is_and_never_says_draft(self):
         self.configure(approval="none")
         self.assertEqual(self.build("2026-08")[1], 0)
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         self.assertEqual(report["meta"]["approval"], "none")
         self.assertEqual(report["meta"]["status"], "draft")
         result, code, err = self.render("2026-08")
@@ -347,7 +347,7 @@ class FinanceReportTests(unittest.TestCase):
     def test_set_aside_money_is_listed_by_name_and_never_counted_as_bank_cash(self):
         plain = self.build("2026-08")
         self.assertEqual(plain[1], 0)
-        before = json.loads((self.board / "2026-08/report.json").read_text())
+        before = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         self.add_balance_sheet_rows("2026-08", {"Memorial Fund": 12000.0, "Building Reserve": 4500.4})
         self.configure(set_aside_accounts=[
             {"account": "Memorial Fund", "name": "Memorial Fund", "kind": "restricted"},
@@ -355,7 +355,7 @@ class FinanceReportTests(unittest.TestCase):
             {"account": "ELCA Endowment Fund", "name": "Endowment", "kind": "investment"},
             {"account": "Stripe", "name": "Online gifts", "kind": "in_transit"}])
         self.assertEqual(self.build("2026-08")[1], 0)
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         self.assertEqual(report["cash"]["set_aside"], [
             {"name": "Memorial Fund", "kind": "restricted", "amount": 12000},
             {"name": "Roof Reserve", "kind": "designated", "amount": 4500},
@@ -374,18 +374,18 @@ class FinanceReportTests(unittest.TestCase):
             self.assertIn(line, page_one)
         pdf = next((self.board / "2026-08").glob("*.pdf"))
         if shutil.which("pdftotext"):
-            first = subprocess.run(["pdftotext", "-f", "1", "-l", "1", str(pdf), "-"], capture_output=True, text=True).stdout
+            first = subprocess.run(["pdftotext", "-f", "1", "-l", "1", str(pdf), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
             self.assertIn("Memorial Fund", first)
             self.assertIn("Roof Reserve", first)
 
     def test_dropping_the_new_keys_leaves_the_report_exactly_as_before(self):
         self.assertEqual(self.build("2026-08")[1], 0)
         path = self.board / "2026-08/report.json"
-        default_text = path.read_text()
+        default_text = path.read_text(encoding="utf-8")
         self.configure(approval="none", set_aside_accounts=[
             {"account": "ELCA Endowment Fund", "name": "Endowment", "kind": "investment"}])
         self.assertEqual(self.build("2026-08")[1], 0)
-        report = json.loads(path.read_text())
+        report = json.loads(path.read_text(encoding="utf-8"))
         del report["meta"]["approval"]
         del report["cash"]["set_aside"]
         del report["cash"]["set_aside_total"]
@@ -452,7 +452,7 @@ class FinanceReportTests(unittest.TestCase):
                                 "--balance-sheet", str(pulls / "balance-sheet.json"),
                                 "--pl-ytd", str(pulls / "pl-ytd.json"), "--pl-prior", str(pulls / "pl-prior.json"))
         self.assertEqual(code, 0, err)
-        report = json.loads((church / "finance/board/2026-08/report.json").read_text())
+        report = json.loads((church / "finance/board/2026-08/report.json").read_text(encoding="utf-8"))
         self.assertTrue(report["short_history"])
         self.assertIsNone(report["plan"]["running"]["last_year"])
         result, code, err = run(church, "render", str(church / "finance/board/2026-08/report.json"))
@@ -466,10 +466,10 @@ class FinanceReportTests(unittest.TestCase):
     def test_parts_left_out_are_not_printed_and_the_rest_are_numbered_again(self):
         self.assertEqual(self.build("2026-08")[1], 0)
         path = self.board / "2026-08/report.json"
-        report = json.loads(path.read_text())
+        report = json.loads(path.read_text(encoding="utf-8"))
         self.assertNotIn("leave_out", report)
         report["leave_out"] = ["bills", "years", "watch"]
-        path.write_text(json.dumps(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
         result, code, err = self.render("2026-08")
         self.assertEqual(code, 0, err)
         self.assertLessEqual(result["checks"]["pages"], 2)
@@ -485,9 +485,9 @@ class FinanceReportTests(unittest.TestCase):
     def test_an_unknown_part_to_leave_out_stops_the_render(self):
         self.assertEqual(self.build("2026-08")[1], 0)
         path = self.board / "2026-08/report.json"
-        report = json.loads(path.read_text())
+        report = json.loads(path.read_text(encoding="utf-8"))
         report["leave_out"] = ["sermon"]
-        path.write_text(json.dumps(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
         _, code, err = self.render("2026-08")
         self.assertNotEqual(code, 0)
         self.assertIn("leave_out", err)
@@ -513,23 +513,23 @@ class FinanceReportTests(unittest.TestCase):
                     church = fixture.main(Path(self.temp.name) / mode)
                 board = church / "finance/board"
                 config_path = board / "config.json"
-                config = json.loads(config_path.read_text())
+                config = json.loads(config_path.read_text(encoding="utf-8"))
                 # Removing the fixture's monthly heading expense also changes 2025.
                 config["long_view"]["full_years"][0]["reported"] += 5400
                 config["long_view"]["full_years"][0]["result"] += 5400
-                config_path.write_text(json.dumps(config))
+                config_path.write_text(json.dumps(config), encoding="utf-8")
                 pulls = board / "2026-08/pulls"
                 if mode in ("empty", "reversal"):
                     files = (pulls / "pl-ytd.json", pulls / "pl-prior.json") if mode == "empty" else (pulls / "pl-ytd.json",)
                     for file in files:
-                        data = json.loads(file.read_text())
+                        data = json.loads(file.read_text(encoding="utf-8"))
                         data["reportData"]["data"]["rows"] = [r for r in data["reportData"]["data"]["rows"] if "." not in r["metadata"]["id"]]
-                        file.write_text(json.dumps(data))
+                        file.write_text(json.dumps(data), encoding="utf-8")
                 result, code, err = run(church, "build", "--month", "2026-08", "--prepared", "2026-09-10",
                     "--balance-sheet", str(pulls / "balance-sheet.json"), "--pl-ytd", str(pulls / "pl-ytd.json"),
                     "--pl-prior", str(pulls / "pl-prior.json"))
                 self.assertEqual(code, 0, err)
-                report = json.loads((board / "2026-08/report.json").read_text())
+                report = json.loads((board / "2026-08/report.json").read_text(encoding="utf-8"))
                 self.assertLessEqual(report["cash"]["monthly_spending"], 0)
                 self.assertIn("Cash coverage cannot be estimated", report["short_answer"])
                 result, code, err = run(church, "render", str(board / "2026-08/report.json"))
@@ -559,16 +559,16 @@ class FinanceReportTests(unittest.TestCase):
         for bank in (0, -300):
             with self.subTest(bank=bank):
                 bs = self.board / "2026-08/pulls/balance-sheet.json"
-                data = json.loads(bs.read_text())
+                data = json.loads(bs.read_text(encoding="utf-8"))
                 for row in data["reportData"]["rows"]:
                     name = row["cells"][0]["value"]
                     if name in ("Checking - First Bank 1111", "Savings - First Bank 2222", "1010 Checking - First Bank 1111", "1020 Savings - First Bank 2222"):
                         for cell in row["cells"][1:]:
                             cell["value"] = bank if name == "1010 Checking - First Bank 1111" else 0
-                bs.write_text(json.dumps(data))
+                bs.write_text(json.dumps(data), encoding="utf-8")
                 result, code, err = self.build("2026-08")
                 self.assertEqual(code, 0, err)
-                report = json.loads((self.board / "2026-08/report.json").read_text())
+                report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
                 self.assertEqual(report["cash"]["bank"], bank)
                 self.assertNotIn("We can pay our bills", report["short_answer"])
                 self.assertIn("below zero" if bank < 0 else "no bank cash", report["short_answer"])
@@ -593,7 +593,7 @@ class FinanceReportTests(unittest.TestCase):
             self.assertEqual((result["status"], code), ("blocked", 2))
             self.assertIn("governing body", [c["check"] for c in result["checks"] if c["ok"] is False])
             yaml = church / "church.yaml"
-            yaml.write_text(yaml.read_text() + "leadership:\n  governing_body:\n    label: Vestry\n")
+            yaml.write_text(yaml.read_text(encoding="utf-8") + "leadership:\n  governing_body:\n    label: Vestry\n", encoding="utf-8")
             result, code = bridge.execute(church, "finance-report", "status", ["--month", "2026-08"])
         self.assertEqual((result["status"], code), ("ready", 0))
         self.assertTrue(Path(result["handbuilt_run"]).is_file())
@@ -741,7 +741,7 @@ class IncompletePullTests(unittest.TestCase):
 
     def load(self, data):
         path = Path(self.temp.name) / "pl.json"
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
         with self.assertRaises(SystemExit) as caught:
             self.build.load_pl(path)
         return str(caught.exception)
@@ -765,7 +765,7 @@ class IncompletePullTests(unittest.TestCase):
 
     def _write(self, data):
         path = Path(self.temp.name) / "pl-ok.json"
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
         return path
 
 
@@ -828,11 +828,11 @@ class OneTimeCandidateTests(unittest.TestCase):
             draft = root / "finance/board/setup-draft.json"
             draft.parent.mkdir(parents=True)
             draft.write_text(json.dumps({"long_view": {"full_years": [{"year": 2025, "result": 25200, "reported": 25200}]},
-                                         "one_time_reviewed": False}))
+                                         "one_time_reviewed": False}), encoding="utf-8")
             with mock.patch.object(self.setup, "draft_path", return_value=draft), mock.patch("sys.stdout"):
                 self.setup.cmd_one_time(Namespace(none=False, done=False, year=2025, amount=3900.0, label="insurance payment"), root)
                 self.setup.cmd_one_time(Namespace(none=False, done=True, year=2025, amount=-3900.0, label="storm damage"), root)
-            year = json.loads(draft.read_text())["long_view"]["full_years"][0]
+            year = json.loads(draft.read_text(encoding="utf-8"))["long_view"]["full_years"][0]
             self.assertEqual(year["one_time"], {"amount": 0.0, "label": "insurance payment and storm damage"})
             self.assertEqual(year["result"], 25200)
 
@@ -890,12 +890,12 @@ class QuickBooksOwnReportTests(unittest.TestCase):
         church = fixture.main(Path(self.temp.name) / name)
         if native:
             pulls = church / "finance/board/2026-08/pulls"
-            (pulls / "balance-sheet.json").write_text(json.dumps(fixture.native_balance_sheet((2026, 8))))
-            (pulls / "pl-ytd.json").write_text(json.dumps(fixture.native_pl(2026, 8)))
-            (pulls / "pl-prior.json").write_text(json.dumps(fixture.native_pl(2026, 7)))
+            (pulls / "balance-sheet.json").write_text(json.dumps(fixture.native_balance_sheet((2026, 8))), encoding="utf-8")
+            (pulls / "pl-ytd.json").write_text(json.dumps(fixture.native_pl(2026, 8)), encoding="utf-8")
+            (pulls / "pl-prior.json").write_text(json.dumps(fixture.native_pl(2026, 7)), encoding="utf-8")
             setup = church / "setup-pulls"
-            (setup / "pl-12m.json").write_text(json.dumps(fixture.native_pl(2026, 8, start=(2025, 9))))
-            (setup / "pl-2025.json").write_text(json.dumps(fixture.native_pl(2025, 12)))
+            (setup / "pl-12m.json").write_text(json.dumps(fixture.native_pl(2026, 8, start=(2025, 9))), encoding="utf-8")
+            (setup / "pl-2025.json").write_text(json.dumps(fixture.native_pl(2025, 12)), encoding="utf-8")
         return church
 
     def build(self, church, *extra):
@@ -910,7 +910,7 @@ class QuickBooksOwnReportTests(unittest.TestCase):
             church = self.church(f"native-{native}", native)
             _, code, err = self.build(church)
             self.assertEqual(code, 0, err)
-            reports[native] = json.loads((church / "finance/board/2026-08/report.json").read_text())
+            reports[native] = json.loads((church / "finance/board/2026-08/report.json").read_text(encoding="utf-8"))
         self.assertEqual(reports[True], reports[False])
         result, code, err = run(church, "render", str(church / "finance/board/2026-08/report.json"))
         self.assertEqual((code, result["checks"]["pages"]), (0, 2), err)
@@ -932,10 +932,10 @@ class QuickBooksOwnReportTests(unittest.TestCase):
     def test_lines_that_do_not_add_up_to_their_total_still_stop_the_build(self):
         church = self.church("native-short", True)
         path = church / "finance/board/2026-08/pulls/pl-ytd.json"
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         giving = data["Rows"]["Row"][0]["Rows"]["Row"][0]["Rows"]["Row"]
         giving.pop()  # a line QuickBooks left out; the section total still counts it
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
         _, code, err = self.build(church)
         self.assertNotEqual(code, 0)
         self.assertIn("CHECK FAILED", err)
@@ -946,7 +946,7 @@ class QuickBooksOwnReportTests(unittest.TestCase):
                  for i in range(120)]
         data["Rows"]["Row"][0]["Rows"]["Row"][0]["Rows"]["Row"].extend(spare)
         path = Path(self.temp.name) / "pl-long.json"
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
         with mock.patch.object(sys, "path", [str(ENTRY.parent), *sys.path]):
             import build_report_data
         _, _, items, sections = build_report_data.load_pl(path)
@@ -956,10 +956,10 @@ class QuickBooksOwnReportTests(unittest.TestCase):
     def test_a_balance_sheet_without_month_columns_is_refused_plainly(self):
         church = self.church("native-total", True)
         path = church / "finance/board/2026-08/pulls/balance-sheet.json"
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         data["Columns"]["Column"] = data["Columns"]["Column"][:1] + [
             {"ColTitle": "Total", "ColType": "Money", "MetaData": [{"Name": "ColKey", "Value": "total"}]}]
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
         _, code, err = self.build(church)
         self.assertNotEqual(code, 0)
         self.assertIn("summarized by month", err)

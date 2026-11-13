@@ -69,12 +69,12 @@ class SurvivalTest(unittest.TestCase):
 
     def _svg(self, name: str, text: str) -> str:
         path = self.marks / f"{name}.svg"
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         return path.relative_to(self.church).as_posix()
 
     def test_reversed_render_paints_white_on_the_dark_color(self):
         path = self.marks / "mark.svg"
-        path.write_text(SOLID)
+        path.write_text(SOLID, encoding="utf-8")
         renders = survival.render_mark(self.church, path, self.marks / "renders", dark="#0b1d3a")
         with Image.open(self.church / renders["reversed"]) as image:
             colors = {color: count for count, color in image.convert("RGB").getcolors(maxcolors=100000)}
@@ -112,7 +112,7 @@ class SurvivalTest(unittest.TestCase):
 
     def _write_text_svg(self) -> Path:
         path = self.marks / "text.svg"
-        path.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><text>A</text></svg>')
+        path.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><text>A</text></svg>', encoding="utf-8")
         return path
 
     def test_check_marks_operation_reports_and_receipts_before_staging(self):
@@ -127,9 +127,9 @@ class SurvivalTest(unittest.TestCase):
         self.assertEqual(result["failures"], [])
         self.assertEqual([m["mark"] for m in result["marks"]], [primary, small])
         self.assertEqual([c["check"] for c in result["marks"][1]["checks"]], list(survival.SMALL_CHECKS))
-        report = json.loads((self.church / result["report"]).read_text())
+        report = json.loads((self.church / result["report"]).read_text(encoding="utf-8"))
         self.assertEqual(report["dark"], "#0b1d3a")
-        self.assertEqual(json.loads(Path(result["receipt"]).read_text())["kind"], "check-marks")
+        self.assertEqual(json.loads(Path(result["receipt"]).read_text(encoding="utf-8"))["kind"], "check-marks")
         fragile = check_marks(self.church, primary=self._svg("thin", THIN), small=small)
         self.assertEqual(fragile["status"], "checked")
         self.assertFalse(fragile["passed"])
@@ -143,13 +143,13 @@ class SurvivalTest(unittest.TestCase):
         files = []
         for index in range(3):
             path = self.sketches / f"a{index}.svg"
-            path.write_text(SOLID.replace('x="20"', f'x="{10 + index * 5}"'))
+            path.write_text(SOLID.replace('x="20"', f'x="{10 + index * 5}"'), encoding="utf-8")
             files.append(path.relative_to(self.church).as_posix())
         png = self.sketches / "form.png"
         Image.new("RGB", (120, 80), "navy").save(png)
         files.append(png.relative_to(self.church).as_posix())
         bad = self.sketches / "bad.txt"
-        bad.write_text("no")
+        bad.write_text("no", encoding="utf-8")
         self.assertEqual(explore(self.church, "sketches-1", [bad.relative_to(self.church).as_posix()])["errors"][0]["code"], "invalid_sketch")
         result = explore(self.church, "Sketches 1", files, maker="maker-a@opus", dark="#0b1d3a")
         self.assertEqual(result["status"], "explored", result)
@@ -170,10 +170,10 @@ class SurvivalTest(unittest.TestCase):
                            rebrief="Explore the door cropped huge by the frame, one continuous line, and the arch as the threshold.")
         self.assertEqual(stopped["status"], "redirected", stopped)
         self.assertEqual(stopped["files_seen"], 5)
-        note = (self.church / stopped["file"]).read_text()
+        note = (self.church / stopped["file"]).read_text(encoding="utf-8")
         self.assertIn("literal pictogram", note)
         self.assertIn("## New brief", note)
-        self.assertEqual(json.loads(Path(stopped["receipt"]).read_text())["kind"], "redirect")
+        self.assertEqual(json.loads(Path(stopped["receipt"]).read_text(encoding="utf-8"))["kind"], "redirect")
         self.assertEqual(explore(self.church, "sketches-1", files[:1])["errors"][0]["code"], "round_redirected")
         self.assertEqual(redirect(self.church, "sketches-1", "again")["errors"][0]["code"], "round_redirected")
         fresh = explore(self.church, "sketches-2", files[:2])
@@ -184,7 +184,7 @@ class SurvivalTest(unittest.TestCase):
         unseen = redirect(self.church, "image-forms", "Image tool output drifted into clip art.")
         self.assertEqual(unseen["status"], "redirected")
         self.assertEqual(unseen["files_seen"], 0)
-        kinds = {json.loads(p.read_text())["kind"] for p in (self.church / ".handbuilt" / "build-my-brand" / "receipts").glob("*.json")}
+        kinds = {json.loads(p.read_text(encoding="utf-8"))["kind"] for p in (self.church / ".handbuilt" / "build-my-brand" / "receipts").glob("*.json")}
         self.assertTrue({"explore", "redirect"} <= kinds)
 
 

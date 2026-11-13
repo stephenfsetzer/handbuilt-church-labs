@@ -23,7 +23,7 @@ def command(argv, result=None, code=0, error=""):
 
 def save(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value))
+    path.write_text(json.dumps(value), encoding="utf-8")
 
 
 class FinanceGradeEvidenceTests(unittest.TestCase):
@@ -113,7 +113,7 @@ class FinanceGradeEvidenceTests(unittest.TestCase):
             save(folder.parent / "cedar_hollow-run.json", {"church": "cedar_hollow", "skill": "finance-onboarding",
                  "status": "completed", "returncode": 0, "workspace_calls": [start, calls[0]],
                  "quickbooks_calls": [{"tool": "company_info", "error": False, "response": {}}, *qcalls]})
-            (folder / "finance/finance-overview.md").write_text("Synthetic transparent monthly result is $511.")
+            (folder / "finance/finance-overview.md").write_text("Synthetic transparent monthly result is $511.", encoding="utf-8")
             save(folder / "finance/onboarding/questions.json", [{"for": "Treasurer", "question": "Confirm?", "why": "Review"}])
             self.assertFalse(E.grade(folder, None)["passed"])
             def verdict(prompt, model):
@@ -130,7 +130,7 @@ class FinanceGradeEvidenceTests(unittest.TestCase):
             folder = Path(tmp) / "maple_ridge"
             save(folder / "finance/onboarding/questions.json",
                  [{"for": "Pastor", "question": "Authorize profile change or provide export?", "why": "Source unavailable"}])
-            (folder / "finance/finance-overview.md").write_text("Synthetic profile block prevents reading the result.")
+            (folder / "finance/finance-overview.md").write_text("Synthetic profile block prevents reading the result.", encoding="utf-8")
             start = command(["python3", "/staged/tools/church_workflow.py", "--church-folder", str(folder), "start", "finance-onboarding"])
             save(folder.parent / "maple_ridge-run.json", {"church": "maple_ridge", "skill": "finance-onboarding",
                  "status": "completed", "returncode": 0, "workspace_calls": [start],

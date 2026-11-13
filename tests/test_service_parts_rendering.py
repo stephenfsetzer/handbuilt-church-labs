@@ -134,7 +134,7 @@ class ServicePartsRenderingTest(unittest.TestCase):
                                    "services": {"sunday": {"name": "Sunday Communion"}},
                                    "parts": {key: {"name": key, "unit": key, "file": value} for key, value in files.items()},
                                    "part_selections": {key: key for key in files}}}
-            (church / "worship/profile.yaml").write_text(yaml.safe_dump(profile))
+            (church / "worship/profile.yaml").write_text(yaml.safe_dump(profile), encoding="utf-8")
             request = bulletin_input()
             request["liturgy"] = {}
             result = produce(church, request)

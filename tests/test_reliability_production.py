@@ -38,7 +38,7 @@ class ReliabilityProductionIntegrationTest(unittest.TestCase):
     def _church_with_large_roster_and_standing_doxology(self, tmp: Path) -> Path:
         church = make_church(tmp)
         config_path = church / "church.yaml"
-        config = yaml.safe_load(config_path.read_text())
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         config["leadership"] = {
             "print_in_bulletin": True,
             "clergy_and_staff": [
@@ -49,7 +49,7 @@ class ReliabilityProductionIntegrationTest(unittest.TestCase):
             "title": "Standing Doxology",
             "lyrics": [{"speaker": "All", "bold": True, "lines": ["Synthetic standing doxology text."]}],
         }}
-        config_path.write_text(yaml.safe_dump(config))
+        config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
         return church
 
     def _base_bulletin(self, template: str, service_date: str) -> dict:
@@ -123,7 +123,7 @@ class ReliabilityProductionIntegrationTest(unittest.TestCase):
             with self.subTest(template=template), tempfile.TemporaryDirectory() as tmp:
                 church = make_church(Path(tmp))
                 config_path = church / "church.yaml"
-                config = yaml.safe_load(config_path.read_text())
+                config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
                 config["leadership"] = {
                     "print_in_bulletin": True,
                     "placement": "footer",
@@ -131,7 +131,7 @@ class ReliabilityProductionIntegrationTest(unittest.TestCase):
                         {"name": f"Parishioner {i:02d}", "role": "Vestry"} for i in range(35)
                     ],
                 }
-                config_path.write_text(yaml.safe_dump(config))
+                config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
                 result = produce(church, self._base_bulletin(template, "2026-09-20"))
                 self.assertEqual(result["status"], "blocked", result)
                 self.assertEqual(result["errors"][0]["code"], "leadership_roster_capacity")
@@ -303,11 +303,11 @@ class SourceInventoryProductionGateTest(unittest.TestCase):
             mark_review_complete(church, import_id, note="Re-reviewed before approval")
 
             approval = {
-                "production_run_id": json.loads(Path(produced["receipt_path"]).read_text())["run_id"],
+                "production_run_id": json.loads(Path(produced["receipt_path"]).read_text(encoding="utf-8"))["run_id"],
                 "approved_by": "Test Pastor",
                 "reviewed_artifact_hashes": {
                     item["role"]: item["sha256"]
-                    for item in json.loads(Path(produced["receipt_path"]).read_text())["artifacts"]
+                    for item in json.loads(Path(produced["receipt_path"]).read_text(encoding="utf-8"))["artifacts"]
                 },
             }
             outcome = finalize(produced["receipt_path"], approval)
@@ -323,7 +323,7 @@ class SourceInventoryProductionGateTest(unittest.TestCase):
             bulletin = self._bulletin_referencing("2026-09-20")
             produced = produce(church, bulletin)
             self.assertEqual(produced["status"], "ready_for_review", produced)
-            receipt = json.loads(Path(produced["receipt_path"]).read_text())
+            receipt = json.loads(Path(produced["receipt_path"]).read_text(encoding="utf-8"))
             approval = {
                 "production_run_id": receipt["run_id"],
                 "approved_by": "Test Pastor",
@@ -341,7 +341,7 @@ class ParishInformationTest(unittest.TestCase):
     def _church_with_parish_information(self, tmp: Path) -> Path:
         church = make_church(tmp)
         config_path = church / "church.yaml"
-        config = yaml.safe_load(config_path.read_text())
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         config["bulletin"] = {"parish_information": {
             "before_service": [
                 {"title": "Welcome", "text": "Welcome to All Saints. We are glad you are here today."},
@@ -352,7 +352,7 @@ class ParishInformationTest(unittest.TestCase):
                 {"title": "About Our Worship Book", "text": "Hymnal numbers are printed above each hymn."},
             ],
         }}
-        config_path.write_text(yaml.safe_dump(config))
+        config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
         return church
 
     def test_saved_defaults_flow_through_real_produce_in_both_layouts_in_order(self) -> None:
@@ -497,9 +497,9 @@ class ParishInformationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             config_path = church / "church.yaml"
-            config = yaml.safe_load(config_path.read_text())
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             config["bulletin"] = {"parish_information": {"before_service": [{"title": "Welcome"}]}}
-            config_path.write_text(yaml.safe_dump(config))
+            config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
             result = produce(church, bulletin_input())
             self.assertEqual(result["status"], "blocked", result)
             self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")
@@ -509,9 +509,9 @@ class ParishInformationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             config_path = church / "church.yaml"
-            config = yaml.safe_load(config_path.read_text())
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             config["bulletin"] = {"parish_information": {"mid_service": []}}
-            config_path.write_text(yaml.safe_dump(config))
+            config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
             result = produce(church, bulletin_input())
             self.assertEqual(result["status"], "blocked", result)
             self.assertEqual(result["errors"][0]["code"], "invalid_parish_information")

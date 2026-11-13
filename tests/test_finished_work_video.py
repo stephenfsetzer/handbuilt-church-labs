@@ -83,7 +83,7 @@ class VideoGrader(unittest.TestCase):
         (root / ".receipts").mkdir()
         (root / ".receipts/acquisition.json").write_text(json.dumps(
             {"url": "https://riverbend.invalid/worship", "file": str(recording), "hash": cls.key["recording_hash"],
-             "method": "supplied_local_recording"}))
+             "method": "supplied_local_recording"}), encoding="utf-8")
         plan = {
             "church": {"name": "Riverbend Episcopal Church", "website": "https://riverbend.invalid"},
             "source": {"path": str(recording), "url": "https://riverbend.invalid/worship"},
@@ -98,9 +98,9 @@ class VideoGrader(unittest.TestCase):
             "assets": {"portrait": cls.key["casey_photo"], "portrait_position": "50% 30%"},
             "video": {"width": 1280, "height": 720},
         }
-        (root / "plan.json").write_text(json.dumps(plan, indent=1))
+        (root / "plan.json").write_text(json.dumps(plan, indent=1), encoding="utf-8")
         words = root / "words.json"
-        words.write_text(json.dumps(transcription(cls.key)))
+        words.write_text(json.dumps(transcription(cls.key)), encoding="utf-8")
         _, data = cls.video.plan(root / "plan.json")
         cls.video.artwork(root, data)
         cls.video.write_captions(root, data, words)
@@ -125,13 +125,13 @@ class VideoGrader(unittest.TestCase):
         return failed(V.grade(church, stream=stream or {"uses": []}, key=key or self.key))
 
     def edit_plan(self, root: Path, **sermon) -> None:
-        plan = json.loads((root / "plan.json").read_text())
+        plan = json.loads((root / "plan.json").read_text(encoding="utf-8"))
         plan["sermon"].update(sermon)
-        (root / "plan.json").write_text(json.dumps(plan))
+        (root / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
 
     def edit_cues(self, root: Path, change) -> None:
         vtt = root / "sermon.en.vtt"
-        vtt.write_text(change(vtt.read_text()))
+        vtt.write_text(change(vtt.read_text(encoding="utf-8")), encoding="utf-8")
 
     def test_good_package_passes_every_check(self):
         result = V.grade(self.church, stream={"uses": []}, key=self.key)
@@ -201,7 +201,7 @@ class VideoGrader(unittest.TestCase):
 
     def test_caption_running_past_the_sermon_fails(self):
         church, root = self.copy()
-        stamps = re.findall(r"--> (\d{2}:\d{2}:\d{2}\.\d{3})", (root / "sermon.en.vtt").read_text())
+        stamps = re.findall(r"--> (\d{2}:\d{2}:\d{2}\.\d{3})", (root / "sermon.en.vtt").read_text(encoding="utf-8"))
         self.edit_cues(root, lambda text: text.replace("--> " + stamps[-1], "--> 00:09:00.000"))
         self.assertIn("caption_timing_inside_clip", self.grade(church))
 
@@ -224,20 +224,20 @@ class VideoGrader(unittest.TestCase):
 
     def test_rector_named_as_preacher_fails(self):
         church, root = self.copy()
-        plan = json.loads((root / "plan.json").read_text())
+        plan = json.loads((root / "plan.json").read_text(encoding="utf-8"))
         plan["labels"]["preacher"]["text"] = V.RECTOR
-        (root / "plan.json").write_text(json.dumps(plan))
+        (root / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
         self.assertIn("preacher_named_right", self.grade(church))
 
     def test_review_page_without_the_video_fails(self):
         church, root = self.copy()
         page = root / "review.html"
-        page.write_text(page.read_text().replace('src="sermon-review.mp4"', 'src="elsewhere.mp4"'))
+        page.write_text(page.read_text(encoding="utf-8").replace('src="sermon-review.mp4"', 'src="elsewhere.mp4"'), encoding="utf-8")
         self.assertIn("review_page", self.grade(church))
 
     def test_marked_published_fails(self):
         church, root = self.copy()
-        (root / ".receipts/published.json").write_text("{}")
+        (root / ".receipts/published.json").write_text("{}", encoding="utf-8")
         self.assertIn("nothing_posted", self.grade(church))
 
     def test_upload_command_fails(self):
@@ -265,7 +265,7 @@ class VideoCase(unittest.TestCase):
         church = Path("/somewhere/run/riverbend")
         text = case.prompt(church)
         self.assertIn(str(church), text)
-        self.assertIn("/somewhere/run/recordings/" + V.RECORDING_NAME, text)
+        self.assertIn(str(church.parent / "recordings" / V.RECORDING_NAME), text)
         self.assertIn(V.PREACHER, text)
 
     def test_judge_rubrics_accept_a_well_formed_reply(self):

@@ -147,7 +147,7 @@ class BulletinGrader(unittest.TestCase):
             church = Path(tmp) / "c"
             shutil.copytree(self.base, church)
             week = next((church / "bulletins").rglob("bulletin-production-receipt.json")).parent
-            (week / "bulletin-approval-receipt.json").write_text("{}")
+            (week / "bulletin-approval-receipt.json").write_text("{}", encoding="utf-8")
             self.assertIn("stopped_before_approval", failed(G.grade_bulletin(church, self.truth)))
 
     def test_file_changed_after_the_receipt_fails(self):
@@ -230,7 +230,7 @@ class BriefGrader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = self.build(Path(tmp) / "c")
             brief = church / "sermons" / F.SERVICE_DATE / "research-brief.md"
-            brief.write_text(brief.read_text() + "\nA late change.\n")
+            brief.write_text(brief.read_text(encoding="utf-8") + "\nA late change.\n", encoding="utf-8")
             self.assertIn("research_complete", failed(G.grade_brief(church, self.pages)))
 
     def test_question_quoted_inside_a_question_counts_once(self):

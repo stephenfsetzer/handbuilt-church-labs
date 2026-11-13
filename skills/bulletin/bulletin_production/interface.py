@@ -292,7 +292,7 @@ def orient(church_folder: str | Path, service_date: str | date, *, service_id: s
                     selected_occurrence = service_context.get("occurrence_id", occurrence_id or "main")
                     if (selected_id or occurrence_id) and context.get("occurrence_id", "main") != selected_occurrence:
                         continue
-                    existing_work.append(str(receipt_path.parent.relative_to(root)))
+                    existing_work.append(receipt_path.parent.relative_to(root).as_posix())
             except (OSError, ValueError, TypeError):
                 continue
         existing_work.sort()
@@ -307,7 +307,7 @@ def orient(church_folder: str | Path, service_date: str | date, *, service_id: s
             "initialization_state": "returning" if approved_dates else "first_run",
             "service_date": date_text,
             "existing_work": existing_work,
-            "draft_inputs": sorted(str(path.relative_to(root)) for path in
+            "draft_inputs": sorted(path.relative_to(root).as_posix() for path in
                                    (bulletins / "drafts" / date_text).glob("*/*/input.json")
                                    if _inside(path.resolve(), root)
                                    and (not selected_id or path.parent.parent.name == selected_id)
@@ -341,7 +341,7 @@ def orient(church_folder: str | Path, service_date: str | date, *, service_id: s
                 "present": profile_path.is_file(),
             },
             "available_music_assets": sorted(
-                str(path.relative_to(root / "music"))
+                path.relative_to(root / "music").as_posix()
                 for path in (root / "music").glob("**/*")
                 if path.is_file() and path.name != "README.md"
             ) if (root / "music").is_dir() else [],
@@ -1541,6 +1541,11 @@ def _stage_effective_brand(
             printed["public_name"] = printed.get("name", "")
         services = identity.get("regular_services")
         if isinstance(services, list) and services:
+            # The back cover's church panel lists every regular service.
+            printed["regular_services"] = [
+                {key: str(service.get(key) or "") for key in ("day", "time", "label")}
+                for service in services if isinstance(service, dict)
+            ]
             printed["service_time"] = (
                 str(services[0].get("time") or "")
                 if len(services) == 1 and isinstance(services[0], dict) else ""
@@ -2277,7 +2282,7 @@ def _font_fidelity_check(html_path: Path, sequential_pdf: Path) -> dict[str, Any
 def _artifact(path: Path, role: str, root: Path, pages: int | None = None) -> dict[str, Any]:
     item: dict[str, Any] = {
         "role": role,
-        "path": str(path.relative_to(root)),
+        "path": path.relative_to(root).as_posix(),
         "sha256": _sha256(path),
         "bytes": path.stat().st_size,
     }
@@ -2441,7 +2446,7 @@ def _load_prior_revision(root: Path, prior_run: str | Path, *, correct_approved:
         # .revisions. Retain idempotence for a repeated command that still
         # names the predecessor's original active path by following the
         # explicit predecessor link in the active receipt.
-        requested = str(receipt_path.relative_to(root))
+        requested = receipt_path.relative_to(root).as_posix()
         candidates: list[Path] = []
         for candidate in (root / "bulletins").glob("**/bulletin-production-receipt.json"):
             try:
@@ -2901,7 +2906,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             _artifact(booklet_pdf, "booklet_pdf", stage_dir, len(PdfReader(str(booklet_pdf)).pages)),
         ]
         for item in artifacts:
-            item["path"] = str(final_paths[item["role"]].relative_to(root))
+            item["path"] = final_paths[item["role"]].relative_to(root).as_posix()
 
         receipt = {
             "receipt_version": 2,
@@ -2911,7 +2916,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "implementation_version": IMPLEMENTATION_VERSION,
             "resolved_bulletin_digest": digest,
             "church_folder": ".",
-            "week_folder": str(final_dir.relative_to(root)),
+            "week_folder": final_dir.relative_to(root).as_posix(),
             "service_date": service["date"],
             "occurrence_key": _occurrence_key(service),
             "service_context": source_resolved.get("service_context", {}),
@@ -2921,7 +2926,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
                 {
                     "run_id": (_revision.get("receipt") or {}).get("run_id"),
                     "receipt_path": str(_revision["archive_dir"].relative_to(root) / "bulletin-production-receipt.json"),
-                    "original_receipt_path": str(_revision["receipt_path"].relative_to(root)),
+                    "original_receipt_path": _revision["receipt_path"].relative_to(root).as_posix(),
                     "receipt_sha256": _revision.get("receipt_sha256"),
                 }
                 if _revision else None
@@ -2931,7 +2936,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
             "open_items": open_items,
             "source_bulletin_digest": _json_digest(source_resolved),
             "source_config": {
-                "path": str(final_paths["config"].relative_to(root)),
+                "path": final_paths["config"].relative_to(root).as_posix(),
                 "sha256": next(item["sha256"] for item in artifacts if item["role"] == "config"),
             },
             "artifacts": artifacts,

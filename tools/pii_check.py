@@ -210,10 +210,12 @@ def is_sensitive_filename(path: Path) -> bool:
 
 
 def relative_label(path: Path, root: Path) -> str:
+    # Always with forward slashes, the way Git lists files, so a Windows path
+    # matches the tracked list and the pinned icon.
     try:
-        return str(path.relative_to(root))
+        return path.relative_to(root).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
 
 
 def is_private_path(path: Path) -> bool:
@@ -320,7 +322,9 @@ def scan_worktree(root: Path, denylist: Iterable[str]) -> tuple[list[Finding], l
         tracked_private = location in tracked and is_private_path(Path(location))
         if tracked_private:
             findings.append(Finding(location, "tracked private path"))
-        if any(part in SKIP_DIRS or part in PRIVATE_DIRS for part in path.parts) and not tracked_private:
+        # Judge by the path inside the repository. The folders above it are not
+        # ours: a checkout under a folder named "runtime" must still be checked.
+        if any(part in SKIP_DIRS or part in PRIVATE_DIRS for part in Path(location).parts) and not tracked_private:
             continue
         if is_sensitive_filename(path):
             findings.append(Finding(location, "sensitive filename"))

@@ -24,7 +24,7 @@ def _configured_profile(church: Path, **overrides) -> None:
     church-owned liturgy text.
     """
     profile_path = church / "worship/profile.yaml"
-    profile = yaml.safe_load(profile_path.read_text())
+    profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
     profile["status"] = "confirmed"
     profile["tradition_pack"] = "episcopal-bcp-rite-ii"
     profile["defaults"].update(
@@ -34,7 +34,7 @@ def _configured_profile(church: Path, **overrides) -> None:
         doxology="omit", prayer_presentation="continuous", rubric_style="concise",
     )
     profile["defaults"].update(overrides)
-    profile_path.write_text(yaml.safe_dump(profile))
+    profile_path.write_text(yaml.safe_dump(profile), encoding="utf-8")
 
 
 class SavedWorshipTest(unittest.TestCase):
@@ -66,27 +66,27 @@ class SavedWorshipTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             config_path = church / 'church.yaml'
-            config = yaml.safe_load(config_path.read_text())
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             config['bulletin'] = {'doxology_music': {'title': 'Our Doxology', 'lyrics': [
                 {'speaker': 'All', 'bold': True, 'lines': ['Synthetic sung doxology.']}]}}
             config['leadership'] = {'print_in_bulletin': True, 'clergy_and_staff': [
                 {'name': 'Test Minister', 'role': 'Pastor'}], 'governing_body': {
                     'label': 'Parish Council', 'members': [{'name': 'Test Member', 'role': 'Member'}]}}
-            config_path.write_text(yaml.safe_dump(config))
+            config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
             profile_path = church / 'worship/profile.yaml'
-            profile = yaml.safe_load(profile_path.read_text())
+            profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
             profile['status'] = 'confirmed'
             profile['tradition_pack'] = 'episcopal-bcp-rite-ii'
             profile['defaults'].update(eucharistic_prayer='B', lords_prayer='traditional', prayers_of_the_people='III', blessing='omit', include_creed=True, include_confession=True, print_full_eucharistic_prayer=True, psalm_format='responsive_whole_verse', psalm_response_start='second', doxology='custom', prayer_presentation='continuous', rubric_style='concise')
             prayer = church / 'worship/liturgy/prayer.md'
             prayer.parent.mkdir(parents=True, exist_ok=True)
-            prayer.write_text('# Synthetic Prayer\n\nCelebrant\tFirst synthetic prayer paragraph.\n\nCelebrant\tSecond synthetic prayer paragraph.\n\n*Then, facing the Holy Table, the Celebrant proceeds.*\n\n**People\tAmen.**\n')
+            prayer.write_text('# Synthetic Prayer\n\nCelebrant\tFirst synthetic prayer paragraph.\n\nCelebrant\tSecond synthetic prayer paragraph.\n\n*Then, facing the Holy Table, the Celebrant proceeds.*\n\n**People\tAmen.**\n', encoding="utf-8")
             doxology = prayer.with_name('doxology.md')
-            doxology.write_text('# Doxology\n\n**All\tOur custom synthetic doxology.**\n')
+            doxology.write_text('# Doxology\n\n**All\tOur custom synthetic doxology.**\n', encoding="utf-8")
             verify_liturgy_source(church, prayer)
             verify_liturgy_source(church, doxology)
-            profile['sources'].update(eucharistic_prayer=str(prayer.relative_to(church)), doxology=str(doxology.relative_to(church)))
-            profile_path.write_text(yaml.safe_dump(profile))
+            profile['sources'].update(eucharistic_prayer=prayer.relative_to(church).as_posix(), doxology=doxology.relative_to(church).as_posix())
+            profile_path.write_text(yaml.safe_dump(profile), encoding="utf-8")
             original_config, original_profile = config_path.read_bytes(), profile_path.read_bytes()
             resolved = resolve_worship_profile(church)
             self.assertEqual(resolved['status'], 'resolved', resolved)
@@ -98,7 +98,7 @@ class SavedWorshipTest(unittest.TestCase):
             result = produce(church, request)
             self.assertEqual(result['status'], 'ready_for_review', result)
             folder = Path(result['week_folder'])
-            html = next(folder.glob('*.html')).read_text()
+            html = next(folder.glob('*.html')).read_text(encoding="utf-8")
             self.assertIn('<strong>The people answer.</strong>', html)
             self.assertIn('<span class="vnum">2</span>', html)
             self.assertIn('class="service-person center"', html)
@@ -115,7 +115,7 @@ class SavedWorshipTest(unittest.TestCase):
             next_week['service_music']['doxology'] = None
             result = produce(church, next_week)
             self.assertEqual(result['status'], 'ready_for_review', result)
-            html = next(Path(result['week_folder']).glob('*.html')).read_text()
+            html = next(Path(result['week_folder']).glob('*.html')).read_text(encoding="utf-8")
             self.assertIn('Our custom synthetic doxology.', html)
             self.assertNotIn('Synthetic sung doxology.', html)
             self.assertEqual(config_path.read_bytes(), original_config)
@@ -133,7 +133,7 @@ class SavedWorshipTest(unittest.TestCase):
             week_one["liturgy"] = {}
             result = produce(church, week_one)
             self.assertEqual(result["status"], "ready_for_review", result)
-            html = next(Path(result["week_folder"]).glob("*.html")).read_text()
+            html = next(Path(result["week_folder"]).glob("*.html")).read_text(encoding="utf-8")
             # Saved default: confession omitted, doxology omitted, closing
             # hymn before the spoken dismissal.
             self.assertNotIn("The Confession of Sin", html)
@@ -144,7 +144,7 @@ class SavedWorshipTest(unittest.TestCase):
             week_two["liturgy"] = {"include_confession": True}
             result_two = produce(church, week_two)
             self.assertEqual(result_two["status"], "ready_for_review", result_two)
-            html_two = next(Path(result_two["week_folder"]).glob("*.html")).read_text()
+            html_two = next(Path(result_two["week_folder"]).glob("*.html")).read_text(encoding="utf-8")
             # An explicit weekly override wins over the saved default.
             self.assertIn("The Confession of Sin", html_two)
 
@@ -153,7 +153,7 @@ class SavedWorshipTest(unittest.TestCase):
             week_three["liturgy"] = {}
             result_three = produce(church, week_three)
             self.assertEqual(result_three["status"], "ready_for_review", result_three)
-            html_three = next(Path(result_three["week_folder"]).glob("*.html")).read_text()
+            html_three = next(Path(result_three["week_folder"]).glob("*.html")).read_text(encoding="utf-8")
             # Week two's override does not stick; omitting it again reverts
             # to the saved default rather than carrying week two forward.
             self.assertNotIn("The Confession of Sin", html_three)
@@ -177,13 +177,13 @@ class SavedWorshipTest(unittest.TestCase):
             church = make_church(Path(tmp))
             _configured_profile(church)
             profile_path = church / "worship/profile.yaml"
-            profile = yaml.safe_load(profile_path.read_text())
+            profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
             profile["service_variants"] = {"principal": {
                 "name": "Principal Sunday", "base_service_plan": "episcopal-rite-ii",
                 "order_file": "worship/variants/principal.json",
                 "confirmation_policy": "ask_each_week",
             }}
-            profile_path.write_text(yaml.safe_dump(profile))
+            profile_path.write_text(yaml.safe_dump(profile), encoding="utf-8")
             request = bulletin_input()
             request["liturgy"] = {}
             result = produce(church, request)
@@ -210,12 +210,12 @@ class SavedWorshipTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             config_path = church / "church.yaml"
-            config = yaml.safe_load(config_path.read_text())
+            config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
             config["church"]["regular_services"] = [
                 {"day": "Sunday", "time": "9:00"},
                 {"day": "Sunday", "time": "11:15"},
             ]
-            config_path.write_text(yaml.safe_dump(config))
+            config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
             request = bulletin_input()
             result = produce(church, request)
             self.assertEqual(result["status"], "blocked", result)
@@ -225,7 +225,7 @@ class SavedWorshipTest(unittest.TestCase):
             request["service"]["time"] = "11:15 am"
             result_with_choice = produce(church, request)
             self.assertEqual(result_with_choice["status"], "ready_for_review", result_with_choice)
-            html = next(Path(result_with_choice["week_folder"]).glob("*.html")).read_text()
+            html = next(Path(result_with_choice["week_folder"]).glob("*.html")).read_text(encoding="utf-8")
             self.assertIn("11:15", html)
 
     def test_gospel_acclamation_defaults_to_lord_and_honors_a_saved_savior_choice(self):
@@ -238,7 +238,7 @@ class SavedWorshipTest(unittest.TestCase):
             request["liturgy"] = {}
             result = produce(church, request)
             self.assertEqual(result["status"], "ready_for_review", result)
-            html = next(Path(result["week_folder"]).glob("*.html")).read_text()
+            html = next(Path(result["week_folder"]).glob("*.html")).read_text(encoding="utf-8")
             self.assertIn("The Holy Gospel of our Lord Jesus Christ according to", html)
             self.assertNotIn("The Holy Gospel of our Savior Jesus Christ", html)
 
@@ -251,7 +251,7 @@ class SavedWorshipTest(unittest.TestCase):
             request["liturgy"] = {}
             result = produce(church, request)
             self.assertEqual(result["status"], "ready_for_review", result)
-            html = next(Path(result["week_folder"]).glob("*.html")).read_text()
+            html = next(Path(result["week_folder"]).glob("*.html")).read_text(encoding="utf-8")
             self.assertIn("The Holy Gospel of our Savior Jesus Christ according to", html)
             self.assertNotIn("The Holy Gospel of our Lord Jesus Christ according to", html)
 

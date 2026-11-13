@@ -20,9 +20,9 @@ class ClassicCoverLogoTests(unittest.TestCase):
             (church / 'brand').mkdir(exist_ok=True)
             Image.new('RGB', (1000, 180), '#532775').save(church / 'brand/banner.png')
             brand_file = church / 'brand.json'
-            brand = json.loads(brand_file.read_text())
+            brand = json.loads(brand_file.read_text(encoding="utf-8"))
             brand['logo'] = {'banner': 'brand/banner.png'}
-            brand_file.write_text(json.dumps(brand))
+            brand_file.write_text(json.dumps(brand), encoding="utf-8")
             result = produce(church, bulletin_input())
             self.assertEqual(result['status'], 'ready_for_review', result)
             week = Path(result['week_folder'])
@@ -49,12 +49,12 @@ class ClassicCoverLogoTests(unittest.TestCase):
             with self.subTest(logo=raw), tempfile.TemporaryDirectory() as tmp:
                 church = make_church(Path(tmp))
                 (church / 'brand').mkdir(exist_ok=True)
-                (church / 'brand/broken.png').write_text('not an image')
-                (church / 'brand/broken.svg').write_text('<html>not an SVG</html>')
+                (church / 'brand/broken.png').write_text('not an image', encoding="utf-8")
+                (church / 'brand/broken.svg').write_text('<html>not an SVG</html>', encoding="utf-8")
                 path = church / 'brand.json'
-                brand = json.loads(path.read_text())
+                brand = json.loads(path.read_text(encoding="utf-8"))
                 brand['logo'] = {'banner': raw}
-                path.write_text(json.dumps(brand))
+                path.write_text(json.dumps(brand), encoding="utf-8")
                 result = produce(church, bulletin_input())
                 self.assertNotEqual(result['status'], 'ready_for_review', result)
                 self.assertIn('church_logo_unavailable', json.dumps(result))
@@ -64,7 +64,7 @@ class ClassicCoverLogoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             logo = root / 'logo.svg'
-            logo.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="purple"/></svg>')
+            logo.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="purple"/></svg>', encoding="utf-8")
             brand = {'church': {'name': 'Public Test Parish'}, 'logo': {'banner': 'logo.svg'}}
             html = cover_page(bulletin_input(), brand, root, 'classic')
             self.assertIn(logo.resolve().as_uri(), html)
@@ -99,9 +99,9 @@ class ClassicCoverLogoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             path = church / 'brand.json'
-            brand = json.loads(path.read_text())
+            brand = json.loads(path.read_text(encoding="utf-8"))
             brand['logo'] = {'banner': 'https://parish.invalid/logo.svg'}
-            path.write_text(json.dumps(brand))
+            path.write_text(json.dumps(brand), encoding="utf-8")
             request = bulletin_input()
             request['template'] = 'modern'
             result = produce(church, request)
@@ -115,9 +115,9 @@ class LongBrandTextTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 church = make_church(Path(tmp))
                 brand_file = church / 'brand.json'
-                brand = json.loads(brand_file.read_text())
+                brand = json.loads(brand_file.read_text(encoding="utf-8"))
                 brand['brand_system'] = {'story': 'A long brand sentence that goes on and on ' * 8}
-                brand_file.write_text(json.dumps(brand))
+                brand_file.write_text(json.dumps(brand), encoding="utf-8")
                 request = bulletin_input()
                 request['template'] = template
                 result = produce(church, request)

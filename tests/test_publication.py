@@ -15,7 +15,7 @@ def run_git(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         ["git", "-C", str(root), *arguments],
         check=True,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
     )
 
 
@@ -46,7 +46,7 @@ class PublicationGuardTests(unittest.TestCase):
             main_result = subprocess.run(
                 ["git", "-C", str(root), "merge-base", "--is-ancestor", "HEAD", "refs/remotes/origin/main"],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8", errors="replace",
             )
             self.assertEqual(main_result.returncode, 0)
 
@@ -55,7 +55,7 @@ class PublicationGuardTests(unittest.TestCase):
             experiment_result = subprocess.run(
                 ["git", "-C", str(root), "merge-base", "--is-ancestor", "HEAD", "refs/remotes/origin/main"],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8", errors="replace",
             )
             self.assertNotEqual(experiment_result.returncode, 0)
 
@@ -70,7 +70,7 @@ class PublicationGuardTests(unittest.TestCase):
             result = subprocess.run(
                 ["git", "-C", str(root), "merge-base", "--is-ancestor", "HEAD", "refs/remotes/origin/main"],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8", errors="replace",
             )
             self.assertNotEqual(result.returncode, 0)
 

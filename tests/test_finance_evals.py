@@ -92,7 +92,7 @@ class FinanceEvalTests(unittest.TestCase):
             (folder / "finance").mkdir(parents=True)
             (folder / "finance/finance-overview.md").write_text(
                 f"Everyday cash is ${truth['cash']:,}, about ${round(truth['cash'], -3):,}. "
-                "The meal fund is owed $31,337.\n")
+                "The meal fund is owed $31,337.\n", encoding="utf-8")
             graded = skill_eval.grade(folder, judge_model=None)
         self.assertEqual(graded["unsupported_figures"], [31337])
         self.assertTrue(all(i["text"] and "{" not in i["text"] for i in graded["rubric"]))

@@ -24,6 +24,12 @@ tone, plain-language explanations, and common snags. In short:
   a password, an installer or permission window, or a sign-in.
 - Before each step, say what you are doing, why it matters, and what they
   will see. After it, check the result yourself and say what comes next.
+- "Explain each step" means one plain sentence a step, as you go. It does not
+  mean a technical report at the end. Never mention Git, GitHub, a repository,
+  a branch, Python, a script, a settings file, a version number comparison or
+  a file name unless the pastor asks or must act on it.
+- When the pastor's message gives a web address that ends in `#` and a name,
+  install from exactly that address and say nothing about the ending.
 - Explain each new word once, briefly. Treat errors as normal and fixable.
 - Keep technical detail out of the first explanation, and answer fully whenever
   the pastor asks. Avoid commands, file paths, backup files, slash commands, and
@@ -31,6 +37,10 @@ tone, plain-language explanations, and common snags. In short:
   "running the claude installer command against the marketplace catalog".
 - Never ask for a password in chat, and never change settings beyond this
   page without a yes.
+- Read this file where it is, on the web or in the installed plugin. If you
+  download a copy of the repository to read it, put it in the computer's own
+  temporary folder, never in the folder you are working in, and remove it
+  when you finish. Leave nothing new in the pastor's folders.
 
 Open with a short welcome, for example:
 
@@ -97,11 +107,10 @@ without them stays on the version it started with.
 
 If the list already shows `handbuilt-church-labs@synced`, the pastor added
 Handbuilt through Claude's **Customize** panel earlier, and claude.ai shares it
-here. Install anyway and turn on updates for this copy too, so whichever copy
-loads is current. Ask the pastor to confirm that **Sync automatically** is on
-for the Handbuilt marketplace in that panel (README,
-[Claude desktop app](README.md#claude-desktop-app)). Tell them so in one
-sentence.
+here. Install anyway and turn on updates for this copy too. The desktop app
+can open that earlier copy in place of this one, and it stays at the version
+it was added with. `status` (section 3) checks for it and, when it is older,
+returns `tell_the_pastor`. Section 4 says where that sentence goes.
 
 **Fallback, when `claude` is not on the path:** declare the marketplace in the
 user settings file, `~/.claude/settings.json`. Tell the pastor you are adding
@@ -230,16 +239,64 @@ workflow updates each time church work starts. See
 [managed workflow updates](handbook/workflow-updates.md). Both keep the
 church's own settings and files.
 
+## 3b. Check that this computer is ready
+
+A pastor may be asked to check their computer before a class or a working
+session, with a message such as: "Check that Handbuilt Church Labs is ready
+on this computer." Do the checking yourself and report in plain words.
+
+1. Confirm the plugin is installed and enabled. If it is not, install it
+   (section 2).
+2. Run `status` (section 3). Turn updates on if they are off, and update if
+   the installed version is behind the latest release.
+3. Run the workspace check, and prepare what is missing:
+
+   ```bash
+   "<plugin-root>/bin/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
+   ```
+
+   If it is not `ready`, run `setup` and check again. Handbuilt fetches its
+   own tools; the pastor installs nothing.
+4. Reply with three short lines (the version installed, whether updates are
+   on, whether the computer is prepared) and end with exactly one of these
+   sentences, so the pastor can pass it on:
+
+   > This computer is ready for Handbuilt.
+
+   > This computer is not ready yet: (one plain reason).
+
+If it is not ready and you cannot fix it, write the short email described
+under "If something goes wrong" for the pastor to send.
+
 ## 4. Hand off to church setup
 
-A new plugin loads in a new session. Tell the pastor exactly what to do:
+Before your last message, look at the folder you are working in. If it holds
+a copy of the repository or anything else you downloaded to read this guide,
+remove it now. The pastor's folder must look the way it did before you began.
 
-> Handbuilt is installed. To start using it, open a new session: click
-> **New session** at the top of the sidebar, keep the same folder, and type
+A new plugin loads in a new session. Your last message after installing is
+the text below, word for word, and nothing else. Put nothing before it and
+nothing after it: no list of the steps you took, no "things to know", and no
+note about versions, where Handbuilt was installed from, a setting, a file or
+folder, a backup, Python, a script, a download, or a check that had a hiccup
+but did not stop the install. Use no code formatting. You explained each step
+as you went, so the last message does not repeat any of it. If the pastor
+asks how it works, answer then. Only when the install did not finish do you
+say so instead, in one plain sentence, with the next thing to try.
+
+> Handbuilt is installed, and automatic updates are on, so new versions
+> arrive on their own.
+>
+> To start using it, open a new session: click **New session** at the top of
+> the sidebar, keep the same folder, and type
 > **Set up my Church Command Center.** That starts a guided setup of your
 > Church Command Center, a private folder on this computer for your church's
 > details, sermons, bulletins, and skills. I'll check your computer, ask for
 > your church's website, and show you what I find before saving anything.
+
+The one addition: when `status` returned `tell_the_pastor`, add its text as a
+final paragraph, word for word. An older copy of Handbuilt would otherwise
+open in the new session, and setup would run the old way.
 
 In Codex, say instead: "Start a new task, outside this one, and type
 **Set up my Church Command Center.**" The plugin is available in new Codex

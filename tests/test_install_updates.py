@@ -45,24 +45,24 @@ class VersionBumpTest(unittest.TestCase):
 
             def manifest(version: str) -> None:
                 (root / ".claude-plugin").mkdir(exist_ok=True)
-                (root / ".claude-plugin" / "plugin.json").write_text(json.dumps({"version": version}))
+                (root / ".claude-plugin" / "plugin.json").write_text(json.dumps({"version": version}), encoding="utf-8")
 
             git("init", "-q", "-b", "main")
             git("config", "user.email", "test@example.com")
             git("config", "user.name", "Test")
             manifest("1.0.0")
             (root / "skills").mkdir()
-            (root / "skills" / "a.md").write_text("one")
+            (root / "skills" / "a.md").write_text("one", encoding="utf-8")
             git("add", ".")
             git("commit", "-q", "-m", "base")
             git("checkout", "-q", "-b", "change")
             with mock.patch.object(check_version_bump, "ROOT", root):
-                (root / "README.md").write_text("docs only")
+                (root / "README.md").write_text("docs only", encoding="utf-8")
                 git("add", ".")
                 git("commit", "-q", "-m", "docs")
                 self.assertTrue(check_version_bump.check("main")[0])
 
-                (root / "skills" / "a.md").write_text("two")
+                (root / "skills" / "a.md").write_text("two", encoding="utf-8")
                 git("add", ".")
                 git("commit", "-q", "-m", "skill")
                 passed, message = check_version_bump.check("main")
@@ -80,9 +80,56 @@ class ClaudeUpdatesTest(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory()
         self.directory = Path(self.folder.name)
         self.settings = self.directory / "settings.json"
+        self.app = self.directory / "app"
+        patcher = mock.patch.object(claude_updates, "_app_folders", return_value=[self.app])
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self) -> None:
         self.folder.cleanup()
+
+    def _install(self, version: str) -> None:
+        record = self.directory / "plugins" / "installed_plugins.json"
+        record.parent.mkdir(exist_ok=True)
+        record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": version}]}}), encoding="utf-8")
+
+    def _app_copy(self, version: str, name: str = claude_updates.NAME, slot: str = "plugin_01") -> None:
+        manifest = self.app / "local-agent-mode-sessions" / "account" / "org" / "rpm" / slot / ".claude-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(json.dumps({"name": name, "version": version}), encoding="utf-8")
+
+    def test_an_older_copy_kept_by_the_claude_app_is_found_and_the_pastor_is_told(self) -> None:
+        self._install("0.8.27")
+        self._app_copy("0.8.25")
+        claude_updates.enable(self.directory)
+        with mock.patch.object(claude_updates, "_latest_release", return_value=("0.8.27", None)):
+            result = claude_updates.status(self.directory)
+        self.assertEqual(result["synced_app_copy_version"], "0.8.25")
+        self.assertEqual(result["status"], "needs_attention")
+        self.assertIn("Customize", result["tell_the_pastor"])
+        self.assertIn("remove it", result["tell_the_pastor"])
+        for word in ("settings", "python", "`", "0.8."):
+            self.assertNotIn(word, result["tell_the_pastor"].lower())
+
+    def test_an_app_copy_that_is_current_or_another_plugin_raises_nothing(self) -> None:
+        self._install("0.8.27")
+        self._app_copy("0.8.27")
+        self._app_copy("0.1.0", name="another-plugin", slot="plugin_02")
+        claude_updates.enable(self.directory)
+        with mock.patch.object(claude_updates, "_latest_release", return_value=("0.8.27", None)):
+            result = claude_updates.status(self.directory)
+        self.assertEqual(result["status"], "current")
+        self.assertNotIn("tell_the_pastor", result)
+
+    def test_the_oldest_app_copy_is_the_one_reported(self) -> None:
+        self._install("0.8.27")
+        self._app_copy("0.8.26", slot="plugin_01")
+        self._app_copy("0.8.9", slot="plugin_02")
+        self.assertEqual(claude_updates._synced_version(self.directory), "0.8.9")
+
+    def test_the_install_guide_passes_the_sentence_on(self) -> None:
+        guide = (Path(__file__).resolve().parents[1] / "INSTALL.md").read_text(encoding="utf-8")
+        self.assertGreaterEqual(guide.count("tell_the_pastor"), 2)
 
     def test_enable_merges_into_existing_settings_and_keeps_a_backup(self) -> None:
         original = {
@@ -93,10 +140,10 @@ class ClaudeUpdatesTest(unittest.TestCase):
                 "handbuilt-church-labs": {"source": {"source": "git", "url": claude_updates.REPOSITORY_URL}}
             },
         }
-        self.settings.write_text(json.dumps(original))
+        self.settings.write_text(json.dumps(original), encoding="utf-8")
         result = claude_updates.enable(self.directory)
         self.assertEqual(result["status"], "turned_on")
-        saved = json.loads(self.settings.read_text())
+        saved = json.loads(self.settings.read_text(encoding="utf-8"))
         self.assertEqual(saved["theme"], "dark")
         self.assertEqual(saved["env"], {"OTHER": "x", "FORCE_AUTOUPDATE_PLUGINS": "1"})
         self.assertTrue(saved["enabledPlugins"]["other@market"])
@@ -104,31 +151,31 @@ class ClaudeUpdatesTest(unittest.TestCase):
         entry = saved["extraKnownMarketplaces"]["handbuilt-church-labs"]
         self.assertEqual(entry["source"], original["extraKnownMarketplaces"]["handbuilt-church-labs"]["source"])
         self.assertIs(entry["autoUpdate"], True)
-        self.assertEqual(json.loads(Path(result["backup"]).read_text()), original)
+        self.assertEqual(json.loads(Path(result["backup"]).read_text(encoding="utf-8")), original)
         self.assertEqual(claude_updates.enable(self.directory)["status"], "already_on")
 
     def test_enable_creates_settings_and_respects_a_pastors_disable(self) -> None:
         self.assertEqual(claude_updates.enable(self.directory)["status"], "turned_on")
-        saved = json.loads(self.settings.read_text())
+        saved = json.loads(self.settings.read_text(encoding="utf-8"))
         self.assertEqual(saved["extraKnownMarketplaces"]["handbuilt-church-labs"]["source"]["url"],
                          claude_updates.REPOSITORY_URL)
         saved["enabledPlugins"][claude_updates.PLUGIN_ID] = False
-        self.settings.write_text(json.dumps(saved))
+        self.settings.write_text(json.dumps(saved), encoding="utf-8")
         result = claude_updates.enable(self.directory)
         self.assertTrue(result["plugin_disabled"])
-        self.assertIs(json.loads(self.settings.read_text())["enabledPlugins"][claude_updates.PLUGIN_ID], False)
+        self.assertIs(json.loads(self.settings.read_text(encoding="utf-8"))["enabledPlugins"][claude_updates.PLUGIN_ID], False)
 
     def test_enable_refuses_invalid_settings_without_writing(self) -> None:
-        self.settings.write_text("{not json")
+        self.settings.write_text("{not json", encoding="utf-8")
         with self.assertRaises(claude_updates.SettingsError):
             claude_updates.enable(self.directory)
-        self.assertEqual(self.settings.read_text(), "{not json")
+        self.assertEqual(self.settings.read_text(encoding="utf-8"), "{not json")
         self.assertEqual(list(self.directory.iterdir()), [self.settings])
 
     def test_status_names_each_gap_and_reports_current(self) -> None:
         record = self.directory / "plugins" / "installed_plugins.json"
         record.parent.mkdir()
-        record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.7"}]}}))
+        record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.7"}]}}), encoding="utf-8")
         with mock.patch.object(claude_updates, "_latest_release", return_value=("0.8.8", None)):
             before = claude_updates.status(self.directory)
             self.assertEqual(before["status"], "needs_attention")
@@ -136,7 +183,7 @@ class ClaudeUpdatesTest(unittest.TestCase):
             self.assertIn("FORCE_AUTOUPDATE_PLUGINS is not set", before["message"])
             self.assertIn("0.8.7 is installed and 0.8.8", before["message"])
             claude_updates.enable(self.directory)
-            record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.8"}]}}))
+            record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.8"}]}}), encoding="utf-8")
             after = claude_updates.status(self.directory)
         self.assertEqual(after["status"], "current")
         self.assertTrue(after["auto_update_on"] and after["desktop_updates_allowed"] and after["plugin_enabled"])
@@ -151,11 +198,11 @@ class ClaudeUpdatesTest(unittest.TestCase):
             self.assertIsNone(church_workflow.claude_update_settings(), "no Claude Code install, nothing to ask")
             record = self.directory / "plugins" / "installed_plugins.json"
             record.parent.mkdir()
-            record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.8"}]}}))
+            record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.8"}]}}), encoding="utf-8")
             note = church_workflow.claude_update_settings()
             self.assertEqual(note["status"], "updates_off")
             self.assertIn("May I turn them on?", note["next_action"])
-            self.assertTrue(note["enable_command"][-2].endswith("tools/claude_updates.py"))
+            self.assertTrue(Path(note["enable_command"][-2]).as_posix().endswith("tools/claude_updates.py"))
             self.assertFalse(self.settings.exists(), "the check asks; it never writes settings")
             claude_updates.enable(self.directory)
             self.assertIsNone(church_workflow.claude_update_settings())
@@ -165,7 +212,7 @@ class ClaudeUpdatesTest(unittest.TestCase):
     def test_check_command_asks_without_a_church_folder_and_never_blocks(self) -> None:
         record = self.directory / "plugins" / "installed_plugins.json"
         record.parent.mkdir()
-        record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.8"}]}}))
+        record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": "0.8.8"}]}}), encoding="utf-8")
 
         def check(claudecode: str) -> tuple[int, dict]:
             output = io.StringIO()
@@ -180,7 +227,7 @@ class ClaudeUpdatesTest(unittest.TestCase):
         self.assertEqual(check("")[1], {"status": "nothing_to_ask"}, "other hosts are left alone")
         claude_updates.enable(self.directory)
         self.assertEqual(check("1"), (0, {"status": "nothing_to_ask"}))
-        self.settings.write_text("{not json")
+        self.settings.write_text("{not json", encoding="utf-8")
         code, result = check("1")
         self.assertEqual((code, result["status"]), (0, "settings_unreadable"))
 

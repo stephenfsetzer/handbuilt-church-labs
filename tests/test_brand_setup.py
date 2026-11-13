@@ -33,12 +33,12 @@ class BrandSetupTest(unittest.TestCase):
         logo.parent.mkdir()
         Image.new("RGB", (20, 20), "white").save(logo)
         path = self.church / "brand.json"
-        brand = json.loads(path.read_text())
+        brand = json.loads(path.read_text(encoding="utf-8"))
         brand["texts"] = {"welcome": "Custom"}
         brand["qr"] = {"connect": {"url": "https://example.test"}}
-        path.write_text(json.dumps(brand))
+        path.write_text(json.dumps(brand), encoding="utf-8")
         brand_setup.update(self.church, {"logo": {"mark": "brand/mark.png"}, "colors_status": "neutral"})
-        saved = json.loads(path.read_text())
+        saved = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(saved["logo_status"], "provided")
         self.assertEqual(saved["texts"], {"welcome": "Custom"})
         self.assertEqual(saved["qr"]["connect"]["url"], "https://example.test")
@@ -51,7 +51,7 @@ class BrandSetupTest(unittest.TestCase):
         self.assertEqual(result["readiness"]["logo"]["status"], "pending")
         result = brand_setup.update(self.church, {"logo_status": "none"})
         self.assertTrue(result["readiness"]["ready"])
-        self.assertEqual(json.loads((self.church / "brand.json").read_text())["logo"]["social"], "brand/avatar.png")
+        self.assertEqual(json.loads((self.church / "brand.json").read_text(encoding="utf-8"))["logo"]["social"], "brand/avatar.png")
         with self.assertRaises(brand_setup.BrandSetupError):
             brand_setup.update(self.church, {"logo_status": "provided"})
         with self.assertRaises(brand_setup.BrandSetupError):
@@ -67,15 +67,15 @@ class BrandSetupTest(unittest.TestCase):
 
     def test_legacy_nonempty_logo_infers_provided_but_empty_does_not_infer_none(self):
         path = self.church / "brand.json"
-        saved = json.loads(path.read_text())
+        saved = json.loads(path.read_text(encoding="utf-8"))
         saved.pop("logo_status", None)
         saved.pop("colors_status", None)
-        path.write_text(json.dumps(saved))
+        path.write_text(json.dumps(saved), encoding="utf-8")
         self.assertEqual(brand_setup.status(self.church)["logo"]["status"], "pending")
         logo = self.church / "old.png"
         Image.new("RGB", (4, 4), "white").save(logo)
         saved["logo"]["banner"] = "old.png"
-        path.write_text(json.dumps(saved))
+        path.write_text(json.dumps(saved), encoding="utf-8")
         self.assertEqual(brand_setup.status(self.church)["logo"]["status"], "provided")
 
     def test_unknown_fields_and_invalid_colors_are_rejected(self):
@@ -86,10 +86,10 @@ class BrandSetupTest(unittest.TestCase):
 
     def test_malformed_hand_edited_status_cannot_bypass_logo_validation(self):
         path = self.church / "brand.json"
-        saved = json.loads(path.read_text())
+        saved = json.loads(path.read_text(encoding="utf-8"))
         saved["logo_status"] = "none"
         saved["logo"]["banner"] = "missing.png"
-        path.write_text(json.dumps(saved))
+        path.write_text(json.dumps(saved), encoding="utf-8")
         result = brand_setup.status(self.church)
         self.assertFalse(result["ready"])
         self.assertFalse(result["logo"]["ready"])
@@ -101,14 +101,14 @@ class BrandSetupTest(unittest.TestCase):
 
     def test_malformed_svg_and_non_string_logo_are_rejected(self):
         svg = self.church / "bad.svg"
-        svg.write_text('<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.invalid/x"/></svg>')
+        svg.write_text('<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.invalid/x"/></svg>', encoding="utf-8")
         with self.assertRaises(brand_setup.BrandSetupError):
             brand_setup.update(self.church, {"logo": {"banner": "bad.svg"}})
         path = self.church / "brand.json"
-        saved = json.loads(path.read_text())
+        saved = json.loads(path.read_text(encoding="utf-8"))
         saved["logo_status"] = "provided"
         saved["logo"]["banner"] = {"path": "bad.svg"}
-        path.write_text(json.dumps(saved))
+        path.write_text(json.dumps(saved), encoding="utf-8")
         self.assertFalse(brand_setup.status(self.church)["ready"])
 
     def test_public_repository_root_is_rejected(self):

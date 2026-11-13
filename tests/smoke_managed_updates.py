@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix='handbuilt-update-smoke-') as tmp:
     }.items():
         path = church / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
     (church / 'START-HERE.md').unlink()
     host = base / 'host'
     for relative in ('tools', 'skills', 'scaffold', 'handbook', '.codex-plugin', '.claude-plugin'):
@@ -33,9 +33,9 @@ with tempfile.TemporaryDirectory(prefix='handbuilt-update-smoke-') as tmp:
     shutil.copytree(host, source)
     for name in ('.codex-plugin', '.claude-plugin'):
         manifest = source / name / 'plugin.json'
-        data = json.loads(manifest.read_text())
+        data = json.loads(manifest.read_text(encoding="utf-8"))
         data['version'] = next_version
-        manifest.write_text(json.dumps(data))
+        manifest.write_text(json.dumps(data), encoding="utf-8")
     subprocess.run(['git', 'init', str(source)], capture_output=True, check=True)
     subprocess.run(['git', '-C', str(source), 'add', '.'], capture_output=True, check=True)
     package = build_package(source, base / 'distribution')
@@ -56,11 +56,11 @@ with tempfile.TemporaryDirectory(prefix='handbuilt-update-smoke-') as tmp:
     assert result['app_loaded_identity']['version'] == host_version, result
     assert all((church / name).read_bytes() == data for name, data in before.items())
     assert not (church / 'START-HERE.md').exists()
-    history = subprocess.run(result['launcher'] + ['recovery', 'history'], capture_output=True, text=True)
+    history = subprocess.run(result['launcher'] + ['recovery', 'history'], capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert history.returncode == 0, history.stdout + history.stderr
     assert json.loads(history.stdout)['snapshots'], history.stdout
     # Run a real workflow using the fixed returned prefix, outside the church cwd.
-    process = subprocess.run(result['launcher'] + ['sermon-research', 'orient', '--date', '2026-09-13'], cwd=base, capture_output=True, text=True)
+    process = subprocess.run(result['launcher'] + ['sermon-research', 'orient', '--date', '2026-09-13'], cwd=base, capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert process.returncode == 0, process.stdout + process.stderr
     # An offline start through the old host must retain the selected release.
     def offline(current, store, validate):

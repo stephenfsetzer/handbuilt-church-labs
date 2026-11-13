@@ -78,7 +78,7 @@ class BulletinFieldRegressions(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         verify_liturgy_source(self.church, path)
-        return str(path.relative_to(self.church))
+        return path.relative_to(self.church).as_posix()
 
     def edit_profile(self, **sections) -> None:
         path = self.church / "worship" / "profile.yaml"
@@ -360,7 +360,7 @@ class BulletinFieldRegressions(unittest.TestCase):
                             "The people standing, the Celebrant says</p></body></html>")
                     out = Path(self.temp.name) / f"{template}-{family.replace(' ', '')}.pdf"
                     weasyprint.HTML(string=html).write_pdf(str(out), stylesheets=[weasyprint.CSS(string=css)])
-                    text = subprocess.run([pdftotext, str(out), "-"], capture_output=True, text=True).stdout
+                    text = subprocess.run([pdftotext, str(out), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
                     self.assertTrue(disables or re.search(r"\bstanding\b", text),
                                     f"extracted text reads {text.split()!r}")
 
@@ -405,15 +405,15 @@ class FinanceFieldRegressions(unittest.TestCase):
 
             pulls = board / "2026-08" / "pulls"
             with mock.patch.object(fixture, "month_values", unposted_august):
-                (pulls / "balance-sheet.json").write_text(json.dumps(fixture.balance_sheet((2026, 8))))
-                (pulls / "pl-ytd.json").write_text(json.dumps(fixture.pl(2026, 8)))
+                (pulls / "balance-sheet.json").write_text(json.dumps(fixture.balance_sheet((2026, 8))), encoding="utf-8")
+                (pulls / "pl-ytd.json").write_text(json.dumps(fixture.pl(2026, 8)), encoding="utf-8")
             built, code, err = finance.run(
                 church, "build", "--month", "2026-08", "--prepared", "2026-09-10",
                 "--balance-sheet", str(pulls / "balance-sheet.json"), "--pl-ytd", str(pulls / "pl-ytd.json"),
                 "--pl-prior", str(pulls / "pl-prior.json"))
             if code != 0:
                 return  # blocked outright is an acceptable answer
-            report = json.loads((board / "2026-08" / "report.json").read_text())
+            report = json.loads((board / "2026-08" / "report.json").read_text(encoding="utf-8"))
             self.assertTrue(report["this_month"].get("unrecorded"), "the month is not flagged as unrecorded")
             self.assertIn("not yet recorded", report["short_answer"])
             self.assertEqual(finance.run(church, "render", str(board / "2026-08" / "report.json"))[1], 0)
@@ -486,7 +486,7 @@ class BrandFieldRegressions(unittest.TestCase):
         receipts_before = {path.name for path in receipts.iterdir()}
         scratch = self.church / ".handbuilt" / "build-my-brand" / "scratch"
         (scratch / "briefs").mkdir(parents=True, exist_ok=True)
-        (scratch / "briefs" / "extra.md").write_text("A small extra variation of the chosen mark.\n")
+        (scratch / "briefs" / "extra.md").write_text("A small extra variation of the chosen mark.\n", encoding="utf-8")
         Image.new("RGB", (64, 64), "white").save(scratch / "extra.png")
 
         def add_image() -> dict:
@@ -530,7 +530,7 @@ class BrandFieldRegressions(unittest.TestCase):
         addition = "brand/staging/marks/mark-youth.svg"
         opened = self.bw.record(self.church, "amendment", "A youth lockup.", {"step": "open", "what": "A youth lockup"})
         self.assertEqual(opened["status"], "recorded", opened)
-        (self.church / addition).write_text((live / "mark.svg").read_text())
+        (self.church / addition).write_text((live / "mark.svg").read_text(encoding="utf-8"), encoding="utf-8")
         self.assertEqual(self.bw.approve(self.church)["errors"][0]["code"], "amendment_open")
         finished = self.bw.record(self.church, "amendment", "The pastor kept the lockup.", {"step": "finish", "added": [addition]})
         self.assertEqual(finished["status"], "recorded", finished)
@@ -547,7 +547,7 @@ class BrandFieldRegressions(unittest.TestCase):
         self.assertTrue((live / "mark-youth.svg").is_file(), "the addition did not go in at approval")
         self.assertEqual(self.bw.orient(self.church)["amendments_awaiting_approval"], [])
         self.assertIn("Approved by the pastor", (self.church / "brand" / "guide.md").read_text(encoding="utf-8"))
-        self.assertTrue(json.loads((self.church / "brand.json").read_text())["brand_system"]["marks"]["primary"].startswith("brand/marks/"))
+        self.assertTrue(json.loads((self.church / "brand.json").read_text(encoding="utf-8"))["brand_system"]["marks"]["primary"].startswith("brand/marks/"))
 
     def test_f15_interview_answers_stay_out_of_a_document_for_the_governing_body(self):
         """A pastor shares the brand document with the vestry and it repeats private interview answers."""
@@ -578,12 +578,12 @@ class BrandFieldRegressions(unittest.TestCase):
         pattern = re.compile(r"vestry|council|governing|board|trustees|leadership team", re.I)
         candidates = [path for path in (self.church / "brand").rglob("*")
                       if path.is_file() and path.suffix in {".md", ".html", ".txt"}
-                      and (pattern.search(path.name) or pattern.search("\n".join(path.read_text(errors="ignore").splitlines()[:30])))]
+                      and (pattern.search(path.name) or pattern.search("\n".join(path.read_text(errors="ignore", encoding="utf-8").splitlines()[:30])))]
         if not candidates:
             self.fail("No document intended for the governing body exists; the only generated documents (guide, brand book, "
                       "brief) are written for the pastor and carry the interview answers.")
         for path in candidates:
-            text = path.read_text(errors="ignore")
+            text = path.read_text(errors="ignore", encoding="utf-8")
             for planted in (interview, brief, chat, rationale, note):
                 self.assertNotIn(planted, text, path.name)
         edition = (self.church / "brand" / "governing-body-edition.md").read_text(encoding="utf-8")
@@ -800,7 +800,7 @@ class UpdateFieldRegressions(unittest.TestCase):
             (store / "latest-check.json").write_text(json.dumps({
                 "checked_at": 100000,
                 "latest": {"name": "handbuilt-church-labs", "version": "0.5.0", "tag": "v0.5.0", "assets": {},
-                           "url": f"https://github.com/{updates.REPOSITORY}/releases/tag/v0.5.0"}}))
+                           "url": f"https://github.com/{updates.REPOSITORY}/releases/tag/v0.5.0"}}), encoding="utf-8")
             archive = release_bytes("0.6.0")
             digest = hashlib.sha256(archive).hexdigest()
             urls = {name: f"https://github.com/{updates.REPOSITORY}/releases/download/v0.6.0/{name}"
@@ -831,7 +831,7 @@ class UpdateFieldRegressions(unittest.TestCase):
             (store / "latest-check.json").write_text(json.dumps({
                 "checked_at": 100000,
                 "latest": {"name": "handbuilt-church-labs", "version": "0.5.0", "tag": "v0.5.0", "assets": {},
-                           "url": f"https://github.com/{updates.REPOSITORY}/releases/tag/v0.5.0"}}))
+                           "url": f"https://github.com/{updates.REPOSITORY}/releases/tag/v0.5.0"}}), encoding="utf-8")
 
             def offline(url, limit):
                 raise OSError("offline")
@@ -848,7 +848,7 @@ class UpdateFieldRegressions(unittest.TestCase):
                 "checked_at": time.time(),
                 "latest": {"name": "handbuilt-church-labs", "version": updates.package_version(bridge.ROOT),
                            "tag": "v" + updates.package_version(bridge.ROOT), "assets": {},
-                           "url": f"https://github.com/{updates.REPOSITORY}/releases/tag/v{updates.package_version(bridge.ROOT)}"}}))
+                           "url": f"https://github.com/{updates.REPOSITORY}/releases/tag/v{updates.package_version(bridge.ROOT)}"}}), encoding="utf-8")
             church = base / "church"
             church.mkdir()
             real_select = updates.select_release
@@ -907,7 +907,7 @@ class LectionaryTrackFieldRegressions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
             config = church / "church.yaml"
-            config.write_text(config.read_text().replace("track: Track 2", "track: Track 1"), encoding="utf-8")
+            config.write_text(config.read_text(encoding="utf-8").replace("track: Track 2", "track: Track 1"), encoding="utf-8")
             selection = reading_selection()
             selection["track"] = "Track 1"
             sermon = record(church, "2026-09-20", "readings", readings_content(selection=selection), reading_metadata(selection))

@@ -92,14 +92,14 @@ def church_folder(cid: str, root: Path) -> Path:
         raise ValueError(f"refusing to reuse existing eval folder: {root}")
     c = ALL[cid].CHURCH
     shutil.copytree(LABS / "scaffold/church-folder", root)
-    text = (root / "church.yaml").read_text()
+    text = (root / "church.yaml").read_text(encoding="utf-8")
     for pattern, value in [(r'(?m)^  name: ""', f'  name: "{c["name"]}"'),
                            (r'(?m)^  tradition: ""', f'  tradition: "{c["tradition"]}"'),
                            (r'(?m)^    label: ""', f'    label: "{c["governing_body"]}"')]:
         text = re.sub(pattern, value, text, count=1)
-    (root / "church.yaml").write_text(text)
+    (root / "church.yaml").write_text(text, encoding="utf-8")
     context = c.get("context", [])
-    (root / "church-notes.md").write_text("\n".join(context) if isinstance(context, list) else context)
+    (root / "church-notes.md").write_text("\n".join(context) if isinstance(context, list) else context, encoding="utf-8")
     return root
 
 
@@ -148,7 +148,7 @@ def claude_command(prompt: str, model: str, budget: float, mcp: dict, plugin: Pa
 
 def invoke(command: list[str], *, cwd: Path, env: dict, timeout: int) -> dict:
     try:
-        done = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
+        done = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
     except (OSError, subprocess.SubprocessError) as exc:
         return {"error": f"model process failed: {exc}", "returncode": None}
     try:
@@ -218,15 +218,15 @@ def prepare_monthly(cid: str, root: Path) -> None:
     }
     target = root / "finance/board"
     target.mkdir(parents=True, exist_ok=True)
-    (target / "config.json").write_text(json.dumps(config, indent=2))
+    (target / "config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
     (root / "finance/onboarding-state.json").write_text(json.dumps({
-        "locked": True, "stage": 4, "stages": {}, "readiness": [], "calendar": {}, "log": []}))
+        "locked": True, "stage": 4, "stages": {}, "readiness": [], "calendar": {}, "log": []}), encoding="utf-8")
 
 
 def read_json(path: Path, default=None):
     if not path.exists():
         return default
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def run(cid: str, model: str, out: Path, budget: float = BUDGET_USD, skill: str = "finance-onboarding") -> dict:
@@ -268,11 +268,11 @@ def run(cid: str, model: str, out: Path, budget: float = BUDGET_USD, skill: str 
         summary["error"] = str(exc)
     for key, path in [("quickbooks_calls", qlog), ("workspace_calls", wlog)]:
         try:
-            summary[key] = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+            summary[key] = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
         except (OSError, ValueError) as exc:
             summary.update(status="failed", error=f"invalid tool log: {exc}")
     summary["wall_seconds"] = round(time.monotonic() - began, 1)
-    (out / f"{cid}-run.json").write_text(json.dumps(summary, indent=2) + "\n")
+    (out / f"{cid}-run.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     return summary
 
 
@@ -651,8 +651,8 @@ def grade(folder: Path, judge_model: str | None) -> dict:
     skill = receipt.get("skill", "finance-onboarding")
     overview_path = folder / "finance/finance-overview.md"
     questions_path = folder / "finance/onboarding/questions.json"
-    overview = overview_path.read_text() if overview_path.exists() else ""
-    questions_text = questions_path.read_text() if questions_path.exists() else "[]"
+    overview = overview_path.read_text(encoding="utf-8") if overview_path.exists() else ""
+    questions_text = questions_path.read_text(encoding="utf-8") if questions_path.exists() else "[]"
     try:
         questions = json.loads(questions_text)
     except ValueError:
@@ -763,7 +763,7 @@ def grade(folder: Path, judge_model: str | None) -> dict:
         result["status"] = "failed" if errors else "passed"
         result["passed"] = not errors
     result["rubric_passed"] = sum(item.get("pass") is True for item in items)
-    (folder.parent / f"{cid}-grade.json").write_text(json.dumps(result, indent=2) + "\n")
+    (folder.parent / f"{cid}-grade.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result
 
 

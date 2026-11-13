@@ -34,7 +34,7 @@ class RuntimeSecurityPolicyTests(unittest.TestCase):
                 "brotli": "1.2.1",
                 "pillow": "13.0.0",
                 "setuptools": "84.1.0",
-                "pypdf": "6.21.2",
+                "pypdf": "6.21.4",
             },
         )
         self.assertEqual(pins["zopfli"], "0.4.3")

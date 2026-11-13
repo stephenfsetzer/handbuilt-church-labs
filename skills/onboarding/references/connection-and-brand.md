@@ -59,6 +59,14 @@ has no logo and accepts the neutral palette, save `logo_status: none` and
 A missing, remote, or unreadable logo remains unfinished. Saying "later"
 preserves progress; it does not mark bulletin setup complete.
 
+Settle the look before setup ends. When the website and the working bulletin
+show no logo and no colors, do not leave it for the first bulletin, where it
+would stop the pastor with a surprise. Ask one plain question, for example:
+"Your website has no logo or colors. Shall I use Handbuilt's neutral look
+with no logo for now? You can change it any time." On a yes, save
+`logo_status: none` and `colors_status: neutral`. If the pastor says they
+have no logo but does not mention colors, ask about the colors.
+
 `church.yaml` remains the authority for church identity. `brand.json.church`
 contains only optional print-display overrides. Production merges the current
 identity automatically; do not duplicate all church fields into the brand file.

@@ -29,7 +29,7 @@ _spec.loader.exec_module(fixture)
 
 def call(script, church, *args):
     done = subprocess.run([sys.executable, str(script), args[0], "--church-folder", str(church), *args[1:]],
-                          capture_output=True, text=True, cwd=church)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=church)
     try:
         return json.loads(done.stdout), done.returncode, done.stderr
     except ValueError:
@@ -66,11 +66,11 @@ class ChurchYearTests(EvalChurch):
     cid = "lantern_hill"
 
     def test_the_year_so_far_runs_from_july_everywhere_the_report_states_a_year(self):
-        config = json.loads(self.settings().read_text())
+        config = json.loads(self.settings().read_text(encoding="utf-8"))
         self.assertEqual(config["fiscal_year_start"], 7)
         out, code, err = self.build()
         self.assertEqual(code, 0, err)
-        report = json.loads((self.root / "finance/board/2026-08/report.json").read_text())
+        report = json.loads((self.root / "finance/board/2026-08/report.json").read_text(encoding="utf-8"))
         self.assertEqual(report["meta"]["period_label"], "July to August 2026")
         self.assertEqual(report["meta"]["months"], 2)
         self.assertEqual(report["plan"]["actual"], -14087)
@@ -84,14 +84,14 @@ class ChurchYearTests(EvalChurch):
         self.assertEqual(out["year"]["starts"], "July")
         rendered, code, err = call(REPORT, self.root, "render", str(self.root / "finance/board/2026-08/report.json"))
         self.assertEqual(code, 0, err)
-        html = next((self.root / "finance/board/2026-08").glob("*.html")).read_text()
+        html = next((self.root / "finance/board/2026-08").glob("*.html")).read_text(encoding="utf-8")
         self.assertIn("Year so far, July to August", html)
 
     def test_a_pull_from_january_is_refused_for_a_july_year(self):
         self.settings()
         books = score.B.Books(ALL[self.cid].CHURCH)
         january = self.root / "pulls/pl-january.json"
-        january.write_text(json.dumps(books.pl((2026, 1), (2026, 8))))
+        january.write_text(json.dumps(books.pl((2026, 1), (2026, 8))), encoding="utf-8")
         self.pulls["pl-january.json"] = january
         _, code, err = self.build(pl_ytd="pl-january.json")
         self.assertNotEqual(code, 0)
@@ -112,7 +112,7 @@ class ChurchYearTests(EvalChurch):
     def test_a_whole_year_pull_must_follow_the_churchs_year(self):
         books = score.B.Books(ALL[self.cid].CHURCH)
         calendar_year = self.root / "pulls/pl-calendar-2025.json"
-        calendar_year.write_text(json.dumps(books.pl((2025, 1), (2025, 12))))
+        calendar_year.write_text(json.dumps(books.pl((2025, 1), (2025, 12))), encoding="utf-8")
         p = self.pulls
         _, code, err = call(REPORT, self.root, "setup", "draft", "--balance-sheet", str(p["balance-sheet.json"]),
                             "--pl-12m", str(p["pl-12m.json"]), "--company-info", str(p["company-info.json"]),
@@ -139,19 +139,19 @@ class SavedSettingsWithoutTheYearTests(unittest.TestCase):
                     "--pl-prior", str(p / "pl-prior.json"), *extra)
 
     def drop_the_setting(self):
-        settings = json.loads(self.config.read_text())
+        settings = json.loads(self.config.read_text(encoding="utf-8"))
         settings.pop("fiscal_year_start")
-        self.config.write_text(json.dumps(settings, indent=2))
+        self.config.write_text(json.dumps(settings, indent=2), encoding="utf-8")
 
     def test_an_existing_config_builds_once_company_info_is_supplied_and_keeps_it(self):
         self.assertEqual(self.build()[1], 0)
-        with_setting = (self.board / "2026-08/report.json").read_text()
+        with_setting = (self.board / "2026-08/report.json").read_text(encoding="utf-8")
         self.drop_the_setting()
         out, code, err = self.build("--company-info", str(self.pulls / "company-info.json"))
         self.assertEqual(code, 0, err)
         self.assertTrue(out["year"]["saved_to_settings"])
-        self.assertEqual(json.loads(self.config.read_text())["fiscal_year_start"], 1)
-        self.assertEqual((self.board / "2026-08/report.json").read_text(), with_setting)
+        self.assertEqual(json.loads(self.config.read_text(encoding="utf-8"))["fiscal_year_start"], 1)
+        self.assertEqual((self.board / "2026-08/report.json").read_text(encoding="utf-8"), with_setting)
         # Next month needs no company info: the setting is saved.
         out, code, err = self.build()
         self.assertEqual(code, 0, err)
@@ -168,14 +168,14 @@ class SavedSettingsWithoutTheYearTests(unittest.TestCase):
 
     def test_settings_and_company_info_that_disagree_stop_the_build(self):
         info = self.pulls / "company-info.json"
-        info.write_text(json.dumps({**fixture.COMPANY_INFO, "fiscalYearStartMonth": "July"}))
+        info.write_text(json.dumps({**fixture.COMPANY_INFO, "fiscalYearStartMonth": "July"}), encoding="utf-8")
         _, code, err = self.build("--company-info", str(info))
         self.assertNotEqual(code, 0)
         self.assertIn("QuickBooks company info says July", err)
 
     def test_quickbooks_own_company_info_is_read(self):
         info = self.pulls / "company-info.json"
-        info.write_text(json.dumps({"CompanyInfo": {"CompanyName": "Riverbend", "FiscalYearStartMonth": "January"}}))
+        info.write_text(json.dumps({"CompanyInfo": {"CompanyName": "Riverbend", "FiscalYearStartMonth": "January"}}), encoding="utf-8")
         self.assertEqual(build_report_data.read_fiscal_start(info), 1)
 
 
@@ -183,17 +183,17 @@ class HeadlineTests(SavedSettingsWithoutTheYearTests):
     """Bug 2: 'Mostly ...' names the largest group, and a group that matches nothing is raised."""
 
     def configure(self, side, groups):
-        settings = json.loads(self.config.read_text())
+        settings = json.loads(self.config.read_text(encoding="utf-8"))
         settings[side] = groups
-        self.config.write_text(json.dumps(settings, indent=2))
+        self.config.write_text(json.dumps(settings, indent=2), encoding="utf-8")
 
     def test_the_headline_names_the_largest_group_not_the_first(self):
-        settings = json.loads(self.config.read_text())
+        settings = json.loads(self.config.read_text(encoding="utf-8"))
         groups = settings["spending_groups"]
         self.configure("spending_groups", [groups[2], groups[0], groups[1], groups[3]])  # mission support first
         out, code, err = self.build()
         self.assertEqual(code, 0, err)
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         parts = report["spending"]["parts"]
         largest = max(parts, key=lambda p: p["amount"])["name"].lower()
         self.assertTrue(report["spending"]["headline"].endswith(largest))
@@ -211,17 +211,17 @@ class HeadlineTests(SavedSettingsWithoutTheYearTests):
         self.assertEqual(B.headline([{"name": "Other spending", "amount": 71}], {"Other spending"}), "Mostly other spending")
 
     def test_the_printed_share_belongs_to_the_named_group(self):
-        settings = json.loads(self.config.read_text())
+        settings = json.loads(self.config.read_text(encoding="utf-8"))
         groups = settings["spending_groups"]
         self.configure("spending_groups", [groups[2], groups[0], groups[1], groups[3]])
         out, code, err = self.build()
         self.assertEqual(code, 0, err)
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         lead = next(p for p in report["spending"]["parts"] if p["name"] == report["spending"]["lead"])
         self.assertTrue(report["spending"]["headline"].endswith(lead["name"].lower()))
 
     def test_a_group_entry_that_is_not_an_account_stops_the_build(self):
-        settings = json.loads(self.config.read_text())
+        settings = json.loads(self.config.read_text(encoding="utf-8"))
         groups = settings["income_groups"]
         groups[0]["accounts"] = ["Member giving"]
         self.configure("income_groups", groups)
@@ -230,14 +230,14 @@ class HeadlineTests(SavedSettingsWithoutTheYearTests):
         self.assertIn("'Member giving', which is not an account number", err)
 
     def test_a_group_whose_account_number_matches_nothing_goes_to_a_person(self):
-        settings = json.loads(self.config.read_text())
+        settings = json.loads(self.config.read_text(encoding="utf-8"))
         groups = settings["income_groups"]
         groups[1]["accounts"] = ["4999"]
         self.configure("income_groups", groups)
         out, code, err = self.build()
         self.assertEqual(code, 0, err)
         self.assertTrue(any("Preschool rent" in line and "4999" in line for line in out["needs_a_person"]))
-        report = json.loads((self.board / "2026-08/report.json").read_text())
+        report = json.loads((self.board / "2026-08/report.json").read_text(encoding="utf-8"))
         self.assertNotEqual(report["income"]["headline"], "Mostly preschool rent")
 
 
@@ -263,7 +263,7 @@ class RecordingLagAndBalancesTests(EvalChurch):
         _, code, err = call(ONBOARDING, self.root, "look", "--balance-sheet", str(p["balance-sheet.json"]),
                             "--pl-12m", str(p["pl-12m.json"]))
         self.assertEqual(code, 0, err)
-        findings = json.loads((self.root / "finance/onboarding/findings.json").read_text())["findings"]
+        findings = json.loads((self.root / "finance/onboarding/findings.json").read_text(encoding="utf-8"))["findings"]
         self.assertFalse(any(f["id"] == "recent_postings" for f in findings))
 
     def test_negative_liabilities_carry_their_balance_and_first_month_below_zero(self):
@@ -291,7 +291,7 @@ class SavedPullIntegrityTests(unittest.TestCase):
 
     def refused(self, loader, data):
         path = self.folder / "pull.json"
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding="utf-8")
         with self.assertRaises(SystemExit) as caught:
             loader(path)
         return str(caught.exception)
@@ -323,7 +323,7 @@ class CutOffPullTests(EvalChurch):
         self.assertNotEqual(code, 0)
         self.assertIn("cut off", err)
         self.assertFalse(findings.exists())
-        record = json.loads((self.root / "finance/onboarding/look-blocked.json").read_text())
+        record = json.loads((self.root / "finance/onboarding/look-blocked.json").read_text(encoding="utf-8"))
         self.assertEqual((record["status"], record["code"], record["pull"]),
                          ("blocked", "pull_cut_off", "pl-12m-connector.json"))
         self.assertIn("Income", record["section_totals"])
@@ -338,16 +338,16 @@ class CutOffBuildTests(EvalChurch):
 
     def test_build_records_the_refusal_in_the_month_folder(self):
         self.settings()
-        data = json.loads(self.pulls["pl-ytd.json"].read_text())
+        data = json.loads(self.pulls["pl-ytd.json"].read_text(encoding="utf-8"))
         rows = data["reportData"]["data"]["rows"]
         rows.remove(next(r for r in rows if "ITEM" in r["metadata"]["type"]))  # a line the pull lost
         cut = self.root / "pulls/pl-ytd-cut.json"
-        cut.write_text(json.dumps(data))
+        cut.write_text(json.dumps(data), encoding="utf-8")
         self.pulls["pl-ytd-cut.json"] = cut
         _, code, err = self.build(pl_ytd="pl-ytd-cut.json")
         self.assertNotEqual(code, 0)
         self.assertIn("cut off", err)
-        record = json.loads((self.root / "finance/board/2026-08/blocked.json").read_text())
+        record = json.loads((self.root / "finance/board/2026-08/blocked.json").read_text(encoding="utf-8"))
         self.assertEqual(record["code"], "pull_cut_off")
         self.assertFalse((self.root / "finance/board/2026-08/report.json").exists())
         self.assertEqual(self.build()[1], 0)

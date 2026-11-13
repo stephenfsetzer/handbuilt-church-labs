@@ -164,8 +164,8 @@ class BulletinProductionPromotionTest(unittest.TestCase):
             _copy_liturgy_sources(ep_bulletin, church, ep_stage)
             staged_prayer = ep_bulletin["liturgy"]["files"]["eucharistic_prayer"]
             self.assertEqual(ep_bulletin["liturgy"]["files"]["eucharistic-prayer-a"], staged_prayer)
-            self.assertIn("Synthetic thanksgiving.", (ep_stage / "liturgy" / f"{staged_prayer}.md").read_text())
-            self.assertNotIn("Synthetic thanksgiving.", (ep_stage / "liturgy" / "eucharistic-prayer-a.md").read_text())
+            self.assertIn("Synthetic thanksgiving.", (ep_stage / "liturgy" / f"{staged_prayer}.md").read_text(encoding="utf-8"))
+            self.assertNotIn("Synthetic thanksgiving.", (ep_stage / "liturgy" / "eucharistic-prayer-a.md").read_text(encoding="utf-8"))
 
     def test_standing_preferences_fill_only_missing_weekly_options(self) -> None:
         config = {"bulletin": {"defaults": {"include_serving_today": False, "serving_roles": ["Reader"]}}}
@@ -180,10 +180,10 @@ class BulletinProductionPromotionTest(unittest.TestCase):
         from tests.helpers import REPO_ROOT
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))
-            brand = json.loads((REPO_ROOT / "scaffold/church-folder/brand.json").read_text())
+            brand = json.loads((REPO_ROOT / "scaffold/church-folder/brand.json").read_text(encoding="utf-8"))
             brand["logo_status"] = "none"
             brand["colors_status"] = "neutral"
-            (church / "brand.json").write_text(json.dumps(brand))
+            (church / "brand.json").write_text(json.dumps(brand), encoding="utf-8")
             before = (church / "brand.json").read_bytes()
             result = produce(church, bulletin_input())
             self.assertEqual(result["status"], "ready_for_review", result)

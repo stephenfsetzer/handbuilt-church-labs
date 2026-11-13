@@ -217,6 +217,12 @@ the Python implementation to discover ordinary input fields. The input adds:
 - resolved `liturgy` values, including the worship profile reference and any
   local licensed liturgy sources
 
+Never type a reading, a psalm, the collect, or the preface into the file, a
+command, or a message. Name each one and let the tool copy the words from
+their source, as [Weekly input](references/weekly-input.md#let-the-tool-copy-the-texts)
+describes. Retyped scripture can be stopped by the AI app's safeguards in the
+middle of the pastor's bulletin, and it risks a changed word.
+
 Missing music scans are allowed as a labeled title-only fallback. Unverified
 readings and unresolved example text block production.
 

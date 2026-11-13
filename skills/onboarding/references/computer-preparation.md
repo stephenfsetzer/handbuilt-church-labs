@@ -47,7 +47,10 @@ in one sentence that Handbuilt is fetching its own tools and that it takes
 about a minute. If that download fails, read the message: retry once for a
 dropped connection; on a network that blocks it, offer to continue on another
 network, or pass an already-installed supported interpreter with
-`--bootstrap-python`. Do not send the pastor to install Python.
+`--bootstrap-python`. Do not send the pastor to install Python, and never
+give the pastor a command to run instead: say in one sentence what is blocked
+(for example, "this network will not let me download Handbuilt's tools") and
+what would unblock it.
 
 Use the existing managed environment and the doctor's `native_install` plan.
 On a Mac or Windows that plan is Handbuilt's own PDF tools, which need no

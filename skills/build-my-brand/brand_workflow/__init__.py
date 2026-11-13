@@ -1855,7 +1855,7 @@ def render_guide(church_folder: str | Path, out: str | None = None, *, edition: 
         else:
             target = root / _relative(root, out, "out") if out else root / "brand" / "guide.pdf"
             result = guide_renderer.render(root, guide, target)
-        receipt = _receipt(root, "guide-render", {"pdf": str(target.relative_to(root)), "sha256": _sha256(target), **result})
+        receipt = _receipt(root, "guide-render", {"pdf": target.relative_to(root).as_posix(), "sha256": _sha256(target), **result})
         return {"status": "rendered", "pdf": str(target), "brand_source": result.get("brand_source"), "receipt": str(receipt)}
     except Exception as exc:  # noqa: BLE001
         return _failure(exc)

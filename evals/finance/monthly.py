@@ -124,12 +124,12 @@ class MonthlyRun:
 
     @staticmethod
     def read(path):
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
 
     @staticmethod
     def write(path, value):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(value))
+        path.write_text(json.dumps(value), encoding="utf-8")
 
     def command(self, *arguments):
         return self.call(self.script, self.root, *arguments)
@@ -166,7 +166,7 @@ class MonthlyRun:
         self.require(code == 0, "render: " + err)
         pdf = Path(out["pdf"])
         # Extract the delivered PDF, not only the HTML that was intended to render.
-        done = subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True, timeout=30)
+        done = subprocess.run(["pdftotext", str(pdf), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
         self.require(done.returncode == 0, "PDF text extraction: " + done.stderr)
         words = " ".join(done.stdout.split())
         return out, words, self.read(Path(out["receipt"]))

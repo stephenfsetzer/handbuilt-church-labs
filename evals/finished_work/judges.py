@@ -6,11 +6,15 @@ ungraded run, never a pass. A judge is fallible, so it never overrides a file ch
 """
 from __future__ import annotations
 
+import shutil
+
 import json
 import re
 import subprocess
 from pathlib import Path
 
+# The full path: on Windows Claude Code is a .cmd file, which cannot be started by its bare name.
+CLAUDE = shutil.which("claude") or "claude"
 ISOLATION = ["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "",
              "--no-session-persistence"]
 
@@ -42,13 +46,13 @@ def invalid_verdict(reply, items: list[dict], writing: str) -> str | None:
 
 def ask(prompt: str, model: str, cwd: Path, tools: str = "", timeout: int = 600, attempts: int = 2):
     """Run one judge. Returns the parsed object, or an error string."""
-    command = ["claude", "-p", "--model", model, "--output-format", "json", "--tools", tools, *ISOLATION]
+    command = [CLAUDE, "-p", "--model", model, "--output-format", "json", "--tools", tools, *ISOLATION]
     if tools:
         command += ["--allowedTools", tools]
     error = "not run"
     for _ in range(attempts):
         try:
-            done = subprocess.run(command, input=prompt, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+            done = subprocess.run(command, input=prompt, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
             outer = json.loads(done.stdout)
             match = re.search(r"\{.*\}", outer.get("result") or "", re.S)
             if outer.get("is_error") or not match:

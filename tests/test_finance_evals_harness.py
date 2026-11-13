@@ -44,7 +44,7 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_files_cannot_escape_to_host_or_plugin_writes(self):
         outside = self.base / "private.json"
-        outside.write_text("host data")
+        outside.write_text("host data", encoding="utf-8")
         (self.root / "finance").mkdir(exist_ok=True)
         (self.root / "finance/link.json").symlink_to(outside)
         for filename in [str(outside), "../private.json", "finance/link.json"]:
@@ -56,7 +56,7 @@ class WorkspaceTests(unittest.TestCase):
         for filename in ["handbuilt.py", ".handbuilt/installation.json", str(self.plugin / "tools/church_workflow.py")]:
             with self.subTest(filename=filename), self.assertRaises(ValueError):
                 self.server.call("write_file", {"path": filename, "text": "changed"})
-        self.assertEqual(outside.read_text(), "host data")
+        self.assertEqual(outside.read_text(encoding="utf-8"), "host data")
 
     def test_exact_commands_reject_shell_abbreviations_and_outside_paths(self):
         commands = [
@@ -74,21 +74,23 @@ class WorkspaceTests(unittest.TestCase):
                     self.server.command(command)
             process.assert_not_called()
 
+    @unittest.skipIf(os.name == "nt", "the finance eval harness drives a POSIX shell; it runs on a Mac or Linux")
     def test_config_cannot_redirect_output_and_report_cannot_load_host_history(self):
         target = self.root / "finance/board"
         target.mkdir(parents=True)
         config = target / "config.json"
-        config.write_text(json.dumps({"report_folder": str(self.base)}))
+        config.write_text(json.dumps({"report_folder": str(self.base)}), encoding="utf-8")
         with patch.object(stub.subprocess, "run") as process:
             with self.assertRaisesRegex(ValueError, "report_folder"):
                 self.server.command(self.command("finance-report", "status"))
-            config.write_text(json.dumps({"report_folder": "finance/board"}))
+            config.write_text(json.dumps({"report_folder": "finance/board"}), encoding="utf-8")
             report = target / "report.json"
-            report.write_text(json.dumps({"meta": {"month": "2026-08", "previous_report": str(self.base / "truth.json")}}))
+            report.write_text(json.dumps({"meta": {"month": "2026-08", "previous_report": str(self.base / "truth.json")}}), encoding="utf-8")
             with self.assertRaises(ValueError):
                 self.server.command(self.command("finance-report", "render", str(report)))
             process.assert_not_called()
 
+    @unittest.skipIf(os.name == "nt", "the finance eval harness drives a POSIX shell; it runs on a Mac or Linux")
     def test_real_adapter_and_launcher_roundtrip_with_only_local_tools(self):
         # Run with the verified managed runtime required by the repository's
         # test recipe. The launcher checks it read-only; this test never installs.
@@ -112,10 +114,10 @@ class WorkspaceTests(unittest.TestCase):
                 root = self.base / f"monthly-{cid}"
                 root.mkdir()
                 harness.prepare_monthly(cid, root)
-                config = json.loads((root / "finance/board/config.json").read_text())
+                config = json.loads((root / "finance/board/config.json").read_text(encoding="utf-8"))
                 self.assertEqual(config["report_folder"], "finance/board")
                 self.assertEqual(config["bank_accounts"], ALL[cid].TRUTH["everyday_bank"])
-                self.assertTrue(json.loads((root / "finance/onboarding-state.json").read_text())["locked"])
+                self.assertTrue(json.loads((root / "finance/onboarding-state.json").read_text(encoding="utf-8"))["locked"])
 
 
 class ConnectorTests(unittest.TestCase):
@@ -141,7 +143,7 @@ class ConnectorTests(unittest.TestCase):
 
     def test_stdio_survives_invalid_json(self):
         process = subprocess.run([sys.executable, str(ROOT / "evals/finance/quickbooks_stub.py"), "cedar_hollow"],
-                                 input='not-json\n{"id":2,"method":"ping"}\n', capture_output=True, text=True, check=True)
+                                 input='not-json\n{"id":2,"method":"ping"}\n', capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
         rows = [json.loads(line) for line in process.stdout.splitlines()]
         self.assertEqual(rows[0]["error"]["code"], -32700)
         self.assertEqual(rows[1]["result"], {})
@@ -164,13 +166,14 @@ class RunnerAndGradeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             fake = root / "fake_cli.py"
-            fake.write_text("import json,sys\nprint(json.dumps({'result':'looks fine','is_error':False}))\nsys.exit(7)\n")
+            fake.write_text("import json,sys\nprint(json.dumps({'result':'looks fine','is_error':False}))\nsys.exit(7)\n", encoding="utf-8")
             failed = harness.invoke([sys.executable, str(fake)], cwd=root, env=os.environ.copy(), timeout=5)
             self.assertEqual(failed["returncode"], 7)
             self.assertTrue(failed["error"])
-            fake.write_text("print('not-json')\n")
+            fake.write_text("print('not-json')\n", encoding="utf-8")
             self.assertTrue(harness.invoke([sys.executable, str(fake)], cwd=root, env=os.environ.copy(), timeout=5)["error"])
 
+    @unittest.skipIf(os.name == "nt", "the finance eval harness drives a POSIX shell; it runs on a Mac or Linux")
     def test_fake_cli_run_records_resolved_model_but_missing_work_still_fails_grade(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp).resolve()
@@ -185,13 +188,13 @@ plugin = pathlib.Path(args[args.index('--plugin-dir') + 1])
 assert not (plugin / 'evals').exists()
 assert 'OTHER_SERVICE_TOKEN' not in os.environ
 print(json.dumps({'result': 'No work was produced.', 'subtype': 'success', 'modelUsage': {'fake-exact-model-id': {}}}))
-""")
+""", encoding="utf-8")
             # A shell wrapper, not a shebang naming the interpreter: a shebang cannot
             # hold an interpreter path with a space (the managed runtime lives under
             # "Application Support"), and when exec fails the PATH search moves on
             # to the next folder. PATH holds only the fake, so no real claude runs.
             executable = base / "claude"
-            executable.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(fake))} "$@"\n')
+            executable.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(fake))} "$@"\n', encoding="utf-8")
             executable.chmod(0o700)
             with patch.dict(os.environ, {"PATH": str(base),
                                          "ANTHROPIC_API_KEY": "synthetic-test-key", "OTHER_SERVICE_TOKEN": "must-not-copy"}):
@@ -257,7 +260,7 @@ print(json.dumps({'result': 'No work was produced.', 'subtype': 'success', 'mode
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             harness.prepare_monthly("cedar_hollow", root)
-            config = json.loads((root / "finance/board/config.json").read_text())
+            config = json.loads((root / "finance/board/config.json").read_text(encoding="utf-8"))
         items = [{"section": a["section"], "chain": [*a.get("under", []), a["name"]], "value": 1.0}
                  for a in ALL["cedar_hollow"].CHURCH["pl"]]
         for side, sections in [("income_groups", builder.INCOME), ("spending_groups", builder.EXPENSE)]:
@@ -294,12 +297,12 @@ class KnownSourceBlockTests(unittest.TestCase):
         folder = self.base / skill / "harbor_light"
         folder.mkdir(parents=True)
         (folder / "finance/onboarding").mkdir(parents=True)
-        (folder / "finance/finance-overview.md").write_text("The profit and loss was cut off, so its figures cannot be used yet.\n")
+        (folder / "finance/finance-overview.md").write_text("The profit and loss was cut off, so its figures cannot be used yet.\n", encoding="utf-8")
         (folder / "finance/onboarding/questions.json").write_text(json.dumps(
-            [{"for": "Treasurer", "question": "Can you export the profit and loss?", "why": "The pull was cut off."}]))
+            [{"for": "Treasurer", "question": "Can you export the profit and loss?", "why": "The pull was cut off."}]), encoding="utf-8")
         (folder.parent / "harbor_light-run.json").write_text(json.dumps({
             "church": "harbor_light", "skill": skill, "status": "completed", "error": None, "returncode": 0,
-            "quickbooks_calls": self.reads(), "workspace_calls": []}))
+            "quickbooks_calls": self.reads(), "workspace_calls": []}), encoding="utf-8")
         return folder
 
     def test_refusal_after_cut_off_pull_is_a_known_block_for_both_skills(self):
@@ -315,10 +318,10 @@ class KnownSourceBlockTests(unittest.TestCase):
         qcalls = self.reads()
         folder = self.base / "with-findings"
         (folder / "finance/onboarding").mkdir(parents=True)
-        (folder / "finance/onboarding/findings.json").write_text(json.dumps({"findings": [{"id": "x"}]}))
+        (folder / "finance/onboarding/findings.json").write_text(json.dumps({"findings": [{"id": "x"}]}), encoding="utf-8")
         self.assertFalse(harness.known_source_block("harbor_light", "finance-onboarding", folder, [], qcalls))
         (folder / "finance/board/2026-08").mkdir(parents=True)
-        (folder / "finance/board/2026-08/report.json").write_text(json.dumps({"meta": {"status": "draft"}}))
+        (folder / "finance/board/2026-08/report.json").write_text(json.dumps({"meta": {"status": "draft"}}), encoding="utf-8")
         self.assertFalse(harness.known_source_block("harbor_light", "finance-report", folder, [], qcalls))
         empty = self.base / "short-pull"
         empty.mkdir()
@@ -417,14 +420,14 @@ class StubKeepsUpWithTheScripts(unittest.TestCase):
     def test_every_workflow_option_is_allowed_by_the_stub(self):
         import re
         REPO = Path(__file__).resolve().parents[1]
-        stub = (REPO / "evals" / "finance" / "quickbooks_stub.py").read_text()
+        stub = (REPO / "evals" / "finance" / "quickbooks_stub.py").read_text(encoding="utf-8")
         scripts = {
             "look": REPO / "skills/finance-onboarding/scripts/finance_onboarding.py",
             "build": REPO / "skills/finance-report/scripts/build_report_data.py",
             "draft": REPO / "skills/finance-report/scripts/finance_setup.py",
         }
         for name, script in scripts.items():
-            options = set(re.findall(r'add_argument\("(--[a-z0-9-]+)"', script.read_text()))
+            options = set(re.findall(r'add_argument\("(--[a-z0-9-]+)"', script.read_text(encoding="utf-8")))
             missing = sorted(o for o in options if f'"{o}"' not in stub and o not in {"--church-folder", "--format", "--out", "--help"})
             self.assertEqual(missing, [], f"{name}: options the stub does not allow")
 
@@ -442,7 +445,7 @@ class PreparedSettingsFollowTheChurchYear(unittest.TestCase):
             root = Path(tmp) / "church"
             harness.church_folder("lantern_hill", root)
             harness.prepare_monthly("lantern_hill", root)
-            saved = json.loads((root / "finance/board/config.json").read_text())["long_view"]["full_years"]
+            saved = json.loads((root / "finance/board/config.json").read_text(encoding="utf-8"))["long_view"]["full_years"]
         books = B.Books(ALL["lantern_hill"].CHURCH)
         last = saved[-1]
         self.assertEqual(last["reported"], round(books.period_result((last["year"], 7), (last["year"] + 1, 6))))
@@ -482,15 +485,15 @@ class CopyingASavedReply(unittest.TestCase):
             root = Path(tmp) / "church"
             (root / "finance").mkdir(parents=True)
             saved = Path(tmp) / "reply.json"
-            saved.write_text(json.dumps([{"type": "text", "text": '{"reportTitle": "Balance Sheet"}'}]))
+            saved.write_text(json.dumps([{"type": "text", "text": '{"reportTitle": "Balance Sheet"}'}]), encoding="utf-8")
             space = stub.Workspace(root, root)
             space.path = lambda value, write=False, _orig=space.path: Path(value) if value == str(saved) else _orig(value, write=write)
             space.call("copy_file", {"source": str(saved), "destination": "finance/bs.json"})
-            self.assertEqual((root / "finance/bs.json").read_text(), json.dumps([{"type": "text", "text": '{"reportTitle": "Balance Sheet"}'}]))
+            self.assertEqual((root / "finance/bs.json").read_text(encoding="utf-8"), json.dumps([{"type": "text", "text": '{"reportTitle": "Balance Sheet"}'}]))
             tool_results = Path(tmp) / "tool-results"
             tool_results.mkdir()
             moved = tool_results / "reply.json"
-            moved.write_text(saved.read_text())
+            moved.write_text(saved.read_text(encoding="utf-8"), encoding="utf-8")
             space.path = lambda value, write=False, _orig=stub.Workspace(root, root).path: moved if value == str(moved) else _orig(value, write=write)
             space.call("copy_file", {"source": str(moved), "destination": "finance/bs2.json"})
-            self.assertEqual((root / "finance/bs2.json").read_text(), '{"reportTitle": "Balance Sheet"}')
+            self.assertEqual((root / "finance/bs2.json").read_text(encoding="utf-8"), '{"reportTitle": "Balance Sheet"}')
