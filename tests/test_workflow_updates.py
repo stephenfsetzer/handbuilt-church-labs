@@ -97,7 +97,7 @@ class WorkflowUpdateTests(unittest.TestCase):
         self.assertEqual(result['freshness'], 'unknown')
 
     def test_development_checkout_never_downloads(self):
-        (self.current / '.git').write_text('gitdir: fixture')
+        (self.current / '.git').write_text('gitdir: fixture', encoding="utf-8")
         result = self.select()
         self.assertEqual(result['status'], 'pinned')
         self.assertEqual(self.calls, [])
@@ -168,7 +168,7 @@ class WorkflowUpdateTests(unittest.TestCase):
                     updates.unpack_verified(data, hashlib.sha256(data).hexdigest(), self.base / 'bad', '0.6.0')
         self.assertFalse((self.base / 'escaped.py').exists())
         target = Path(self.select()['selected_root'])
-        (target / 'tools/church_workflow.py').write_text('changed')
+        (target / 'tools/church_workflow.py').write_text('changed', encoding="utf-8")
         with self.assertRaises(ValueError):
             updates.verify_installed(target)
         self.assertEqual(self.select()['status'], 'deferred')

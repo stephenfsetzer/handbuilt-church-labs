@@ -44,17 +44,17 @@ def compact(text: str) -> str:
 
 
 def pdf_text(path: Path) -> str:
-    return subprocess.run(["pdftotext", str(path), "-"], capture_output=True, text=True, check=True).stdout
+    return subprocess.run(["pdftotext", str(path), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
 
 
 def pdf_fonts_embedded(path: Path) -> list[str]:
     """Return fonts that are not embedded. A missing font prints wrong at the shop."""
-    rows = subprocess.run(["pdffonts", str(path)], capture_output=True, text=True, check=True).stdout.splitlines()[2:]
+    rows = subprocess.run(["pdffonts", str(path)], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout.splitlines()[2:]
     return [row.split()[0] for row in rows if " no " in row[50:]]
 
 
 def pdf_info(path: Path) -> dict:
-    out = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True, check=True).stdout
+    out = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
     size = re.search(r"Page size:\s+([\d.]+) x ([\d.]+)", out)
     return {"pages": int(re.search(r"Pages:\s+(\d+)", out).group(1)),
             "width": float(size.group(1)), "height": float(size.group(2))}

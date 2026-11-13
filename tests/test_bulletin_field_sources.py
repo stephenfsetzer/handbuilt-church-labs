@@ -52,8 +52,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             self.assertNotEqual(files["prayers_of_the_people"], files["doxology"])
             self.assertTrue(files["prayers_of_the_people"].startswith("church-prayers_of_the_people-"))
             self.assertTrue(files["doxology"].startswith("church-doxology-"))
-            self.assertIn("Field prayers unique text.", (staged / f'{files["prayers_of_the_people"]}.md').read_text())
-            self.assertIn("Field doxology unique text.", (staged / f'{files["doxology"]}.md').read_text())
+            self.assertIn("Field prayers unique text.", (staged / f'{files["prayers_of_the_people"]}.md').read_text(encoding="utf-8"))
+            self.assertIn("Field doxology unique text.", (staged / f'{files["doxology"]}.md').read_text(encoding="utf-8"))
             self.assertEqual(prayers.read_bytes(), original_prayers)
             self.assertEqual(doxology.read_bytes(), original_doxology)
 
@@ -80,8 +80,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             self.assertIsNotNone(staged)
             files = bulletin["liturgy"]["files"]
             self.assertNotEqual(files["prayers_of_the_people"], files["prayers-of-the-people"])
-            self.assertIn("Generated field text.", (staged / f'{files["prayers_of_the_people"]}.md').read_text())
-            self.assertIn("Explicit unit text.", (staged / f'{files["prayers-of-the-people"]}.md').read_text())
+            self.assertIn("Generated field text.", (staged / f'{files["prayers_of_the_people"]}.md').read_text(encoding="utf-8"))
+            self.assertIn("Explicit unit text.", (staged / f'{files["prayers-of-the-people"]}.md').read_text(encoding="utf-8"))
 
     def test_sanitized_logical_keys_cannot_collide_in_staging(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -99,8 +99,8 @@ class BulletinFieldSourceTest(unittest.TestCase):
             self.assertIsNotNone(staged)
             files = bulletin["liturgy"]["files"]
             self.assertNotEqual(files["field/one"], files["field:one"])
-            self.assertIn("First text.", (staged / f'{files["field/one"]}.md').read_text())
-            self.assertIn("Second text.", (staged / f'{files["field:one"]}.md').read_text())
+            self.assertIn("First text.", (staged / f'{files["field/one"]}.md').read_text(encoding="utf-8"))
+            self.assertIn("Second text.", (staged / f'{files["field:one"]}.md').read_text(encoding="utf-8"))
 
     def test_custom_prayers_and_doxology_render_once_in_html_and_pdf(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

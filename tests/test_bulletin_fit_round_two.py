@@ -401,16 +401,16 @@ class ReviseKeepsChurchFilesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             church = make_church(Path(temporary))
             first, receipt_path, week = self.produce_and_add_church_files(church, legacy=legacy)
-            produced = set(json.loads(receipt_path.read_text())["artifacts"][i]["path"]
+            produced = set(json.loads(receipt_path.read_text(encoding="utf-8"))["artifacts"][i]["path"]
                            for i in range(4))
             with self._patch():
                 revised = revise(church, receipt_path,
                                  {"announcements": [{"title": "Changed", "text": "Changed."}]})
             self.assertEqual(revised["status"], "ready_for_review", revised)
             self.assertEqual(revised["preserved_files"], ["README.md", "announcements/photo.jpg"])
-            self.assertEqual((week / "README.md").read_text(), "Sources for this week.\n")
+            self.assertEqual((week / "README.md").read_text(encoding="utf-8"), "Sources for this week.\n")
             self.assertTrue((week / "announcements" / "photo.jpg").is_file())
-            receipt = json.loads((week / "bulletin-production-receipt.json").read_text())
+            receipt = json.loads((week / "bulletin-production-receipt.json").read_text(encoding="utf-8"))
             self.assertEqual(receipt["preserved_files"], ["README.md", "announcements/photo.jpg"])
             self.assertIn("bulletin-production-receipt.json", receipt["package_files"])
             self.assertNotIn("README.md", receipt["package_files"])
@@ -439,7 +439,7 @@ class ReviseKeepsChurchFilesTests(unittest.TestCase):
             self.assertEqual(result["status"], "ready_for_review", result)
             self.assertEqual(result["print_settings"]["body_size_pt"], 12.0)
             self.assertEqual(result["print_settings"]["music_min_scale"], 0.85)
-            receipt = json.loads(Path(result["receipt_path"]).read_text())
+            receipt = json.loads(Path(result["receipt_path"]).read_text(encoding="utf-8"))
             self.assertEqual(receipt["print_settings"]["source"],
                              {"body_size": "church.yaml", "music_min_scale": "church.yaml"})
 

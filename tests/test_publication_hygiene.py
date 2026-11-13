@@ -15,7 +15,7 @@ def run_checker(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]
     return subprocess.run(
         [sys.executable, str(CHECKER), "--root", str(root), *arguments],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         check=False,
     )
 
@@ -156,6 +156,20 @@ class PublicationHygieneTest(unittest.TestCase):
             for name in ("report.pdf", "scan.png", "export.csv"):
                 self.assertIn(f"{name}  [private file type]", result.stdout)
             self.assertNotIn("Body.ttf", result.stdout)
+
+    def test_a_checkout_under_a_skipped_folder_name_is_still_checked(self) -> None:
+        # The guard once judged by the whole path, so a repository kept under a
+        # folder named "runtime" or "fonts" was skipped entirely and passed.
+        with tempfile.TemporaryDirectory() as temporary:
+            for parent in ("runtime", "fonts"):
+                root = Path(temporary) / parent / "repo"
+                root.mkdir(parents=True)
+                subprocess.run(["git", "init", "-q", str(root)], check=True)
+                (root / "report.pdf").write_bytes(b"%PDF-1.4")
+                subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+                result = run_checker(root)
+                self.assertEqual(result.returncode, 1, parent)
+                self.assertIn("report.pdf  [private file type]", result.stdout)
 
     def test_only_the_pinned_plugin_icon_may_be_committed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

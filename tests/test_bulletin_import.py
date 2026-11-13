@@ -125,7 +125,7 @@ class BulletinImportTests(unittest.TestCase):
         """, self.tmp / "crop-case.pdf")
         manifest = import_bulletin(self.church, pdf_path)
         page = manifest["pages"][0]
-        self.assertIn("printed rubric", (self.church / page["text_path"]).read_text())
+        self.assertIn("printed rubric", (self.church / page["text_path"]).read_text(encoding="utf-8"))
         asset = page["images"][0]
         with Image.open(self.church / asset["asset_path"]) as extracted, \
                 Image.open(self.church / page["render_path"]) as rendered:
@@ -578,7 +578,7 @@ class BulletinImportTests(unittest.TestCase):
 
     def test_rejects_non_pdf(self):
         fake = self.tmp / "not-a-pdf.txt"
-        fake.write_text("hello")
+        fake.write_text("hello", encoding="utf-8")
         with self.assertRaises(BulletinImportError):
             import_bulletin(self.church, fake)
 
@@ -755,7 +755,7 @@ class BulletinImportTests(unittest.TestCase):
 
         manifest = import_bulletin(self.church, pdf_path, original_filename="oversized-image.pdf")
         page = manifest["pages"][0]
-        page_text = (self.church / page["text_path"]).read_text()
+        page_text = (self.church / page["text_path"]).read_text(encoding="utf-8")
         self.assertIn("Text before the oversized image.", page_text)
         self.assertIn("Text between the two images.", page_text)
         images = inspection["images"][0]
@@ -805,7 +805,7 @@ class BulletinImportTests(unittest.TestCase):
             (first, "Text on the page with unreadable image references."),
             (second, "Text on the following page."),
         ):
-            self.assertIn(expected_text, (self.church / page["text_path"]).read_text())
+            self.assertIn(expected_text, (self.church / page["text_path"]).read_text(encoding="utf-8"))
             self.assertTrue((self.church / page["render_path"]).is_file())
         self.assertEqual(len(second["images"]), 1)
         self.assertTrue((self.church / second["images"][0]["asset_path"]).is_file())

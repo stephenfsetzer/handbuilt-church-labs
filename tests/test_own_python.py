@@ -286,7 +286,9 @@ class WorksOnWindows(unittest.TestCase):
     """Windows differs from a Mac in ways that stopped real work. Each is pinned here."""
 
     def product_files(self):
-        for base in ("skills", "tools", "scaffold"):
+        # Tests and evals count too: a test that reads text the Mac way fails on
+        # Windows and hides whether the product works there.
+        for base in ("skills", "tools", "scaffold", "tests", "evals"):
             yield from (ROOT / base).rglob("*.py")
 
     def test_every_text_file_is_read_and_written_as_utf8(self):
@@ -306,6 +308,8 @@ class WorksOnWindows(unittest.TestCase):
                 if (name == "read_text" and not node.args) or (name == "write_text" and len(node.args) == 1):
                     offenders.append(f"{path.relative_to(ROOT)}:{node.lineno} {name}")
             for number, line in enumerate(source.splitlines(), start=1):
+                if path == Path(__file__).resolve():
+                    break  # this file names the pattern it looks for
                 if "text=True" in line and "mkstemp" not in line and "encoding=" not in line:
                     offenders.append(f"{path.relative_to(ROOT)}:{number} text=True")
         self.assertEqual(offenders, [], "name the encoding: encoding=\"utf-8\"")
@@ -349,6 +353,8 @@ class WorksOnWindows(unittest.TestCase):
         """Every bulletin on Windows was refused: its fonts 'could not be found'."""
         offenders = []
         for path in self.product_files():
+            if path == Path(__file__).resolve():
+                continue  # this file names the pattern it looks for
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                 # urlparse("file:///C:/x").path is "/C:/x", which is not a Windows path.
                 if re.search(r"Path\(unquote\(urlparse\(", line) or "[7:]" in line and "file://" in line:

@@ -234,7 +234,7 @@ def build_recording(run_dir: Path, service=SERVICE) -> dict:
         for kind, seconds in pictures:
             listing += [f"file {kind}.png", f"duration {seconds:.4f}"]
         listing.append(f"file {pictures[-1][0]}.png")
-        (work / "pictures.ffconcat").write_text("\n".join(listing) + "\n")
+        (work / "pictures.ffconcat").write_text("\n".join(listing) + "\n", encoding="utf-8")
         total = len(audio) / RATE
         target = recordings / RECORDING_NAME
         subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
@@ -371,9 +371,9 @@ def grade(church: Path, *, stream: dict | None = None, key: dict | None = None, 
     intro, outro = float(settings["intro_seconds"]), float(settings["outro_seconds"])
 
     media = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(clip)],
-                                      capture_output=True, text=True).stdout or "{}")
+                                      capture_output=True, text=True, encoding="utf-8", errors="replace").stdout or "{}")
     codecs = {s.get("codec_type"): s.get("codec_name") for s in media.get("streams", [])}
-    decoded = subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", str(clip), "-f", "null", "-"], capture_output=True, text=True)
+    decoded = subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", str(clip), "-f", "null", "-"], capture_output=True, text=True, encoding="utf-8", errors="replace")
     duration = float(media.get("format", {}).get("duration", 0) or 0)
     check("clip_plays", codecs.get("video") == "h264" and codecs.get("audio") == "aac" and duration > 0 and decoded.returncode == 0,
           f"{codecs}, {duration:.1f} s, decode {'ok' if decoded.returncode == 0 else decoded.stderr[:200]}")
@@ -443,7 +443,7 @@ def grade(church: Path, *, stream: dict | None = None, key: dict | None = None, 
     links = ('src="sermon-review.mp4"', 'src="sermon.en.vtt"', "assets/thumbnail.png")
     check("review_page", all(link in text for link in links), ", ".join(link for link in links if link not in text) or "complete")
     review = root / ".receipts/review.json"
-    graded["review_status"] = json.loads(review.read_text()).get("status") if review.is_file() else "not recorded"
+    graded["review_status"] = json.loads(review.read_text(encoding="utf-8")).get("status") if review.is_file() else "not recorded"
     return graded
 
 

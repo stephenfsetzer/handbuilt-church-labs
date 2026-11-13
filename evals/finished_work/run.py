@@ -118,7 +118,7 @@ def agent_turn(command: list[str], run_dir: Path, transcript: Path, timeout: int
     answered_at = None
     with transcript.open("w", encoding="utf-8") as sink:
         process = subprocess.Popen(command, cwd=run_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   stdin=subprocess.DEVNULL, env=run_environment(run_dir), text=True,
+                                   stdin=subprocess.DEVNULL, env=run_environment(run_dir), text=True, encoding="utf-8", errors="replace",
                                    start_new_session=True)
         lines: "queue.Queue[str | None]" = queue.Queue()
 

@@ -336,7 +336,7 @@ def new_names(sermon: str, known: str) -> list[str]:
 
 def pdf_body_points(path: Path) -> float:
     """Estimate the type size most of the page is set in, from word heights."""
-    out = subprocess.run(["pdftotext", "-bbox", str(path), "-"], capture_output=True, text=True, check=True).stdout
+    out = subprocess.run(["pdftotext", "-bbox", str(path), "-"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True).stdout
     heights = [round(float(b) - float(a), 1) for a, b in re.findall(r'yMin="([\d.]+)"[^>]*yMax="([\d.]+)"', out)]
     return round(statistics.mode(heights) / PDF_HEIGHT_PER_POINT, 1) if heights else 0.0
 

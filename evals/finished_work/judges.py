@@ -48,7 +48,7 @@ def ask(prompt: str, model: str, cwd: Path, tools: str = "", timeout: int = 600,
     error = "not run"
     for _ in range(attempts):
         try:
-            done = subprocess.run(command, input=prompt, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+            done = subprocess.run(command, input=prompt, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
             outer = json.loads(done.stdout)
             match = re.search(r"\{.*\}", outer.get("result") or "", re.S)
             if outer.get("is_error") or not match:

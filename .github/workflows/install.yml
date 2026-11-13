@@ -99,6 +99,102 @@ jobs:
           call bin\handbuilt-python.cmd -c "import sys; print(sys.version)" || exit /b 1
           call bin\handbuilt-python.cmd -c "import pathlib; pathlib.Path('utf8-check.txt').write_text(chr(8220) + 'psalm' + chr(8221)); print(pathlib.Path('utf8-check.txt').read_text())" || exit /b 1
 
+  install:
+    # The path a pastor's computer takes: Claude downloads the plugin through
+    # Git, with Git's own defaults, and the plugin then runs from where Claude
+    # keeps it. An install made on the last release is updated to this one.
+    name: Install through Claude on ${{ matrix.os }}
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      CANDIDATE_REF: ${{ github.head_ref || github.ref_name }}
+      SOURCE: https://github.com/${{ github.repository }}.git
+      PLUGIN: handbuilt-church-labs@handbuilt-church-labs
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Install Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Use the line-ending setting Git for Windows installs with
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf true
+
+      - name: Install the last release, the way an existing install has it
+        run: |
+          export CLAUDE_CONFIG_DIR="$RUNNER_TEMP/claude config"
+          export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt runtime"
+          printf 'CLAUDE_CONFIG_DIR=%s\nHANDBUILT_RUNTIME_HOME=%s\n' "$CLAUDE_CONFIG_DIR" "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
+          previous=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "Last release: $previous"
+          claude plugin marketplace add "$SOURCE#$previous"
+          claude plugin install "$PLUGIN"
+          claude plugin list
+
+      - name: Update that install to this change
+        run: |
+          claude plugin marketplace remove handbuilt-church-labs
+          claude plugin marketplace add "$SOURCE#$CANDIDATE_REF"
+          claude plugin update "$PLUGIN" || claude plugin install "$PLUGIN"
+          claude plugin list --json > "$RUNNER_TEMP/plugins.json"
+          cat "$RUNNER_TEMP/plugins.json"
+
+      - name: Find where Claude keeps the plugin and check it arrived whole
+        run: |
+          wanted=$(curl -fsSL "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/.claude-plugin/plugin.json" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -1)
+          plugin="$CLAUDE_CONFIG_DIR/plugins/cache/handbuilt-church-labs/handbuilt-church-labs/$wanted"
+          echo "Expecting version $wanted at $plugin"
+          test -d "$plugin" || { echo "Claude did not install version $wanted"; ls "$CLAUDE_CONFIG_DIR/plugins/cache/handbuilt-church-labs/handbuilt-church-labs"; exit 1; }
+          printf 'PLUGIN_DIR=%s\n' "$plugin" >> "$GITHUB_ENV"
+          # Git must not have rewritten line endings on the way in.
+          if grep -q $'\r' "$plugin/bin/handbuilt-python" "$plugin/tools/python-dist.lock"; then
+            echo "A launcher file arrived with Windows line endings"; exit 1
+          fi
+
+      - name: Set up from the installed copy
+        run: |
+          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" setup --format json > "$RUNNER_TEMP/setup.json" || true
+          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
+          "$PLUGIN_DIR/bin/handbuilt-python" - "$RUNNER_TEMP/doctor.json" <<'PY'
+          import json, sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          print(report["status"], "-", report["message"])
+          if report["status"] != "ready":
+              raise SystemExit("Setup from the installed copy did not pass: " + str(report.get("next_action")))
+          PY
+
+      - name: PDF tools and a first bulletin from the installed copy
+        if: runner.os != 'Linux'
+        run: |
+          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
+          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" verify --format json > "$RUNNER_TEMP/verify.json" || true
+          python_path=$("$PLUGIN_DIR/bin/handbuilt-python" - "$RUNNER_TEMP/verify.json" <<'PY'
+          import json, sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          if report["status"] != "ready" or not report.get("verification", {}).get("ok"):
+              raise SystemExit("A sample PDF could not be built from the installed copy: " + str(report.get("technical_detail")))
+          print(report["runtime"]["python"])
+          PY
+          )
+          cd "$PLUGIN_DIR"
+          # A whole church folder and real bulletins, built by the installed code.
+          "$python_path" -m unittest tests.test_first_time_flow tests.test_bulletin_fit_round_two tests.test_bulletin_revision 2>&1 | tail -15
+
+      - name: The Windows command launcher from the installed copy
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          set "HANDBUILT_RUNTIME_HOME=%RUNNER_TEMP%\handbuilt cmd runtime"
+          call "%PLUGIN_DIR%\bin\handbuilt-python.cmd" -c "import sys; print(sys.version)" || exit /b 1
+
   suite:
     # The whole regression suite on each system. It reports what does not yet
     # work there without blocking a release; setup above is the gate.

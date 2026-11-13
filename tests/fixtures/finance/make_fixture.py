@@ -294,7 +294,7 @@ def main(out, short=False):
     (out / "church.yaml").write_text(
         "church:\n  name: Riverbend Lutheran Church\n  short_name: Riverbend\n  tradition: Lutheran\n"
         "leadership:\n  governing_body:\n    label: Church Council\n    officers:\n"
-        "    - name: Pat Example\n      role: Treasurer\n")
+        "    - name: Pat Example\n      role: Treasurer\n", encoding="utf-8")
     budget_net = [1100.0] * 12
     config = {
         "report_folder": "finance/board", "history_start": "2024-12", "fiscal_year_start": 1,
@@ -324,20 +324,20 @@ def main(out, short=False):
     if short:
         config["history_start"] = "2026-01"
         config["long_view"] = {}
-    (board / "config.json").write_text(json.dumps(config, indent=2))
+    (board / "config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
     for month in (7, 8):
         pulls = board / f"2026-{month:02d}" / "pulls"
         pulls.mkdir(parents=True, exist_ok=True)
-        (pulls / "balance-sheet.json").write_text(json.dumps(balance_sheet((2026, month))))
-        (pulls / "pl-ytd.json").write_text(json.dumps(pl(2026, month)))
-        (pulls / "pl-prior.json").write_text(json.dumps(pl(2026, month - 1)))
-        (pulls / "company-info.json").write_text(json.dumps(COMPANY_INFO))
+        (pulls / "balance-sheet.json").write_text(json.dumps(balance_sheet((2026, month))), encoding="utf-8")
+        (pulls / "pl-ytd.json").write_text(json.dumps(pl(2026, month)), encoding="utf-8")
+        (pulls / "pl-prior.json").write_text(json.dumps(pl(2026, month - 1)), encoding="utf-8")
+        (pulls / "company-info.json").write_text(json.dumps(COMPANY_INFO), encoding="utf-8")
     setup = out / "setup-pulls"
     setup.mkdir(exist_ok=True)
-    (setup / "company-info.json").write_text(json.dumps(COMPANY_INFO))
-    (setup / "pl-12m.json").write_text(json.dumps(pl(2026, 8, start=(2025, 9))))
-    (setup / "pl-2025.json").write_text(json.dumps(pl(2025, 12)))
-    (setup / "budget-vs-actuals-2026.csv").write_text(bva_csv())
+    (setup / "company-info.json").write_text(json.dumps(COMPANY_INFO), encoding="utf-8")
+    (setup / "pl-12m.json").write_text(json.dumps(pl(2026, 8, start=(2025, 9))), encoding="utf-8")
+    (setup / "pl-2025.json").write_text(json.dumps(pl(2025, 12)), encoding="utf-8")
+    (setup / "budget-vs-actuals-2026.csv").write_text(bva_csv(), encoding="utf-8")
     return out
 
 

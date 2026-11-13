@@ -53,7 +53,7 @@ def write_church(module, root: Path) -> dict:
     (root / "church.yaml").write_text(
         f"church:\n  name: {c['name']}\n  tradition: {c['tradition'] or 'none'}\n"
         f"leadership:\n  governing_body:\n    label: {c['governing_body']}\n    officers:\n"
-        "    - name: Pat Example\n      role: Treasurer\n")
+        "    - name: Pat Example\n      role: Treasurer\n", encoding="utf-8")
     pulls = root / "pulls"
     pulls.mkdir(exist_ok=True)
     last = books.last
@@ -63,7 +63,7 @@ def write_church(module, root: Path) -> dict:
 
     def save(name, data):
         p = pulls / name
-        p.write_text(json.dumps(data))
+        p.write_text(json.dumps(data), encoding="utf-8")
         paths[name] = p
         return p
 
@@ -100,7 +100,7 @@ def back(month, k):
 
 def call(script, root, *args):
     done = subprocess.run([sys.executable, str(script), *args[:1], "--church-folder", str(root), *args[1:]],
-                          capture_output=True, text=True, cwd=root, timeout=120)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=root, timeout=120)
     try:
         out = json.loads(done.stdout)
     except ValueError:
@@ -158,13 +158,13 @@ class Run:
             ONBOARDING, root, "look", "--balance-sheet", str(p["balance-sheet.json"]), "--pl-12m", str(p["pl-12m.json"]),
             "--pl-recent", str(p["pl-recent.json"]))
         findings = root / "finance/onboarding/findings.json"
-        self.findings = json.loads(findings.read_text())["findings"] if findings.exists() and self.look_code == 0 else []
+        self.findings = json.loads(findings.read_text(encoding="utf-8"))["findings"] if findings.exists() and self.look_code == 0 else []
         years = [a for k in sorted(p) if re.fullmatch(r"pl-\d{4}\.json", k) for a in ("--pl-year", str(p[k]))]
         self.draft, self.draft_code, self.draft_err = call(
             REPORT, root, "setup", "draft", "--balance-sheet", str(p["balance-sheet.json"]),
             "--pl-12m", str(p["pl-12m.json"]), "--company-info", str(p["company-info.json"]), *years)
         draft_file = root / "finance/board/setup-draft.json"
-        self.draft_file = json.loads(draft_file.read_text()) if draft_file.exists() else {}
+        self.draft_file = json.loads(draft_file.read_text(encoding="utf-8")) if draft_file.exists() else {}
         self._built = {}
 
     def finding(self, fid):
@@ -195,7 +195,7 @@ class Run:
                               "--balance-sheet", str(p["balance-sheet.json"]), "--pl-ytd", str(p["pl-ytd.json"]),
                               *prior, *extra)
         report = root / "finance/board" / month / "report.json"
-        result = (json.loads(report.read_text()) if code == 0 and report.exists() else {}, code, err)
+        result = (json.loads(report.read_text(encoding="utf-8")) if code == 0 and report.exists() else {}, code, err)
         if report.exists():
             report.unlink()
         self._built[pl_through] = result
@@ -319,7 +319,7 @@ def score_church(cid: str) -> dict:
         results = []
         # A new product refusal must not silently satisfy unrelated gap checks.
         # Only the deliberate row-limit case is expected to stop before findings/settings.
-        rows = json.loads(run.pulls["pl-12m.json"].read_text())["reportData"]["data"]["rows"]
+        rows = json.loads(run.pulls["pl-12m.json"].read_text(encoding="utf-8"))["reportData"]["data"]["rows"]
         if len(rows) < B.CONNECTOR_ROW_LIMIT:
             for operation, code, err in (("look", run.look_code, run.look_err),
                                           ("draft", run.draft_code, run.draft_err)):

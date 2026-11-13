@@ -341,11 +341,11 @@ class CheckPrintTests(unittest.TestCase):
         self.assertEqual(set(resolved), {"EBGaramond-Regular.ttf", "stave.png"})
         self.assertEqual(resolved["EBGaramond-Regular.ttf"]["found_in"], "the plugin's fonts")
         self.assertEqual(resolved["stave.png"]["found_in"], "the week's folder")
-        self.assertTrue(resolved["stave.png"]["path"].endswith("hymn-images/set-1/stave.png"))
+        self.assertTrue(Path(resolved["stave.png"]["path"]).as_posix().endswith("hymn-images/set-1/stave.png"))
         self.assertEqual(cases["archived as saved"]["resolved_assets"], [])
         self.assertIn("assets_resolved", cases["archived as saved"]["failed_checks"])
         # The saved file is never rewritten.
-        saved = (self.week / ".revisions" / "v2" / "bulletin-2026-10-04-classic.html").read_text()
+        saved = (self.week / ".revisions" / "v2" / "bulletin-2026-10-04-classic.html").read_text(encoding="utf-8")
         self.assertIn("file:///nowhere/old-staging/hymn-images/stave.png", saved)
 
         out = io.StringIO()
@@ -368,7 +368,7 @@ class CheckPrintTests(unittest.TestCase):
         completed = subprocess.run(
             [sys.executable, str(REPO_ROOT / "tools" / "church_workflow.py"),
              "--church-folder", str(self.church), "check-print", "--format", "json"],
-            capture_output=True, text=True, cwd=REPO_ROOT)
+            capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=REPO_ROOT)
         self.assertEqual(completed.returncode, 1, completed.stderr)
         result = json.loads(completed.stdout)
         self.assertEqual((result["status"], result["met"]), ("failed", 0))

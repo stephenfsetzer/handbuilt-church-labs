@@ -35,8 +35,8 @@ def main() -> None:
         site = next(legacy.glob('lib/python*/site-packages'), legacy / 'Lib' / 'site-packages')
         metadata = site / 'pip-26.2.1.dist-info' / 'METADATA'
         metadata.parent.mkdir(parents=True)
-        metadata.write_text('Metadata-Version: 2.1\nName: pip\nVersion: 26.2.1\n')
-        (legacy / 'keep-this-runtime.txt').write_text('Synthetic recovery marker\n')
+        metadata.write_text('Metadata-Version: 2.1\nName: pip\nVersion: 26.2.1\n', encoding="utf-8")
+        (legacy / 'keep-this-runtime.txt').write_text('Synthetic recovery marker\n', encoding="utf-8")
         before_legacy = fingerprint(legacy)
         manager = RuntimeManager(repo_root=Path(__file__).resolve().parents[1],
                                  runtime_root=support, bootstrap_python=sys.executable)

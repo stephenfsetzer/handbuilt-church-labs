@@ -72,9 +72,9 @@ class ChurchConnectionTests(unittest.TestCase):
         self.assertEqual(created["connection"]["status"], "connected")
         note = church / "sermons" / "pastor-notes.md"
         note.parent.mkdir(exist_ok=True)
-        note.write_text("Keep my notes")
+        note.write_text("Keep my notes", encoding="utf-8")
         self.assertEqual(setup.create(self.base, "new-church")["status"], "returning")
-        self.assertEqual(note.read_text(), "Keep my notes")
+        self.assertEqual(note.read_text(encoding="utf-8"), "Keep my notes")
         self.assertTrue((church / "skills" / "README.md").is_file())
         self.assertFalse((church / "skills" / "bulletin").exists())
 
@@ -90,7 +90,7 @@ class ChurchConnectionTests(unittest.TestCase):
         for relative, content in local_files.items():
             path = church / relative
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content)
+            path.write_text(content, encoding="utf-8")
         removed = [church / "START-HERE.md", church / "skills/README.md"]
         for path in removed:
             path.unlink()
@@ -98,7 +98,7 @@ class ChurchConnectionTests(unittest.TestCase):
         result = setup.create(self.base, "custom-church")
         self.assertEqual(result["status"], "returning")
         for relative, content in local_files.items():
-            self.assertEqual((church / relative).read_text(), content)
+            self.assertEqual((church / relative).read_text(encoding="utf-8"), content)
         self.assertTrue(all(not path.exists() for path in removed))
         self.assertEqual(result["readiness"]["workflow_readiness"], before["workflow_readiness"])
 
@@ -114,7 +114,7 @@ class ChurchConnectionTests(unittest.TestCase):
 
     def test_launcher_missing_connection_blocks_without_running_workflow(self):
         result = subprocess.run([sys.executable, str(self.church / "handbuilt.py"),
-                                 "start", "bulletin"], cwd=self.base, capture_output=True, text=True)
+                                 "start", "bulletin"], cwd=self.base, capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(result.returncode, 2)
         self.assertEqual(json.loads(result.stdout)["code"], "handbuilt_not_connected")
         self.assertIn("Other work", json.loads(result.stdout)["message"])
@@ -133,8 +133,8 @@ class ChurchConnectionTests(unittest.TestCase):
         template.parent.mkdir(exist_ok=True)
         template.write_text(
             (bridge.ROOT / "skills/sermon-research/references/research-brief-template.md")
-            .read_text().replace("# Research Brief Template", "# Our study template")
-        )
+            .read_text(encoding="utf-8").replace("# Research Brief Template", "# Our study template")
+        , encoding="utf-8")
         expected_config = (self.church / "church.yaml").read_bytes()
         expected_template = template.read_bytes()
         bridge.connect(self.church)
@@ -145,20 +145,20 @@ class ChurchConnectionTests(unittest.TestCase):
     def test_missing_installation_blocks_and_does_not_search_personal_skills(self):
         bridge.connect(self.church)
         path = self.church / ".handbuilt/installation.json"
-        info = json.loads(path.read_text())
+        info = json.loads(path.read_text(encoding="utf-8"))
         info["plugin_root"] = str(self.base / "missing-installation")
-        path.write_text(json.dumps(info))
+        path.write_text(json.dumps(info), encoding="utf-8")
         result = subprocess.run([sys.executable, str(self.church / "handbuilt.py"),
-                                 "start", "sermon-research"], capture_output=True, text=True)
+                                 "start", "sermon-research"], capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(result.returncode, 2)
         self.assertEqual(json.loads(result.stdout)["code"], "handbuilt_not_connected")
 
     def test_connect_preserves_custom_launcher_and_rejects_escaped_metadata(self):
         launcher = self.church / "handbuilt.py"
-        launcher.write_text("custom content")
+        launcher.write_text("custom content", encoding="utf-8")
         with self.assertRaises(ValueError):
             bridge.connect(self.church)
-        self.assertEqual(launcher.read_text(), "custom content")
+        self.assertEqual(launcher.read_text(encoding="utf-8"), "custom content")
         launcher.unlink()
         shutil.rmtree(self.church / ".handbuilt")
         (self.church / ".handbuilt").symlink_to(self.base, target_is_directory=True)
@@ -210,22 +210,22 @@ class ChurchConnectionTests(unittest.TestCase):
         bridge.connect(self.church)
         result = subprocess.run([sys.executable, str(self.church / "handbuilt.py"),
                                  "runtime", "verify", "--capability", "workspace"],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, encoding="utf-8", errors="replace")
         self.assertEqual(result.returncode, 2)
         self.assertIn("verify always checks all PDF tools", json.loads(result.stdout)["message"])
 
     def test_pending_brand_blocks_bulletin_but_allows_research_orientation(self):
         brand = self.church / "brand.json"
-        data = json.loads(brand.read_text())
+        data = json.loads(brand.read_text(encoding="utf-8"))
         data["logo_status"] = "pending"
         data["colors_status"] = "pending"
-        brand.write_text(json.dumps(data))
+        brand.write_text(json.dumps(data), encoding="utf-8")
         with mock.patch.object(bridge, "_doctor", return_value=self.doctor):
             result, code = bridge.execute(self.church, "bulletin", "produce", ["--input", "missing.json"])
             research, research_code = bridge.execute(self.church, "sermon-research", "orient", ["--date", "2026-09-13"])
         self.assertEqual((result["code"], code), ("brand_not_ready", 2))
         self.assertEqual(research_code, 0)
-        receipt = json.loads(Path(research["handbuilt_run"]).read_text())
+        receipt = json.loads(Path(research["handbuilt_run"]).read_text(encoding="utf-8"))
         self.assertEqual(receipt["workflow"], "sermon-research")
         self.assertEqual(receipt["runtime_python"], sys.executable)
         self.assertEqual(receipt["installation"]["plugin_root"], str(bridge.ROOT))
@@ -248,7 +248,7 @@ class ChurchConnectionTests(unittest.TestCase):
         with mock.patch.object(bridge, "ROOT", installed):
             result = bridge.connect(self.church)
         self.assertEqual(result["installation"]["plugin_root"], str(installed))
-        self.assertEqual(json.loads((self.church / ".handbuilt/installation.json").read_text())["plugin_root"], str(installed))
+        self.assertEqual(json.loads((self.church / ".handbuilt/installation.json").read_text(encoding="utf-8"))["plugin_root"], str(installed))
 
 
 if __name__ == "__main__":

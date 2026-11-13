@@ -79,13 +79,13 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
 
     def test_modern_creed_aligns_to_dialogue_text_and_can_flow(self) -> None:
         css = (Path(__file__).parents[1] / "skills" / "bulletin" / "renderer"
-               / "themes" / "modern.css").read_text()
+               / "themes" / "modern.css").read_text(encoding="utf-8")
         self.assertIn(".dialogue .speaker { width: 0.9in; }", css)
         congregational = css.split(".congregational", 1)[1].split("}", 1)[0]
         self.assertIn("margin-left: 1in;", congregational)
         self.assertNotIn("break-inside:", congregational)
         base_css = (Path(__file__).parents[1] / "skills" / "bulletin" / "renderer"
-                    / "themes" / "base.css").read_text()
+                    / "themes" / "base.css").read_text(encoding="utf-8")
         base_congregational = base_css.split(".congregational", 1)[1].split("}", 1)[0]
         self.assertIn("break-inside: avoid;", base_congregational)
         self.assertIn(".cong-line", css)
@@ -231,7 +231,7 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
         css = build_css("classic", brand)
         self.assertIn("Bulletin Desk", css)
         for theme in ("classic", "modern"):
-            theme_css = (Path(__file__).parents[1] / "skills" / "bulletin" / "renderer" / "themes" / f"{theme}.css").read_text()
+            theme_css = (Path(__file__).parents[1] / "skills" / "bulletin" / "renderer" / "themes" / f"{theme}.css").read_text(encoding="utf-8")
             self.assertNotIn("@page back", theme_css)
 
     def test_qr_copy_requires_acceptance_or_complete_custom_copy(self) -> None:
@@ -335,7 +335,7 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
             / "themes"
             / "base.css"
         )
-        css = css_path.read_text()
+        css = css_path.read_text(encoding="utf-8")
         self.assertIn(
             ".dialogue-group .dialogue { display: table; }",
             css,
@@ -418,7 +418,7 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
             / "themes"
             / "base.css"
         )
-        css = css_path.read_text()
+        css = css_path.read_text(encoding="utf-8")
         self.assertIn(
             ".dialogue.response .speaker,\n.dialogue.response .line { font-weight: 700; }",
             css,

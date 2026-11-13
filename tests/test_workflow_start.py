@@ -48,15 +48,15 @@ class WorkflowStartTests(unittest.TestCase):
     def change_version(root, number):
         for host in ('.codex-plugin', '.claude-plugin'):
             path = root / host / 'plugin.json'
-            value = json.loads(path.read_text())
+            value = json.loads(path.read_text(encoding="utf-8"))
             value['version'] = number
-            path.write_text(json.dumps(value))
+            path.write_text(json.dumps(value), encoding="utf-8")
 
     @staticmethod
     def seal(root):
         files = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                  for p in root.rglob('*') if p.is_file() and p.name != '.handbuilt-workflow.json'}
-        (root / '.handbuilt-workflow.json').write_text(json.dumps({'schema_version': 1, 'version': updates.package_version(root), 'files': files}))
+        (root / '.handbuilt-workflow.json').write_text(json.dumps({'schema_version': 1, 'version': updates.package_version(root), 'files': files}), encoding="utf-8")
 
     def dispatch(self, command, **kwargs):
         self.calls.append(command)
@@ -69,7 +69,7 @@ class WorkflowStartTests(unittest.TestCase):
         return subprocess.CompletedProcess(command, code, json.dumps(value), '')
 
     def connection(self):
-        return json.loads((self.church / '.handbuilt/installation.json').read_text())
+        return json.loads((self.church / '.handbuilt/installation.json').read_text(encoding="utf-8"))
 
     def test_automatic_update_selects_skill_and_keeps_church_work_unchanged(self):
         before = {p.relative_to(self.church): p.read_bytes() for p in self.church.rglob('*')
@@ -89,7 +89,7 @@ class WorkflowStartTests(unittest.TestCase):
     def test_first_start_on_a_new_version_passes_on_its_one_line_note(self):
         notes = self.new / 'handbook'
         notes.mkdir(parents=True, exist_ok=True)
-        (notes / 'whats-new.md').write_text('## 0.6.0\n\nBulletins print faster.\n')
+        (notes / 'whats-new.md').write_text('## 0.6.0\n\nBulletins print faster.\n', encoding="utf-8")
         with mock.patch.object(bridge, 'ROOT', self.new):
             self.assertEqual(bridge._whats_new('0.5.0', '0.6.0'), 'Bulletins print faster.')
             self.assertIsNone(bridge._whats_new('0.6.0', '0.6.0'))
@@ -164,7 +164,7 @@ class WorkflowStartTests(unittest.TestCase):
             self.assertEqual(result['updates']['status'], 'pinned')
 
     def test_pinned_development_connection_survives_old_app_start(self):
-        (self.new / '.git').write_text('gitdir: fixture')
+        (self.new / '.git').write_text('gitdir: fixture', encoding="utf-8")
         with mock.patch.object(bridge, 'ROOT', self.new):
             bridge.connect(self.church, update_policy='pinned')
         before = (self.church / '.handbuilt/installation.json').read_bytes()

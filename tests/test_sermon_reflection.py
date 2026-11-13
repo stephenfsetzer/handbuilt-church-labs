@@ -54,7 +54,7 @@ And this week, call someone you have been avoiding.
 def run(church: Path, operation: str, *args: str) -> tuple[dict, int]:
     process = subprocess.run(
         [sys.executable, str(ENTRY), operation, "--church-folder", str(church), "--date", DATE, *args],
-        capture_output=True, text=True, cwd=church)
+        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=church)
     return json.loads(process.stdout), process.returncode
 
 
@@ -88,11 +88,11 @@ class SermonReflectionTest(unittest.TestCase):
         result, code = run(self.church, "open", "--seed-file", self.file("seed.md", PAGE))
         self.assertEqual((code, result["created"]), (0, True))
         page = self.sermon_dir / "reflections.md"
-        self.assertEqual(page.read_text(), PAGE)
-        page.write_text(PAGE + "More of my own writing.\n")
+        self.assertEqual(page.read_text(encoding="utf-8"), PAGE)
+        page.write_text(PAGE + "More of my own writing.\n", encoding="utf-8")
         result, _ = run(self.church, "open", "--seed-file", self.file("other.md", "Replacement\n"))
         self.assertFalse(result["created"])
-        self.assertTrue(page.read_text().endswith("More of my own writing.\n"))
+        self.assertTrue(page.read_text(encoding="utf-8").endswith("More of my own writing.\n"))
         state, _ = run(self.church, "orient")
         self.assertEqual((state["workflow_state"], state["next_actions"]), ("pastor_writing", []))
 
@@ -109,8 +109,8 @@ class SermonReflectionTest(unittest.TestCase):
         self.assertEqual(state["purpose"], "Leave hopeful and call someone.")
         result, code = run(self.church, "record", "--content-file", self.file("edit.md", EDIT))
         self.assertEqual(code, 0)
-        self.assertEqual((self.sermon_dir / "sermon.md").read_text(), EDIT)
-        self.assertEqual((self.sermon_dir / "reflections.md").read_text(), PAGE)
+        self.assertEqual((self.sermon_dir / "sermon.md").read_text(encoding="utf-8"), EDIT)
+        self.assertEqual((self.sermon_dir / "reflections.md").read_text(encoding="utf-8"), PAGE)
         kept = result["kept_from_pastor"]
         self.assertGreater(kept["share"], 0.6)
         self.assertEqual(kept["words"], len(EDIT.replace("#", "").split()))
@@ -121,7 +121,7 @@ class SermonReflectionTest(unittest.TestCase):
     def test_changing_the_page_after_done_blocks_the_edit_until_done_again(self):
         self.open_and_finish()
         page = self.sermon_dir / "reflections.md"
-        page.write_text(PAGE + "One more thought.\n")
+        page.write_text(PAGE + "One more thought.\n", encoding="utf-8")
         state, _ = run(self.church, "orient")
         self.assertEqual(state["workflow_state"], "pastor_writing")
         self.assertIn("page_changed_after_done", [w["code"] for w in state["warnings"]])
@@ -136,15 +136,15 @@ class SermonReflectionTest(unittest.TestCase):
         self.open_and_finish()
         run(self.church, "record", "--content-file", self.file("edit.md", EDIT))
         sermon = self.sermon_dir / "sermon.md"
-        sermon.write_text(EDIT + "A line the pastor added.\n")
+        sermon.write_text(EDIT + "A line the pastor added.\n", encoding="utf-8")
         state, _ = run(self.church, "orient")
         self.assertIn("pastor_edited_sermon", [w["code"] for w in state["warnings"]])
         result, code = run(self.church, "record", "--content-file", self.file("edit2.md", EDIT))
         self.assertEqual((code, result["code"]), (1, "sermon_changed_by_pastor"))
-        self.assertTrue(sermon.read_text().endswith("A line the pastor added.\n"))
+        self.assertTrue(sermon.read_text(encoding="utf-8").endswith("A line the pastor added.\n"))
         result, code = run(self.church, "record", "--content-file", self.file("edit2.md", EDIT), "--replace")
         self.assertEqual(code, 0)
-        kept = Path(result["previous_version"]).read_text()
+        kept = Path(result["previous_version"]).read_text(encoding="utf-8")
         self.assertTrue(kept.endswith("A line the pastor added.\n"))
 
     def test_writing_done_elsewhere_is_added_to_the_end_of_the_page(self):
@@ -157,9 +157,9 @@ class SermonReflectionTest(unittest.TestCase):
         result, code = run(self.church, "done", "--from-file", self.file("notes.md", PAGE))
         self.assertEqual(code, 0)
         page = self.sermon_dir / "reflections.md"
-        self.assertEqual(page.read_text(), PAGE)
+        self.assertEqual(page.read_text(encoding="utf-8"), PAGE)
         run(self.church, "done", "--from-file", self.file("more.md", "Second session.\n"))
-        self.assertEqual(page.read_text(), PAGE.rstrip("\n") + "\n\n---\n\nSecond session.\n")
+        self.assertEqual(page.read_text(encoding="utf-8"), PAGE.rstrip("\n") + "\n\n---\n\nSecond session.\n")
 
     def test_done_needs_something_on_the_page(self):
         result, code = run(self.church, "open", "--seed-file", self.file("blank.md", " \n"))
@@ -229,10 +229,10 @@ class SermonReflectionTest(unittest.TestCase):
 
     def test_packaging_registers_the_skill_for_both_hosts(self):
         for host in (".agents", ".claude"):
-            pointer = (ROOT / host / "skills/sermon-reflection/SKILL.md").read_text()
+            pointer = (ROOT / host / "skills/sermon-reflection/SKILL.md").read_text(encoding="utf-8")
             self.assertIn("skills/sermon-reflection/SKILL.md", pointer)
             self.assertLessEqual(len(pointer.splitlines()), 10)
-        skill = (ROOT / "skills/sermon-reflection/SKILL.md").read_text()
+        skill = (ROOT / "skills/sermon-reflection/SKILL.md").read_text(encoding="utf-8")
         for promise in ("one question at a time", "voice", "reflections.md", "done", "speaker-copy"):
             self.assertIn(promise, skill)
 

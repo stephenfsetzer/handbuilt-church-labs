@@ -44,7 +44,7 @@ class SermonCliTest(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(self.cli), *arguments],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)

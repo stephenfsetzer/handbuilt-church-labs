@@ -123,8 +123,8 @@ class ImageStudioTest(unittest.TestCase):
             os.environ.pop(name, None)
         self.briefs = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "briefs"
         self.briefs.mkdir(parents=True)
-        (self.briefs / "door.md").write_text(BRIEF)
-        (self.briefs / "taller.md").write_text(INSTRUCTION)
+        (self.briefs / "door.md").write_text(BRIEF, encoding="utf-8")
+        (self.briefs / "taller.md").write_text(INSTRUCTION, encoding="utf-8")
         self.brief = ".handbuilt/build-my-brand/scratch/briefs/door.md"
         self.instruction = ".handbuilt/build-my-brand/scratch/briefs/taller.md"
         refs = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "references"
@@ -143,7 +143,7 @@ class ImageStudioTest(unittest.TestCase):
                 break
 
     def _receipt(self, result: dict) -> dict:
-        return json.loads(Path(result["receipt"]).read_text())
+        return json.loads(Path(result["receipt"]).read_text(encoding="utf-8"))
 
     def test_source_image_header_is_bounded_before_pixel_load_or_conversion(self):
         path = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "references" / "oversized.png"
@@ -173,7 +173,7 @@ class ImageStudioTest(unittest.TestCase):
 
     def test_import_count_is_capped_before_file_read_or_layout(self):
         self._through_direction()
-        (self.briefs / "prompt.md").write_text(BRIEF)
+        (self.briefs / "prompt.md").write_text(BRIEF, encoding="utf-8")
         files = [self.reference] * (images.MAX_IMAGES + 1)
         with mock.patch.object(images, "_image_input", side_effect=AssertionError("image read")), \
                 mock.patch.object(images, "_lay_out", side_effect=AssertionError("layout")):
@@ -182,7 +182,7 @@ class ImageStudioTest(unittest.TestCase):
 
     def test_import_total_byte_cap_stops_before_reading_next_image(self):
         self._through_direction()
-        (self.briefs / "prompt.md").write_text(BRIEF)
+        (self.briefs / "prompt.md").write_text(BRIEF, encoding="utf-8")
         directory = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "host"
         directory.mkdir(parents=True)
         first = directory / "first.png"
@@ -307,7 +307,7 @@ class ImageStudioTest(unittest.TestCase):
         made = self.church / ".handbuilt" / "build-my-brand" / "scratch" / "host"
         made.mkdir(parents=True)
         (made / "a.png").write_bytes(_transparent_png())
-        (self.briefs / "prompt.md").write_text(BRIEF)
+        (self.briefs / "prompt.md").write_text(BRIEF, encoding="utf-8")
         with mock.patch("urllib.request.urlopen", side_effect=AssertionError("no network")):
             result = images.import_images(self.church, "host-1", [".handbuilt/build-my-brand/scratch/host/a.png"],
                                           ".handbuilt/build-my-brand/scratch/briefs/prompt.md", tool="Host image generator")
@@ -527,7 +527,7 @@ class ImageStudioTest(unittest.TestCase):
             images.GeminiImages().vectorize(b"x")
 
     def _cli(self, *argv: str, stdin: str = "") -> tuple[int, str, dict]:
-        done = subprocess.run([sys.executable, str(CLI), *argv], input=stdin, capture_output=True, text=True, env=dict(os.environ))
+        done = subprocess.run([sys.executable, str(CLI), *argv], input=stdin, capture_output=True, text=True, encoding="utf-8", errors="replace", env=dict(os.environ))
         return done.returncode, done.stdout, json.loads(done.stdout)
 
     def test_keys_live_on_this_computer_and_status_never_prints_them(self):
@@ -542,7 +542,8 @@ class ImageStudioTest(unittest.TestCase):
         self.assertNotIn(value, out)
         path = Path(saved["key_file"])
         self.assertEqual(path, self.support / images.KEY_FILE_NAME)
-        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+        if os.name != "nt":  # Windows has no permission bits
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
         self.assertNotIn(str(self.church), str(path))
         code, out, status = self._cli("keys", "status", "--church-folder", str(self.church))
         self.assertNotIn(value, out)
@@ -554,7 +555,7 @@ class ImageStudioTest(unittest.TestCase):
         self.assertNotIn("fake-recraft-value-456", out)
         self.assertEqual(status["providers"]["recraft"]["source"], "environment")
         self.assertEqual(status["studio"], "image services")
-        self.assertNotIn("fake-recraft-value-456", path.read_text())
+        self.assertNotIn("fake-recraft-value-456", path.read_text(encoding="utf-8"))
         os.environ["HANDBUILT_RUNTIME_HOME"] = str(self.church / "runtime")
         refused = images.keys_set("openai", value, self.church)
         self.assertEqual(refused["errors"][0]["code"], "key_inside_church_folder")
@@ -562,9 +563,9 @@ class ImageStudioTest(unittest.TestCase):
 
     def test_cli_and_launcher_expose_the_image_studio(self):
         for command in ("draw", "edit", "vectorize", "import-images", "keys"):
-            done = subprocess.run([sys.executable, str(CLI), command, "--help"], capture_output=True, text=True)
+            done = subprocess.run([sys.executable, str(CLI), command, "--help"], capture_output=True, text=True, encoding="utf-8", errors="replace")
             self.assertEqual(json.loads(done.stdout)["status"], "help")
-        source = (ROOT / "tools" / "church_workflow.py").read_text()
+        source = (ROOT / "tools" / "church_workflow.py").read_text(encoding="utf-8")
         for operation in ("draw", "edit", "vectorize", "import-images", "keys"):
             self.assertIn(f'"{operation}"', source)
 

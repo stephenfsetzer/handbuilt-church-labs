@@ -19,7 +19,7 @@ from tests.helpers import REPO_ROOT, bulletin_input, make_church
 
 class SundayLibraryTest(unittest.TestCase):
     def test_every_advertised_standard_choice_resolves_offline(self):
-        pack = yaml.safe_load((REPO_ROOT / 'skills/bulletin/traditions/episcopal-bcp-rite-ii.yaml').read_text())
+        pack = yaml.safe_load((REPO_ROOT / 'skills/bulletin/traditions/episcopal-bcp-rite-ii.yaml').read_text(encoding="utf-8"))
         for prayer in ('A', 'B', 'C', 'D'):
             for form in ('I', 'II', 'III', 'IV', 'V', 'VI'):
                 for lord in ('traditional', 'contemporary'):
@@ -52,10 +52,10 @@ class SundayLibraryTest(unittest.TestCase):
             root = Path(tmp)
             resource = root / 'skills/bulletin/resources/bcp1979'
             resource.mkdir(parents=True)
-            (resource / 'manifest.json').write_text(json.dumps({'liturgy': {'test': {'sha256': 'mismatch'}}}))
+            (resource / 'manifest.json').write_text(json.dumps({'liturgy': {'test': {'sha256': 'mismatch'}}}), encoding="utf-8")
             source = root / 'skills/bulletin/renderer/liturgy/test.md'
             source.parent.mkdir(parents=True)
-            source.write_text('Changed text.')
+            source.write_text('Changed text.', encoding="utf-8")
             with self.assertRaises(SundayLibraryError):
                 verify_shipped_liturgy('test', plugin_root=root)
 

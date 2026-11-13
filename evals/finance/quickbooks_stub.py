@@ -224,7 +224,7 @@ class Workspace:
                 if len(positionals) != 1:
                     raise ValueError("render needs one report path")
                 report_path = self.path(positionals[0])
-                report = json.loads(report_path.read_text())
+                report = json.loads(report_path.read_text(encoding="utf-8"))
                 if not re.fullmatch(r"\d{4}-\d{2}", report.get("meta", {}).get("month", "")):
                     raise ValueError("invalid report month")
             elif positionals:
@@ -233,7 +233,7 @@ class Workspace:
         for relative in ("finance/board/config.json", "finance/board/setup-draft.json"):
             path = self.root / relative
             if path.exists():
-                config = json.loads(path.read_text())
+                config = json.loads(path.read_text(encoding="utf-8"))
                 if config.get("report_folder", "finance/board") != "finance/board":
                     raise ValueError("eval report_folder must remain finance/board")
         if finance_action and operation == ("finance-report", "render"):
@@ -249,25 +249,25 @@ class Workspace:
                     "ALL_PROXY": "http://127.0.0.1:9", "NO_PROXY": ""})
         command_tail = ["--church-folder", str(self.root), *tail] if script == adapter else tail
         completed = subprocess.run([sys.executable, str(script), *command_tail], cwd=self.root,
-                                   env=env, capture_output=True, text=True, timeout=180)
+                                   env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
         return {"exit_code": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr}
 
     def call(self, name: str, args: dict) -> dict:
         if name == "read_file":
             path = self.path(args["path"])
-            return {"text": "\n".join(sorted(p.name for p in path.iterdir())) if path.is_dir() else path.read_text()}
+            return {"text": "\n".join(sorted(p.name for p in path.iterdir())) if path.is_dir() else path.read_text(encoding="utf-8")}
         if name == "write_file":
             path = self.path(args["path"], write=True)
             text = args["text"]
             if not isinstance(text, str):
                 raise ValueError("text must be a string")
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text)
+            path.write_text(text, encoding="utf-8")
             return {"saved": str(path)}
         if name == "copy_file":
             source = self.path(args["source"])
             destination = self.path(args["destination"], write=True)
-            text = source.read_text()
+            text = source.read_text(encoding="utf-8")
             if "tool-results" in source.parts:
                 # Claude Code stores a large reply as its list of content blocks; the reply is their text.
                 try:
@@ -277,7 +277,7 @@ class Workspace:
                 except ValueError:
                     pass
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(text)
+            destination.write_text(text, encoding="utf-8")
             return {"saved": str(destination)}
         if name == "inspect_pdf":
             path = self.path(args["path"])

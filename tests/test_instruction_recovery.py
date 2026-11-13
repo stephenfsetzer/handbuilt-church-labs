@@ -39,7 +39,8 @@ class InstructionRecoveryTests(unittest.TestCase):
         result = recovery.restore(self.church, first["snapshot_id"], "CLAUDE.md", self.digest(b"second\n"))
 
         self.assertEqual(b"first\n", (self.church / "CLAUDE.md").read_bytes())
-        self.assertEqual(0o640, stat.S_IMODE((self.church / "CLAUDE.md").stat().st_mode))
+        if os.name != "nt":  # Windows has no permission bits
+            self.assertEqual(0o640, stat.S_IMODE((self.church / "CLAUDE.md").stat().st_mode))
         # The existing changed-state snapshot is a recoverable pre-restore
         # backup, so consecutive-state deduplication may return it.
         self.assertEqual("ok", result["backup"]["status"])
@@ -89,7 +90,7 @@ class InstructionRecoveryTests(unittest.TestCase):
 
     def test_rejects_target_and_store_symlinks(self):
         external = Path(self.temporary.name) / "external"
-        external.write_text("external")
+        external.write_text("external", encoding="utf-8")
         (self.church / "CLAUDE.md").symlink_to(external)
         with self.assertRaisesRegex(ValueError, "symlinked"):
             recovery.snapshot(self.church, "unsafe target")
@@ -103,9 +104,9 @@ class InstructionRecoveryTests(unittest.TestCase):
         self.write("CLAUDE.md", b"good")
         saved = recovery.snapshot(self.church, "valid snapshot")
         path = self.church / ".handbuilt" / "recovery" / "snapshots" / (saved["snapshot_id"] + ".json")
-        payload = json.loads(path.read_text())
+        payload = json.loads(path.read_text(encoding="utf-8"))
         payload["files"]["CLAUDE.md"]["content_b64"] = base64.b64encode(b"bad").decode("ascii")
-        path.write_text(json.dumps(payload))
+        path.write_text(json.dumps(payload), encoding="utf-8")
         os.chmod(path, 0o600)
         with self.assertRaisesRegex(ValueError, "hash check"):
             recovery.show_snapshot(self.church, saved["snapshot_id"], "CLAUDE.md")
@@ -119,8 +120,10 @@ class InstructionRecoveryTests(unittest.TestCase):
         self.write("CLAUDE.md", b"small")
         saved = recovery.snapshot(self.church, "valid size")
         snapshot_path = self.church / ".handbuilt" / "recovery" / "snapshots" / (saved["snapshot_id"] + ".json")
-        self.assertEqual(0, stat.S_IMODE(snapshot_path.stat().st_mode) & 0o077)
-        self.assertEqual(0, stat.S_IMODE((self.church / ".handbuilt" / "recovery").stat().st_mode) & 0o077)
+        if os.name != "nt":  # Windows has no permission bits
+            self.assertEqual(0, stat.S_IMODE(snapshot_path.stat().st_mode) & 0o077)
+        if os.name != "nt":  # Windows has no permission bits
+            self.assertEqual(0, stat.S_IMODE((self.church / ".handbuilt" / "recovery").stat().st_mode) & 0o077)
 
     def test_mac_metadata_beside_snapshots_is_ignored(self):
         self.write("CLAUDE.md", b"one")
@@ -146,7 +149,8 @@ class InstructionRecoveryTests(unittest.TestCase):
         saved = recovery.snapshot(self.church, "existing connection state")
 
         self.assertTrue(saved["created"])
-        self.assertEqual(0o700, stat.S_IMODE((parent / "recovery").stat().st_mode))
+        if os.name != "nt":  # Windows has no permission bits
+            self.assertEqual(0o700, stat.S_IMODE((parent / "recovery").stat().st_mode))
 
     def test_cooperating_lock_rejects_second_snapshot_without_writing(self):
         self.write("CLAUDE.md", b"local instructions")

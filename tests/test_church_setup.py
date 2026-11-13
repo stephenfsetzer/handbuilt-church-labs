@@ -102,9 +102,9 @@ class ChurchSetupTest(unittest.TestCase):
         for policy in (None, "", "unsupported"):
             with self.subTest(policy=policy):
                 config_path = self.church / "church.yaml"
-                config = yaml.safe_load(config_path.read_text())
+                config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
                 config["lectionary"]["optional_verses"] = policy
-                config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+                config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
                 pending = church_setup.status(self.church)
                 self.assertFalse(pending["research_ready"])
                 self.assertIn("lectionary.optional_verses", [item.get("field") for item in pending["unresolved"]])
@@ -213,14 +213,14 @@ class ChurchSetupTest(unittest.TestCase):
             "church": {"name": "Sample Church"},
             "lectionary": {"system": "RCL", "track": "2"},
         })
-        self.assertEqual(yaml.safe_load((self.church / "church.yaml").read_text())["lectionary"]["track"], "Track 2")
+        self.assertEqual(yaml.safe_load((self.church / "church.yaml").read_text(encoding="utf-8"))["lectionary"]["track"], "Track 2")
         before = (self.church / "church.yaml").read_bytes()
         with self.assertRaises(church_setup.SetupError):
             church_setup.update_standing(self.church, {"lectionary": {"track": "Track 3"}})
         self.assertEqual((self.church / "church.yaml").read_bytes(), before)
         config = yaml.safe_load(before)
         config["lectionary"]["track"] = "2"
-        (self.church / "church.yaml").write_text(yaml.safe_dump(config))
+        (self.church / "church.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
         check = church_setup.status(self.church)
         self.assertEqual(check["status"], "needs_input")
         self.assertFalse(check["workflow_ready"])
@@ -349,7 +349,7 @@ class ChurchSetupTest(unittest.TestCase):
         with self.assertRaises(church_setup.SetupError):
             church_setup.update_standing(self.church, {"worship_profile": {"defaults": {"include_first_reading": "yes"}}})
         church_setup.update_standing(self.church, {"worship_profile": {"defaults": {"include_first_reading": False, "include_second_reading": True}}})
-        profile = yaml.safe_load((self.church / "worship" / "profile.yaml").read_text())
+        profile = yaml.safe_load((self.church / "worship" / "profile.yaml").read_text(encoding="utf-8"))
         self.assertFalse(profile["defaults"]["include_first_reading"])
         self.assertTrue(profile["defaults"]["include_second_reading"])
         with self.assertRaises(church_setup.SetupError):
