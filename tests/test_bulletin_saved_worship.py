@@ -85,7 +85,7 @@ class SavedWorshipTest(unittest.TestCase):
             doxology.write_text('# Doxology\n\n**All\tOur custom synthetic doxology.**\n', encoding="utf-8")
             verify_liturgy_source(church, prayer)
             verify_liturgy_source(church, doxology)
-            profile['sources'].update(eucharistic_prayer=str(prayer.relative_to(church)), doxology=str(doxology.relative_to(church)))
+            profile['sources'].update(eucharistic_prayer=prayer.relative_to(church).as_posix(), doxology=doxology.relative_to(church).as_posix())
             profile_path.write_text(yaml.safe_dump(profile), encoding="utf-8")
             original_config, original_profile = config_path.read_bytes(), profile_path.read_bytes()
             resolved = resolve_worship_profile(church)

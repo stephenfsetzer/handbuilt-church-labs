@@ -315,7 +315,7 @@ class WorksOnWindows(unittest.TestCase):
         self.assertEqual(offenders, [], "name the encoding: encoding=\"utf-8\"")
 
     def test_dates_do_not_use_a_format_windows_lacks(self):
-        offenders = [str(path.relative_to(ROOT)) for path in self.product_files()
+        offenders = [path.relative_to(ROOT).as_posix() for path in self.product_files()
                      if re.search(r"strftime\([^)]*%-", path.read_text(encoding="utf-8"))]
         self.assertEqual(offenders, [], "\"%-d\" fails on Windows; build the date from its parts")
 
@@ -375,7 +375,7 @@ class WorksOnWindows(unittest.TestCase):
         # receipt as "brand\\guide.pdf" on one does not match on the other.
         import ast
         offenders = []
-        for base in ("skills", "tools", "scaffold", "evals"):
+        for base in ("skills", "tools", "scaffold", "evals", "tests"):
             for path in (ROOT / base).rglob("*.py"):
                 for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                     if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "str"

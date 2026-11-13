@@ -140,7 +140,8 @@ class RuntimeManagerTests(unittest.TestCase):
             name = line.split("==", 1)[0].split("[", 1)[0].lower()
             digest = pip_hash if name == "pip" else hashlib.sha256(("synthetic " + line).encode()).hexdigest()
             lines.append(line + " --hash=sha256:" + digest)
-        self.lock.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        # newline="\n": Windows would otherwise write CRLF, and the lock is hashed byte for byte.
+        self.lock.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
     def which(self, missing=()):
         missing = set(missing)
@@ -700,7 +701,7 @@ class RuntimeManagerTests(unittest.TestCase):
                 if content is None:
                     self.lock.unlink()
                 else:
-                    self.lock.write_text(content, encoding="utf-8")
+                    self.lock.write_text(content, encoding="utf-8", newline="\n")
                 runner = FakeRunner(self.requirements)
                 manager = self.manager(runner)
                 self.assertFalse(manager.doctor()["ready"])

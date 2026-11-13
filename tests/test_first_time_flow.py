@@ -61,7 +61,7 @@ def local_lutheran_sources(root: Path) -> dict[str, str]:
             encoding="utf-8",
         )
         verify_liturgy_source(root, path)
-        paths[identifier] = str(path.relative_to(root))
+        paths[identifier] = path.relative_to(root).as_posix()
     return paths
 
 

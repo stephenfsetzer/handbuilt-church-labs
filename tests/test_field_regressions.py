@@ -78,7 +78,7 @@ class BulletinFieldRegressions(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         verify_liturgy_source(self.church, path)
-        return str(path.relative_to(self.church))
+        return path.relative_to(self.church).as_posix()
 
     def edit_profile(self, **sections) -> None:
         path = self.church / "worship" / "profile.yaml"

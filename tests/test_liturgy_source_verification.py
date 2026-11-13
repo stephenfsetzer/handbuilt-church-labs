@@ -23,12 +23,12 @@ class LiturgySourceVerificationTest(unittest.TestCase):
 
     def test_missing_and_stale_evidence_block_before_render(self):
         request = bulletin_input()
-        request['liturgy']['files'] = {'blessing': str(self.text.relative_to(self.church))}
+        request['liturgy']['files'] = {'blessing': self.text.relative_to(self.church).as_posix()}
         with patch('skills.bulletin.bulletin_production.interface._run') as render:
             result = produce(self.church, request)
             self.assertEqual(result['errors'][0]['code'], 'unverified_liturgy_source')
             render.assert_not_called()
-        ok, reason = _private_source_status(str(self.text.relative_to(self.church)), choice='prayer', church_root=self.church, field='liturgy.sources.prayer')
+        ok, reason = _private_source_status(self.text.relative_to(self.church).as_posix(), choice='prayer', church_root=self.church, field='liturgy.sources.prayer')
         self.assertFalse(ok)
         self.assertIn('record', reason)
         verify_liturgy_source(self.church, self.text)
