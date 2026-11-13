@@ -49,13 +49,14 @@ After identifying the appointed occasion and psalm, use the managed runtime:
 <runtime.python> <skill-dir>/scripts/sunday_library.py get psalms 23 --verses 1-6 --psalm-format responsive_half_verse
 ```
 
-For a collect or preface, use `get collects <id>` or `get prefaces <id>` with
-an identifier returned by `list`. Copy the returned text and source record
-into the weekly input. The psalm result already supplies numbered, structured
-verses and source metadata for `readings.psalm`. Pass the church's confirmed
-response pattern; never change its pattern just because the example uses
-half verses. Use the appointed verse selection, including nonconsecutive
-ranges when called for.
+Use `list` to find the identifier for a collect or preface. Do not copy the
+returned words into the weekly input yourself. Name the entry there, and
+[the tool copies the text and its source record](weekly-input.md#let-the-tool-copy-the-texts),
+along with the psalm's numbered, structured verses. The psalm follows the
+church's confirmed response pattern from the `liturgy` object; never change
+its pattern just because the example uses half verses. Use the appointed
+verse selection, including nonconsecutive ranges when called for. `get` is
+for looking at one entry when a question comes up about its wording.
 
 The library supplies exact text, not calendar decisions. Verify the service
 date, occasion, lectionary track, appointed passages, and any permitted choices

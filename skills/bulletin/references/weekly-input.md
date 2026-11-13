@@ -17,14 +17,60 @@ The agent builds one private JSON object:
 | --- | --- |
 | `template` | The saved `classic` or `modern` choice, at the top level. |
 | `service` | `date` (YYYY-MM-DD), `occasion`, `proper`, `lectionary_track`, `preacher`, `celebrant`, and `liturgical_color`. Verify calendar facts; resolve people from saved context or ask about that week's assignments. |
-| `readings` | Enabled `first` and/or `second` lessons, plus `psalm` and `gospel`. Each supplied reading has full verified `text` and a `source` object containing `label`, `location`, and `verified_on`. Use `citation` for Bible readings and `number` for the psalm. The psalm prints a small "The Psalm" label and a larger heading, `Psalm <number> (<latin_title>)`; an optional psalm `heading` replaces that larger line when the pastor asks for different wording. The resolved `liturgy.include_first_reading` and `include_second_reading` flags control which lesson slots are required and printed. At least one non-Gospel lesson remains required. |
-| `collect_of_day` | Verified text for the selected occasion. Prefer the bundled Sunday library. |
-| `proper_preface` | The verified selected preface when required by the prayer. |
+| `readings` | Enabled `first` and/or `second` lessons, plus `psalm` and `gospel`. Write only the `citation` for each Bible reading and the `number` for the psalm, then [let the tool copy the texts](#let-the-tool-copy-the-texts). The finished file holds each reading's full verified `text` and a `source` object containing `label`, `location`, and `verified_on`. The psalm prints a small "The Psalm" label and a larger heading, `Psalm <number> (<latin_title>)`; an optional psalm `heading` replaces that larger line when the pastor asks for different wording. The resolved `liturgy.include_first_reading` and `include_second_reading` flags control which lesson slots are required and printed. At least one non-Gospel lesson remains required. |
+| `collect_of_day` | Verified text for the selected occasion. Write `{"library": "<name>"}` with its name in the bundled Sunday library, and the tool copies the text. |
+| `proper_preface` | The verified selected preface when required by the prayer, written the same way. |
 | `liturgy` | The `liturgy` object returned by worship resolution, including its service plan and profile reference. |
 | `hymns`, `service_music` | The week's selections. Empty objects represent no selections; do not copy example hymns. Music blocks may include `composer`, which prints as a plain source credit. Service music supports `prelude`, `gloria`, `psalm_antiphon`, `offertory_anthem`, `sursum_corda`, `sanctus`, `fraction_anthem`, `doxology`, `communion_anthem`, and `postlude`. Lutheran plans support `prelude`, `psalm_antiphon`, `offertory_anthem`, `communion_anthem`, and `postlude`. Unsupported or unknown nonempty slots are rejected. |
 | `announcements` | The week's announcements, or an empty list when none were supplied. An entry may add `image` or `images` (church-relative paths, resolved like a hymn image) to carry a supplied event poster or inline QR graphic, and an optional `caption`. `text` is optional when the image already carries the content; `title` is still required. |
 | `parish_information` | Optional. Omit it to use the church's saved standing sections. Set `before_service` and/or `after_service` explicitly, including an empty list, to override or suppress that scope for this week only; each is an ordered list of `{title, text}`. |
 | `options` | Supported weekly display choices from the schema. Do not invent a `presentation` wrapper. |
+
+## Let the tool copy the texts
+
+Do not type a reading, a psalm, the collect, or the preface yourself, in the
+file, in a command, or in a message to the pastor. Write the file with names
+only:
+
+```json
+"readings": {
+  "first": {"citation": "Ezekiel 33:7-11"},
+  "psalm": {"number": "119:33-40"},
+  "second": {"citation": "Romans 13:8-14"},
+  "gospel": {"citation": "Matthew 18:15-20"}
+},
+"collect_of_day": {"library": "proper-18"},
+"proper_preface": {"library": "lords-day"}
+```
+
+Copy the `liturgy` object in first, because the psalm follows its saved
+response format. Then run:
+
+```bash
+<runtime.python> <skill-dir>/scripts/weekly_texts.py fill --input <weekly-file> \
+  --lectionary-page <this Sunday's page on https://lectionarypage.net/>
+```
+
+The tool downloads that page, finds each lesson by its citation, and writes
+the words and their source into the file. The psalm, collect and preface come
+from the bundled Sunday library. It reports each part it filled and how many
+words, never the words themselves. Write each citation as the page prints it.
+When the page has no lesson with that citation, the tool lists the ones it
+has, and the file is left unchanged.
+
+- **Optional verses in a lesson.** The page sets them off in square brackets.
+  The tool stops and asks until you add `--optional-verses include` or
+  `--optional-verses omit`, following `lectionary.optional_verses`.
+- **Optional verses in the psalm.** Write the verses to print in `number`:
+  `"90:1-12"` includes them and `"90:1-8,12"` leaves them out.
+- **A reading the pastor chose from somewhere else.** Save the pastor's source
+  as a file in the church folder and record it as a church source. Do not
+  retype it.
+- **Checking the result.** Read the review PDF, not the file. Do not print the
+  file's readings to check them.
+
+A part that already has `text` is left alone, so a pastor's own wording is
+never replaced.
 
 When the pastor has not chosen a hymn yet, save a visible blank for that slot,
 such as `{"title": "[Closing hymn to be chosen]"}`, and ask for the choice.
