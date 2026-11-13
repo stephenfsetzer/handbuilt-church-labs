@@ -218,11 +218,10 @@ jobs:
           call "%PLUGIN_DIR%\bin\handbuilt-python.cmd" -c "import sys; print(sys.version)" || exit /b 1
 
   suite:
-    # The whole regression suite on each system. It reports what does not yet
-    # work there without blocking a release; setup above is the gate.
-    name: Regression suite on ${{ matrix.os }} (report only)
+    # The whole regression suite on Windows and on a Mac with nothing else
+    # installed. It must pass: a failure here is a failure for a pastor there.
+    name: Regression suite on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -247,9 +246,10 @@ jobs:
           print(json.load(open(sys.argv[1], encoding="utf-8"))["runtime"]["python"])
           PY
           )
-          "$python_path" -m unittest discover -s tests -p 'test_*.py' > "$RUNNER_TEMP/suite.log" 2>&1 || true
+          "$python_path" -m unittest discover -v -s tests -p 'test_*.py' > "$RUNNER_TEMP/suite.log" 2>&1 || true
           grep -E "^(FAIL|ERROR): |^Ran |^OK|^FAILED" "$RUNNER_TEMP/suite.log" | head -300
-          tail -5 "$RUNNER_TEMP/suite.log"
+          echo "Why tests were skipped on this system:"
+          grep -oE "skipped '[^']*'|skipped \"[^\"]*\"" "$RUNNER_TEMP/suite.log" | sort | uniq -c | sort -rn
           grep -q "^OK" "$RUNNER_TEMP/suite.log"
       - name: Save the full suite log
         if: always()
