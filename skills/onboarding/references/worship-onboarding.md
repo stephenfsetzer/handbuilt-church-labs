@@ -159,6 +159,13 @@ choice in plain words, not only its letter or number: say what the pastor
 would recognize about it from the service book, and let them answer with the
 name they use.
 
+The first time a worship term comes up in a question, say what it is in a few
+plain words in the same sentence, even for a priest. For example: "the
+Eucharistic Prayer, the long prayer said over the bread and wine", "the
+doxology, the short verse of praise many churches sing as the offering comes
+forward", "the Gospel response, what the people say before and after the
+Gospel is read". Then ask. One short clause is enough; do not lecture.
+
 For standard text, first follow the bulletin skill's
 [Sunday library](../../bulletin/references/sunday-library.md). An ordinary
 Episcopal prayer choice resolves from the bundled book; do not ask the pastor
