@@ -328,6 +328,8 @@ def new_names(sermon: str, known: str) -> list[str]:
             word = token.lstrip("\"'“‘(")
             if token != word or not word[0].isupper() or word in COMMON_NAMES or word == "I" or word.startswith("I'"):
                 continue
+            if len(word) > 1 and word.isupper():
+                continue  # A label in capitals, such as a note the pastor still has to settle, is not a name.
             if re.search(rf"\b{re.escape(word)}\b", known):
                 continue
             found.add(word)
