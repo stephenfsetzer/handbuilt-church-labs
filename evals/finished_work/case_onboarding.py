@@ -100,7 +100,7 @@ Approvals
 def _hashes(folder: Path) -> dict[str, str]:
     if not folder.is_dir():
         return {}
-    return {str(path.relative_to(folder)): hashlib.sha256(path.read_bytes()).hexdigest()
+    return {path.relative_to(folder).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
             for path in sorted(folder.rglob("*")) if path.is_file() and "__pycache__" not in path.parts}
 
 

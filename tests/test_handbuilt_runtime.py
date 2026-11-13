@@ -60,7 +60,8 @@ class FakeRunner:
             return subprocess.CompletedProcess(command, 0, "", "")
         if runtime.VERSION_PROBE in command:
             executable = command[0]
-            version = self.versions.get(str(Path(executable).resolve()), (3, 14, 10, "final"))
+            # Look up the name as given first: on Windows, resolving "/synthetic/python3" adds a drive letter.
+            version = self.versions.get(executable, self.versions.get(str(Path(executable).resolve()), (3, 14, 10, "final")))
             result = {"version": list(version[:3]), "releaselevel": version[3]}
             return subprocess.CompletedProcess(command, 0, json.dumps(result), "")
         if runtime.DOWNLOAD_SCRIPT in command:
@@ -426,7 +427,7 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertTrue(receipt["verified"])
         self.assertTrue(receipt["retained_previous"])
         self.assertEqual(Path(receipt["previous_environment"]), (self.support / "python").resolve())
-        self.assertTrue(str(receipt["current_environment"]).endswith("/generations/" + Path(receipt["current_environment"]).parent.name + "/python"))
+        self.assertEqual(Path(receipt["current_environment"]).parts[-3::2], ("generations", "python"))
         pointer = json.loads((self.support / runtime.ACTIVE_RUNTIME_POINTER).read_text(encoding="utf-8"))
         self.assertEqual(pointer["environment"], Path(receipt["current_environment"]).relative_to(self.support.resolve()).as_posix())
         self.assertEqual(pointer["previous_environment"], "python")
@@ -439,7 +440,7 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertIn("--index-url", pip_install)
         self.assertIn("--require-hashes", pip_install)
         self.assertIn("--only-binary=:all:", pip_install)
-        self.assertTrue(pip_install[pip_install.index("--requirement") + 1].endswith("/.bootstrap/requirements.lock"))
+        self.assertTrue(Path(pip_install[pip_install.index("--requirement") + 1]).as_posix().endswith("/.bootstrap/requirements.lock"))
         self.assertIn("--hash=sha256:", runner.installed_lock_text)
         self.assertTrue((Path(receipt["current_environment"]).parent / runtime.GENERATION_MARKER).is_file())
         self.assertEqual(result["installation_policy"], {"binary_only": True, "require_hashes": True,

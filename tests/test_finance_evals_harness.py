@@ -74,6 +74,7 @@ class WorkspaceTests(unittest.TestCase):
                     self.server.command(command)
             process.assert_not_called()
 
+    @unittest.skipIf(os.name == "nt", "the finance eval harness drives a POSIX shell; it runs on a Mac or Linux")
     def test_config_cannot_redirect_output_and_report_cannot_load_host_history(self):
         target = self.root / "finance/board"
         target.mkdir(parents=True)
@@ -89,6 +90,7 @@ class WorkspaceTests(unittest.TestCase):
                 self.server.command(self.command("finance-report", "render", str(report)))
             process.assert_not_called()
 
+    @unittest.skipIf(os.name == "nt", "the finance eval harness drives a POSIX shell; it runs on a Mac or Linux")
     def test_real_adapter_and_launcher_roundtrip_with_only_local_tools(self):
         # Run with the verified managed runtime required by the repository's
         # test recipe. The launcher checks it read-only; this test never installs.
@@ -171,6 +173,7 @@ class RunnerAndGradeTests(unittest.TestCase):
             fake.write_text("print('not-json')\n", encoding="utf-8")
             self.assertTrue(harness.invoke([sys.executable, str(fake)], cwd=root, env=os.environ.copy(), timeout=5)["error"])
 
+    @unittest.skipIf(os.name == "nt", "the finance eval harness drives a POSIX shell; it runs on a Mac or Linux")
     def test_fake_cli_run_records_resolved_model_but_missing_work_still_fails_grade(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp).resolve()

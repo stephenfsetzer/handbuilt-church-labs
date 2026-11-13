@@ -597,7 +597,7 @@ def make_master(root, data):
         pending.unlink(missing_ok=True)
         raise
     pending.replace(target)
-    record = {"path": str(target.relative_to(root)), "hash": digest(target), "offset": begin, "duration": length,
+    record = {"path": target.relative_to(root).as_posix(), "hash": digest(target), "offset": begin, "duration": length,
               "original_hash": digest(original), "created_at": datetime.now(timezone.utc).isoformat()}
     save(root / ".receipts/master.json", record)
     return record
@@ -1103,7 +1103,7 @@ def acquire_recording(root, url, max_height, browser=None, locked=vimeo_locked):
         pending.parent.rmdir()
     except OSError:
         pass
-    result = {"url": url, "file": str(media.relative_to(root)), "hash": digest(media), "method": "downloaded"}
+    result = {"url": url, "file": media.relative_to(root).as_posix(), "hash": digest(media), "method": "downloaded"}
     save(ledger, result); return result
 
 

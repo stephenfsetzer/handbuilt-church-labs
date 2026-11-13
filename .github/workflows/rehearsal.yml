@@ -1,0 +1,105 @@
+name: A pastor's first hour
+
+# A real agent on a clean Windows computer and a clean Mac gets the install
+# message a pastor pastes, installs Handbuilt, and then sets up an invented
+# church with a stand-in pastor. See evals/install_rehearsal/run.py.
+#
+# It needs a Claude credential in the CLAUDE_CODE_OAUTH_TOKEN secret. Each run
+# uses a real agent for 20 to 40 minutes, so it runs on pull requests and on
+# request, not on every push.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rehearsal-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  rehearsal:
+    name: First hour on ${{ matrix.os }}
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      CANDIDATE_REF: ${{ github.head_ref || github.ref_name }}
+      SOURCE: https://github.com/${{ github.repository }}.git
+    steps:
+      - name: Check that a Claude credential is set
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::error::The CLAUDE_CODE_OAUTH_TOKEN secret is not set, so the rehearsal cannot run. A release needs this rehearsal."
+            exit 1
+          fi
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Use the line-ending setting Git for Windows installs with
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf true
+
+      - name: Prepare the grader's own tools, apart from the computer under test
+        run: |
+          export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/grader runtime"
+          bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/grader-setup.json" || true
+          bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/grader.json"
+          python_path=$(bin/handbuilt-python - "$RUNNER_TEMP/grader.json" <<'PY'
+          import json, sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          if report["status"] != "ready":
+              raise SystemExit("The grader's tools are not ready: " + str(report.get("next_action")))
+          print(report["runtime"]["python"])
+          PY
+          )
+          printf 'GRADER_PYTHON=%s\n' "$python_path" >> "$GITHUB_ENV"
+
+      - name: Rehearse the install and the first setup
+        run: |
+          "$GRADER_PYTHON" -X utf8 evals/install_rehearsal/run.py \
+            --out "$RUNNER_TEMP/rehearsal" --source "$SOURCE#$CANDIDATE_REF"
+
+      - name: Keep the graded result and the conversation, never the raw logs
+        if: always()
+        run: |
+          # The raw logs hold everything the agent's tools printed. On a public
+          # repository an artifact is public, so only the result and the words
+          # exchanged are kept, with the credential removed if it ever appears.
+          mkdir -p "$RUNNER_TEMP/rehearsal-report"
+          "$GRADER_PYTHON" - "$RUNNER_TEMP/rehearsal" "$RUNNER_TEMP/rehearsal-report" <<'PY'
+          import os, sys
+          from pathlib import Path
+          source, target = Path(sys.argv[1]), Path(sys.argv[2])
+          secret = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or ""
+          for path in [source / "result.json", *sorted(source.glob("*-conversation.md"))]:
+              if path.is_file():
+                  text = path.read_text(encoding="utf-8", errors="replace")
+                  if secret:
+                      text = text.replace(secret, "[credential removed]")
+                  (target / path.name).write_text(text, encoding="utf-8")
+          PY
+
+      - name: Save the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rehearsal-${{ matrix.os }}
+          path: ${{ runner.temp }}/rehearsal-report
+          if-no-files-found: warn

@@ -1646,7 +1646,7 @@ def record(
             "service_date": date_value,
             "stage": stage,
             "artifact": {
-                "path": str(target.relative_to(root)),
+                "path": target.relative_to(root).as_posix(),
                 "sha256": _sha256_bytes(content_bytes),
                 "bytes": len(content_bytes),
             },

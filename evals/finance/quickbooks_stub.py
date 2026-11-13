@@ -134,7 +134,8 @@ class Workspace:
 
     def command(self, value: str) -> dict:
         args = shlex.split(value)
-        if len(args) < 3 or Path(args[0]).name not in {"python", "python3"}:
+        # Handbuilt's own Python is what the skills now name; a bare python is still accepted.
+        if len(args) < 3 or Path(args[0]).name not in {"python", "python3", "handbuilt-python"}:
             raise ValueError("use the documented Python workflow command")
         script = self.path(args[1])
         adapter = self.plugin / "tools/church_workflow.py"

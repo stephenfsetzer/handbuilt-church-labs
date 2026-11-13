@@ -370,6 +370,20 @@ class WorksOnWindows(unittest.TestCase):
             self.assertEqual(print_layout.missing_assets('<img src="picture.png">', base_url=Path(temp).resolve().as_uri()), [])
             self.assertEqual(len(print_layout.missing_assets('<img src="gone.png">', base_url=Path(temp).resolve().as_uri())), 1)
 
+    def test_recorded_paths_use_forward_slashes(self):
+        # A church folder may be opened on a Mac and on Windows. A path saved in a
+        # receipt as "brand\\guide.pdf" on one does not match on the other.
+        import ast
+        offenders = []
+        for base in ("skills", "tools", "scaffold", "evals"):
+            for path in (ROOT / base).rglob("*.py"):
+                for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "str"
+                            and len(node.args) == 1 and isinstance(node.args[0], ast.Call)
+                            and isinstance(node.args[0].func, ast.Attribute) and node.args[0].func.attr == "relative_to"):
+                        offenders.append(f"{path.relative_to(ROOT).as_posix()}:{node.lineno}")
+        self.assertEqual(offenders, [], "write it as path.relative_to(root).as_posix()")
+
     def test_both_launchers_start_python_in_utf8_mode(self):
         self.assertIn('exec "$py" -X utf8 "$@"', SHELL_LAUNCHER.read_text(encoding="utf-8"))
         self.assertIn('"%PY%" -X utf8 %*', WINDOWS_LAUNCHER.read_text(encoding="utf-8"))

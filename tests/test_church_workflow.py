@@ -178,7 +178,7 @@ class ChurchConnectionTests(unittest.TestCase):
         runtime_calls = []
 
         def with_pdf_tools_unavailable(command, **kwargs):
-            if any(str(value).endswith("/handbuilt_runtime.py") for value in command):
+            if any(Path(str(value)).name == "handbuilt_runtime.py" for value in command):
                 runtime_calls.append(command)
                 if "--capability" in command and command[command.index("--capability") + 1] == "workspace":
                     report = {**self.doctor, "native_tools": {"missing": ["pdftoppm"]}}

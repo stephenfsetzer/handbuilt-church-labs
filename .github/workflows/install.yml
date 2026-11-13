@@ -139,6 +139,16 @@ jobs:
           claude plugin install "$PLUGIN"
           claude plugin list
 
+      - name: Set up on the last release, so the update meets an existing install
+        run: |
+          old=$(find "$CLAUDE_CONFIG_DIR/plugins/cache/handbuilt-church-labs/handbuilt-church-labs" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)
+          echo "Last release is at $old"
+          # A release from before Handbuilt brought its own Python has no launcher; skip those.
+          if [ -x "$old/bin/handbuilt-python" ]; then
+            "$old/bin/handbuilt-python" "$old/tools/handbuilt_runtime.py" setup --format json > "$RUNNER_TEMP/old-setup.json" || true
+            "$old/bin/handbuilt-python" "$old/tools/handbuilt_runtime.py" doctor --capability workspace --format json | head -c 400 || true
+          fi
+
       - name: Update that install to this change
         run: |
           claude plugin marketplace remove handbuilt-church-labs
@@ -169,6 +179,18 @@ jobs:
           print(report["status"], "-", report["message"])
           if report["status"] != "ready":
               raise SystemExit("Setup from the installed copy did not pass: " + str(report.get("next_action")))
+          PY
+
+      - name: Turn on automatic updates from the installed copy
+        run: |
+          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/claude_updates.py" enable
+          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/claude_updates.py" status > "$RUNNER_TEMP/updates.json"
+          cat "$RUNNER_TEMP/updates.json"
+          "$PLUGIN_DIR/bin/handbuilt-python" - "$RUNNER_TEMP/updates.json" <<'PY'
+          import json, sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          if not (report.get("auto_update_on") and report.get("desktop_updates_allowed") and report.get("plugin_enabled")):
+              raise SystemExit("Automatic updates did not turn on: " + str(report.get("message")))
           PY
 
       - name: PDF tools and a first bulletin from the installed copy
