@@ -416,6 +416,10 @@ Python tools, and it reaches these places only for the work you ask for:
   into its own folder, each checked against its recorded hash.
 - **Python Package Index (PyPI):** it downloads the Python packages listed in
   `requirements.lock`, each checked against its recorded hash.
+- **The Lectionary Page (lectionarypage.net):** for a bulletin, it downloads
+  the Sunday's published page and copies the readings from it into your
+  bulletin, so no one retypes them. The request names Handbuilt and sends
+  nothing about your church.
 - **Websites you name or need:** your church website, published lectionary and
   scripture sources, and research sources, read through your AI app.
 - **Video hosts:** for a sermon video, the public YouTube, Vimeo or other service
