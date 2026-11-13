@@ -71,6 +71,9 @@ operations workflows. Sessions here behave by these rules.
 5. **Meet the module release standard.** No workflow is released or built
    without tool checks, agent checks and finished-work checks. See
    [the standard](AGENTS.md#module-release-standard).
+6. **Bugs go to one tracker.** Every bug or gap is an issue in the private
+   `stephenfsetzer/handbuilt` repository, labeled `labs`. Never keep a
+   local bug list. See [bugs and fixes](AGENTS.md#bugs-and-fixes).
 
 ## Working on a church (not on the Labs)
 
