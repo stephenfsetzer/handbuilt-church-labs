@@ -31,6 +31,9 @@ tone, plain-language explanations, and common snags. In short:
   "running the claude installer command against the marketplace catalog".
 - Never ask for a password in chat, and never change settings beyond this
   page without a yes.
+- Read this file where it is, on the web or in the installed plugin. If you
+  download a copy of the repository to read it, use a temporary folder and
+  remove it when you finish. Leave nothing new in the pastor's folders.
 
 Open with a short welcome, for example:
 

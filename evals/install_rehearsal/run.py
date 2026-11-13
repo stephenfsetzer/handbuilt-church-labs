@@ -64,7 +64,8 @@ INSTALL_RUBRIC = [
 ]
 
 INSTALL_CONTEXT = ("A pastor with no technical background pasted an install request. The assistant did the installing. "
-                   "The pastor can only click, approve and read. Naming the app's own buttons is fine.")
+                   "The pastor can only click, approve and read. Naming the app's own buttons is fine. The pastor's request "
+                   "named a branch of the plugin to install, so saying which branch was installed is fine.")
 
 
 def environment(run: Path) -> dict:
@@ -81,7 +82,9 @@ def turn(prompt: str, run: Path, name: str, env: dict, model: str, timeout: int,
     """One agent turn in the pastor's home folder. Returns (summary, timed_out)."""
     home = run / "home"
     home.mkdir(exist_ok=True)
-    command = [J.CLAUDE, "-p", prompt, "--output-format", "stream-json", "--verbose",
+    # The message goes in on standard input. On Windows Claude Code is a .cmd
+    # file, and a message with line breaks is cut short when passed as an argument.
+    command = [J.CLAUDE, "-p", "--output-format", "stream-json", "--verbose",
                "--allowedTools", TOOLS, "--permission-mode", "bypassPermissions",
                "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--add-dir", str(run)]
     if resume:
@@ -92,10 +95,19 @@ def turn(prompt: str, run: Path, name: str, env: dict, model: str, timeout: int,
     timed_out = False
     with transcript.open("w", encoding="utf-8") as out:
         try:
-            subprocess.run(command, cwd=home, env=env, stdout=out, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+            subprocess.run(command, input=prompt, text=True, encoding="utf-8", errors="replace", cwd=home, env=env,
+                           stdout=out, stderr=subprocess.STDOUT, timeout=timeout, check=False)
         except subprocess.TimeoutExpired:
             timed_out = True
-    return read_stream(transcript), timed_out
+    stream = read_stream(transcript)
+    if not timed_out and not str(stream["final"].get("result") or "").strip():
+        # Say why in the job log, without the credential.
+        raw = transcript.read_text(encoding="utf-8", errors="replace")
+        for hidden in (env.get("CLAUDE_CODE_OAUTH_TOKEN"), env.get("ANTHROPIC_API_KEY")):
+            if hidden:
+                raw = raw.replace(hidden, "[credential removed]")
+        print(f"The agent turn {name} produced no answer. Its output began:\n{raw[:600]}", flush=True)
+    return stream, timed_out
 
 
 def converse(first: str, persona: str, run: Path, name: str, env: dict, model: str, judge_model: str,
@@ -202,6 +214,10 @@ def main(argv=None) -> int:
         os.environ["HANDBUILT_RUNTIME_HOME"] = env["HANDBUILT_RUNTIME_HOME"]
         setup_history, stream, setup_timed_out = converse(O.prompt(church), O.PERSONA, run, "setup", env, args.model,
                                                           args.judge_model, timeout=2400, exchanges=12)
+        # The rehearsal's own folders and records sit beside the church folder. Anything
+        # else there was left by the agent, such as a download it did not clean up.
+        O.RUN_FILES = set(O.RUN_FILES) | {"claude-config", "handbuilt-runtime", "home", "workflows"} | {
+            item.name for item in run.iterdir() if re.fullmatch(r"(install|setup)-(\d+\.jsonl|conversation\.(md|json))", item.name)}
         graded = O.grade(church, stream=stream)
         setup_checks = graded["checks"]
         conversation = (run / "setup-conversation.md").read_text(encoding="utf-8")
