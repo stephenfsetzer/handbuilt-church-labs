@@ -107,11 +107,10 @@ without them stays on the version it started with.
 
 If the list already shows `handbuilt-church-labs@synced`, the pastor added
 Handbuilt through Claude's **Customize** panel earlier, and claude.ai shares it
-here. Install anyway and turn on updates for this copy too, so whichever copy
-loads is current. Ask the pastor to confirm that **Sync automatically** is on
-for the Handbuilt marketplace in that panel (README,
-[Claude desktop app](README.md#claude-desktop-app)). Tell them so in one
-sentence.
+here. Install anyway and turn on updates for this copy too. The desktop app
+can open that earlier copy in place of this one, and it stays at the version
+it was added with. `status` (section 3) checks for it and, when it is older,
+returns `tell_the_pastor`. Section 4 says where that sentence goes.
 
 **Fallback, when `claude` is not on the path:** declare the marketplace in the
 user settings file, `~/.claude/settings.json`. Tell the pastor you are adding
@@ -294,6 +293,10 @@ say so instead, in one plain sentence, with the next thing to try.
 > Church Command Center, a private folder on this computer for your church's
 > details, sermons, bulletins, and skills. I'll check your computer, ask for
 > your church's website, and show you what I find before saving anything.
+
+The one addition: when `status` returned `tell_the_pastor`, add its text as a
+final paragraph, word for word. An older copy of Handbuilt would otherwise
+open in the new session, and setup would run the old way.
 
 In Codex, say instead: "Start a new task, outside this one, and type
 **Set up my Church Command Center.**" The plugin is available in new Codex

@@ -80,9 +80,56 @@ class ClaudeUpdatesTest(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory()
         self.directory = Path(self.folder.name)
         self.settings = self.directory / "settings.json"
+        self.app = self.directory / "app"
+        patcher = mock.patch.object(claude_updates, "_app_folders", return_value=[self.app])
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self) -> None:
         self.folder.cleanup()
+
+    def _install(self, version: str) -> None:
+        record = self.directory / "plugins" / "installed_plugins.json"
+        record.parent.mkdir(exist_ok=True)
+        record.write_text(json.dumps({"version": 2, "plugins": {claude_updates.PLUGIN_ID: [{"version": version}]}}), encoding="utf-8")
+
+    def _app_copy(self, version: str, name: str = claude_updates.NAME, slot: str = "plugin_01") -> None:
+        manifest = self.app / "local-agent-mode-sessions" / "account" / "org" / "rpm" / slot / ".claude-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(json.dumps({"name": name, "version": version}), encoding="utf-8")
+
+    def test_an_older_copy_kept_by_the_claude_app_is_found_and_the_pastor_is_told(self) -> None:
+        self._install("0.8.27")
+        self._app_copy("0.8.25")
+        claude_updates.enable(self.directory)
+        with mock.patch.object(claude_updates, "_latest_release", return_value=("0.8.27", None)):
+            result = claude_updates.status(self.directory)
+        self.assertEqual(result["synced_app_copy_version"], "0.8.25")
+        self.assertEqual(result["status"], "needs_attention")
+        self.assertIn("Customize", result["tell_the_pastor"])
+        self.assertIn("remove it", result["tell_the_pastor"])
+        for word in ("settings", "python", "`", "0.8."):
+            self.assertNotIn(word, result["tell_the_pastor"].lower())
+
+    def test_an_app_copy_that_is_current_or_another_plugin_raises_nothing(self) -> None:
+        self._install("0.8.27")
+        self._app_copy("0.8.27")
+        self._app_copy("0.1.0", name="another-plugin", slot="plugin_02")
+        claude_updates.enable(self.directory)
+        with mock.patch.object(claude_updates, "_latest_release", return_value=("0.8.27", None)):
+            result = claude_updates.status(self.directory)
+        self.assertEqual(result["status"], "current")
+        self.assertNotIn("tell_the_pastor", result)
+
+    def test_the_oldest_app_copy_is_the_one_reported(self) -> None:
+        self._install("0.8.27")
+        self._app_copy("0.8.26", slot="plugin_01")
+        self._app_copy("0.8.9", slot="plugin_02")
+        self.assertEqual(claude_updates._synced_version(self.directory), "0.8.9")
+
+    def test_the_install_guide_passes_the_sentence_on(self) -> None:
+        guide = (Path(__file__).resolve().parents[1] / "INSTALL.md").read_text(encoding="utf-8")
+        self.assertGreaterEqual(guide.count("tell_the_pastor"), 2)
 
     def test_enable_merges_into_existing_settings_and_keeps_a_backup(self) -> None:
         original = {
