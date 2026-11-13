@@ -81,7 +81,7 @@ def turn(prompt: str, run: Path, name: str, env: dict, model: str, timeout: int,
     """One agent turn in the pastor's home folder. Returns (summary, timed_out)."""
     home = run / "home"
     home.mkdir(exist_ok=True)
-    command = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
+    command = [J.CLAUDE, "-p", prompt, "--output-format", "stream-json", "--verbose",
                "--allowedTools", TOOLS, "--permission-mode", "bypassPermissions",
                "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--add-dir", str(run)]
     if resume:
@@ -121,13 +121,16 @@ def converse(first: str, persona: str, run: Path, name: str, env: dict, model: s
 
 
 def claude_json(arguments: list[str], env: dict) -> object:
-    done = subprocess.run(["claude", *arguments], env=env, capture_output=True, text=True, encoding="utf-8",
+    done = subprocess.run([J.CLAUDE, *arguments], env=env, capture_output=True, text=True, encoding="utf-8",
                           errors="replace", check=False)
-    try:
-        return json.loads(done.stdout.strip().splitlines()[-1]) if done.stdout.strip().startswith(("[", "{")) \
-            else json.loads(done.stdout)
-    except (ValueError, IndexError):
-        return {"error": (done.stdout + done.stderr)[-500:]}
+    text = done.stdout.strip()
+    # The whole output is the JSON; a notice may come before it.
+    for start in sorted({i for i in (text.find("["), text.find("{")) if i >= 0}):
+        try:
+            return json.loads(text[start:])
+        except ValueError:
+            continue
+    return {"error": (done.stdout + done.stderr)[-500:]}
 
 
 def check(out: list[dict], name: str, passed: bool, detail: str = "") -> bool:

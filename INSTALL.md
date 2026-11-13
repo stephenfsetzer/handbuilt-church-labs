@@ -261,7 +261,12 @@ under "If something goes wrong" for the pastor to send.
 
 ## 4. Hand off to church setup
 
-A new plugin loads in a new session. Tell the pastor exactly what to do:
+A new plugin loads in a new session. Your last message after installing says
+three things and stops: Handbuilt is installed, automatic updates are on, and
+the one next step below. Leave the workings out of it. Do not name a setting,
+a file or folder, a backup, a branch or version source, or a check that had a
+hiccup but did not stop the install. If the pastor asks how it works, answer
+then. Tell the pastor exactly what to do:
 
 > Handbuilt is installed. To start using it, open a new session: click
 > **New session** at the top of the sidebar, keep the same folder, and type

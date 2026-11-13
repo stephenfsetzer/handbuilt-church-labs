@@ -6,11 +6,15 @@ ungraded run, never a pass. A judge is fallible, so it never overrides a file ch
 """
 from __future__ import annotations
 
+import shutil
+
 import json
 import re
 import subprocess
 from pathlib import Path
 
+# The full path: on Windows Claude Code is a .cmd file, which cannot be started by its bare name.
+CLAUDE = shutil.which("claude") or "claude"
 ISOLATION = ["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "",
              "--no-session-persistence"]
 
@@ -42,7 +46,7 @@ def invalid_verdict(reply, items: list[dict], writing: str) -> str | None:
 
 def ask(prompt: str, model: str, cwd: Path, tools: str = "", timeout: int = 600, attempts: int = 2):
     """Run one judge. Returns the parsed object, or an error string."""
-    command = ["claude", "-p", "--model", model, "--output-format", "json", "--tools", tools, *ISOLATION]
+    command = [CLAUDE, "-p", "--model", model, "--output-format", "json", "--tools", tools, *ISOLATION]
     if tools:
         command += ["--allowedTools", tools]
     error = "not run"

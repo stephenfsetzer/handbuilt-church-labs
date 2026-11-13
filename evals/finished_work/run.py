@@ -72,7 +72,7 @@ def settings(run_dir: Path) -> str:
 def agent_command(prompt: str, plugin: Path, model: str, run_dir: Path, *, resume: str = "", keep: bool = False) -> list[str]:
     """One agent turn. A conversation keeps its session so the next turn can resume it."""
     isolation = [flag for flag in J.ISOLATION if not (keep and flag == "--no-session-persistence")]
-    command = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
+    command = [J.CLAUDE, "-p", prompt, "--output-format", "stream-json", "--verbose",
                "--plugin-dir", str(plugin), "--add-dir", str(run_dir),
                "--allowedTools", TOOLS, "--permission-mode", "dontAsk",
                "--settings", settings(run_dir), *isolation]
