@@ -151,6 +151,14 @@ source does not show them, also ask whether the usual service prints the creed,
 the confession, and the full Eucharistic Prayer. Explain that these choices
 control what the congregation sees in the next bulletin.
 
+A small stage is at most three questions in one message, counting each
+separate thing the pastor must answer, even when two sit under one number.
+The Eucharistic Prayer, how the psalm is read, the lectionary track and the
+usual sermon text are four questions, so they take two messages. Offer a
+choice in plain words, not only its letter or number: say what the pastor
+would recognize about it from the service book, and let them answer with the
+name they use.
+
 For standard text, first follow the bulletin skill's
 [Sunday library](../../bulletin/references/sunday-library.md). An ordinary
 Episcopal prayer choice resolves from the bundled book; do not ask the pastor
