@@ -248,3 +248,22 @@ class OfferTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HostDetectionTests(unittest.TestCase):
+    """The agent app is named from a few named settings, never the whole environment."""
+
+    def test_names_the_agent_app_from_named_settings_only(self) -> None:
+        from tools import problem_report as report
+        clean = {"PATH": os.environ.get("PATH", ""), "GITHUB_TOKEN": "secret-value"}
+        with mock.patch.dict(os.environ, {**clean, "CLAUDECODE": "1"}, clear=True):
+            self.assertEqual(report.detect_host(), "claude-code")
+        with mock.patch.dict(os.environ, {**clean, "CODEX_SANDBOX": "seatbelt"}, clear=True):
+            self.assertEqual(report.detect_host(), "codex")
+        with mock.patch.dict(os.environ, {**clean, "CODEX_SOMETHING_ELSE": "1"}, clear=True):
+            self.assertEqual(report.detect_host(), "other")
+
+    def test_the_bundled_prayer_book_readings_stay_compact(self) -> None:
+        data = Path(__file__).parents[1] / "skills" / "bulletin" / "resources" / "bcp1979" / "sunday.json"
+        self.assertLess(data.stat().st_size, 450_000, "the plugin directory can't read larger files")
+        self.assertNotIn("\n  ", data.read_text(encoding="utf-8"))

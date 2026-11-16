@@ -506,7 +506,7 @@ def main() -> int:
     library = build_library(args.pdf)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     output_path = args.output_dir / "sunday.json"
-    output_path.write_text(json.dumps(library, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    output_path.write_text(json.dumps(library, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
     print(json.dumps({"ok": True, "output": str(output_path), "sha256": sha256(output_path)}, ensure_ascii=False))
     return 0
 
