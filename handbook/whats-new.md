@@ -4,6 +4,10 @@ Handbuilt reads the top note for a version the first time a church starts work
 on it, and the agent passes it on in one sentence. Each release adds its own
 section, with the note as one plain line for a pastor.
 
+## 0.8.31
+
+Small housekeeping so the plugin directory can read every file; nothing changes in your work.
+
 ## 0.8.30
 
 If setup hits a problem, you can send Stephen a short report you read first, with no sign-in and no church details.

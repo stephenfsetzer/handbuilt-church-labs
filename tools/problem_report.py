@@ -85,10 +85,19 @@ def detect_os_version(os_name: str) -> str:
     return _clean_line(version)[:OS_VERSION_LIMIT]
 
 
-def detect_host(environ: Mapping[str, str] = os.environ) -> str:
-    if environ.get("CLAUDECODE") == "1":
+# The only settings a report reads to name the agent app. Nothing else in the
+# environment is looked at, so no key or token can reach a report.
+CODEX_MARKERS = ("CODEX_SANDBOX", "CODEX_HOME", "CODEX_THREAD_ID", "CODEX_MANAGED_BY_NPM")
+
+
+def detect_host(claude_code: Optional[str] = None, codex: Optional[bool] = None) -> str:
+    if claude_code is None:
+        claude_code = os.environ.get("CLAUDECODE")
+    if codex is None:
+        codex = any(os.environ.get(name) for name in CODEX_MARKERS)
+    if claude_code == "1":
         return "claude-code"
-    if any(name.startswith("CODEX_") for name in environ):
+    if codex:
         return "codex"
     return "other"
 
