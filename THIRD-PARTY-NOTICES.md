@@ -3,13 +3,14 @@
 Handbuilt Church Labs bundles the following font files under the SIL Open Font
 License, Version 1.1. The files are used by the bulletin renderer. The license
 text and attribution below are copied from the upstream files listed for each
-family.
+family. The fonts ship in WOFF format: the upstream TrueType files placed
+unchanged in a compressed WOFF wrapper, with no glyphs, names or tables altered.
 
 ## Source Sans 3
 
-Bundled files: `skills/bulletin/renderer/fonts/SourceSans3-Bold.ttf`,
-`SourceSans3-Italic.ttf`, `SourceSans3-Regular.ttf`, and
-`SourceSans3-SemiBold.ttf`.
+Bundled files: `skills/bulletin/renderer/fonts/SourceSans3-Bold.woff`,
+`SourceSans3-Italic.woff`, `SourceSans3-Regular.woff`, and
+`SourceSans3-SemiBold.woff`.
 
 Upstream license: [adobe-fonts/source-sans LICENSE.md](https://raw.githubusercontent.com/adobe-fonts/source-sans/release/LICENSE.md)
 
@@ -111,9 +112,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 ## Source Serif 4
 
-Bundled files: `skills/bulletin/renderer/fonts/SourceSerif4-Bold.ttf`,
-`SourceSerif4-Italic.ttf`, `SourceSerif4-Regular.ttf`,
-`SourceSerif4-SemiBold.ttf`, and `SourceSerif4-SemiBoldItalic.ttf`.
+Bundled files: `skills/bulletin/renderer/fonts/SourceSerif4-Bold.woff`,
+`SourceSerif4-Italic.woff`, `SourceSerif4-Regular.woff`,
+`SourceSerif4-SemiBold.woff`, and `SourceSerif4-SemiBoldItalic.woff`.
 
 Upstream license: [adobe-fonts/source-serif LICENSE.md](https://raw.githubusercontent.com/adobe-fonts/source-serif/release/LICENSE.md)
 
@@ -215,9 +216,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 ## EB Garamond
 
-Bundled files: `skills/bulletin/renderer/fonts/EBGaramond-Bold.ttf`,
-`EBGaramond-Italic.ttf`, `EBGaramond-Regular.ttf`, `EBGaramond-SemiBold.ttf`,
-and `EBGaramond-SemiBoldItalic.ttf`.
+Bundled files: `skills/bulletin/renderer/fonts/EBGaramond-Bold.woff`,
+`EBGaramond-Italic.woff`, `EBGaramond-Regular.woff`, `EBGaramond-SemiBold.woff`,
+and `EBGaramond-SemiBoldItalic.woff`.
 
 Upstream license: [google/fonts EB Garamond OFL.txt](https://raw.githubusercontent.com/google/fonts/main/ofl/ebgaramond/OFL.txt). The Google Fonts metadata identifies the upstream project as [octaviopardo/EBGaramond12](https://github.com/octaviopardo/EBGaramond12).
 

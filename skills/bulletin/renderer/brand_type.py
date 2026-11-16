@@ -44,11 +44,19 @@ def is_variable_font(path: Path) -> bool:
             header = handle.read(12)
             if len(header) < 12:
                 return False
-            num_tables = struct.unpack(">H", header[4:6])[0]
-            directory = handle.read(16 * num_tables)
+            if header[:4] == b"wOFF":
+                # WOFF: the table count follows the 12-byte start, and its
+                # table directory starts at byte 44 with 20-byte entries.
+                rest = handle.read(32)
+                if len(rest) < 32:
+                    return False
+                num_tables, entry = struct.unpack(">H", rest[:2])[0], 20
+            else:
+                num_tables, entry = struct.unpack(">H", header[4:6])[0], 16
+            directory = handle.read(entry * num_tables)
     except OSError:
         return False
-    return any(directory[i:i + 4] == b"fvar" for i in range(0, len(directory), 16))
+    return any(directory[i:i + 4] == b"fvar" for i in range(0, len(directory), entry))
 
 
 def brand_type(brand: dict[str, Any]) -> dict[str, Any]:

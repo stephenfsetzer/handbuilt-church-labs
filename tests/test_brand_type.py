@@ -34,9 +34,9 @@ class BrandTypeTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.church = Path(self.temp.name)
         (self.church / "brand" / "type").mkdir(parents=True)
-        shutil.copy(FONTS / "SourceSerif4-Regular.ttf", self.church / "brand/type/Display-Regular.ttf")
-        shutil.copy(FONTS / "SourceSerif4-Bold.ttf", self.church / "brand/type/Display-Bold.ttf")
-        shutil.copy(FONTS / "SourceSans3-Regular.ttf", self.church / "brand/type/Text-Regular.ttf")
+        shutil.copy(FONTS / "SourceSerif4-Regular.woff", self.church / "brand/type/Display-Regular.ttf")
+        shutil.copy(FONTS / "SourceSerif4-Bold.woff", self.church / "brand/type/Display-Bold.ttf")
+        shutil.copy(FONTS / "SourceSans3-Regular.woff", self.church / "brand/type/Text-Regular.ttf")
         self.brand = _brand(
             {"regular": "brand/type/Display-Regular.ttf", "bold": "brand/type/Display-Bold.ttf"},
             {"regular": "brand/type/Text-Regular.ttf"},
@@ -58,7 +58,7 @@ class BrandTypeTest(unittest.TestCase):
         gone = _brand({"regular": "brand/type/Nope.ttf"}, {"regular": "brand/type/Text-Regular.ttf"})
         css, families = brand_faces(gone, self.church)
         self.assertEqual(families, {"text": "Brand Text"})
-        self.assertTrue(is_variable_font(FONTS / "SourceSans3-Regular.ttf"))
+        self.assertTrue(is_variable_font(FONTS / "SourceSans3-Regular.woff"))
         (self.church / "not-a-font.ttf").write_bytes(b"hello")
         self.assertFalse(is_variable_font(self.church / "not-a-font.ttf"))
 
@@ -71,7 +71,7 @@ class BrandTypeTest(unittest.TestCase):
         self.assertEqual(len(display_rules), 2)
 
     def test_a_variable_file_stops_below_a_static_cut_of_the_same_style(self):
-        shutil.copy(FONTS / "SourceSerif4-Regular.ttf", self.church / "brand/type/Variable.ttf")
+        shutil.copy(FONTS / "SourceSerif4-Regular.woff", self.church / "brand/type/Variable.ttf")
         static = self.church / "brand/type/Static-Bold.ttf"
         static.write_bytes(b"\x00\x01\x00\x00" + b"\x00" * 8)  # a font header with no tables: not variable
         brand = _brand({"regular": "brand/type/Variable.ttf", "bold": "brand/type/Static-Bold.ttf"},
@@ -82,7 +82,7 @@ class BrandTypeTest(unittest.TestCase):
         self.assertIn("font-weight: 700", rules[1])
 
     def test_the_reading_face_sets_running_liturgy_with_its_axis_settings(self):
-        shutil.copy(FONTS / "SourceSerif4-Italic.ttf", self.church / "brand/type/Reading-Italic.ttf")
+        shutil.copy(FONTS / "SourceSerif4-Italic.woff", self.church / "brand/type/Reading-Italic.ttf")
         self.brand["brand_system"]["type"]["reading"] = {
             "family": "Test Serif (reading)", "license": "OFL",
             "files": {"regular": "brand/type/Display-Regular.ttf", "italic": "brand/type/Reading-Italic.ttf"},

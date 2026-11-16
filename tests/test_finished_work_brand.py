@@ -34,7 +34,7 @@ from brand_workflow import (  # noqa: E402
 
 MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor"><rect x="20" y="10" width="60" height="80"/></svg>'
 SMALL = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor"><circle cx="50" cy="50" r="42"/></svg>'
-FONT = REPO / "skills" / "bulletin" / "renderer" / "fonts" / "SourceSans3-Regular.ttf"
+FONT = REPO / "skills" / "bulletin" / "renderer" / "fonts" / "SourceSans3-Regular.woff"
 YES = "I approve the new brand. The Rev. Jordan Ellis."
 
 ANSWERS = {

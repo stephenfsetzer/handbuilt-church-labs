@@ -516,6 +516,10 @@ def _resolve_moved_assets(html: str, html_path: Path) -> tuple[str, list[dict], 
             if images.is_dir():
                 candidates += sorted(images.rglob(name))
         candidates.append(fonts / name)
+        if path.suffix.casefold() == ".ttf":
+            # The bundled fonts shipped as .ttf until 0.8.28; they now ship as
+            # .woff with the same font data, so an older saved bulletin still finds them.
+            candidates.append(fonts / (path.stem + ".woff"))
         found = next((item for item in candidates if item.is_file()), None)
         if found is None:
             missing.append(name)
