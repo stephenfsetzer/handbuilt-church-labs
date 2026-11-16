@@ -192,12 +192,12 @@ def _font_faces(root: Path, system: dict[str, Any]) -> tuple[str, str, str, str]
     css, families = brand_faces({"brand_system": system}, root)
     css = [css] if css else []
     if "display" not in families:
-        for face, weight, style in (("SourceSerif4-Regular.ttf", "normal", "normal"), ("SourceSerif4-Bold.ttf", "700", "normal"), ("SourceSerif4-Italic.ttf", "normal", "italic")):
+        for face, weight, style in (("SourceSerif4-Regular.woff", "normal", "normal"), ("SourceSerif4-Bold.woff", "700", "normal"), ("SourceSerif4-Italic.woff", "normal", "italic")):
             css.append(f'@font-face {{ font-family: "Source Serif 4"; src: url("{(BUNDLED_FONTS / face).as_uri()}"); font-weight: {weight}; font-style: {style}; }}')
         families["display"] = "Source Serif 4"
     body = families.get("text", families["display"])
     if "text" not in families:
-        for face, weight, style in (("SourceSans3-Regular.ttf", "normal", "normal"), ("SourceSans3-Bold.ttf", "700", "normal"), ("SourceSans3-Italic.ttf", "normal", "italic")):
+        for face, weight, style in (("SourceSans3-Regular.woff", "normal", "normal"), ("SourceSans3-Bold.woff", "700", "normal"), ("SourceSans3-Italic.woff", "normal", "italic")):
             css.append(f'@font-face {{ font-family: "Source Sans 3"; src: url("{(BUNDLED_FONTS / face).as_uri()}"); font-weight: {weight}; font-style: {style}; }}')
         families["text"] = "Source Sans 3"
     return "\n".join(css), families["display"], families["text"], body

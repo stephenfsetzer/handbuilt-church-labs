@@ -1885,20 +1885,20 @@ Hymns are found in the blue Hymnal 1982.</p>
 def font_faces():
     faces = []
     specs = [
-        ("EB Garamond", "EBGaramond-Regular.ttf", 400, "normal"),
-        ("EB Garamond", "EBGaramond-SemiBold.ttf", 600, "normal"),
-        ("EB Garamond", "EBGaramond-Bold.ttf", 700, "normal"),
-        ("EB Garamond", "EBGaramond-Italic.ttf", 400, "italic"),
-        ("EB Garamond", "EBGaramond-SemiBoldItalic.ttf", 600, "italic"),
-        ("Source Serif 4", "SourceSerif4-Regular.ttf", 400, "normal"),
-        ("Source Serif 4", "SourceSerif4-SemiBold.ttf", 600, "normal"),
-        ("Source Serif 4", "SourceSerif4-Bold.ttf", 700, "normal"),
-        ("Source Serif 4", "SourceSerif4-Italic.ttf", 400, "italic"),
-        ("Source Serif 4", "SourceSerif4-SemiBoldItalic.ttf", 600, "italic"),
-        ("Source Sans 3", "SourceSans3-Regular.ttf", 400, "normal"),
-        ("Source Sans 3", "SourceSans3-SemiBold.ttf", 600, "normal"),
-        ("Source Sans 3", "SourceSans3-Bold.ttf", 700, "normal"),
-        ("Source Sans 3", "SourceSans3-Italic.ttf", 400, "italic"),
+        ("EB Garamond", "EBGaramond-Regular.woff", 400, "normal"),
+        ("EB Garamond", "EBGaramond-SemiBold.woff", 600, "normal"),
+        ("EB Garamond", "EBGaramond-Bold.woff", 700, "normal"),
+        ("EB Garamond", "EBGaramond-Italic.woff", 400, "italic"),
+        ("EB Garamond", "EBGaramond-SemiBoldItalic.woff", 600, "italic"),
+        ("Source Serif 4", "SourceSerif4-Regular.woff", 400, "normal"),
+        ("Source Serif 4", "SourceSerif4-SemiBold.woff", 600, "normal"),
+        ("Source Serif 4", "SourceSerif4-Bold.woff", 700, "normal"),
+        ("Source Serif 4", "SourceSerif4-Italic.woff", 400, "italic"),
+        ("Source Serif 4", "SourceSerif4-SemiBoldItalic.woff", 600, "italic"),
+        ("Source Sans 3", "SourceSans3-Regular.woff", 400, "normal"),
+        ("Source Sans 3", "SourceSans3-SemiBold.woff", 600, "normal"),
+        ("Source Sans 3", "SourceSans3-Bold.woff", 700, "normal"),
+        ("Source Sans 3", "SourceSans3-Italic.woff", 400, "italic"),
     ]
     for family, fname, weight, style in specs:
         p = FONTS_DIR / fname

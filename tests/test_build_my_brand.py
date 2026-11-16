@@ -116,7 +116,7 @@ class BuildMyBrandTest(unittest.TestCase):
         (staging / "templates").mkdir()
         (staging / "marks" / "wordmark.svg").write_text(MARK, encoding="utf-8")
         Image.new("RGB", (40, 20), "white").save(staging / "marks" / "banner.png")
-        font = ROOT / "skills" / "bulletin" / "renderer" / "fonts" / "SourceSans3-Regular.ttf"
+        font = ROOT / "skills" / "bulletin" / "renderer" / "fonts" / "SourceSans3-Regular.woff"
         (staging / "type" / "Display-Regular.ttf").write_bytes(font.read_bytes())
         (staging / "type" / "Text-Regular.ttf").write_bytes(font.read_bytes())
         (staging / "voice.md").write_text("# Voice\n\nPlain, warm, specific.\n", encoding="utf-8")

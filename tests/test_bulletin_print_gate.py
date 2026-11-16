@@ -252,7 +252,7 @@ class AssetAndFontGuardTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("pdffonts"), "Poppler pdffonts is required")
     def test_declared_body_font_must_be_the_one_embedded(self):
-        html_path, pdf_path = self.render(FONTS / "EBGaramond-Regular.ttf")
+        html_path, pdf_path = self.render(FONTS / "EBGaramond-Regular.woff")
         check = interface._font_fidelity_check(html_path, pdf_path)
         self.assertEqual(check, {"name": "body_font_embedded", "passed": True,
                                  "family": "Synthetic Face"})

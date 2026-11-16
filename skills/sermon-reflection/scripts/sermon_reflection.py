@@ -289,9 +289,9 @@ def speaker_copy_html(markdown: str, service_date: str, size: int = 16) -> str:
     faces = "\n".join(
         f'@font-face {{ font-family: "Source Serif 4"; src: url("{(fonts / name).as_uri()}"); '
         f'font-weight: {weight}; font-style: {style}; }}'
-        for name, weight, style in (("SourceSerif4-Regular.ttf", "normal", "normal"),
-                                    ("SourceSerif4-Bold.ttf", "700", "normal"),
-                                    ("SourceSerif4-Italic.ttf", "normal", "italic"))
+        for name, weight, style in (("SourceSerif4-Regular.woff", "normal", "normal"),
+                                    ("SourceSerif4-Bold.woff", "700", "normal"),
+                                    ("SourceSerif4-Italic.woff", "normal", "italic"))
         if (fonts / name).is_file())
     return f"""<!doctype html><html><head><meta charset="utf-8"><style>
 {faces}
