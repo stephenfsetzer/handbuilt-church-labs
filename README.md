@@ -395,8 +395,9 @@ information, or confidential pastoral case details in onboarding.
 
 ## What the plugin runs, fetches and sends
 
-The plugin sends nothing to Handbuilt. It works through your AI app and local
-Python tools, and it reaches these places only for the work you ask for:
+The plugin sends nothing to Handbuilt unless you say yes to a problem report
+(below). It works through your AI app and local Python tools, and it reaches
+these places only for the work you ask for:
 
 - **Your computer:** it runs the plugin's Python tools in a separate managed
   environment, creates your church folder, and with your approval installs tools
@@ -430,6 +431,14 @@ Python tools, and it reaches these places only for the work you ask for:
   when the church's brand uses one.
 - **Image services:** Build My Brand uses OpenAI, Google or Recraft only if you
   add your own key for one, and it sends them the image briefs.
+- **Handbuilt (gethandbuilt.com), only on your yes:** when setup or a job
+  fails, the agent can offer to send Stephen a short problem report. It shows
+  you the exact text first and sends nothing unless you agree. The report holds
+  seven fields: the plugin version, your operating system and its version, the
+  agent app, the job, a short error code and a technical line with your home
+  folder shown as `~`. It never includes church names, files, sermon text or
+  account details. `HANDBUILT_NO_REPORTS=1` turns sending off; the agent then
+  gives you the text to email instead.
 
 ## Before you begin
 
