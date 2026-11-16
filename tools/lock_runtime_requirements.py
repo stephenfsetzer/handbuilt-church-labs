@@ -22,6 +22,10 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _WHEEL_RE = re.compile(r"\.whl$")
 _NAME_RE = re.compile(r"[-_.]+")
 MAX_METADATA_BYTES = 4 * 1024 * 1024
+# Projects locked to their pure-Python wheel only. fontTools' compiled wheels add
+# speed-ups that Windows App Control can refuse to load, and a refused file
+# stopped setup on those computers. The pure wheel does the same work in Python.
+PURE_PYTHON_ONLY = frozenset({"fonttools"})
 
 
 def _normalize_project_name(name: str) -> str:
@@ -73,6 +77,7 @@ def wheel_hashes(name: str, version: str, metadata: dict[str, object]) -> tuple[
         raise LockGenerationError(f"PyPI metadata for {name}=={version} has no file list.")
 
     hashes: set[str] = set()
+    pure_only = _normalize_project_name(name) in PURE_PYTHON_ONLY
     for item in files:
         if not isinstance(item, dict):
             raise LockGenerationError(f"PyPI metadata for {name}=={version} has an invalid file record.")
@@ -116,7 +121,11 @@ def wheel_hashes(name: str, version: str, metadata: dict[str, object]) -> tuple[
         digest = digests.get("sha256") if isinstance(digests, dict) else None
         if not isinstance(digest, str) or _SHA256_RE.fullmatch(digest) is None:
             raise LockGenerationError(f"PyPI wheel {filename} has no valid SHA-256 hash.")
+        if pure_only and not basename.endswith("-none-any"):
+            continue
         hashes.add(digest)
+    if pure_only and not hashes:
+        raise LockGenerationError(f"PyPI has no pure-Python wheel for {name}=={version}.")
     if not hashes:
         raise LockGenerationError(
             f"PyPI has no wheel artifacts for {name}=={version}; source builds are not allowed."

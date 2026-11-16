@@ -6,6 +6,11 @@
 # and unpacks it into Handbuilt's private folder. It needs no installer, no
 # administrator password, and changes nothing else on the computer.
 #
+# When Handbuilt's own Python cannot be fetched or started (a blocked download,
+# or a computer that refuses to run it), a supported Python already on this
+# computer stands in, and a note says so. HANDBUILT_NO_COMPUTER_PYTHON=1 turns
+# that off, so a check can prove Handbuilt's own Python works.
+#
 #   handbuilt-python --where     print the path to this Python and stop
 #   handbuilt-python script.py   run a script
 set -eu
@@ -13,6 +18,34 @@ set -eu
 fail() {
     echo "handbuilt-python: $1" >&2
     exit "${2:-1}"
+}
+
+# A Python 3.11 or newer that is already on this computer, if there is one.
+computer_python() {
+    [ "${HANDBUILT_NO_COMPUTER_PYTHON:-}" = 1 ] && return 1
+    for name in python3 python; do
+        found=$(command -v "$name" 2>/dev/null) || continue
+        if "$found" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1; then
+            printf '%s\n' "$found"
+            return 0
+        fi
+    done
+    if command -v py >/dev/null 2>&1; then
+        found=$(py -3 -c 'import sys; sys.exit(1) if sys.version_info < (3, 11) else print(sys.executable)' 2>/dev/null) \
+            && [ -n "$found" ] && { printf '%s\n' "$found"; return 0; }
+    fi
+    return 1
+}
+
+# Use a Python already on this computer, or stop with the reason.
+fall_back() {
+    if found=$(computer_python); then
+        echo "handbuilt-python: $1 Using the Python already on this computer instead: $found" >&2
+        py=$found
+        fell_back=1
+        return 0
+    fi
+    fail "$1" "${2:-1}"
 }
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -43,6 +76,47 @@ if [ -n "${HANDBUILT_RUNTIME_HOME:-}" ]; then
     [ "$os" = windows ] && root=$(cygpath -u "$root")
 fi
 
+# Download, check and unpack Handbuilt's own Python. On failure, set reason and
+# return 1, leaving nothing half-made behind.
+fetch() {
+    mkdir -p "$root/python-dist" || { reason="Handbuilt's folder could not be created."; return 1; }
+    tmp=$(mktemp -d "$root/python-dist/.tmp.XXXXXX") || { reason="Handbuilt's folder could not be written."; return 1; }
+    trap 'rm -rf "$tmp"' EXIT
+    echo "Handbuilt is getting its own copy of Python. This happens once and takes about a minute." >&2
+    if command -v curl >/dev/null 2>&1; then
+        curl --proto '=https' --tlsv1.2 -fsSL --connect-timeout 20 --speed-limit 20000 --speed-time 20 \
+            --retry 4 -C - -o "$tmp/python.tar.gz" "$url" \
+            || { rm -rf "$tmp"; reason="the download failed. Check the internet connection and try again."; return 1; }
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q --https-only --timeout=30 --tries=4 -O "$tmp/python.tar.gz" "$url" \
+            || { rm -rf "$tmp"; reason="the download failed. Check the internet connection and try again."; return 1; }
+    else
+        rm -rf "$tmp"; reason="this computer has neither curl nor wget to download with."; return 1
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        got=$(sha256sum "$tmp/python.tar.gz" | awk '{ print $1 }')
+    elif command -v shasum >/dev/null 2>&1; then
+        got=$(shasum -a 256 "$tmp/python.tar.gz" | awk '{ print $1 }')
+    else
+        rm -rf "$tmp"; reason="this computer has no tool to check the download (sha256sum or shasum)."; return 1
+    fi
+    if [ "$got" != "$sha" ]; then
+        rm -rf "$tmp"; reason="the download did not match its recorded checksum, so it was not used."; return 1
+    fi
+    mkdir "$tmp/x"
+    tar -xzf "$tmp/python.tar.gz" -C "$tmp/x" || { rm -rf "$tmp"; reason="the download could not be unpacked."; return 1; }
+    if [ ! -f "$tmp/x/python/python.exe" ] && [ ! -x "$tmp/x/python/bin/python3" ]; then
+        rm -rf "$tmp"; reason="the download did not contain Python."; return 1
+    fi
+    # Another run may have finished first. Keep whichever copy is already there.
+    [ -e "$dist" ] || mv "$tmp/x" "$dist"
+    rm -rf "$tmp"
+    trap - EXIT
+    [ -x "$py" ] || { reason="Python was unpacked but cannot be started."; return 1; }
+}
+
+fell_back=
+arch=
 # Windows always uses the x86-64 build. It runs on ARM Windows too.
 if [ "$os" = windows ]; then
     arch=x86_64
@@ -50,59 +124,33 @@ else
     case "$(uname -m)" in
         arm64|aarch64) arch=aarch64 ;;
         x86_64|amd64) arch=x86_64 ;;
-        *) fail "this processor is not supported: $(uname -m)" 2 ;;
+        *) fall_back "Handbuilt has no Python for this processor: $(uname -m)." 2 ;;
     esac
 fi
 
-key="$os-$arch"
-# Drop any carriage return, in case Git rewrote the lock file's line endings.
-tag=$(awk '{ sub(/\r$/, "") } $1 == "release" { print $2 }' "$lock")
-sha=$(awk -v k="$key" '{ sub(/\r$/, "") } $1 == k { print $2 }' "$lock")
-url=$(awk -v k="$key" '{ sub(/\r$/, "") } $1 == k { print $3 }' "$lock")
-[ -n "$tag" ] && [ -n "$sha" ] && [ -n "$url" ] || fail "tools/python-dist.lock has no build for $key." 2
-
-dist="$root/python-dist/$tag"
-if [ "$os" = windows ]; then
-    py="$dist/python/python.exe"
-else
-    py="$dist/python/bin/python3"
-fi
-
-if [ ! -x "$py" ]; then
-    mkdir -p "$root/python-dist"
-    tmp=$(mktemp -d "$root/python-dist/.tmp.XXXXXX")
-    trap 'rm -rf "$tmp"' EXIT
-    echo "Handbuilt is getting its own copy of Python. This happens once and takes about a minute." >&2
-    if command -v curl >/dev/null 2>&1; then
-        curl --proto '=https' --tlsv1.2 -fsSL --connect-timeout 20 --speed-limit 20000 --speed-time 20 \
-            --retry 4 -C - -o "$tmp/python.tar.gz" "$url" \
-            || fail "the download failed. Check the internet connection and try again."
-    elif command -v wget >/dev/null 2>&1; then
-        wget -q --https-only --timeout=30 --tries=4 -O "$tmp/python.tar.gz" "$url" \
-            || fail "the download failed. Check the internet connection and try again."
+if [ -z "$fell_back" ]; then
+    key="$os-$arch"
+    # Drop any carriage return, in case Git rewrote the lock file's line endings.
+    tag=$(awk '{ sub(/\r$/, "") } $1 == "release" { print $2 }' "$lock")
+    sha=$(awk -v k="$key" '{ sub(/\r$/, "") } $1 == k { print $2 }' "$lock")
+    url=$(awk -v k="$key" '{ sub(/\r$/, "") } $1 == k { print $3 }' "$lock")
+    if [ -n "$tag" ] && [ -n "$sha" ] && [ -n "$url" ]; then
+        dist="$root/python-dist/$tag"
+        if [ "$os" = windows ]; then
+            py="$dist/python/python.exe"
+        else
+            py="$dist/python/bin/python3"
+        fi
+        if [ ! -x "$py" ] && ! fetch; then
+            fall_back "$reason"
+        fi
+        # A computer can refuse to run a program it does not recognize.
+        if [ -z "$fell_back" ] && ! "$py" -c '' >/dev/null 2>&1; then
+            fall_back "Handbuilt's own Python is on this computer but could not start."
+        fi
     else
-        fail "this computer has neither curl nor wget to download with." 2
+        fall_back "tools/python-dist.lock has no build for $key." 2
     fi
-    if command -v sha256sum >/dev/null 2>&1; then
-        got=$(sha256sum "$tmp/python.tar.gz" | awk '{ print $1 }')
-    elif command -v shasum >/dev/null 2>&1; then
-        got=$(shasum -a 256 "$tmp/python.tar.gz" | awk '{ print $1 }')
-    else
-        fail "this computer has no tool to check the download (sha256sum or shasum)." 2
-    fi
-    [ "$got" = "$sha" ] || fail "the download did not match its recorded checksum, so it was not used."
-    mkdir "$tmp/x"
-    tar -xzf "$tmp/python.tar.gz" -C "$tmp/x" || fail "the download could not be unpacked."
-    if [ "$os" = windows ]; then
-        [ -f "$tmp/x/python/python.exe" ] || fail "the download did not contain Python."
-    else
-        [ -x "$tmp/x/python/bin/python3" ] || fail "the download did not contain Python."
-    fi
-    # Another run may have finished first. Keep whichever copy is already there.
-    [ -e "$dist" ] || mv "$tmp/x" "$dist"
-    rm -rf "$tmp"
-    trap - EXIT
-    [ -x "$py" ] || fail "Python was unpacked but cannot be started."
 fi
 
 if [ "${1:-}" = "--where" ]; then

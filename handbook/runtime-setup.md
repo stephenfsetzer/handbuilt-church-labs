@@ -219,6 +219,35 @@ computer user:
 For tests or managed deployments, `HANDBUILT_RUNTIME_HOME` can override this
 location.
 
+## When the PDF check fails, or Windows blocks a file
+
+Setup checks the PDF tools by building a sample PDF. When that check fails, setup
+still keeps the new runtime if its packages installed and its workspace check
+passed. The result is `ready`, with a `pdf_tools` section whose `ready` is false.
+Sermon research, sermon reflection, onboarding and brand work run as usual.
+Bulletins and finance reports run `verify` before they start, so they stop with
+the reason until the PDF check passes. Setup does not reinstall on every run.
+
+Windows can refuse to load a program file it does not recognize: Smart App
+Control, or an App Control policy set by whoever manages the computer. Windows
+reports it as "An Application Control policy has blocked this file" (error
+4551). Handbuilt recognizes it and reports `blocked_by: windows-app-control`
+with a plain `message` and `next_action`. Tell the pastor what still works and
+what waits. If someone else manages the computer, the pastor can ask them to
+allow the files in Handbuilt's runtime folder. Offer to send Stephen a short
+report. Never turn off Smart App Control or tell the pastor to: Windows cannot
+turn it back on without a reinstall.
+
+fontTools is installed from its pure-Python wheel on every computer, so it
+brings no compiled file for Windows to block. The lock tool keeps only that
+wheel (`PURE_PYTHON_ONLY` in `tools/lock_runtime_requirements.py`).
+
+When Handbuilt's own Python cannot be downloaded or started, `bin/handbuilt-python`
+uses a Python 3.11 or newer already on the computer, and says so on stderr.
+`setup` still applies the security floors to that Python before it builds a
+runtime from it. `HANDBUILT_NO_COMPUTER_PYTHON=1` turns the fallback off; the
+install rehearsal sets it so a failed download cannot pass unnoticed.
+
 ## Stable statuses
 
 | Status | Meaning | Host response |
@@ -227,7 +256,7 @@ location.
 | `python-unavailable` | A usable Python 3 runtime could not be found. | Arrange computer-level Python setup. Do not suggest global pip commands. |
 | `python-package-missing` | The private runtime is absent or incomplete. | Run `setup` once. |
 | `native-tool-missing` | Python is ready, but one or more Poppler tools are absent. | Ask for approval, run the reported native setup plan, then run `doctor` again. |
-| `install-failed` | Installation or the working PDF check failed. | Use `technical_detail` to repair the failing component. Do not use a global package install as a workaround. |
+| `install-failed` | Installation or the working PDF check failed. | Use `technical_detail` to repair the failing component. When `blocked_by` is `windows-app-control`, follow the section above. Do not use a global package install as a workaround. |
 
 Python packages and native PDF tools are reported in separate JSON sections.
 This lets onboarding explain whether bulletin creation is blocked or only the

@@ -101,6 +101,50 @@ runpy.run_module("pip",run_name="__main__")
 def _normalize_distribution(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name.split("[", 1)[0]).lower()
 
+
+# Windows App Control (Smart App Control, or a policy set by whoever manages the
+# computer) refuses to load program files it does not recognize. Windows reports
+# it as error 4551 with this sentence.
+WINDOWS_BLOCK = re.compile(r"application control policy|winerror 4551|smart app control", re.IGNORECASE)
+WINDOWS_BLOCK_MESSAGE = (
+    "Windows blocked one of Handbuilt's PDF files on this computer. Sermon research, sermon "
+    "reflection and Church Command Center work still run. Bulletins and finance reports need "
+    "the PDF tools."
+)
+WINDOWS_BLOCK_NEXT_ACTION = (
+    "Tell the pastor in plain words that Windows blocked one of Handbuilt's PDF files, that "
+    "sermon research, sermon reflection and Church Command Center work still run, and that "
+    "bulletins and finance reports wait for the PDF tools. The block comes from Smart App "
+    "Control, or from a policy set by whoever manages this computer. Then, in order: "
+    "(1) if this computer is managed by someone else, the pastor can ask them to allow the "
+    "files in Handbuilt's runtime folder; "
+    "(2) offer to send Stephen a short report with this check's technical detail, the plugin "
+    "version and Windows, and leave out church details. "
+    "Do not turn off Smart App Control or tell the pastor to: Windows cannot turn it back on "
+    "without a reinstall. Do not install packages into another Python as a workaround."
+)
+
+
+def windows_blocked(detail: object) -> bool:
+    """True when a failure detail says Windows App Control refused a file."""
+    return isinstance(detail, str) and WINDOWS_BLOCK.search(detail) is not None
+
+
+def _pdf_tools_summary(report: Mapping[str, object]) -> dict[str, object]:
+    """What a failed PDF check means, kept on a runtime that is ready for other work."""
+    detail = str(report.get("technical_detail") or "")[-800:]
+    blocked = windows_blocked(detail)
+    return {
+        "ready": False,
+        "blocked_by": "windows-app-control" if blocked else None,
+        "message": (WINDOWS_BLOCK_MESSAGE if blocked else
+                    "Handbuilt's PDF tools did not pass their working check. Sermon research, sermon "
+                    "reflection and Church Command Center work still run. Bulletins and finance "
+                    "reports wait until the PDF check passes."),
+        "next_action": (WINDOWS_BLOCK_NEXT_ACTION if blocked else str(report.get("next_action", ""))),
+        "technical_detail": detail,
+    }
+
 VERSION_PROBE = (
     "import json,sys; "
     "print(json.dumps({'version': list(sys.version_info[:3]), 'releaselevel': sys.version_info.releaselevel}))"
@@ -601,14 +645,18 @@ class RuntimeManager:
         expected = {"render", "pdfinfo", "pdffonts", "pdftoppm", "pdftotext"}
         if (completed is None or completed.returncode != 0 or not isinstance(probe, dict)
                 or probe.get("checks") != sorted(expected) or probe.get("ok") is not True):
+            detail = (str(probe.get("error"))[:800] if isinstance(probe, dict) and probe.get("error")
+                      else _command_detail(completed))
             report.update({
                 "status": "install-failed", "ready": False,
                 "message": "Handbuilt's bulletin tools did not pass their working check.",
                 "next_action": "Use the check detail to repair the failing PDF component, then run verify again. When the detail says a library could not be loaded, run native-install --own-tools to add Handbuilt's own PDF libraries first. Church Command Center and sermon work can continue if their check is ready.",
-                "technical_detail": (str(probe.get("error"))[:800] if isinstance(probe, dict) and probe.get("error")
-                                     else _command_detail(completed)),
+                "technical_detail": detail,
                 "verification": {"ok": False},
             })
+            if windows_blocked(detail):
+                report.update({"message": WINDOWS_BLOCK_MESSAGE, "next_action": WINDOWS_BLOCK_NEXT_ACTION,
+                               "blocked_by": "windows-app-control"})
         else:
             report.update({
                 "message": "Handbuilt built and checked a sample PDF successfully.",
@@ -810,12 +858,22 @@ class RuntimeManager:
         if report["status"] != "ready":
             raise RuntimeSetupError(str(report.get("next_action", "The candidate runtime failed its package check.")))
         missing_native = report.get("native_tools", {}).get("missing", [])
+        pdf_tools: Optional[dict[str, object]] = None
         if not missing_native:
-            report = candidate_manager.verify()
-            if report["status"] != "ready":
-                raise RuntimeSetupError(str(report.get("technical_detail", report.get("next_action"))))
+            verified = candidate_manager.verify()
+            if verified["status"] == "ready":
+                report = verified
+            else:
+                # Keep this runtime. Its packages installed and its workspace check
+                # passed, so sermon and Church Command Center work can run. A failed
+                # PDF check (for example, a file Windows refuses to load) stops only
+                # the workflows that make PDFs; they run verify before they start.
+                pdf_tools = _pdf_tools_summary(verified)
+                report = candidate_manager.doctor(capability="workspace")
         else:
             report = candidate_manager.doctor(capability="workspace")
+        if pdf_tools is not None:
+            report["pdf_tools"] = pdf_tools
         marker = generation_root / GENERATION_MARKER
         with marker.open("x", encoding="utf-8") as output:
             json.dump({"schema_version": 1, "owner": "handbuilt-church-labs",
@@ -927,6 +985,14 @@ class RuntimeManager:
             selected["migration"] = receipt
             selected["installation_policy"] = prepared["installation_policy"]
             selected["changed"] = True
+            pdf_tools = prepared.get("pdf_tools")
+            if isinstance(pdf_tools, dict):
+                # Ready for every workflow that makes no PDF; say plainly what waits.
+                selected["pdf_tools"] = pdf_tools
+                if pdf_tools.get("blocked_by"):
+                    selected["blocked_by"] = pdf_tools["blocked_by"]
+                selected["message"] = pdf_tools["message"]
+                selected["next_action"] = pdf_tools["next_action"]
             return selected
         except (OSError, RuntimePointerError, RuntimeSetupError) as error:
             recovery_required = False
@@ -1350,6 +1416,12 @@ class RuntimeManager:
         native_locations = {tool: self._native_tool(tool) for tool in NATIVE_TOOLS}
         missing_native_tools = [tool for tool, path in native_locations.items() if path is None]
         bootstrap = self._resolved_bootstrap()
+        next_action = "Keep the technical detail for the maintainer and do not use global package installation as a workaround."
+        blocked = {}
+        if windows_blocked(detail):
+            message = "Windows blocked one of Handbuilt's files on this computer, so setup did not finish."
+            next_action = WINDOWS_BLOCK_NEXT_ACTION
+            blocked = {"blocked_by": "windows-app-control"}
         return {
             "schema_version": SCHEMA_VERSION,
             "operation": operation,
@@ -1357,7 +1429,8 @@ class RuntimeManager:
             "ready": False,
             "changed": changed,
             "message": message,
-            "next_action": "Keep the technical detail for the maintainer and do not use global package installation as a workaround.",
+            "next_action": next_action,
+            **blocked,
             "technical_detail": detail,
             "runtime": {
                 "root": str(self.paths.root),

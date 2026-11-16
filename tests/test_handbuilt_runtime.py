@@ -37,6 +37,7 @@ class FakeRunner:
         self.runtime_probe_counts = {}
         self.installed = set()
         self.installed_lock_text = None
+        self.probe_error = "synthetic PDF check failure"
 
     def _requirements(self):
         values = {}
@@ -105,7 +106,7 @@ class FakeRunner:
             self.runtime_probe_counts[executable] = self.runtime_probe_counts.get(executable, 0) + 1
             if self.fail_stage == "runtime-probe":
                 return subprocess.CompletedProcess(
-                    command, 1, json.dumps({"ok": False, "error": "synthetic PDF check failure"}), ""
+                    command, 1, json.dumps({"ok": False, "error": self.probe_error}), ""
                 )
             return subprocess.CompletedProcess(command, 0, json.dumps({
                 "ok": True,
@@ -656,6 +657,62 @@ class RuntimeManagerTests(unittest.TestCase):
         self.assertEqual(result["status"], "native-tool-missing")
         self.assertTrue(result["python_packages"]["ready"])
         self.assertTrue(result["migration"]["verified"])
+
+    def _setup_with_failed_pdf_check(self, probe_error):
+        runner = FakeRunner(self.requirements, fail_stage="runtime-probe")
+        runner.probe_error = probe_error
+        downloader, _ = self.downloader()
+        manager = self.manager(runner, downloader=downloader)
+        patch = mock.patch.object(runtime.runtime_security, "PIP_WHEEL_SHA256", hashlib.sha256(WHEEL_BYTES).hexdigest())
+        patch.start()
+        self.addCleanup(patch.stop)
+        return runner, manager, manager.setup()
+
+    def test_failed_pdf_check_keeps_a_runtime_ready_for_work_without_pdfs(self):
+        runner, manager, result = self._setup_with_failed_pdf_check("synthetic PDF check failure")
+        # Before, one failed PDF check threw the whole runtime away and every workflow stopped.
+        self.assertEqual(result["status"], "ready")
+        self.assertTrue(result["migration"]["verified"])
+        self.assertFalse(result["pdf_tools"]["ready"])
+        self.assertIsNone(result["pdf_tools"]["blocked_by"])
+        self.assertIn("synthetic PDF check failure", result["pdf_tools"]["technical_detail"])
+        self.assertIn("Sermon research", result["message"])
+        pointer = json.loads((self.support / runtime.ACTIVE_RUNTIME_POINTER).read_text(encoding="utf-8"))
+        self.assertTrue(pointer["environment"].startswith("generations/"))
+        self.assertTrue(manager.doctor(capability="workspace")["ready"])
+        # Workflows that make PDFs still run verify first, and still stop.
+        self.assertEqual(manager.verify()["status"], "install-failed")
+        # A second setup does not reinstall: the runtime is already in place.
+        installs = sum(1 for command, _ in runner.commands if "--requirement" in command)
+        manager.setup()
+        self.assertEqual(sum(1 for command, _ in runner.commands if "--requirement" in command), installs)
+
+    def test_windows_app_control_block_is_named_plainly(self):
+        detail = ("DLL load failed while importing bezierTools: "
+                  "An Application Control policy has blocked this file.")
+        _, manager, result = self._setup_with_failed_pdf_check(detail)
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["blocked_by"], "windows-app-control")
+        self.assertEqual(result["pdf_tools"]["blocked_by"], "windows-app-control")
+        self.assertEqual(result["message"], runtime.WINDOWS_BLOCK_MESSAGE)
+        self.assertIn("Do not turn off Smart App Control", result["next_action"])
+        verified = manager.verify()
+        self.assertEqual(verified["status"], "install-failed")
+        self.assertEqual(verified["blocked_by"], "windows-app-control")
+        self.assertEqual(verified["message"], runtime.WINDOWS_BLOCK_MESSAGE)
+
+    def test_windows_block_detection(self):
+        for detail in ("An Application Control policy has blocked this file.",
+                       "[WinError 4551] blocked", "Smart App Control blocked part of this app"):
+            with self.subTest(detail=detail):
+                self.assertTrue(runtime.windows_blocked(detail))
+        for detail in ("No module named 'fontTools'", "", None):
+            with self.subTest(detail=detail):
+                self.assertFalse(runtime.windows_blocked(detail))
+        failure = self.manager(FakeRunner(self.requirements))._failure(
+            operation="setup", message="Setup failed.", detail="[WinError 4551] An Application Control policy has blocked this file")
+        self.assertEqual(failure["blocked_by"], "windows-app-control")
+        self.assertIn("Windows blocked", failure["message"])
 
     def test_pointer_write_supports_platforms_without_fchmod(self):
         manager = self.manager(FakeRunner(self.requirements))
