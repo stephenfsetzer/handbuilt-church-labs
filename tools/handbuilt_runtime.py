@@ -118,8 +118,7 @@ WINDOWS_BLOCK_NEXT_ACTION = (
     "Control, or from a policy set by whoever manages this computer. Then, in order: "
     "(1) if this computer is managed by someone else, the pastor can ask them to allow the "
     "files in Handbuilt's runtime folder; "
-    "(2) offer to send Stephen a short report with this check's technical detail, the plugin "
-    "version and Windows, and leave out church details. "
+    "(2) offer to send Stephen a short report, as described below. "
     "Do not turn off Smart App Control or tell the pastor to: Windows cannot turn it back on "
     "without a reinstall. Do not install packages into another Python as a workaround."
 )
@@ -1472,6 +1471,26 @@ def _command_detail(completed: Optional[subprocess.CompletedProcess]) -> str:
     return detail[-800:]
 
 
+REPORTED_STATUSES = {"install-failed", "python-unavailable"}
+
+
+def report_offer(result: dict, operation: str) -> dict:
+    """Offer the pastor a problem report when a check failed or Windows blocked a file.
+
+    Nothing is sent here. The result names the commands; the host agent shows the
+    pastor the report text and sends it only after a yes.
+    """
+    pdf_tools = result.get("pdf_tools") if isinstance(result.get("pdf_tools"), Mapping) else {}
+    blocked_by = result.get("blocked_by") or pdf_tools.get("blocked_by")
+    code = blocked_by or (result.get("status") if result.get("status") in REPORTED_STATUSES else None)
+    if not code and pdf_tools.get("ready") is False:
+        code = "pdf-check-failed"
+    if code:
+        from tools import problem_report
+        problem_report.with_offer(result, operation, str(code))
+    return result
+
+
 def format_human(result: Mapping[str, object]) -> str:
     labels = {
         "ready": "Ready",
@@ -1553,6 +1572,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     else:
         result = manager.install_requirements()
 
+    report_offer(result, args.operation)
     if args.format == "json":
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
