@@ -161,6 +161,8 @@ class Launchers(unittest.TestCase):
             (fake / "python3").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             (fake / "python3").chmod(0o755)
             env = {**os.environ, "HANDBUILT_RUNTIME_HOME": str(home), "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"}
+            # The install workflow turns the fallback off for the whole job; this test needs it on.
+            env.pop("HANDBUILT_NO_COMPUTER_PYTHON", None)
             done = subprocess.run([str(launcher), "--where"], capture_output=True, text=True, env=env)
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(done.stdout.strip(), str(fake / "python3"))
