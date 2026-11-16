@@ -235,8 +235,30 @@ reports it as "An Application Control policy has blocked this file" (error
 with a plain `message` and `next_action`. Tell the pastor what still works and
 what waits. If someone else manages the computer, the pastor can ask them to
 allow the files in Handbuilt's runtime folder. Offer to send Stephen a short
-report. Never turn off Smart App Control or tell the pastor to: Windows cannot
+report (see below). Never turn off Smart App Control or tell the pastor to: Windows cannot
 turn it back on without a reinstall.
+
+## Send Stephen a problem report
+
+When `setup`, `doctor` or `verify` fails, or a result names `blocked_by`, the
+result carries a `problem_report` section and its `next_action` asks the agent
+to offer: "Send Stephen a report?" No Church Labs connector or account is
+needed. The agent prepares the report, shows the pastor its exact text, and
+sends it only after the pastor says yes:
+
+```bash
+handbuilt-python tools/handbuilt_runtime.py verify --format json | handbuilt-python tools/problem_report.py build
+handbuilt-python tools/problem_report.py send < report.json
+```
+
+A report has seven fields and nothing else: plugin version, operating system
+and version, agent app, job, error code, and a technical detail with home
+folders, the working folder and email addresses removed, cut to 1500
+characters. It never holds church names, files or sermon text. On success
+`send` prints a report number such as `HB-1A2B3C`. If it cannot send, it prints
+the same text to copy into an email to hello@gethandbuilt.com. Setting
+`HANDBUILT_NO_REPORTS=1` turns sending off on a computer; the copy text still
+prints.
 
 fontTools is installed from its pure-Python wheel on every computer, so it
 brings no compiled file for Windows to block. The lock tool keeps only that

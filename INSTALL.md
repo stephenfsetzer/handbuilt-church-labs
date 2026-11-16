@@ -270,8 +270,8 @@ on this computer." Do the checking yourself and report in plain words.
 
    > This computer is not ready yet: (one plain reason).
 
-If it is not ready and you cannot fix it, write the short email described
-under "If something goes wrong" for the pastor to send.
+If it is not ready and you cannot fix it, offer the problem report described
+under "If something goes wrong".
 
 ## 4. Hand off to church setup
 
@@ -337,7 +337,9 @@ including any missing computer tools, with the same guided approach.
 - Do not install other tools, change system settings, or delete anything to
   work around a problem without the pastor's yes.
 - When setup is blocked by the plugin itself, Handbuilt needs to hear about it.
-  If the Church Labs connection will not send a report (for example, the
-  pastor's email is not enrolled), write the report as a short email the
-  pastor can send to hello@gethandbuilt.com: what they were doing, the exact
-  error, the plugin version, and Windows or Mac. Leave out church details.
+  A failed check result carries a `problem_report` section. Ask the pastor
+  "Send Stephen a report?", run its `build` command with the result on stdin,
+  and show the pastor the printed `text` exactly. Run `send` only after the
+  pastor says yes; it needs no sign-in. If sending fails, `send` prints the
+  text to copy into an email to hello@gethandbuilt.com. See "Send Stephen a
+  problem report" in `handbook/runtime-setup.md`.

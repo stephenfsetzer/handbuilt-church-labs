@@ -206,13 +206,13 @@ def _start(church: Path, workflow: str, *, skip_update: bool = False) -> tuple[d
             try:
                 validate(selected)
             except (ValueError, OSError) as error:
-                return {
+                return _offer_report({
                     "status": "blocked", "code": "runtime_upgrade_required", "identity": identity,
                     "runtime_repair": _runtime_repair_plan(),
                     "message": "Handbuilt's updated private tools must pass their check before work can continue.",
                     "technical_detail": str(error)[-800:],
                     "next_action": "Prepare the updated private tools and retry. The church connection was preserved.",
-                }, 2
+                }, "workflow-start"), 2
     elif not pinned and saved_root != selected and saved_root.is_dir():
         # An explicitly saved host installation can also be newer than this app.
         saved_identity = inspect_installation(saved_root, church)
@@ -304,12 +304,12 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
     updates = select_release(selected, store, validate, force=True)
     selected = Path(updates["selected_root"])
     if updates["status"] == "deferred" and updates.get("reason") == "runtime_upgrade_required":
-        return {
+        return _offer_report({
             "status": "blocked", "code": "runtime_upgrade_required", "updates": updates,
             "identity": identity, "runtime_repair": _runtime_repair_plan(),
             "message": "Handbuilt kept the current workflow because its private tools need an update.",
             "next_action": "The host should prepare the updated private tools, verify them, and retry the workflow update. Preserve the current church connection.",
-        }, 2
+        }, "workflow-update"), 2
     if selected != ROOT.resolve():
         process = subprocess.run(
             [sys.executable, str(selected / "tools/church_workflow.py"),
@@ -338,6 +338,12 @@ def _ensure_latest(church: Path) -> tuple[dict, int]:
     return result, 0 if updates["status"] in {"current", "updated"} else 1
 
 
+def _offer_report(result: dict, job: str) -> dict:
+    """Let the host offer the pastor a problem report; it sends only after a yes."""
+    from tools.problem_report import with_offer
+    return with_offer(result, job, str(result.get("code", "unknown")))
+
+
 def _runtime_repair_plan() -> dict:
     """Give the host an explicit repair operation without running an install."""
     return {
@@ -357,9 +363,13 @@ def _doctor(workflow: str = "bulletin") -> dict:
                              *arguments, "--format", "json"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
     report = json.loads(result.stdout)
     if report.get("status") != "ready":
-        return {"status": "blocked", "code": "runtime_not_ready", "runtime_check": report,
-                "runtime_repair": _runtime_repair_plan(),
-                "next_action": report.get("next_action", "Follow the runtime check's repair plan, then check again.")}
+        blocked = {"status": "blocked", "code": "runtime_not_ready", "runtime_check": report,
+                   "runtime_repair": _runtime_repair_plan(),
+                   "next_action": report.get("next_action", "Follow the runtime check's repair plan, then check again.")}
+        if report.get("problem_report"):
+            # The offer and its commands come from the runtime check; keep them where the host looks.
+            blocked["problem_report"] = report["problem_report"]
+        return blocked
     return report
 
 

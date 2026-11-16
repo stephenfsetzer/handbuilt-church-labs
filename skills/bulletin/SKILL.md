@@ -43,6 +43,8 @@ The launcher renders and checks a temporary sample PDF. If it does not report
 `handbook/runtime-setup.md`. Use `setup` for missing managed packages; repair
 native tools or rendering libraries when those failed. Repeat `start bulletin`
 after repair. Do not ask the pastor to manage packages or use global Python.
+When the result has a `problem_report`, offer the pastor a report to Stephen as
+its `next_action` says, and send it only after the pastor says yes.
 Passing this computer check does not replace the actual bulletin's checks.
 
 Read the exact skill path returned by `start`. Use the returned `launcher`
