@@ -19,6 +19,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
+    env:
+      # Prove Handbuilt's own Python works. Without this, a runner's Python
+      # would stand in for a failed download and the check would still pass.
+      HANDBUILT_NO_COMPUTER_PYTHON: "1"
     defaults:
       run:
         shell: bash
@@ -98,6 +102,23 @@ jobs:
           call bin\handbuilt-python.cmd --where || exit /b 1
           call bin\handbuilt-python.cmd -c "import sys; print(sys.version)" || exit /b 1
           call bin\handbuilt-python.cmd -c "import pathlib; pathlib.Path('utf8-check.txt').write_text(chr(8220) + 'psalm' + chr(8221)); print(pathlib.Path('utf8-check.txt').read_text())" || exit /b 1
+
+      - name: A Python Windows refuses to start falls back to the computer's own
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          set "HANDBUILT_NO_COMPUTER_PYTHON="
+          set "HANDBUILT_RUNTIME_HOME=%RUNNER_TEMP%\handbuilt refused runtime"
+          for /f "usebackq tokens=1,2" %%a in ("tools\python-dist.lock") do if "%%a"=="release" set "TAG=%%b"
+          mkdir "%HANDBUILT_RUNTIME_HOME%\python-dist\%TAG%\python"
+          rem Not a program, so Windows refuses to start it, as App Control would.
+          echo not a program> "%HANDBUILT_RUNTIME_HOME%\python-dist\%TAG%\python\python.exe"
+          call bin\handbuilt-python.cmd -c "import sys; print(sys.executable)" 2> "%RUNNER_TEMP%\fallback.txt" || exit /b 1
+          type "%RUNNER_TEMP%\fallback.txt"
+          findstr /c:"Using the Python already on this computer instead" "%RUNNER_TEMP%\fallback.txt" || exit /b 1
+          set "HANDBUILT_NO_COMPUTER_PYTHON=1"
+          call bin\handbuilt-python.cmd -c "print(1)" && exit /b 1
+          exit /b 0
 
   install:
     # The path a pastor's computer takes: Claude downloads the plugin through

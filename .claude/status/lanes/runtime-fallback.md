@@ -11,6 +11,7 @@ Retirement plan: Draft PR to main for Stephen to review and merge, then worktree
 ## Ownership log
 
 - 2026-11-16 10:34 EST: opened by Claude Code session, handbuilt main checkout (2026-11-16).
+- 2026-11-16: territory widened to the release files this fix needs: tools/lock_runtime_requirements.py, requirements.lock (fontTools entry only), handbook/whats-new.md, .agents/plugins/marketplace.json, .github/workflows/install.yml. Issue #58. Full suite (1226) and pii_check pass on the managed runtime; a real setup and verify on a Mac rendered the sample PDF with pure-Python fontTools. Not yet run: the Windows launcher fallback (CI step added) and a Windows 11 machine with Smart App Control on.
 
 Record a transfer as: `- <date>: from <owner> to <owner> at <commit>; must not touch: <ports, data roots, files>`.
 

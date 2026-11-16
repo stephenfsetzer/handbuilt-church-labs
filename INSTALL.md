@@ -256,12 +256,17 @@ on this computer." Do the checking yourself and report in plain words.
    ```
 
    If it is not `ready`, run `setup` and check again. Handbuilt fetches its
-   own tools; the pastor installs nothing.
+   own tools; the pastor installs nothing. When the setup result has a
+   `pdf_tools` section with `ready` false, the computer is ready for sermon and
+   Church Command Center work, and bulletins and finance reports wait; see
+   "When the PDF check fails" in `handbook/runtime-setup.md`.
 4. Reply with three short lines (the version installed, whether updates are
    on, whether the computer is prepared) and end with exactly one of these
    sentences, so the pastor can pass it on:
 
    > This computer is ready for Handbuilt.
+
+   > This computer is ready for Handbuilt, except bulletins and finance reports: (one plain reason).
 
    > This computer is not ready yet: (one plain reason).
 

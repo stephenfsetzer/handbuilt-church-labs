@@ -32,7 +32,47 @@ def wheel_record(name: str, version: str, digest: str = OTHER_HASH, url: str | N
     }
 
 
+def lock_hashes(text: str) -> dict[str, list[str]]:
+    """Map each locked project name to its hashes."""
+    entries: dict[str, list[str]] = {}
+    current = None
+    for line in text.splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        if "==" in line:
+            current = line.split("==", 1)[0].split("[", 1)[0].lower()
+            entries[current] = []
+        for part in line.split():
+            if part.startswith("--hash=sha256:") and current:
+                entries[current].append(part.split(":", 1)[1])
+    return entries
+
+
 class RuntimeLockTests(unittest.TestCase):
+    def test_fonttools_is_locked_to_its_pure_python_wheel(self):
+        def record(filename, digest):
+            return {**wheel_record("fonttools", "4.60.2", digest=digest), "filename": filename,
+                    "url": f"https://files.pythonhosted.org/packages/{filename}"}
+
+        compiled = record("fonttools-4.60.2-cp314-cp314-win_amd64.whl", "c" * 64)
+        pure = record("fonttools-4.60.2-py3-none-any.whl", "d" * 64)
+        metadata = {"info": {"name": "fonttools", "version": "4.60.2"}, "urls": [compiled, pure]}
+        self.assertEqual(lock_runtime_requirements.wheel_hashes("fonttools", "4.60.2", metadata), ("d" * 64,))
+        with self.assertRaisesRegex(lock_runtime_requirements.LockGenerationError, "pure-Python"):
+            lock_runtime_requirements.wheel_hashes("fonttools", "4.60.2", {**metadata, "urls": [compiled]})
+        # Other projects keep every wheel.
+        brotli = {"info": {"name": "brotli", "version": "1.2.1"}, "urls": [
+            {**wheel_record("brotli", "1.2.1", digest="e" * 64),
+             "filename": "brotli-1.2.1-cp314-cp314-win_amd64.whl",
+             "url": "https://files.pythonhosted.org/packages/brotli-1.2.1-cp314-cp314-win_amd64.whl"},
+            wheel_record("brotli", "1.2.1")]}
+        self.assertEqual(len(lock_runtime_requirements.wheel_hashes("brotli", "1.2.1", brotli)), 2)
+
+    def test_shipped_lock_has_only_the_pure_fonttools_wheel(self):
+        lock = runtime_lock.DEFAULT_REQUIREMENTS_PATH.with_name("requirements.lock")
+        self.assertEqual(lock_hashes(lock.read_text(encoding="utf-8"))["fonttools"],
+                         ["73cf92eeda67cf6ff10c8af56fc8f4f07c1647d989a979be9e388a49be26552a"])
+
     def test_lock_generator_refuses_unpatched_python_before_network_or_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "requirements.lock"
