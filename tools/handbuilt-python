@@ -49,7 +49,7 @@ fall_back() {
 }
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-lock="$here/../tools/python-dist.lock"
+lock="$here/python-dist.lock"
 [ -f "$lock" ] || fail "tools/python-dist.lock is missing from the plugin." 2
 
 case "$(uname -s)" in

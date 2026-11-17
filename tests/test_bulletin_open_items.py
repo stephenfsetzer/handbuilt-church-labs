@@ -28,7 +28,7 @@ class PrintedBracketTests(unittest.TestCase):
             re.sub(r"<!--.*?-->", " ", path.read_text(encoding="utf-8"), flags=re.S)
             for path in sorted((_renderer_dir() / "liturgy").glob("*.md"))
         ]
-        sources.append((REPO_ROOT / "skills/bulletin/resources/bcp1979/sunday.json").read_text(encoding="utf-8"))
+        sources.extend(path.read_text(encoding="utf-8") for path in sorted((REPO_ROOT / "skills/bulletin/resources/bcp1979").glob("sunday-*.json")))
         for text in sources:
             # The renderer replaces these two directives before anything prints.
             printable = re.sub(r"\[[^\]]*inserted here\]", " ", text)

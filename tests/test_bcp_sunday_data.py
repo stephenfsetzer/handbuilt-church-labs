@@ -3,11 +3,14 @@ import unittest
 from pathlib import Path
 
 
-DATA = Path(__file__).parents[1] / "skills" / "bulletin" / "resources" / "bcp1979" / "sunday.json"
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from skills.bulletin.sunday_library import read_library  # noqa: E402
 
 
 def load_data():
-    return json.loads(DATA.read_text(encoding="utf-8"))
+    return read_library()
 
 
 class BcpSundayDataTests(unittest.TestCase):

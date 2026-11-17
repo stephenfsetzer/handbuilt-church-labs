@@ -317,7 +317,7 @@ Then turn on automatic updates. This sets `autoUpdate` for the marketplace and
 backs up your settings first:
 
 ```bash
-~/.claude/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python ~/.claude/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py enable
+~/.claude/plugins/marketplaces/handbuilt-church-labs/tools/handbuilt-python ~/.claude/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py enable
 ```
 
 Start a new task and ask, “Set up my Church Command Center.”

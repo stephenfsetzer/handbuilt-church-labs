@@ -198,7 +198,7 @@ it. After the preferred
 route, run it from the marketplace copy Claude Code just downloaded:
 
 ```bash
-"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
 ```
 
 It prints `turned_on` or `already_on`. If it reports an error, the settings
@@ -208,7 +208,7 @@ merge shown in section 2. The fallback route's settings already include both.
 Then confirm the result:
 
 ```bash
-"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
 ```
 
 `status` reports the installed version, the latest release, and whether both
@@ -252,7 +252,7 @@ on this computer." Do the checking yourself and report in plain words.
 3. Run the workspace check, and prepare what is missing:
 
    ```bash
-   "<plugin-root>/bin/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
+   "<plugin-root>/tools/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
    ```
 
    If it is not `ready`, run `setup` and check again. Handbuilt fetches its

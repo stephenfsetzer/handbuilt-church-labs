@@ -59,6 +59,40 @@ class SundayLibraryTest(unittest.TestCase):
             with self.assertRaises(SundayLibraryError):
                 verify_shipped_liturgy('test', plugin_root=root)
 
+    def test_the_library_parts_join_back_into_the_verified_whole(self):
+        """0.8.32 split the library into parts; the words must not change."""
+        import hashlib
+        from skills.bulletin.sunday_library import PART_LIMIT_BYTES, merge_parts, part_paths, read_library, split_library
+        whole = read_library()
+        serialized = (json.dumps(whole, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+        # The fingerprint of sunday.json as released in 0.8.31, before the split.
+        self.assertEqual(hashlib.sha256(serialized).hexdigest(),
+                         '5d534b468e94ad790a905515af4cf1935ced1e7792995cb52fd8dcc8e00bced1')
+        self.assertEqual(merge_parts([part for _, part in split_library(whole)]), whole)
+        shipped = part_paths()
+        self.assertEqual([path.name for path, _ in shipped], [name for name, _ in split_library(whole)])
+        for path, _ in shipped:
+            self.assertLess(path.stat().st_size, PART_LIMIT_BYTES)
+
+    def test_every_library_part_is_checked_and_survives_windows_line_endings(self):
+        from skills.bulletin.sunday_library import part_paths, read_library
+        source = REPO_ROOT / 'skills/bulletin/resources/bcp1979'
+        for index, (changed, _) in enumerate(part_paths()):
+            with self.subTest(part=changed.name), tempfile.TemporaryDirectory() as tmp:
+                folder = Path(tmp)
+                for path in [source / 'manifest.json', *(p for p, _ in part_paths())]:
+                    (folder / path.name).write_bytes(path.read_bytes())
+                copy = folder / changed.name
+                # Git on Windows may rewrite line endings; the words are the same.
+                copy.write_bytes(changed.read_bytes().replace(b'\n', b'\r\n'))
+                self.assertEqual(read_library(folder), read_library())
+                copy.write_bytes(changed.read_bytes().replace(b',', b', ', 1))
+                with self.assertRaises(SundayLibraryError):
+                    read_library(folder)
+                copy.unlink()
+                with self.assertRaises(SundayLibraryError):
+                    read_library(folder)
+
     def test_full_prayer_aliases_and_preface_requirements(self):
         with tempfile.TemporaryDirectory() as tmp:
             church = make_church(Path(tmp))

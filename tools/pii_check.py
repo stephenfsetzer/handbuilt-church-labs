@@ -132,7 +132,10 @@ AMOUNT_OPTION = re.compile(r"--amount[ =]([0-9]{4,})(?![0-9])")
 ACCOUNT_REGISTRY = Path("tools") / "example-accounts.txt"
 ACCOUNT_CODE = r"[0-9]{3,5}(?:[-.][0-9]{1,3})*[A-Za-z]?"
 # A number followed by a capitalised name: "6510 Utilities", "2210-07 General Fund".
-NAMED_ACCOUNT = re.compile(rf"(?<![\w.$,/-])({ACCOUNT_CODE})[ \t]+(?=[A-Z][A-Za-z&]{{2}})")
+# A file size such as "256 KiB" is not an account, so binary and decimal size units are skipped.
+NAMED_ACCOUNT = re.compile(
+    rf"(?<![\w.$,/-])({ACCOUNT_CODE})[ \t]+(?![KMGT]i?B\b)(?=[A-Z][A-Za-z&]{{2}})"
+)
 # A quoted number with parts, as in group settings: "2210-07", "7315B".
 QUOTED_ACCOUNT = re.compile(r"[\"']([0-9]{3,5}(?:[-.][0-9]{1,3})+[A-Za-z]?|[0-9]{3,5}[A-Za-z])[\"']")
 YEAR_OR_MONTH = re.compile(r"(?:19|20)[0-9]{2}(?:-(?:0[1-9]|1[0-2])(?:-[0-9]{2})?)?")

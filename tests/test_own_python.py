@@ -20,8 +20,8 @@ sys.path.insert(0, str(ROOT))
 from tools import native_libraries, native_tools, runtime_security  # noqa: E402
 
 LOCK = ROOT / "tools" / "python-dist.lock"
-SHELL_LAUNCHER = ROOT / "bin" / "handbuilt-python"
-WINDOWS_LAUNCHER = ROOT / "bin" / "handbuilt-python.cmd"
+SHELL_LAUNCHER = ROOT / "tools" / "handbuilt-python"
+WINDOWS_LAUNCHER = ROOT / "tools" / "handbuilt-python.cmd"
 COMPUTERS = {"darwin-aarch64", "darwin-x86_64", "linux-aarch64", "linux-x86_64", "windows-x86_64"}
 SOURCE = "https://github.com/astral-sh/python-build-standalone/releases/download/"
 
@@ -106,9 +106,8 @@ class Launchers(unittest.TestCase):
     def test_a_download_that_does_not_match_is_refused(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
-            (base / "bin").mkdir()
             (base / "tools").mkdir()
-            launcher = base / "bin" / "handbuilt-python"
+            launcher = base / "tools" / "handbuilt-python"
             launcher.write_bytes(SHELL_LAUNCHER.read_bytes())
             launcher.chmod(0o755)
             # A fake curl that "downloads" something else.
@@ -145,9 +144,8 @@ class Launchers(unittest.TestCase):
         """Windows can refuse to run a program it does not recognize."""
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
-            (base / "bin").mkdir()
             (base / "tools").mkdir()
-            launcher = base / "bin" / "handbuilt-python"
+            launcher = base / "tools" / "handbuilt-python"
             launcher.write_bytes(SHELL_LAUNCHER.read_bytes())
             launcher.chmod(0o755)
             (base / "tools" / "python-dist.lock").write_text(LOCK.read_text(encoding="utf-8"), encoding="utf-8")
@@ -457,7 +455,7 @@ class Instructions(unittest.TestCase):
         for needed in ("Do not install Python", "**File**, then **Exit**", "has not loaded Handbuilt yet"):
             self.assertIn(needed, install)
         doctor_advice = (ROOT / "tools" / "handbuilt_runtime.py").read_text(encoding="utf-8")
-        self.assertIn("bin/handbuilt-python", doctor_advice)
+        self.assertIn("tools/handbuilt-python", doctor_advice)
 
 
 if __name__ == "__main__":

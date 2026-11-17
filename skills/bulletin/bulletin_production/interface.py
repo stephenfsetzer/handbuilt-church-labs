@@ -1447,7 +1447,8 @@ def _shipped_bracket_texts() -> set[str]:
         elif isinstance(value, str):
             texts.append(value)
 
-    strings(json.loads((_repo_root() / "skills/bulletin/resources/bcp1979/sunday.json").read_text(encoding="utf-8")))
+    from ..sunday_library import read_library
+    strings(read_library())
     return {
         _normalized_bracket(match.group(0))
         for text in texts

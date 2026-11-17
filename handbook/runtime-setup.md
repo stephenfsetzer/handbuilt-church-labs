@@ -6,8 +6,8 @@ the result.
 
 ## Host workflow
 
-Handbuilt brings its own Python. `bin/handbuilt-python` in the plugin runs it
-(`bin\handbuilt-python.cmd` on Windows without Git Bash). The first time, it
+Handbuilt brings its own Python. `tools/handbuilt-python` in the plugin runs it
+(`tools\handbuilt-python.cmd` on Windows without Git Bash). The first time, it
 downloads the build listed in `tools/python-dist.lock` from the
 python-build-standalone project on GitHub, checks it against the SHA-256
 recorded there, and unpacks it into Handbuilt's private folder. It needs no
@@ -18,7 +18,7 @@ Never ask the pastor to install Python.
 For **Set up my Church Command Center**, check from the installed plugin directory:
 
 ```bash
-bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json
+tools/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json
 ```
 
 `doctor` is read-only. It does not create folders, install packages, or change
@@ -264,7 +264,7 @@ fontTools is installed from its pure-Python wheel on every computer, so it
 brings no compiled file for Windows to block. The lock tool keeps only that
 wheel (`PURE_PYTHON_ONLY` in `tools/lock_runtime_requirements.py`).
 
-When Handbuilt's own Python cannot be downloaded or started, `bin/handbuilt-python`
+When Handbuilt's own Python cannot be downloaded or started, `tools/handbuilt-python`
 uses a Python 3.11 or newer already on the computer, and says so on stderr.
 `setup` still applies the security floors to that Python before it builds a
 runtime from it. `HANDBUILT_NO_COMPUTER_PYTHON=1` turns the fallback off; the

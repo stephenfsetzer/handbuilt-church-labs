@@ -162,7 +162,7 @@ def grade_install(run: Path, env: dict, history: list[dict]) -> list[dict]:
         check(out, "version_is_the_candidate", str(mine.get("version")) == wanted, f"{mine.get('version')} installed; {wanted} expected")
     plugin = Path(env["CLAUDE_CONFIG_DIR"]) / "plugins" / "cache" / "handbuilt-church-labs" / "handbuilt-church-labs" / wanted
     if check(out, "plugin_files_present", (plugin / "tools" / "claude_updates.py").is_file(), str(plugin)):
-        launcher = plugin / "bin" / ("handbuilt-python.cmd" if os.name == "nt" else "handbuilt-python")
+        launcher = plugin / "tools" / ("handbuilt-python.cmd" if os.name == "nt" else "handbuilt-python")
         status = subprocess.run([str(launcher), str(plugin / "tools" / "claude_updates.py"), "status"], env=env,
                                 capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
         try:

@@ -34,15 +34,15 @@ jobs:
         run: |
           export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt runtime"
           printf 'HANDBUILT_RUNTIME_HOME=%s\n' "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
-          bin/handbuilt-python --where
-          bin/handbuilt-python -c "import sys, ssl; print(sys.version); print(ssl.OPENSSL_VERSION)"
+          tools/handbuilt-python --where
+          tools/handbuilt-python -c "import sys, ssl; print(sys.version); print(ssl.OPENSSL_VERSION)"
 
       - name: Build the private environment and check readiness
         run: |
-          bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
+          tools/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
           cat "$RUNNER_TEMP/setup.json"
-          bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
-          bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          tools/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
+          tools/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
           import json, sys
           report = json.load(open(sys.argv[1], encoding="utf-8"))
           print(report["status"], "-", report["message"])
@@ -53,7 +53,7 @@ jobs:
 
       - name: Create a church folder with the private environment
         run: |
-          python_path=$(bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          python_path=$(tools/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
           import json, sys
           print(json.load(open(sys.argv[1], encoding="utf-8"))["runtime"]["python"])
           PY
@@ -64,9 +64,9 @@ jobs:
       - name: Handbuilt's own PDF tools build and check a sample PDF
         if: runner.os != 'Linux'
         run: |
-          bin/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
+          tools/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
           # Time the sample PDF by itself, so a slow first run shows up plainly.
-          bin/handbuilt-python - "$RUNNER_TEMP/native.json" "$HANDBUILT_TEST_PYTHON" <<'PY' || true
+          tools/handbuilt-python - "$RUNNER_TEMP/native.json" "$HANDBUILT_TEST_PYTHON" <<'PY' || true
           import json, subprocess, sys, time
           tools = json.load(open(sys.argv[1], encoding="utf-8"))["native_tools"]["locations"]
           start = time.time()
@@ -82,8 +82,8 @@ jobs:
           print("\n".join(loaded[-60:]))
           print("\n".join(line for line in done.stderr.splitlines() if "dyld" not in line)[-3500:])
           PY
-          bin/handbuilt-python tools/handbuilt_runtime.py verify --format json > "$RUNNER_TEMP/verify.json" || true
-          bin/handbuilt-python - "$RUNNER_TEMP/native.json" "$RUNNER_TEMP/verify.json" <<'PY'
+          tools/handbuilt-python tools/handbuilt_runtime.py verify --format json > "$RUNNER_TEMP/verify.json" || true
+          tools/handbuilt-python - "$RUNNER_TEMP/native.json" "$RUNNER_TEMP/verify.json" <<'PY'
           import json, sys
           native = json.load(open(sys.argv[1], encoding="utf-8"))
           verify = json.load(open(sys.argv[2], encoding="utf-8"))
@@ -99,9 +99,9 @@ jobs:
         shell: cmd
         run: |
           set "HANDBUILT_RUNTIME_HOME=%RUNNER_TEMP%\handbuilt cmd runtime"
-          call bin\handbuilt-python.cmd --where || exit /b 1
-          call bin\handbuilt-python.cmd -c "import sys; print(sys.version)" || exit /b 1
-          call bin\handbuilt-python.cmd -c "import pathlib; pathlib.Path('utf8-check.txt').write_text(chr(8220) + 'psalm' + chr(8221)); print(pathlib.Path('utf8-check.txt').read_text())" || exit /b 1
+          call tools\handbuilt-python.cmd --where || exit /b 1
+          call tools\handbuilt-python.cmd -c "import sys; print(sys.version)" || exit /b 1
+          call tools\handbuilt-python.cmd -c "import pathlib; pathlib.Path('utf8-check.txt').write_text(chr(8220) + 'psalm' + chr(8221)); print(pathlib.Path('utf8-check.txt').read_text())" || exit /b 1
 
       - name: A Python Windows refuses to start falls back to the computer's own
         if: runner.os == 'Windows'
@@ -113,11 +113,11 @@ jobs:
           mkdir "%HANDBUILT_RUNTIME_HOME%\python-dist\%TAG%\python"
           rem Not a program, so Windows refuses to start it, as App Control would.
           echo not a program> "%HANDBUILT_RUNTIME_HOME%\python-dist\%TAG%\python\python.exe"
-          call bin\handbuilt-python.cmd -c "import sys; print(sys.executable)" 2> "%RUNNER_TEMP%\fallback.txt" || exit /b 1
+          call tools\handbuilt-python.cmd -c "import sys; print(sys.executable)" 2> "%RUNNER_TEMP%\fallback.txt" || exit /b 1
           type "%RUNNER_TEMP%\fallback.txt"
           findstr /c:"Using the Python already on this computer instead" "%RUNNER_TEMP%\fallback.txt" || exit /b 1
           set "HANDBUILT_NO_COMPUTER_PYTHON=1"
-          call bin\handbuilt-python.cmd -c "print(1)" && exit /b 1
+          call tools\handbuilt-python.cmd -c "print(1)" && exit /b 1
           exit /b 0
 
   install:
@@ -164,10 +164,24 @@ jobs:
         run: |
           old=$(find "$CLAUDE_CONFIG_DIR/plugins/cache/handbuilt-church-labs/handbuilt-church-labs" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)
           echo "Last release is at $old"
+          # Releases up to 0.8.31 keep the launcher in bin/; later ones keep it in tools/.
           # A release from before Handbuilt brought its own Python has no launcher; skip those.
-          if [ -x "$old/bin/handbuilt-python" ]; then
-            "$old/bin/handbuilt-python" "$old/tools/handbuilt_runtime.py" setup --format json > "$RUNNER_TEMP/old-setup.json" || true
-            "$old/bin/handbuilt-python" "$old/tools/handbuilt_runtime.py" doctor --capability workspace --format json | head -c 400 || true
+          launcher=
+          for candidate in "$old/tools/handbuilt-python" "$old/bin/handbuilt-python"; do
+            [ -x "$candidate" ] && { launcher=$candidate; break; }
+          done
+          if [ -n "$launcher" ]; then
+            echo "Last release's launcher: $launcher"
+            "$launcher" "$old/tools/handbuilt_runtime.py" setup --format json > "$RUNNER_TEMP/old-setup.json" || true
+            "$launcher" "$old/tools/handbuilt_runtime.py" doctor --capability workspace --format json | head -c 400 || true
+            "$launcher" --where > "$RUNNER_TEMP/old-python.txt"
+            cp "$HANDBUILT_RUNTIME_HOME/active-runtime.json" "$RUNNER_TEMP/old-active-runtime.json" || true
+            # A synthetic church folder connected to the last release.
+            church="$RUNNER_TEMP/upgrade church"
+            mkdir -p "$church"
+            printf 'Synthetic note kept across the update.\n' > "$church/notes.md"
+            "$launcher" "$old/tools/church_workflow.py" --church-folder "$church" connect --update-policy stable > "$RUNNER_TEMP/old-connect.json"
+            printf 'UPGRADE_CHURCH=%s\n' "$church" >> "$GITHUB_ENV"
           fi
 
       - name: Update that install to this change
@@ -186,15 +200,15 @@ jobs:
           test -d "$plugin" || { echo "Claude did not install version $wanted"; ls "$CLAUDE_CONFIG_DIR/plugins/cache/handbuilt-church-labs/handbuilt-church-labs"; exit 1; }
           printf 'PLUGIN_DIR=%s\n' "$plugin" >> "$GITHUB_ENV"
           # Git must not have rewritten line endings on the way in.
-          if grep -q $'\r' "$plugin/bin/handbuilt-python" "$plugin/tools/python-dist.lock"; then
+          if grep -q $'\r' "$plugin/tools/handbuilt-python" "$plugin/tools/python-dist.lock"; then
             echo "A launcher file arrived with Windows line endings"; exit 1
           fi
 
       - name: Set up from the installed copy
         run: |
-          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" setup --format json > "$RUNNER_TEMP/setup.json" || true
-          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
-          "$PLUGIN_DIR/bin/handbuilt-python" - "$RUNNER_TEMP/doctor.json" <<'PY'
+          "$PLUGIN_DIR/tools/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" setup --format json > "$RUNNER_TEMP/setup.json" || true
+          "$PLUGIN_DIR/tools/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
+          "$PLUGIN_DIR/tools/handbuilt-python" - "$RUNNER_TEMP/doctor.json" <<'PY'
           import json, sys
           report = json.load(open(sys.argv[1], encoding="utf-8"))
           print(report["status"], "-", report["message"])
@@ -202,12 +216,38 @@ jobs:
               raise SystemExit("Setup from the installed copy did not pass: " + str(report.get("next_action")))
           PY
 
+      - name: The update keeps the runtime and the church folder
+        if: env.UPGRADE_CHURCH != ''
+        run: |
+          # The launcher moved from bin/ to tools/ in 0.8.32. It must find the same
+          # Python the last release downloaded, not fetch a new one.
+          "$PLUGIN_DIR/tools/handbuilt-python" --where > "$RUNNER_TEMP/new-python.txt"
+          echo "Before: $(cat "$RUNNER_TEMP/old-python.txt")"
+          echo "After:  $(cat "$RUNNER_TEMP/new-python.txt")"
+          cmp "$RUNNER_TEMP/old-python.txt" "$RUNNER_TEMP/new-python.txt" || { echo "The update did not reuse the Python already downloaded"; exit 1; }
+          "$PLUGIN_DIR/tools/handbuilt-python" "$PLUGIN_DIR/tools/church_workflow.py" --church-folder "$UPGRADE_CHURCH" connect > "$RUNNER_TEMP/new-connect.json"
+          "$PLUGIN_DIR/tools/handbuilt-python" - "$RUNNER_TEMP/old-active-runtime.json" "$HANDBUILT_RUNTIME_HOME" "$UPGRADE_CHURCH" "$RUNNER_TEMP/new-connect.json" "$PLUGIN_DIR" <<'PY'
+          import json, sys
+          from pathlib import Path
+          old_pointer, runtime, church, connect, plugin = sys.argv[1:]
+          old = json.loads(Path(old_pointer).read_text(encoding="utf-8")) if Path(old_pointer).is_file() else {}
+          if old.get("environment") and not (Path(runtime) / old["environment"]).is_dir():
+              raise SystemExit(f"The update removed the last release's runtime: {old['environment']}")
+          if (Path(church) / "notes.md").read_text(encoding="utf-8") != "Synthetic note kept across the update.\n":
+              raise SystemExit("The church folder's own file changed during the update")
+          report = json.loads(Path(connect).read_text(encoding="utf-8"))
+          wanted = json.loads((Path(plugin) / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+          if report.get("status") != "connected" or report["installation"]["plugin_version"] != wanted:
+              raise SystemExit(f"The church folder did not reconnect to {wanted}: {report}")
+          print(f"Runtime kept, church folder kept and reconnected to {wanted}.")
+          PY
+
       - name: Turn on automatic updates from the installed copy
         run: |
-          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/claude_updates.py" enable
-          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/claude_updates.py" status > "$RUNNER_TEMP/updates.json"
+          "$PLUGIN_DIR/tools/handbuilt-python" "$PLUGIN_DIR/tools/claude_updates.py" enable
+          "$PLUGIN_DIR/tools/handbuilt-python" "$PLUGIN_DIR/tools/claude_updates.py" status > "$RUNNER_TEMP/updates.json"
           cat "$RUNNER_TEMP/updates.json"
-          "$PLUGIN_DIR/bin/handbuilt-python" - "$RUNNER_TEMP/updates.json" <<'PY'
+          "$PLUGIN_DIR/tools/handbuilt-python" - "$RUNNER_TEMP/updates.json" <<'PY'
           import json, sys
           report = json.load(open(sys.argv[1], encoding="utf-8"))
           if not (report.get("auto_update_on") and report.get("desktop_updates_allowed") and report.get("plugin_enabled")):
@@ -217,9 +257,9 @@ jobs:
       - name: PDF tools and a first bulletin from the installed copy
         if: runner.os != 'Linux'
         run: |
-          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
-          "$PLUGIN_DIR/bin/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" verify --format json > "$RUNNER_TEMP/verify.json" || true
-          python_path=$("$PLUGIN_DIR/bin/handbuilt-python" - "$RUNNER_TEMP/verify.json" <<'PY'
+          "$PLUGIN_DIR/tools/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
+          "$PLUGIN_DIR/tools/handbuilt-python" "$PLUGIN_DIR/tools/handbuilt_runtime.py" verify --format json > "$RUNNER_TEMP/verify.json" || true
+          python_path=$("$PLUGIN_DIR/tools/handbuilt-python" - "$RUNNER_TEMP/verify.json" <<'PY'
           import json, sys
           report = json.load(open(sys.argv[1], encoding="utf-8"))
           if report["status"] != "ready" or not report.get("verification", {}).get("ok"):
@@ -236,7 +276,7 @@ jobs:
         shell: cmd
         run: |
           set "HANDBUILT_RUNTIME_HOME=%RUNNER_TEMP%\handbuilt cmd runtime"
-          call "%PLUGIN_DIR%\bin\handbuilt-python.cmd" -c "import sys; print(sys.version)" || exit /b 1
+          call "%PLUGIN_DIR%\tools\handbuilt-python.cmd" -c "import sys; print(sys.version)" || exit /b 1
 
   suite:
     # The whole regression suite on Windows and on a Mac with nothing else
@@ -257,12 +297,12 @@ jobs:
         run: |
           export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/handbuilt runtime"
           printf 'HANDBUILT_RUNTIME_HOME=%s\n' "$HANDBUILT_RUNTIME_HOME" >> "$GITHUB_ENV"
-          bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
-          bin/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
-          bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
+          tools/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/setup.json" || true
+          tools/handbuilt-python tools/handbuilt_runtime.py native-install --own-tools --format json > "$RUNNER_TEMP/native.json" || true
+          tools/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/doctor.json"
       - name: Run the regression suite
         run: |
-          python_path=$(bin/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
+          python_path=$(tools/handbuilt-python - "$RUNNER_TEMP/doctor.json" <<'PY'
           import json, sys
           print(json.load(open(sys.argv[1], encoding="utf-8"))["runtime"]["python"])
           PY
