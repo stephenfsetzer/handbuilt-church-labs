@@ -131,8 +131,8 @@ Compare the saved plugin root in `.handbuilt/installation.json` with this
 skill's plugin root. If they differ, reconnect using the installed
 [onboarding connection reference](../onboarding/references/connection-and-brand.md).
 
-`handbuilt-python` is Handbuilt's own Python, at `<app-loaded-plugin-root>/bin/handbuilt-python`
-(`bin\handbuilt-python.cmd` on Windows without Git Bash). Use that full path when the
+`handbuilt-python` is Handbuilt's own Python, at `<app-loaded-plugin-root>/tools/handbuilt-python`
+(`tools\handbuilt-python.cmd` on Windows without Git Bash). Use that full path when the
 short name is not found. Never ask the pastor to install Python.
 
 ```bash

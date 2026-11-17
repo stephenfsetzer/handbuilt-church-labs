@@ -264,6 +264,9 @@ class HostDetectionTests(unittest.TestCase):
             self.assertEqual(report.detect_host(), "other")
 
     def test_the_bundled_prayer_book_readings_stay_compact(self) -> None:
-        data = Path(__file__).parents[1] / "skills" / "bulletin" / "resources" / "bcp1979" / "sunday.json"
-        self.assertLess(data.stat().st_size, 450_000, "the plugin directory can't read larger files")
-        self.assertNotIn("\n  ", data.read_text(encoding="utf-8"))
+        folder = Path(__file__).parents[1] / "skills" / "bulletin" / "resources" / "bcp1979"
+        parts = sorted(folder.glob("sunday-*.json"))
+        self.assertEqual(len(parts), 3)
+        for data in parts:
+            self.assertLess(data.stat().st_size, 256 * 1024, "the plugin directory can't read larger files")
+            self.assertNotIn("\n  ", data.read_text(encoding="utf-8"))

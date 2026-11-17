@@ -8,8 +8,20 @@
     "verified_on": "2026-09-08"
   },
   "data": {
-    "file": "sunday.json",
-    "sha256": "5d534b468e94ad790a905515af4cf1935ced1e7792995cb52fd8dcc8e00bced1"
+    "parts": [
+      {
+        "file": "sunday-collects-prefaces.json",
+        "sha256": "14580dbf6969920624d90d61b5ad0ad233f31743c4df00a34f23d18ddcaef713"
+      },
+      {
+        "file": "sunday-psalms-1-75.json",
+        "sha256": "e0b3137d04f34a4faa03b732a419d9056eb4d4ce29e9a2a7acb765bbced2291b"
+      },
+      {
+        "file": "sunday-psalms-76-150.json",
+        "sha256": "2d2c771f9a9d0d84423a15019c935cd08e98cc356066293139bc1ef6862de281"
+      }
+    ]
   },
   "liturgy": {
     "breaking-of-bread": {

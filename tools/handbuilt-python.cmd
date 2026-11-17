@@ -15,7 +15,7 @@ rem   handbuilt-python --where     print the path to this Python and stop
 rem   handbuilt-python script.py   run a script
 setlocal EnableExtensions DisableDelayedExpansion
 
-set "LOCK=%~dp0..\tools\python-dist.lock"
+set "LOCK=%~dp0python-dist.lock"
 set "WORK="
 set "CODE=1"
 if not exist "%LOCK%" (

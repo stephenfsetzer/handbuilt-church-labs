@@ -547,8 +547,8 @@ class RuntimeManager:
             reason = managed_error if environment_exists and managed_error else bootstrap_error
             next_action = (
                 "Run this tool with Handbuilt's own Python instead: "
-                '"<plugin-root>/bin/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" setup '
-                "(on Windows without Git Bash, bin\\handbuilt-python.cmd). It downloads a checked copy of "
+                '"<plugin-root>/tools/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" setup '
+                "(on Windows without Git Bash, tools\\handbuilt-python.cmd). It downloads a checked copy of "
                 "Python into Handbuilt's folder; the pastor installs nothing. Only when that download is "
                 f"blocked, pass a Python {'.'.join(map(str, MINIMUM_PYTHON))} through "
                 f"{'.'.join(map(str, max(runtime_security.SUPPORTED_RUNTIME_BRANCHES)))} at the patch levels "

@@ -1,6 +1,6 @@
 # Handbuilt's own Python.
 #
-# bin/handbuilt-python downloads one of these builds the first time it runs,
+# tools/handbuilt-python downloads one of these builds the first time it runs,
 # checks the file against the SHA-256 recorded here, and unpacks it into
 # Handbuilt's private folder. Nothing else on the computer changes.
 #

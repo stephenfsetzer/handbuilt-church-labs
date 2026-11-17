@@ -73,9 +73,9 @@ jobs:
       - name: Prepare the grader's own tools, apart from the computer under test
         run: |
           export HANDBUILT_RUNTIME_HOME="$RUNNER_TEMP/grader runtime"
-          bin/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/grader-setup.json" || true
-          bin/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/grader.json"
-          python_path=$(bin/handbuilt-python - "$RUNNER_TEMP/grader.json" <<'PY'
+          tools/handbuilt-python tools/handbuilt_runtime.py setup --format json > "$RUNNER_TEMP/grader-setup.json" || true
+          tools/handbuilt-python tools/handbuilt_runtime.py doctor --capability workspace --format json > "$RUNNER_TEMP/grader.json"
+          python_path=$(tools/handbuilt-python - "$RUNNER_TEMP/grader.json" <<'PY'
           import json, sys
           report = json.load(open(sys.argv[1], encoding="utf-8"))
           if report["status"] != "ready":

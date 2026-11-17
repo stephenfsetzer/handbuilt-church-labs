@@ -34,7 +34,6 @@ SHIPPED_PREFIXES = (
     ".claude-plugin/",
     ".codex-plugin/",
     ".agents/",
-    ".claude/skills/",
 )
 SHIPPED_FILES = ("requirements.txt", "requirements.lock")
 

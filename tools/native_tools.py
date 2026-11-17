@@ -10,7 +10,7 @@ checks each one against the SHA-256 recorded there, and unpacks them into a
 folder beside Handbuilt's private runtime. It runs nothing from the download,
 needs no installer, and changes nothing outside Handbuilt's folder.
 
-Run it with Handbuilt's own Python (bin/handbuilt-python), which can read the
+Run it with Handbuilt's own Python (tools/handbuilt-python), which can read the
 package format:
 
     handbuilt-python tools/native_tools.py status
@@ -195,7 +195,7 @@ def status(runtime_root: Path, *, lock: Path = LOCK) -> dict[str, object]:
 
 def install(runtime_root: Path, *, lock: Path = LOCK, fetch=download) -> dict[str, object]:
     if sys.version_info < (3, 14):
-        raise NativeToolsError("Run this with Handbuilt's own Python: bin/handbuilt-python tools/native_tools.py install")
+        raise NativeToolsError("Run this with Handbuilt's own Python: tools/handbuilt-python tools/native_tools.py install")
     release, packages = read_lock(lock)
     key = computer_key()
     wanted = packages.get(key or "")

@@ -7,9 +7,12 @@ prayer book, calendar, lectionary, or music collection. Special services may
 need additional verified material.
 
 The official Episcopal Church PDF URL, edition, source PDF checksum, and
-verification date are in `sunday.json`. Every entry identifies its source
-pages. `manifest.json` records release checksums for the data and the prepared
-fixed-text Markdown files under `../../renderer/liturgy/`. Runtime lookup
+verification date are in `sunday-collects-prefaces.json`. The library is
+stored in three parts, so no file reaches the plugin directory's 256 KiB limit:
+collects and prefaces, Psalms 1 to 75, and Psalms 76 to 150. Every entry
+identifies its source pages. `manifest.json` records release checksums for
+each data part and the prepared fixed-text Markdown files under
+`../../renderer/liturgy/`. Runtime lookup
 checks these against the released manifest before using bundled sources.
 Checksums detect accidental changes; they do not replace source review.
 
