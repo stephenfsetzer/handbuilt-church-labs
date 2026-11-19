@@ -29,7 +29,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 LABS = HERE.parents[1]
 sys.path[:0] = [str(HERE)]
+sys.path.append(str(HERE.parent / "connector"))
 import cases as C  # noqa: E402
+import client as K  # noqa: E402
 import judges as J  # noqa: E402
 import pastor as P  # noqa: E402
 
@@ -37,6 +39,11 @@ CASES = C.load()
 
 PLUGIN_PARTS = ("skills", "tools", "scaffold", "handbook")
 TOOLS = "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,Agent,Skill"
+# The connector path is a pastor's own Claude: web search and the Handbuilt connector, no
+# files on this computer and no plugin.
+CONNECTOR_NAME = "handbuilt"
+CONNECTOR_BUILTINS = "WebFetch,WebSearch"
+LOCAL_TOOLS = {"Bash", "Read", "Write", "Edit", "Glob", "Grep", "NotebookEdit", "Skill"}
 OFF_LIMITS = ("/Desktop", "/Documents", "/Downloads", "/homebase", "evals/finished_work")
 USER_AGENT = "handbuilt-church-labs-eval/1.0"
 # A judge item listed here is reported every run but does not fail it. Use it only while an
@@ -69,13 +76,28 @@ def settings(run_dir: Path) -> str:
     return json.dumps({"permissions": {"deny": deny}})
 
 
-def agent_command(prompt: str, plugin: Path, model: str, run_dir: Path, *, resume: str = "", keep: bool = False) -> list[str]:
-    """One agent turn. A conversation keeps its session so the next turn can resume it."""
+def connector_config(run_dir: Path, url: str) -> Path:
+    """The connector as the agent's only MCP server. The token stays in the environment."""
+    path = run_dir / "connector.json"
+    path.write_text(json.dumps({"mcpServers": {CONNECTOR_NAME: {
+        "type": "http", "url": url, "headers": {"Authorization": "Bearer ${%s}" % K.TOKEN_ENV}}}}), encoding="utf-8")
+    return path
+
+
+def agent_command(prompt: str, plugin: Path | None, model: str, run_dir: Path, *, resume: str = "", keep: bool = False,
+                  connector: Path | None = None) -> list[str]:
+    """One agent turn. A conversation keeps its session so the next turn can resume it.
+
+    With ``connector`` the agent gets the Handbuilt connector and web search only, and no plugin."""
     isolation = [flag for flag in J.ISOLATION if not (keep and flag == "--no-session-persistence")]
-    command = [J.CLAUDE, "-p", prompt, "--output-format", "stream-json", "--verbose",
-               "--plugin-dir", str(plugin), "--add-dir", str(run_dir),
-               "--allowedTools", TOOLS, "--permission-mode", "dontAsk",
-               "--settings", settings(run_dir), *isolation]
+    if connector:
+        isolation = ["--strict-mcp-config", "--mcp-config", str(connector), "--setting-sources", "",
+                     *(["--no-session-persistence"] if not keep else [])]
+        reach = ["--tools", CONNECTOR_BUILTINS, "--allowedTools", f"{CONNECTOR_BUILTINS},mcp__{CONNECTOR_NAME}"]
+    else:
+        reach = ["--plugin-dir", str(plugin), "--add-dir", str(run_dir), "--allowedTools", TOOLS]
+    command = [J.CLAUDE, "-p", prompt, "--output-format", "stream-json", "--verbose", *reach,
+               "--permission-mode", "dontAsk", "--settings", settings(run_dir), *isolation]
     if resume:
         command += ["--resume", resume]
     if model:
@@ -156,10 +178,11 @@ def agent_turn(command: list[str], run_dir: Path, transcript: Path, timeout: int
     return read_stream(transcript), timed_out
 
 
-def converse(case: C.Case, prompt: str, plugin: Path, model: str, judge_model: str, run_dir: Path) -> bool:
+def converse(case: C.Case, prompt: str, plugin: Path | None, model: str, judge_model: str, run_dir: Path,
+             connector: Path | None = None) -> bool:
     """Run the agent, letting the stand-in pastor answer until the work is done. Returns timed_out."""
     history = [{"who": "pastor", "text": prompt}]
-    stream, timed_out = agent_turn(agent_command(prompt, plugin, model, run_dir, keep=bool(case.persona)),
+    stream, timed_out = agent_turn(agent_command(prompt, plugin, model, run_dir, keep=bool(case.persona), connector=connector),
                                    run_dir, run_dir / "transcript-00.jsonl", case.timeout)
     history.append({"who": "assistant", "text": str(stream["final"].get("result") or "")})
     for number in range(1, case.max_exchanges + 1 if case.persona else 1):
@@ -173,11 +196,11 @@ def converse(case: C.Case, prompt: str, plugin: Path, model: str, judge_model: s
         if answer["done"]:
             break
         history.append({"who": "pastor", "text": answer["reply"]})
-        stream, timed_out = agent_turn(agent_command(answer["reply"], plugin, model, run_dir, resume=session, keep=True),
+        stream, timed_out = agent_turn(agent_command(answer["reply"], plugin, model, run_dir, resume=session, keep=True, connector=connector),
                                        run_dir, run_dir / f"transcript-{number:02d}.jsonl", case.timeout)
         if not timed_out and not stream["final"].get("num_turns"):
             # A resume can end at once on a leftover background notice; send the message again.
-            stream, timed_out = agent_turn(agent_command(answer["reply"], plugin, model, run_dir, resume=session, keep=True),
+            stream, timed_out = agent_turn(agent_command(answer["reply"], plugin, model, run_dir, resume=session, keep=True, connector=connector),
                                            run_dir, run_dir / f"transcript-{number:02d}b.jsonl", case.timeout)
         history.append({"who": "assistant", "text": str(stream["final"].get("result") or "")})
     with (run_dir / "transcript.jsonl").open("w", encoding="utf-8") as whole:
@@ -220,7 +243,27 @@ def read_stream(path: Path) -> dict:
     return {"init": init, "final": final, "uses": uses, "seen": "\n".join(seen)}
 
 
-def isolation_problems(stream: dict, plugin: Path) -> list[str]:
+def connector_problems(stream: dict) -> list[str]:
+    """The connector path must look like a pastor's Claude: the connector, no plugin, no local files."""
+    problems = []
+    init = stream["init"]
+    if not init:
+        return ["the run never started"]
+    servers = [(s.get("name"), s.get("status")) for s in init.get("mcp_servers") or []]
+    if servers != [(CONNECTOR_NAME, "connected")]:
+        problems.append(f"the connector was not the only connected server: {servers}")
+    plugins = [str(item.get("path", "")) for item in init.get("plugins") or [] if item.get("path") != "builtin"]
+    if plugins:
+        problems.append(f"plugins were loaded: {plugins}")
+    local = sorted({use["name"] for use in stream["uses"] if use["name"] in LOCAL_TOOLS})
+    if local:
+        problems.append(f"local tools were used: {local}")
+    return problems
+
+
+def isolation_problems(stream: dict, plugin: Path | None) -> list[str]:
+    if plugin is None:
+        return connector_problems(stream)
     problems = []
     init = stream["init"]
     if not init:
@@ -290,22 +333,61 @@ def judge_counts(judged: dict) -> dict:
             "sources_ungraded": [v["url"] for v in judged.get("sources", []) if v.get("status") != "graded"]}
 
 
-def one_run(case_name: str, number: int, out: Path, model: str, judge_model: str) -> dict:
+def one_run(case_name: str, number: int, out: Path, model: str, judge_model: str, connector_url: str = "") -> dict:
     case = CASES[case_name]
     run_dir = out / f"{case_name}-{number}"
     run_dir.mkdir(parents=True)
-    plugin, church = run_dir / "plugin", run_dir / "riverbend"
-    stage_plugin(plugin)
+    church = run_dir / "riverbend"
     case.seed(church)
+    if connector_url:
+        return connector_run(case, number, run_dir, model, judge_model, connector_url)
+    plugin = run_dir / "plugin"
+    stage_plugin(plugin)
     started = time.time()
     prompt = case.prompt(church) if callable(case.prompt) else case.prompt.format(church=church)
     timed_out = converse(case, prompt, plugin, model, judge_model, run_dir)
     return grade_run(case_name, number, run_dir, judge_model, seconds=round(time.time() - started), timed_out=timed_out)
 
 
+def connector_run(case: C.Case, number: int, run_dir: Path, model: str, judge_model: str, url: str) -> dict:
+    """The same case through the connector: copy the church up, run, copy it back, grade unchanged."""
+    church = run_dir / "riverbend"
+    prefix = f"evals/{run_dir.parent.name}/{run_dir.name}"
+    (run_dir / "via.json").write_text(json.dumps({"via": "connector", "url": url, "prefix": prefix}), encoding="utf-8")
+    started = time.time()
+    try:
+        connector = K.Connector.from_env(url)
+        missing = connector.missing_folder_tools()
+        if missing:
+            raise K.ConnectorError(f"the connector has no {', '.join(missing)} tool")
+        K.push_folder(connector, church, prefix)
+    except K.ConnectorError as exc:
+        return setup_failed(case.name, number, run_dir, f"Setup: {exc}")
+    prompt = case.prompt(church) if callable(case.prompt) else case.prompt.format(church=f"the Handbuilt church folder {prefix}")
+    timed_out = converse(case, prompt, None, model, judge_model, run_dir, connector=connector_config(run_dir, url))
+    try:
+        shutil.rmtree(church)
+        church.mkdir()
+        K.pull_folder(connector, prefix, church)
+    except K.ConnectorError as exc:
+        return setup_failed(case.name, number, run_dir, f"Collect: {exc}", seconds=round(time.time() - started))
+    return grade_run(case.name, number, run_dir, judge_model, seconds=round(time.time() - started), timed_out=timed_out)
+
+
+def setup_failed(case: str, number: int, run_dir: Path, problem: str, *, seconds: int = 0) -> dict:
+    """A run that could not be set up or collected. It fails, and says why, without grading."""
+    record = {"case": case, "run": number, "via": "connector", "seconds": seconds, "timed_out": False,
+              "setup_problem": problem, "isolation_problems": [], "checks_passed": 0, "checks_total": 0,
+              "failed_checks": [], "judges": judge_counts({}), "quotes": None, "clean": False}
+    (run_dir / "result.json").write_text(json.dumps(record, indent=1, ensure_ascii=False), encoding="utf-8")
+    return record
+
+
 def grade_run(case: str, number: int, run_dir: Path, judge_model: str, *, seconds: int, timed_out: bool) -> dict:
     """Grade the files one run left. A corrected grader can reread them without a new agent run."""
-    plugin, church = run_dir / "plugin", run_dir / "riverbend"
+    via = run_dir / "via.json"
+    plugin = None if via.exists() else run_dir / "plugin"
+    church = run_dir / "riverbend"
     stream = read_stream(run_dir / "transcript.jsonl")
     final = str(stream["final"].get("result") or "")
     (run_dir / "final-message.md").write_text(final, encoding="utf-8")
@@ -317,7 +399,7 @@ def grade_run(case: str, number: int, run_dir: Path, judge_model: str, *, second
     judged = spec.judges(church, graded, final, conversation, judge_model, run_dir)
     counts = judge_counts(judged)
     failed_checks = [c for c in graded["checks"] if not c["passed"]]
-    record = {"case": case, "run": number, "seconds": seconds, "timed_out": timed_out,
+    record = {"case": case, "run": number, "via": "plugin" if plugin else "connector", "seconds": seconds, "timed_out": timed_out,
               "cost_estimate_usd": stream["final"].get("total_cost_usd"), "turns": stream["final"].get("num_turns"),
               "isolation_problems": problems, "checks_passed": len(graded["checks"]) - len(failed_checks),
               "checks_total": len(graded["checks"]), "failed_checks": failed_checks, "judges": counts,
@@ -336,6 +418,9 @@ def table(records: list[dict]) -> str:
     for r in records:
         claims = r["judges"]["claims"]
         quotes = r.get("quotes") or {}
+        if r.get("setup_problem"):
+            rows.append(f"| {r['case']} {r['run']} | no | {r['setup_problem']} | | | | {r['seconds'] // 60} |")
+            continue
         rows.append(f"| {r['case']} {r['run']} | {'yes' if r['clean'] else 'no'} | {r['checks_passed']}/{r['checks_total']} "
                     f"| {r['judges']['passed']}/{r['judges']['total']} "
                     f"| {claims['supported']} / {claims['unsupported']} / {claims['not_in_excerpt']} "
@@ -351,14 +436,22 @@ def main(argv=None) -> int:
     parser.add_argument("--model", default="", help="Agent model. Blank uses the account default.")
     parser.add_argument("--judge-model", default="sonnet")
     parser.add_argument("--parallel", type=int, default=3)
+    parser.add_argument("--via", choices=("plugin", "connector"), default="plugin",
+                        help="plugin: Claude Code with the plugin (today). connector: only the Handbuilt connector.")
+    parser.add_argument("--connector-url", default=os.environ.get(K.URL_ENV, ""),
+                        help=f"The connector's address. Its token comes from {K.TOKEN_ENV}.")
     parser.add_argument("--regrade", action="store_true", help="Grade the runs already in --out again. No agent runs.")
     args = parser.parse_args(argv)
     out = outside_repo(args.out)
+    url = args.connector_url if args.via == "connector" else ""
+    if args.via == "connector" and not url:
+        raise SystemExit(f"--via connector needs --connector-url or {K.URL_ENV}.")
     chosen = list(CASES) if not args.case or "all" in args.case else args.case
     if args.regrade:
         earlier = json.loads((out / "results.json").read_text(encoding="utf-8"))
         records = [grade_run(r["case"], r["run"], out / f"{r['case']}-{r['run']}", args.judge_model,
-                             seconds=r["seconds"], timed_out=r["timed_out"]) if r["case"] in chosen else r
+                             seconds=r["seconds"], timed_out=r["timed_out"])
+                   if r["case"] in chosen and not r.get("setup_problem") else r
                    for r in earlier]
         return report(out, records)
     if out.exists():
@@ -366,7 +459,7 @@ def main(argv=None) -> int:
     out.mkdir(parents=True)
     jobs = [(case, n) for case in chosen for n in range(1, args.runs + 1)]
     with futures.ThreadPoolExecutor(args.parallel) as pool:
-        records = list(pool.map(lambda job: one_run(job[0], job[1], out, args.model, args.judge_model), jobs))
+        records = list(pool.map(lambda job: one_run(job[0], job[1], out, args.model, args.judge_model, url), jobs))
     return report(out, records)
 
 
