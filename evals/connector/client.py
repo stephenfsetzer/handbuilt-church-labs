@@ -6,11 +6,12 @@ not on this computer. Before a run this client copies the seeded church folder u
 the run it copies the folder back down, so the finished-work graders read the same files
 they read on the plugin path.
 
-It speaks MCP's JSON-RPC over HTTP and needs three folder tools on the server:
+It speaks MCP's JSON-RPC over HTTP and needs the connector's four folder tools:
 
-- ``list_files``: ``{"prefix": str}`` -> ``{"files": [{"path": str, "sha256": str, "size": int}]}``
-- ``read_file``: ``{"path": str}`` -> ``{"path": str, "content_base64": str}``
-- ``save_file``: ``{"path": str, "content_base64": str}`` -> ``{"path": str, "sha256": str}``
+- ``list_files``: ``{"prefix": str}`` -> ``{"files": [{"path", "size", "md5" (or null), "modified"}]}``
+- ``read_file``: ``{"path", "offset", "length"}`` -> ``{"size", "offset", "more", "content_base64"}``
+- ``save_file``: ``{"path", "content_base64"}`` -> ``{"path", "size", "sha256"}``, for files up to 40 KB
+- ``upload_link``: ``{"path", "bytes", "sha256"}`` -> ``{"url", "headers"}``, a PUT storage checks by SHA-256
 
 Each tool returns its JSON object as ``structuredContent``. These names and shapes are
 the contract PRD-025 phase 2 builds to. A server without them is reported as a setup
@@ -27,7 +28,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-FOLDER_TOOLS = ("list_files", "read_file", "save_file")
+FOLDER_TOOLS = ("list_files", "read_file", "save_file", "upload_link")
+SMALL_FILE = 32 * 1024
+READ_PART = 1024 * 1024
 PROTOCOL = "2025-06-18"
 USER_AGENT = "handbuilt-church-labs-eval/1.0"
 TOKEN_ENV = "HANDBUILT_CONNECTOR_TOKEN"
@@ -117,17 +120,51 @@ class Connector:
         return [name for name in FOLDER_TOOLS if name not in have]
 
 
+def md5(data: bytes) -> str:
+    return hashlib.md5(data).hexdigest()
+
+
+def put(url: str, headers: dict, data: bytes, timeout: int = 300) -> None:
+    request = urllib.request.Request(url, data=data, headers=headers, method="PUT")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response.read()
+    except urllib.error.HTTPError as exc:
+        raise ConnectorError(f"Storage refused the upload ({exc.code}): {exc.read()[:200]!r}") from exc
+    except (urllib.error.URLError, OSError) as exc:
+        raise ConnectorError(f"Storage could not be reached: {exc}") from exc
+
+
 def push_folder(connector: Connector, local: Path, prefix: str) -> list[dict]:
-    """Copy every file under ``local`` to ``prefix`` on the server and confirm each one landed intact."""
+    """Copy every file under ``local`` to ``prefix`` on the server and confirm each one landed intact.
+
+    Small files go in the message; larger ones go straight to storage on a link that takes only
+    their exact bytes, which storage checks by SHA-256 on arrival."""
     sent = []
     for path in sorted(p for p in local.rglob("*") if p.is_file()):
         data = path.read_bytes()
         remote = f"{prefix.rstrip('/')}/{path.relative_to(local).as_posix()}"
-        saved = connector.call("save_file", {"path": remote, "content_base64": base64.b64encode(data).decode()})
-        if saved.get("sha256") != sha256(data):
-            raise ConnectorError(f"{remote} did not arrive intact")
+        if len(data) <= SMALL_FILE:
+            saved = connector.call("save_file", {"path": remote, "content_base64": base64.b64encode(data).decode()})
+            if saved.get("sha256") != sha256(data):
+                raise ConnectorError(f"{remote} did not arrive intact")
+        else:
+            link = connector.call("upload_link", {"path": remote, "bytes": len(data), "sha256": sha256(data)})
+            put(link["url"], link.get("headers") or {}, data)
         sent.append({"path": remote, "size": len(data), "sha256": sha256(data)})
     return sent
+
+
+def read_whole(connector: Connector, remote: str) -> bytes:
+    """A whole file, read in parts."""
+    data, offset = b"", 0
+    while True:
+        part = connector.call("read_file", {"path": remote, "offset": offset, "length": READ_PART})
+        chunk = base64.b64decode(part["content_base64"])
+        data += chunk
+        offset += len(chunk)
+        if not part.get("more") or not chunk:
+            return data
 
 
 def pull_folder(connector: Connector, prefix: str, local: Path) -> list[dict]:
@@ -138,8 +175,8 @@ def pull_folder(connector: Connector, prefix: str, local: Path) -> list[dict]:
         remote = item["path"]
         if not remote.startswith(prefix) or ".." in Path(remote).parts:
             raise ConnectorError(f"The connector listed a file outside the church folder: {remote}")
-        data = base64.b64decode(connector.call("read_file", {"path": remote})["content_base64"])
-        if item.get("sha256") and item["sha256"] != sha256(data):
+        data = read_whole(connector, remote)
+        if len(data) != item.get("size", len(data)) or (item.get("md5") and item["md5"] != md5(data)):
             raise ConnectorError(f"{remote} changed while it was being read")
         target = local / remote[len(prefix):]
         target.parent.mkdir(parents=True, exist_ok=True)

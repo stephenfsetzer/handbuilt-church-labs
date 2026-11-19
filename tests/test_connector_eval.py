@@ -26,9 +26,16 @@ class FakeConnector(BaseHTTPRequestHandler):
     files: dict[str, bytes] = {}
     seen_tokens: list[str] = []
     corrupt = False
+    links: list = []
 
     def log_message(self, *_):
         pass
+
+    def do_PUT(self):
+        path = self.path.removeprefix("/put/")
+        self.files[path] = self.rfile.read(int(self.headers["Content-Length"]))
+        self.send_response(200)
+        self.end_headers()
 
     def do_POST(self):
         self.seen_tokens.append(self.headers.get("Authorization", ""))
@@ -57,18 +64,25 @@ class FakeConnector(BaseHTTPRequestHandler):
             digest = hashlib.sha256(b"x" if self.corrupt else data).hexdigest()
             return {"structuredContent": {"path": arguments["path"], "sha256": digest}}
         if name == "list_files":
-            listed = [{"path": p, "sha256": hashlib.sha256(d).hexdigest(), "size": len(d)}
+            listed = [{"path": p, "md5": hashlib.md5(d).hexdigest(), "size": len(d), "modified": ""}
                       for p, d in self.files.items() if p.startswith(arguments["prefix"])]
             return {"structuredContent": {"files": listed}}
         if name == "read_file":
             data = self.files[arguments["path"]]
-            return {"structuredContent": {"path": arguments["path"], "content_base64": base64.b64encode(data).decode()}}
+            start, length = arguments.get("offset", 0), arguments.get("length", 1 << 20)
+            part = data[start:start + length]
+            return {"structuredContent": {"path": arguments["path"], "size": len(data), "offset": start,
+                                          "more": start + len(part) < len(data), "content_base64": base64.b64encode(part).decode()}}
+        if name == "upload_link":
+            FakeConnector.links.append(arguments)
+            return {"structuredContent": {"path": arguments["path"], "url": f"http://127.0.0.1:{self.server.server_port}/put/{arguments['path']}", "headers": {}}}
         return {"isError": True, "content": [{"type": "text", "text": "Unknown tool"}]}
 
 
 class ConnectorEvalTest(unittest.TestCase):
     def setUp(self):
         FakeConnector.tools, FakeConnector.files, FakeConnector.seen_tokens, FakeConnector.corrupt = K.FOLDER_TOOLS, {}, [], False
+        FakeConnector.links = []
         self.server = HTTPServer(("127.0.0.1", 0), FakeConnector)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.url = f"http://127.0.0.1:{self.server.server_port}/api/mcp"
@@ -82,13 +96,15 @@ class ConnectorEvalTest(unittest.TestCase):
         (church / "bulletins").mkdir(parents=True)
         (church / "church.yaml").write_text("name: Riverbend\n", encoding="utf-8")
         (church / "bulletins" / "logo.png").write_bytes(bytes(range(256)) * 4)
+        (church / "bulletins" / "booklet.pdf").write_bytes(bytes(range(256)) * 4000)
         return church
 
     def test_folder_goes_up_and_comes_back_byte_for_byte(self):
         connector = K.Connector(self.url, "token-for-tests-only-0000")
         church = self.church()
         sent = K.push_folder(connector, church, "evals/x/bulletin-1")
-        self.assertEqual(len(sent), 2)
+        self.assertEqual(len(sent), 3)
+        self.assertEqual([link["path"] for link in FakeConnector.links], ["evals/x/bulletin-1/bulletins/booklet.pdf"])
         back = self.tmp / "back"
         K.pull_folder(connector, "evals/x/bulletin-1", back)
         for path in church.rglob("*"):
@@ -124,7 +140,7 @@ class ConnectorEvalTest(unittest.TestCase):
                 mock.patch.object(R, "converse", side_effect=AssertionError("the agent must not run")):
             record = R.one_run("bulletin", 1, out, "", "sonnet", self.url)
         self.assertFalse(record["clean"])
-        self.assertIn("no list_files, read_file, save_file tool", record["setup_problem"])
+        self.assertIn("no list_files, read_file, save_file, upload_link tool", record["setup_problem"])
         self.assertEqual(json.loads((out / "bulletin-1" / "result.json").read_text())["via"], "connector")
 
     def test_connector_command_has_no_plugin_and_no_local_files(self):
