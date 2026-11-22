@@ -125,6 +125,31 @@ class CarryForwardTest(unittest.TestCase):
         self.assertIsNone(standing.carry_forward(self.root, date(2026, 11, 29))["carried_from"])
 
 
+class CheckCarriedTest(unittest.TestCase):
+    def test_dropping_a_carried_part_is_refused_unless_named(self):
+        root = Path(tempfile.mkdtemp())
+        standing.adopt(root, approve_week(root, advent_one_config()), approved_by="x")
+        draft = json.loads((root / standing.carry_forward(root, date(2026, 12, 6))["draft_input"]).read_text())
+        standing.check_carried(root, draft)   # the draft itself passes
+        without = {key: value for key, value in draft.items() if key != "after_gospel"}
+        with self.assertRaises(standing.StandingError) as refused:
+            standing.check_carried(root, without)
+        self.assertEqual(refused.exception.code, "carried_part_dropped")
+        self.assertIn("after_gospel", str(refused.exception))
+        standing.check_carried(root, {**without, "dropped_from_last_week": ["after_gospel"]})
+        no_deacon = {**draft, "liturgy": {}}
+        with self.assertRaises(standing.StandingError) as liturgy:
+            standing.check_carried(root, no_deacon)
+        self.assertIn("liturgy.dismissal_speaker", str(liturgy.exception))
+        no_acclamation = {**draft, "hymns": {}}
+        with self.assertRaises(standing.StandingError) as hymns:
+            standing.check_carried(root, no_acclamation)
+        self.assertIn("hymns.entrance", str(hymns.exception))
+
+    def test_no_draft_means_no_check(self):
+        standing.check_carried(Path(tempfile.mkdtemp()), {"service": {"date": "2026-12-06"}})
+
+
 class AdoptTest(unittest.TestCase):
     def test_adopting_records_history_once_and_never_over_a_skill_approval(self):
         root = Path(tempfile.mkdtemp())

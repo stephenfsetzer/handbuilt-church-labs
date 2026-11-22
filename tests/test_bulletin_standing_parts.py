@@ -38,5 +38,25 @@ class StandingPartsTest(unittest.TestCase):
         self.assertNotIn("Doris Akers", hymn_block("Closing Hymn", {**hymn, "composer_style": "hidden"}, Path("/tmp")))
 
 
+class ReadingFormatTest(unittest.TestCase):
+    def test_a_lesson_set_in_short_lines_prints_as_full_width_prose(self) -> None:
+        from skills.bulletin.bulletin_production.interface import _resolve_reading_format
+        isaiah = "Comfort, O comfort my people,\nsays your God.\nSpeak tenderly to Jerusalem,\n\nA voice cries out:\nIn the wilderness prepare the way"
+        bulletin = {"readings": {"first": {"format": "poetry", "text": isaiah},
+                                 "psalm": {"format": "responsive_half_verse", "text": "1 You have been gracious"}}}
+        _resolve_reading_format(bulletin, {})
+        first = bulletin["readings"]["first"]
+        self.assertEqual(first["format"], "prose")
+        self.assertEqual(first["text"], "Comfort, O comfort my people, says your God. Speak tenderly to Jerusalem,\n\n"
+                                        "A voice cries out: In the wilderness prepare the way")
+        self.assertEqual(bulletin["readings"]["psalm"]["format"], "responsive_half_verse")
+
+    def test_a_church_may_keep_poetry_lines_on_purpose(self) -> None:
+        from skills.bulletin.bulletin_production.interface import _resolve_reading_format
+        bulletin = {"readings": {"first": {"format": "poetry", "text": "a\nb"}}}
+        _resolve_reading_format(bulletin, {"reading_format": "poetry_where_printed"})
+        self.assertEqual(bulletin["readings"]["first"], {"format": "poetry", "text": "a\nb"})
+
+
 if __name__ == "__main__":
     unittest.main()

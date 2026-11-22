@@ -1348,7 +1348,8 @@ def announcements_block(cfg, brand, repo_root, include_qr=False, include_items=T
     if not sections:
         panel = church_panel(brand)
         if panel:
-            sections.append(panel)
+            # Marked so a merged closing hymn can take this page instead (can_merge_back_page).
+            sections.append(f"<!--church-panel-->{panel}<!--/church-panel-->")
     roster = leadership_block(brand)
     footline = footer_line(brand, escaped=True)
     roster = (f'<div class="bp-running">{roster}'
@@ -1380,19 +1381,25 @@ def closing_hymn_position(cfg):
     return value if value in CLOSING_HYMN_POSITIONS else "after_dismissal"
 
 
+CLOSING_MUSIC_ON_BACK_PAGE_IN = 6.2   # music height that leaves room for the parish register below it
+
+
+def without_church_panel(markup):
+    """The back page without the fallback church panel, which only fills an otherwise empty back cover."""
+    return re.sub(r"<!--church-panel-->.*?<!--/church-panel-->", "", markup, flags=re.S)
+
+
 def can_merge_back_page(cfg, closing_hymn, back_markup):
-    """Permit a back-page merge only for safe closing content and no top matter."""
+    """Permit a back-page merge when the closing hymn is all that would go above the parish register.
+
+    Lyrics, a title alone, or engraved music (scaled to CLOSING_MUSIC_ON_BACK_PAGE_IN) may share the page;
+    announcements, QR codes, parish information or a Serving Today list above the register may not.
+    """
     if not (cfg.get("options", {}) or {}).get("merge_back_page", False):
         return False
     if not closing_hymn:
         return False
-    images = closing_hymn.get("images") or (
-        [closing_hymn["image"]] if closing_hymn.get("image") else [])
-    has_printed_lyrics = bool(closing_hymn.get("lyrics"))
-    title_only = not images and not has_printed_lyrics
-    if not (has_printed_lyrics or title_only):
-        return False
-    top = _backpage_inner(back_markup)
+    top = without_church_panel(_backpage_inner(back_markup))
     running_at = top.find('<div class="bp-running">')
     if running_at >= 0:
         top = top[:running_at]
@@ -1721,7 +1728,10 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
             if inline_announcements
             else announcements_block(cfg, brand, repo_root, template=template))
     if can_merge_back_page(cfg, closing_hymn, back):
-        parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')
+        if closing_hymn_position(cfg) != "before_dismissal":
+            closing = (hymn_block("Closing Hymn", closing_hymn, config_dir, max_h=CLOSING_MUSIC_ON_BACK_PAGE_IN)
+                       + postlude_markup)
+        parts.append(f'<div class="backpage">{closing}{without_church_panel(_backpage_inner(back))}</div>')
     else:
         parts.append(closing)
         parts.append('<div class="page-break"></div>')
@@ -1809,7 +1819,7 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
         closing = closing_hymn_markup + postlude_markup
     back = announcements_block(cfg, brand, repo_root, template=template)
     if can_merge_back_page(cfg, closing_hymn, back):
-        parts.append(f'<div class="backpage">{closing}{_backpage_inner(back)}</div>')
+        parts.append(f'<div class="backpage">{closing}{without_church_panel(_backpage_inner(back))}</div>')
     else:
         parts.append(closing)
         parts.append('<div class="page-break"></div>')

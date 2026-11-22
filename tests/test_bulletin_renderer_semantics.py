@@ -314,7 +314,7 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
     def test_inline_italics_are_rendered(self) -> None:
         self.assertEqual(inline_md("A *quiet* word"), "A <em>quiet</em> word")
 
-    def test_merge_requires_printed_or_title_only_closing_and_empty_top(self) -> None:
+    def test_merge_takes_any_closing_hymn_but_needs_an_empty_top(self) -> None:
         base = {"options": {"merge_back_page": True}}
         title_only = {"title": "A Sending"}
         printed = {"title": "A Song", "lyrics": [{"speaker": "All", "lines": ["Go in peace"]}]}
@@ -323,8 +323,13 @@ class BulletinRendererSemanticsTest(unittest.TestCase):
                                             '<div class="backpage"><div class="bp-running">footer</div></div>'))
         self.assertTrue(can_merge_back_page(base, printed,
                                             '<div class="backpage"><div class="bp-running">footer</div></div>'))
-        self.assertFalse(can_merge_back_page(base, image,
-                                             '<div class="backpage"><div class="bp-running">footer</div></div>'))
+        self.assertTrue(can_merge_back_page(base, image,
+                                            '<div class="backpage"><div class="bp-running">footer</div></div>'))
+        # The fallback church panel only fills an empty back cover; a merged closing hymn takes its place.
+        self.assertTrue(can_merge_back_page(base, image, '<div class="backpage"><!--church-panel--><div class="section church-panel">x'
+                                            '</div><!--/church-panel--><div class="bp-running">footer</div></div>'))
+        self.assertFalse(can_merge_back_page(base, image, '<div class="backpage"><div class="section">Notices</div>'
+                                             '<div class="bp-running">footer</div></div>'))
 
     def test_dialogue_groups_keep_wrapped_text_in_their_text_column(self) -> None:
         css_path = (

@@ -297,16 +297,15 @@ class BulletinProductionPromotionTest(unittest.TestCase):
         bulletin["liturgy"]["blessing"] = "omit"
         _validate_bulletin(bulletin)
 
-    def test_back_page_merge_rejects_image_closing_hymn(self) -> None:
+    def test_back_page_merge_accepts_engraved_closing_music(self) -> None:
+        # Handbuilt PRD-026: the renderer scales engraved music to leave the parish register room.
         _validate_back_page_merge({"options": {"merge_back_page": True}, "hymns": {"closing": {
             "lyrics": [{"speaker": "People", "lines": ["Invented line"]}],
         }}})
         _validate_back_page_merge({"options": {"merge_back_page": True}, "hymns": {"closing": {
             "title": "Title only",
         }}})
-        with self.assertRaises(StageFailure) as caught:
-            _validate_back_page_merge({"options": {"merge_back_page": True}, "hymns": {"closing": {"image": "scan.png"}}})
-        self.assertEqual(caught.exception.code, "back_page_merge_unsafe")
+        _validate_back_page_merge({"options": {"merge_back_page": True}, "hymns": {"closing": {"image": "scan.png"}}})
 
     def test_service_variant_provenance_blocks_bypass_and_accepts_safe_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

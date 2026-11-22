@@ -29,7 +29,7 @@ PROFILE_DEFAULT = "worship/profile.yaml"
 _SCALAR_SECTIONS = {
     "church": {"name", "short_name", "tradition", "city", "address", "website", "regular_services"},
     "leadership": {"print_in_bulletin", "clergy_and_staff", "governing_body"},
-    "bulletin": {"include_serving_today", "serving_roles", "footer", "template"},
+    "bulletin": {"include_serving_today", "serving_roles", "footer", "template", "reading_format"},
     "lectionary": {"system", "track", "translation", "optional_verses", "authorities"},
     "sermon": {"selection_mode", "primary_text", "research_preferences"},
     "people": {"pastor"},
@@ -38,7 +38,7 @@ _SCALAR_SECTIONS = {
 _LEADERSHIP_FIELDS = {"print_in_bulletin", "clergy_and_staff", "governing_body", "placement"}
 _LEADERSHIP_PLACEMENT_CHOICES = {"auto", "footer", "body"}
 _GOVERNING_FIELDS = {"label", "member_label", "officers", "members"}
-_BULLETIN_FIELDS = {"include_serving_today", "serving_roles", "footer", "template", "doxology_music", "parish_information"}
+_BULLETIN_FIELDS = {"include_serving_today", "serving_roles", "footer", "template", "doxology_music", "parish_information", "reading_format"}
 _FOOTER_FIELDS = {"contact_name", "address", "phone", "email", "website"}
 _PARISH_INFORMATION_SCOPES = {"before_service", "after_service"}
 _PARISH_INFORMATION_SECTION_FIELDS = {"title", "text", "source"}

@@ -371,8 +371,7 @@ class BulletinFieldRegressions(unittest.TestCase):
         private = "PRIVATE-SENTINEL-ANNOUNCEMENT-TEXT"
         request = bulletin_input()
         request["announcements"] = [{"title": "Private", "text": private}]
-        request["options"]["merge_back_page"] = True
-        request["hymns"]["closing"]["images"] = ["music/missing-closing.png"]
+        request["readings"]["first"]["format"] = "verse"   # neither prose nor poetry: refused before anything renders
         input_path = self.church / "weekly-input.json"
         input_path.write_text(json.dumps(request), encoding="utf-8")
         ready = {"status": "ready", "runtime": {"python": sys.executable}}
@@ -382,7 +381,7 @@ class BulletinFieldRegressions(unittest.TestCase):
         self.assertEqual(result.get("status"), "blocked", result)
         self.assertIn("handbuilt_run", result, "a blocked operation wrote no run record")
         record = Path(result["handbuilt_run"]).read_text(encoding="utf-8")
-        self.assertIn("back_page_merge_unsafe", record, "the run record does not say why the operation stopped")
+        self.assertIn("reading_presentation_unresolved", record, "the run record does not say why the operation stopped")
         self.assertNotIn(private, record)
 
 

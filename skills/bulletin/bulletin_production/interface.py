@@ -443,6 +443,31 @@ def _standing_bulletin_preferences(church_config: dict[str, Any]) -> dict[str, A
     return values
 
 
+def _resolve_reading_format(bulletin: dict[str, Any], saved_bulletin: dict[str, Any]) -> None:
+    """Readings print as full-width prose unless the church chose to keep a source's poetry lines.
+
+    A source such as the NRSV sets much of the prophets in short lines. Copied as they are, those lines print
+    as a narrow column down the page, which a congregation reads as broken text. So a lesson's line breaks
+    are joined into paragraphs (a blank line still starts a new one) unless church.yaml
+    `bulletin.reading_format` is `poetry_where_printed`. The psalm keeps its own verse layout either way.
+    """
+    if str(saved_bulletin.get("reading_format") or "prose").strip() == "poetry_where_printed":
+        return
+    readings = bulletin.get("readings")
+    if not isinstance(readings, dict):
+        return
+    for slot, reading in readings.items():
+        if slot == "psalm" or not isinstance(reading, dict) or reading.get("format") != "poetry":
+            continue
+        source = reading.get("paragraphs") if isinstance(reading.get("paragraphs"), list) else None
+        blocks = source or re.split(r"\n\s*\n", str(reading.get("text", "")))
+        joined = [" ".join(line.strip() for line in str(block).splitlines() if line.strip()) for block in blocks]
+        joined = [paragraph for paragraph in joined if paragraph]
+        reading["format"] = "prose"
+        reading.pop("paragraphs", None)
+        reading["text"] = "\n\n".join(joined)
+
+
 def _resolve_standing_preferences(bulletin: dict[str, Any], church_config: dict[str, Any]) -> None:
     """Carry standing preferences into options only when weekly input omits them."""
     options = bulletin.get("options")
@@ -467,6 +492,7 @@ def _resolve_standing_preferences(bulletin: dict[str, Any], church_config: dict[
         for saved, weekly in (("psalm_format", "format"), ("psalm_response_start", "response_start")):
             if liturgy.get(saved) and not psalm.get(weekly):
                 psalm[weekly] = liturgy[saved]
+    _resolve_reading_format(bulletin, saved_bulletin if isinstance(saved_bulletin, dict) else {})
     standing = _standing_bulletin_preferences(church_config)
     for key, value in standing.items():
         if key not in options or options[key] is None:
@@ -1214,15 +1240,9 @@ def _validate_back_page_merge(bulletin: dict[str, Any]) -> None:
     closing = (bulletin.get("hymns") or {}).get("closing")
     if not isinstance(closing, dict):
         return
-    images = closing.get("images") or ([closing["image"]] if closing.get("image") else [])
-    unsafe = bool(images)
-    if unsafe:
-        raise StageFailure(
-            "back_page_merge_unsafe",
-            "validation",
-            "Back-page merge cannot safely combine a closing hymn with image engraving; send this layout for explicit review",
-            field="options.merge_back_page",
-        )
+    # Engraved music may share the back page: the renderer scales it to leave the parish register room, and
+    # the merge always carries the visual-review warning the pastor checks before finalizing.
+    return
 
 
 def _validate_reading_presentation(reading: dict[str, Any], slot: str) -> None:
@@ -2698,7 +2718,14 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
     try:
         root = _require_church_folder(Path(church_folder))
         church_config, brand = _load_church_configuration(root)
+        from .standing import StandingError, check_carried
+        try:
+            check_carried(root, bulletin)
+        except StandingError as exc:
+            raise StageFailure(exc.code, "input", str(exc)) from exc
         source_resolved = copy.deepcopy(bulletin)
+        source_resolved.pop("dropped_from_last_week", None)
+        source_resolved.pop("carried_from", None)
         _consume_saved_worship_resolution(root, source_resolved)
         _validate_service_time_choice(church_config, source_resolved)
         _normalize_liturgy(source_resolved)

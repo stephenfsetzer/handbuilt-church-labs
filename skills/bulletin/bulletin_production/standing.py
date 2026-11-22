@@ -227,6 +227,43 @@ def carry_forward(root: Path, sunday: date, *, service_id: str | None = None, oc
     return result
 
 
+def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
+    """Refuse a bulletin that silently drops what carry-forward carried for its Sunday.
+
+    When `carry-forward` wrote a draft for this Sunday, the input must keep every part the draft carried
+    (the refrain, the dismissal, the notices still in date ...) or name it in `dropped_from_last_week`, so
+    dropping last week's practice is always a decision, never an accident.
+    """
+    service = bulletin.get("service") if isinstance(bulletin.get("service"), dict) else {}
+    when = service.get("date")
+    if not isinstance(when, str):
+        return
+    svc, occ = service.get("service_id") or "main", service.get("occurrence_id") or "main"
+    draft_path = root / "bulletins" / "drafts" / when / svc / occ / "input.json"
+    if not draft_path.is_file():
+        return
+    draft = json.loads(draft_path.read_text(encoding="utf-8"))
+    if not draft.get("carried_from"):
+        return
+    dropped = set(bulletin.get("dropped_from_last_week") or [])
+    missing = [key for key in draft if key not in ("carried_from",) and key not in bulletin and key not in dropped]
+    missing += [f"liturgy.{key}" for key in (draft.get("liturgy") or {})
+                if key not in (bulletin.get("liturgy") or {}) and f"liturgy.{key}" not in dropped]
+    missing += [f"options.{key}" for key in (draft.get("options") or {})
+                if key not in (bulletin.get("options") or {}) and f"options.{key}" not in dropped]
+    for group in ("hymns", "service_music"):
+        missing += [f"{group}.{slot}" for slot in (draft.get(group) or {})
+                    if slot not in (bulletin.get(group) or {}) and f"{group}.{slot}" not in dropped]
+    missing += [f"service.{key}" for key in (draft.get("service") or {})
+                if key not in service and f"service.{key}" not in dropped]
+    if missing:
+        raise StandingError(
+            "carried_part_dropped",
+            "This Sunday's input leaves out what last week's approved bulletin carried: " + ", ".join(sorted(missing))
+            + f". Build the input on {draft_path.relative_to(root).as_posix()}, or list each part you mean to drop "
+            "in dropped_from_last_week.")
+
+
 # --- adopting an approval made outside the skill ---------------------------------------------------------
 
 def adopt(root: Path, folder: Path, *, approved_by: str, note: str = "") -> dict[str, Any]:
