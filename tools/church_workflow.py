@@ -37,7 +37,7 @@ WORKFLOWS = {
 OPERATIONS = {
     "onboarding": {"status", "update", "resolve-person"},
     "brand": {"status", "update"},
-    "bulletin": {"orient", "produce", "revise", "finalize"},
+    "bulletin": {"orient", "produce", "revise", "finalize", "carry-forward", "keep", "standing", "adopt"},
     "sermon-research": {"orient", "record"},
     "sermon-reflection": {"orient", "open", "done", "record", "speaker-copy"},
     "finance-onboarding": {"orient", "look", "readiness", "calendar", "stage"},
