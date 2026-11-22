@@ -90,7 +90,7 @@ class CarryForwardTest(unittest.TestCase):
 
     def test_next_week_starts_from_last_week_with_the_date_s_parts_cleared(self):
         result = standing.carry_forward(self.root, date(2026, 12, 6))
-        draft = json.loads((self.root / result["draft_input"]).read_text())
+        draft = json.loads((self.root / result["draft_input"]).read_text(encoding="utf-8"))
         self.assertEqual(draft["service"], {"date": "2026-12-06", "celebrant": "The Rev. Pat Okafor", "time": "11:00 am"})
         for gone in standing.DATE_DECIDES:
             self.assertNotIn(gone, draft)
@@ -101,7 +101,7 @@ class CarryForwardTest(unittest.TestCase):
 
     def test_a_notice_carries_while_its_date_holds_and_an_undated_one_is_asked(self):
         result = standing.carry_forward(self.root, date(2026, 12, 6))
-        draft = json.loads((self.root / result["draft_input"]).read_text())
+        draft = json.loads((self.root / result["draft_input"]).read_text(encoding="utf-8"))
         self.assertEqual([n["title"] for n in draft["announcements"]], ["Advent and AI"])
         self.assertEqual(result["dropped_notices"], ["Thanksgiving pie sale"])
         notices = next(ask for ask in result["asks"] if ask["id"] == "notices")
@@ -129,7 +129,7 @@ class CheckCarriedTest(unittest.TestCase):
     def test_dropping_a_carried_part_is_refused_unless_named(self):
         root = Path(tempfile.mkdtemp())
         standing.adopt(root, approve_week(root, advent_one_config()), approved_by="x")
-        draft = json.loads((root / standing.carry_forward(root, date(2026, 12, 6))["draft_input"]).read_text())
+        draft = json.loads((root / standing.carry_forward(root, date(2026, 12, 6))["draft_input"]).read_text(encoding="utf-8"))
         standing.check_carried(root, draft)   # the draft itself passes
         without = {key: value for key, value in draft.items() if key != "after_gospel"}
         with self.assertRaises(standing.StandingError) as refused:
@@ -156,7 +156,7 @@ class AdoptTest(unittest.TestCase):
         folder = approve_week(root, advent_one_config())
         result = standing.adopt(root, folder, approved_by="The Rev. Pat Okafor", note="Approved in chat")
         self.assertEqual(result["status"], "ok")
-        entry = json.loads((root / "bulletins/bulletin-log.json").read_text())[result["adopted"]]
+        entry = json.loads((root / "bulletins/bulletin-log.json").read_text(encoding="utf-8"))[result["adopted"]]
         self.assertEqual(entry["evidence_label"], "adopted_approval")
         self.assertEqual(entry["package"], folder.relative_to(root).as_posix())
         with self.assertRaises(standing.StandingError) as again:
@@ -174,10 +174,10 @@ class CommandLineTest(unittest.TestCase):
         script = REPO / "skills/bulletin/scripts/bulletin_production.py"
         kept = subprocess.run([sys.executable, str(script), "keep", "--church-folder", str(root), "--date", "2026-12-06",
                                "--key", "dismissal", "--question", "Who says the dismissal?", "--answer", "The Deacon",
-                               "--keep", "always"], capture_output=True, text=True)
+                               "--keep", "always"], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(kept.returncode, 0, kept.stderr)
         listed = subprocess.run([sys.executable, str(script), "standing", "--church-folder", str(root), "--date", "2026-12-06"],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(json.loads(listed.stdout)["choices"][0]["answer"], "The Deacon")
 
 
