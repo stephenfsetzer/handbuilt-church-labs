@@ -341,12 +341,24 @@ def liturgy_section(name, ctx, head=None):
             if kind == "title":
                 title = payload
                 break
+    speaker = str(ctx.get("dismissal_speaker") or "").strip()
+    if speaker and any(kind == "title" and str(payload).strip().lower() == "the dismissal" for kind, payload in blocks):
+        # The church's saved choice of who dismisses the people ("Deacon"), in place of the default label.
+        blocks = [(kind, _respeak(payload, speaker)) if kind == "dialogue" else (kind, payload) for kind, payload in blocks]
     html = render_blocks(blocks, ctx)
     # Short sections (a few dialogue lines and rubrics) stay on one page
     n_content = sum(1 for k, _ in blocks if k != "title")
     if n_content <= 6 and "<img" not in html and 'class="congregational"' not in html:
         return f'<div class="section keep-together">{section_head(title) if title else ""}\n{html}</div>'
     return keep_or_flow(title, html)
+
+
+def _respeak(payload, speaker):
+    """A dialogue block with its leader's label (Celebrant, Priest, Deacon) replaced; the people's stays."""
+    leaders = {"celebrant", "priest", "presider", "deacon", "officiant", "leader"}
+    if str(payload.get("speaker") or "").strip().lower() in leaders:
+        return {**payload, "speaker": speaker}
+    return payload
 
 
 def configured_liturgy_file(cfg, key, legacy_key=None, migration_default=None):
@@ -584,8 +596,11 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
     cls = "hymn-page" if full_page else "hymn-inline"
     head_html = (f'<h2 class="hymn-head"><span class="sh-label">{head}</span></h2>'
                  if head else "")
-    composer_html = (f'<p class="hymn-composer">Composer: {esc(str(composer))}</p>'
-                     if str(composer or "").strip() else "")
+    # composer_style: "label" (Composer: Name, the default), "plain" (the name alone), or "hidden" when the
+    # music itself already prints it.
+    composer_style = str(hymn.get("composer_style") or "label").strip().lower()
+    composer_html = (f'<p class="hymn-composer">{"Composer: " if composer_style == "label" else ""}{esc(str(composer))}</p>'
+                     if str(composer or "").strip() and composer_style != "hidden" else "")
     # An optional posture or other instruction ("Please stand.") prints under
     # the title, above the music.
     rubric_html = (f'<p class="rubric">{esc(str(hymn["rubric"]))}</p>'
@@ -807,6 +822,30 @@ def gospel_block(reading, acclamation="lord"):
             + dialogue_pair("Priest", "The Gospel of the Lord.",
                             "People", "Praise to you, Lord Christ.")
             + "</div>")
+
+
+def after_gospel_block(cfg):
+    """A sung or said response everyone gives after the Gospel ("Together: Rejoice! Rejoice! Emmanuel")."""
+    response = cfg.get("after_gospel")
+    if not isinstance(response, dict) or not str(response.get("text") or "").strip():
+        return ""
+    speaker = str(response.get("speaker") or "Together").strip()
+    lines = [line for line in str(response["text"]).splitlines() if line.strip()]
+    rows = "".join(f'<div class="dialogue response"><span class="speaker">{esc(speaker if i == 0 else "")}</span>'
+                   f'<span class="line">{esc(line.strip())}</span></div>' for i, line in enumerate(lines))
+    rubric = str(response.get("rubric") or "").strip()
+    return ('<div class="section after-gospel">' + keep(*( [f'<p class="rubric">{esc(rubric)}</p>'] if rubric else []), rows)
+            + '</div>')
+
+
+def sermon_block(svc):
+    """The Sermon, the preacher, and an optional line under the name ("Seminarian at Riverbend Seminary")."""
+    note = str(svc.get("preacher_note") or "").strip()
+    return ('<div class="section">'
+            + keep(section_head("The Sermon"),
+                   f'<p class="service-person center">{esc(svc.get("preacher", ""))}</p>',
+                   *([f'<p class="service-person-note center">{esc(note)}</p>'] if note else []))
+            + '</div>')
 
 
 QR_COPY = {
@@ -1204,7 +1243,9 @@ def announcements_section(cfg, repo_root, template=None):
     lis = "\n".join(lis_parts)
     if not items:
         return ""
-    return f'<div class="section">{section_head("Announcements")}{lis}</div>'
+    boxed = str((cfg.get("options") or {}).get("announcements_style") or "").strip().lower() == "box"
+    return (f'<div class="section{" announcements-box" if boxed else ""}">'
+            f'{section_head("Announcements")}{lis}</div>')
 
 
 def church_panel(brand):
@@ -1528,6 +1569,7 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
         "omitted_units": liturgy.get("omitted_units") or (),
         "prayer_presentation": liturgy.get("prayer_presentation", "continuous"),
         "rubric_style": liturgy.get("rubric_style", "concise"),
+        "dismissal_speaker": liturgy.get("dismissal_speaker"),
     }
 
     def sanctus_hook(subtitle):
@@ -1587,12 +1629,9 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     parts.append(hymn_block("Gospel Acclamation", hymns.get("gospel_acclamation"), config_dir))
     if readings.get("gospel"):
         parts.append(gospel_block(readings["gospel"], gospel_acclamation_choice(cfg)))
+        parts.append(after_gospel_block(cfg))
 
-    preacher = svc.get("preacher", "")
-    parts.append('<div class="section">'
-                 + keep(section_head("The Sermon"),
-                        f'<p class="service-person center">{esc(preacher)}</p>')
-                 + '</div>')
+    parts.append(sermon_block(svc))
 
     if liturgy.get("include_creed", opts.get("include_creed", True)):
         parts.append(liturgy_steps(variant, "nicene-creed", ctx))
@@ -1740,8 +1779,8 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
     parts.append(hymn_block("Gospel Acclamation", hymns.get("gospel_acclamation"), config_dir))
     if readings.get("gospel"):
         parts.append(gospel_block(readings["gospel"], gospel_acclamation_choice(cfg)))
-    parts.append('<div class="section">' + keep(section_head("The Sermon"),
-                 f'<p class="service-person center">{esc(svc.get("preacher", ""))}</p>') + '</div>')
+        parts.append(after_gospel_block(cfg))
+    parts.append(sermon_block(svc))
     parts.append(section("prayers", "Prayers of the Church"))
     parts.append(hymn_block("Offertory Anthem", music.get("offertory_anthem"), config_dir,
                             full_page=False))

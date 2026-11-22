@@ -18,6 +18,7 @@
         "proper": {"type": "string"},
         "celebrant": {"type": "string"},
         "preacher": {"type": "string"},
+        "preacher_note": {"type": "string", "description": "An optional line under the preacher's name, such as 'Seminarian at Riverbend Seminary'."},
         "serving": {
           "type": "array",
           "items": {"$ref": "#/$defs/servingEntry"}
@@ -30,6 +31,7 @@
       "required": ["service_plan", "blessing"],
       "properties": {
         "service_plan": {"type": "string"},
+        "dismissal_speaker": {"type": "string", "description": "Who says the dismissal (Deacon, Priest, Celebrant); replaces the leader's label in The Dismissal."},
         "part_selections": {
           "type": "object",
           "description": "Resolved catalog selections by logical liturgy part. The production resolver validates their allowed values.",
@@ -78,6 +80,7 @@
       "properties": {
         "include_serving_today": {"type": "boolean", "default": false},
         "merge_back_page": {"type": "boolean", "default": false},
+        "announcements_style": {"enum": ["plain", "box"], "description": "box prints all of a Sunday's notices inside one outlined box."},
         "announcements_placement": {"type": "string", "enum": ["back_page", "after_connect_give"], "default": "back_page"},
         "serving_roles": {"type": "array", "items": {"type": "string"}},
         "print_mode": {
@@ -97,6 +100,17 @@
     "announcements": {
       "type": "array",
       "items": {"$ref": "#/$defs/announcementEntry"}
+    },
+    "after_gospel": {
+      "type": "object",
+      "description": "A response everyone gives after the Gospel, printed right after it.",
+      "required": ["text"],
+      "properties": {
+        "speaker": {"type": "string", "description": "The label, Together by default."},
+        "text": {"type": "string", "description": "The words, one printed line per line."},
+        "rubric": {"type": "string"}
+      },
+      "additionalProperties": false
     },
     "parish_information": {
       "type": "object",
@@ -162,6 +176,7 @@
       "type": "object",
       "properties": {
         "label": {"type": "string", "description": "Optional printed heading that replaces the slot's default music label."},
+        "composer_style": {"enum": ["label", "plain", "hidden"], "description": "label prints 'Composer: Name' (default); plain prints the name alone; hidden prints nothing because the music shows it."},
         "number": {"type": ["string", "number"]},
         "title": {"type": "string"},
         "tune": {"type": "string"},
@@ -255,6 +270,7 @@
         "image": {"type": "string"},
         "images": {"type": "array", "items": {"type": "string"}},
         "caption": {"type": "string"},
+        "until": {"type": "string", "format": "date", "description": "The last Sunday this notice prints. Carry-forward keeps it until then; a notice without one is asked about."},
         "featured": {
           "description": "A featured announcement block. Every part is optional, but it needs at least one. It never splits across pages.",
           "type": "object",
