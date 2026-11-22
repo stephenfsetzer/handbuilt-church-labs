@@ -4,6 +4,10 @@ Handbuilt reads the top note for a version the first time a church starts work
 on it, and the agent passes it on in one sentence. Each release adds its own
 section, with the note as one plain line for a pastor.
 
+## 0.9.0
+
+Your bulletin now starts from last week's approved one, and an answer you keep for the season or from now on is never asked again.
+
 ## 0.8.32
 
 The plugin's files are rearranged to meet the plugin directory's rules; nothing changes in your work.

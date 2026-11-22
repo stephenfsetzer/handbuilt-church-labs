@@ -66,6 +66,32 @@ Run the operation with the exact prefix returned by `start`:
 <launcher-prefix> bulletin orient --date <YYYY-MM-DD>
 ```
 
+Then start from last week:
+
+```bash
+<launcher-prefix> bulletin carry-forward --date <YYYY-MM-DD>
+<launcher-prefix> bulletin standing --date <YYYY-MM-DD>
+```
+
+`carry-forward` writes this Sunday's draft input from the most recent approved
+bulletin for the same service and returns what it carried, what it dropped and
+what it `asks`. The date decides occasion, collect, readings and psalm afresh;
+everything else carries as approved last week: people's roles, the dismissal,
+responses such as `after_gospel`, the music arrangement, layout options and
+`merge_back_page`, and every notice whose `until` date has not passed. A notice
+with no `until` and who preaches are never carried silently: they are in
+`asks`. Build this Sunday's input on that draft, changing only what the pastor's
+note, this week's music and the date change. Reread each carried notice against
+this Sunday's date: a phrase like "next Sunday" or "begins" must still be true,
+so update the words, never the facts.
+
+`standing` lists the church's kept answers (`worship/standing-choices.json`).
+Follow each one exactly and never ask its question again. When the pastor
+answers a question and says the answer is for this season or from now on, keep
+it with `bulletin keep --date <Sunday> --key <short-id> --question "<the
+question>" --answer "<their answer>" --keep season|always`. An answer for this
+Sunday only goes in this bulletin's input and is not kept.
+
 Use the result to propose defaults from approved bulletin history and available
 music assets. History means an item appeared in an approved bulletin. Do not
 claim it was sung, read, or announced during the service.
@@ -106,8 +132,9 @@ returning pastor can correct.
 An incomplete partial draft is not proof that a weekly choice is unknown.
 Inspect existing packages for the same date, service, and occurrence before
 asking again. Describe which dated choices you recovered and let the pastor
-correct them. Do not silently carry another week's assignments, music, or
-announcements into a new date.
+correct them. Carry another week's assignments, music, or announcements into a
+new date only through `carry-forward`, which keeps what was approved and asks
+about the rest.
 
 The agent retrieves the appointed readings, collect, and proper preface from
 verified sources using the saved lectionary and worship practice. The pastor
@@ -204,10 +231,27 @@ case-insensitive role match, with a first-name shortcut only when it is unique
 after printed titles are removed. Ambiguous or missing matches need a pastor's
 choice. Never save a weekly assignment into the standing roster.
 
-`merge_back_page` is a weekly approval question, never an inferred default.
-When a merge is proposed, the result and receipt must show a mandatory
-visual-review warning and the signature pages, sides, sheets, and blanks. The
-pastor must explicitly approve that week's merge before finalization.
+`merge_back_page` is never an inferred default. Ask the pastor once; after an
+approved bulletin merged the back page, or a kept answer says to, it carries
+forward like any other approved choice and is not asked again. When a merge is
+produced, the result and receipt still show the visual-review warning and the
+signature pages, sides, sheets, and blanks, and the pastor reviews that page
+before finalization.
+
+Parts the church sets in the input rather than by editing pages afterward:
+`after_gospel` (a response everyone gives right after the Gospel),
+`service.preacher_note` (a line under the preacher's name),
+`liturgy.dismissal_speaker` (who says the dismissal), `options.announcements_style:
+box` (all notices in one box), `announcements[].until` (the last Sunday a notice
+prints) and a hymn's `composer_style` (`label`, `plain` or `hidden`). Never edit
+a produced page by hand: finalize refuses a changed page, and a change made
+outside the input is lost next week. Put the change in the input and revise.
+
+When nobody is at the keyboard (a hosted run), write each question the pastor
+must answer to `bulletins/questions-<date>.json` as `{"questions": [{"id",
+"question", "options", "open": true, "weekly"}]}` and stop before producing.
+`weekly` is true when the answer can only be for this Sunday (who preaches).
+Record a smaller call you made yourself in the same file with `taken`.
 
 Read [Weekly input](references/weekly-input.md) and its linked field schema
 before preparing the production JSON. Use those contracts rather than reading

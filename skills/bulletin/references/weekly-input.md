@@ -149,3 +149,18 @@ use `bulletins/drafts/<date>/<service-id>/<occurrence-id>/input.json`; the agent
 maintains this file. Recover it on return before asking questions. Do not call
 an incomplete draft a produced or approved bulletin, and use the exact review
 receipt for revisions once a review package exists.
+
+## Parts the church sets instead of editing pages
+
+These carry forward from the last approved bulletin through `carry-forward`:
+
+- `after_gospel`: `{"speaker": "Together", "text": "Rejoice! Rejoice! Emmanuel"}`, a response everyone
+  gives right after the Gospel. One printed line per line of `text`.
+- `service.preacher_note`: a line under the preacher's name, such as "Seminarian at Riverbend
+  Seminary". Who preaches is asked every week unless a kept answer names them.
+- `liturgy.dismissal_speaker`: who says the dismissal, such as `Deacon`.
+- `options.announcements_style`: `box` prints all of the Sunday's notices inside one outlined box.
+- `announcements[].until`: the last Sunday a notice prints. A notice without one is asked about the next
+  week instead of carried.
+- a hymn's `composer_style`: `label` ("Composer: Name", the default), `plain` (the name alone) or
+  `hidden` (the music already shows it).
