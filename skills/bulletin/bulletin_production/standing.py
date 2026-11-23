@@ -287,6 +287,30 @@ def _advance_each_week(root: Path, draft: dict[str, Any], config: dict[str, Any]
 CREDIT_FIELDS = ("tune", "composer", "custom_text", "label")
 
 
+def _standing_music(root: Path, sunday: date, service_id: str | None, occurrence_id: str | None) -> list[tuple[str, str]]:
+    """Slots that printed the same piece on each of the last two approved Sundays."""
+    last = last_approved(root, sunday, service_id, occurrence_id)
+    if not last:
+        return []
+    before = last_approved(root, date.fromisoformat(last[0]["date"]), service_id, occurrence_id)
+    if not before:
+        return []
+    configs = []
+    for _, folder in (last, before):
+        try:
+            configs.append(json.loads((folder / "bulletin-config.json").read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            return []
+    found = []
+    for group in ("hymns", "service_music"):
+        for slot, piece in (configs[0].get(group) or {}).items():
+            other = (configs[1].get(group) or {}).get(slot)
+            if (isinstance(piece, dict) and isinstance(other, dict) and piece.get("title")
+                    and str(piece.get("title")).strip() == str(other.get("title") or "").strip()):
+                found.append((group, slot))
+    return found
+
+
 def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
     """Refuse a bulletin that silently drops what carry-forward carried for its Sunday.
 
@@ -309,14 +333,19 @@ def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
     if not draft:
         return
     dropped = set(bulletin.get("dropped_from_last_week") or [])
-    missing = [key for key in draft if key not in ("carried_from",) and key not in bulletin and key not in dropped]
+    missing = [key for key in draft if key not in ("carried_from", "hymns", "service_music")
+               and key not in bulletin and key not in dropped]
     missing += [f"liturgy.{key}" for key in (draft.get("liturgy") or {})
                 if key not in (bulletin.get("liturgy") or {}) and f"liturgy.{key}" not in dropped]
     missing += [f"options.{key}" for key in (draft.get("options") or {})
                 if key not in (bulletin.get("options") or {}) and f"options.{key}" not in dropped]
-    for group in ("hymns", "service_music"):
-        missing += [f"{group}.{slot}" for slot in (draft.get(group) or {})
-                    if slot not in (bulletin.get(group) or {}) and f"{group}.{slot}" not in dropped]
+    # Music is chosen each week (the musician's sheet): a slot last week used, such as an offertory anthem, may
+    # simply not be sung this week. Requiring it made the agent put this week's offertory hymn in the anthem slot.
+    # Music printed in the same slot the last two approved Sundays (Halle, Halle; Eat This Bread) is standing.
+    for group, slot in _standing_music(root, date.fromisoformat(when), service.get("service_id"),
+                                       service.get("occurrence_id")):
+        if slot not in (bulletin.get(group) or {}) and f"{group}.{slot}" not in dropped:
+            missing.append(f"{group}.{slot} (sung the last two Sundays)")
     for group in ("hymns", "service_music"):
         for slot, hymn in (draft.get(group) or {}).items():
             mine = (bulletin.get(group) or {}).get(slot)

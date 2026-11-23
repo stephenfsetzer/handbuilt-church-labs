@@ -170,10 +170,7 @@ class CheckCarriedTest(unittest.TestCase):
         with self.assertRaises(standing.StandingError) as liturgy:
             standing.check_carried(root, no_deacon)
         self.assertIn("liturgy.dismissal_speaker", str(liturgy.exception))
-        no_acclamation = {**draft, "hymns": {}}
-        with self.assertRaises(standing.StandingError) as hymns:
-            standing.check_carried(root, no_acclamation)
-        self.assertIn("hymns.entrance", str(hymns.exception))
+        standing.check_carried(root, {**draft, "hymns": {}})   # this week's music is the musician's, not last week's
 
     def test_the_same_hymn_keeps_the_credit_it_printed(self):
         root = Path(tempfile.mkdtemp())
@@ -189,6 +186,25 @@ class CheckCarriedTest(unittest.TestCase):
         other = json.loads(json.dumps(draft))
         other["hymns"]["closing"] = {"title": "Sweet, Sweet Spirit", "composer": "Doris Akers"}
         standing.check_carried(root, other)   # a different hymn brings its own credit
+
+    def test_music_sung_two_sundays_running_carries_and_one_off_music_does_not(self):
+        root = Path(tempfile.mkdtemp())
+        first = advent_one_config()
+        first["service"]["date"] = "2026-11-22"
+        first["hymns"] = {"communion": {"title": "Eat This Bread"}, "offertory": {"title": "Lead on, O King eternal"}}
+        folder = root / "bulletins/2026/11/2026-11-22-christ-the-king"
+        write(folder / "bulletin-config.json", first)
+        write(folder / "bulletin-production-receipt.json", {"run_id": "run-22", "service_date": "2026-11-22", "artifacts": [
+            {"role": "sequential_pdf", "path": f"{folder.relative_to(root)}/bulletin-2026-11-22-modern.pdf"}]})
+        standing.adopt(root, folder, approved_by="x")
+        second = advent_one_config()
+        second["hymns"] = {"communion": {"title": "Eat This Bread"}, "offertory": {"title": "A Simple Song"}}
+        standing.adopt(root, approve_week(root, second), approved_by="x")
+        draft = json.loads((root / standing.carry_forward(root, date(2026, 12, 6))["draft_input"]).read_text(encoding="utf-8"))
+        standing.check_carried(root, {**draft, "hymns": {"communion": {"title": "Eat This Bread"}}})
+        with self.assertRaises(standing.StandingError) as refused:
+            standing.check_carried(root, {**draft, "hymns": {"offertory": {"title": "Comfort, comfort ye"}}})
+        self.assertIn("hymns.communion", str(refused.exception))
 
     def test_editing_the_draft_file_does_not_change_what_must_carry(self):
         root = Path(tempfile.mkdtemp())
