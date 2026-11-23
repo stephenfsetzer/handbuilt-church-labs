@@ -1514,7 +1514,9 @@ class _Fitter:
             tried.add(ref)
             start = dict(params.music).get(ref, 1.0)
 
-            def attempt(scale: float, ref=ref, base=params, before=failures
+            start_page = next((u.first_page for u, r in zip(layout.report.units, layout.unit_refs) if r == ref), None)
+
+            def attempt(scale: float, ref=ref, base=params, before=failures, stay=False
                         ) -> tuple[bool, _Params]:
                 if scale > start:
                     return False, base
@@ -1523,14 +1525,18 @@ class _Fitter:
                 if any(f.check == "stranded_heading" for f in _blocking_failures(trial_findings)):
                     trial, _ = self.fix_stranded(trial)
                     trial_layout, trial_findings = self.render(trial)
-                one_page = any(u.first_page == u.last_page
+                one_page = any(u.first_page == u.last_page and (not stay or u.first_page == start_page)
                                for u, r in zip(trial_layout.report.units, trial_layout.unit_refs)
                                if r == ref)
                 left = len(_blocking_failures(trial_findings))
                 ok = left == 0 if require_pass else (self.count_ok(trial_findings) and left < before)
                 return one_page and ok, trial
 
-            chosen = self._largest_scale(attempt)
+            # Shrinking within the church's minimum to stay where it starts comes first; moving the whole
+            # piece onto the next page only when that cannot work.
+            chosen = self._largest_scale(lambda scale: attempt(scale, stay=True))
+            if chosen is None:
+                chosen = self._largest_scale(attempt)
             if chosen is not None:
                 params, changed = chosen, True
                 layout, findings = self.render(params)
