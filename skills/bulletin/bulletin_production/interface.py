@@ -1236,11 +1236,17 @@ def _print_settings(church_config: dict[str, Any]) -> dict[str, Any]:
 SHORT_BOOKLET_QUESTION = ("This week's bulletin comes up short of a folded booklet. "
                           "How should the extra space be used, this week and when it happens again?")
 SHORT_BOOKLET_ANSWERS = {
+    "Page 2 blank, then the parish register alone on the back page, then space before major parts":
+        ("blank_inside_cover", "register_alone", "white_space"),
+    "Page 2 blank, then space before major parts": ("blank_inside_cover", "white_space"),
+    "Space before major parts of the service": ("white_space",),
+}
+# Earlier wordings of the same answers, kept so an answer already given still reads the same way.
+SHORT_BOOKLET_EARLIER = {
     "Leave page 2 blank so the service starts on page 3; if still short, the parish register alone on "
     "the back page; then space before major parts": ("blank_inside_cover", "register_alone", "white_space"),
     "Leave page 2 blank so the service starts on page 3; then space before major parts":
         ("blank_inside_cover", "white_space"),
-    "Space before major parts of the service": ("white_space",),
 }
 
 
@@ -1250,9 +1256,15 @@ def _parse_short_booklet(value: Any) -> tuple[str, ...] | None:
 
     if isinstance(value, str):
         text = value.strip()
-        for label, moves in SHORT_BOOKLET_ANSWERS.items():
-            if text.casefold().rstrip(".") == label.casefold():
+        said = text.casefold().rstrip(". ")
+        labels = {**SHORT_BOOKLET_ANSWERS, **SHORT_BOOKLET_EARLIER}
+        for label, moves in labels.items():
+            if said == label.casefold():
                 return moves
+        # An option an app cut short still names one answer when it is a long enough start of only one.
+        starts = {moves for label, moves in labels.items() if len(said) >= 24 and label.casefold().startswith(said)}
+        if len(starts) == 1:
+            return starts.pop()
         value = [part.strip() for part in text.split(",") if part.strip()]
     if not isinstance(value, list) or not value or any(item not in SHORT_BOOKLET_MOVES for item in value):
         return None

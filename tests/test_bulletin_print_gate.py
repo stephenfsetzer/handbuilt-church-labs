@@ -161,6 +161,10 @@ class BookletProductionTests(unittest.TestCase):
         self.assertEqual(parse("white_space, blank_inside_cover"), ("white_space", "blank_inside_cover"))
         self.assertEqual(parse(["register_alone"]), ("register_alone",))
         self.assertIsNone(parse("whatever looks best"))
+        # An app that cut the option short still gives the same answer; an earlier wording still reads.
+        cut = "Leave page 2 blank so the service starts on page 3; if still short, the parish register alone on the back page; then spa"
+        self.assertEqual(parse(cut), ("blank_inside_cover", "register_alone", "white_space"))
+        self.assertIsNone(parse("Page 2"))
         bad = fourteen_page_input()
         bad["options"]["short_booklet"] = ["shrink_everything"]
         result = produce(self.church, bad)
