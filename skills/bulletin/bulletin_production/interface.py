@@ -2220,6 +2220,18 @@ _RENDER_PDF = (
 )
 
 
+FEAST_PROPERS = {"proper 29": "Christ the King"}
+
+
+def _name_the_feast(bulletin: dict[str, Any]) -> None:
+    """A proper that is a feast prints the feast's name: the Last Sunday after Pentecost is Christ the King."""
+    service = bulletin.get("service")
+    if isinstance(service, dict) and isinstance(service.get("proper"), str):
+        feast = FEAST_PROPERS.get(service["proper"].strip().lower())
+        if feast:
+            service["proper"] = feast
+
+
 def _check_locked_wording(root: Path, html_path: Path) -> list[str]:
     """A church's locked wording for its standard texts (worship/locked-wording.json), checked before printing.
 
@@ -2866,6 +2878,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         _consume_saved_worship_resolution(root, source_resolved)
         _validate_service_time_choice(church_config, source_resolved)
         _normalize_liturgy(source_resolved)
+        _name_the_feast(source_resolved)
         _resolve_standing_preferences(source_resolved, church_config)
         _resolve_parish_information(source_resolved, church_config)
         _validate_leadership(church_config)

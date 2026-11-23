@@ -262,6 +262,9 @@ def _advance_each_week(root: Path, draft: dict[str, Any], config: dict[str, Any]
                              "options": [f"Stanza {stanza}"], "weekly": True})
 
 
+CREDIT_FIELDS = ("tune", "composer", "custom_text", "label")
+
+
 def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
     """Refuse a bulletin that silently drops what carry-forward carried for its Sunday.
 
@@ -295,6 +298,13 @@ def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
     for group in ("hymns", "service_music"):
         for slot, hymn in (draft.get(group) or {}).items():
             mine = (bulletin.get(group) or {}).get(slot)
+            # The same hymn again keeps the words the church printed under it (Day by Day's "from the Broadway
+            # musical Godspell, by Stephen Schwartz" was rewritten once into a new credit).
+            if (isinstance(hymn, dict) and isinstance(mine, dict) and hymn.get("title")
+                    and str(hymn.get("title")).strip() == str(mine.get("title") or "").strip()):
+                for field in CREDIT_FIELDS:
+                    if (hymn.get(field) or None) != (mine.get(field) or None) and f"{group}.{slot}.{field}" not in dropped:
+                        missing.append(f"{group}.{slot}.{field} (as last week printed it)")
             if (isinstance(hymn, dict) and hymn.get("each_week") and isinstance(mine, dict)
                     and mine.get("images") != hymn.get("images") and f"{group}.{slot}.images" not in dropped):
                 missing.append(f"{group}.{slot}.images (stanza {hymn['each_week'].get('stanza')} this Sunday)")

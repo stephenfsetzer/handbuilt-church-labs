@@ -175,6 +175,21 @@ class CheckCarriedTest(unittest.TestCase):
             standing.check_carried(root, no_acclamation)
         self.assertIn("hymns.entrance", str(hymns.exception))
 
+    def test_the_same_hymn_keeps_the_credit_it_printed(self):
+        root = Path(tempfile.mkdtemp())
+        config = advent_one_config()
+        config["hymns"]["closing"] = {"title": "Day by Day", "tune": "from the Broadway musical Godspell, by Stephen Schwartz"}
+        standing.adopt(root, approve_week(root, config), approved_by="x")
+        draft = json.loads((root / standing.carry_forward(root, date(2026, 12, 6))["draft_input"]).read_text(encoding="utf-8"))
+        rewritten = json.loads(json.dumps(draft))
+        rewritten["hymns"]["closing"]["tune"] = "Godspell; words by Richard of Chichester"
+        with self.assertRaises(standing.StandingError) as refused:
+            standing.check_carried(root, rewritten)
+        self.assertIn("hymns.closing.tune", str(refused.exception))
+        other = json.loads(json.dumps(draft))
+        other["hymns"]["closing"] = {"title": "Sweet, Sweet Spirit", "composer": "Doris Akers"}
+        standing.check_carried(root, other)   # a different hymn brings its own credit
+
     def test_editing_the_draft_file_does_not_change_what_must_carry(self):
         root = Path(tempfile.mkdtemp())
         standing.adopt(root, approve_week(root, advent_one_config()), approved_by="x")
