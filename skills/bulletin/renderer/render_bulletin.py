@@ -1263,8 +1263,10 @@ def announcements_section(cfg, repo_root, template=None):
     if not items:
         return ""
     boxed = str((cfg.get("options") or {}).get("announcements_style") or "").strip().lower() == "box"
-    return (f'<div class="section{" announcements-box" if boxed else ""}">'
-            f'{section_head("Announcements")}{lis}</div>')
+    if boxed:
+        # The outline goes around the notices in the text column, not around the section and its label.
+        lis = f'<div class="announcements-box">{lis}</div>'
+    return f'<div class="section">{section_head("Announcements")}{lis}</div>'
 
 
 def church_panel(brand):

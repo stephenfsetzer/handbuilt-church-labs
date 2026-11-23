@@ -74,14 +74,28 @@ class _Lessons(HTMLParser):
             self._start("heading")
         elif tag == "h3" and "lessonCitation" in classes:
             self._start("citation")
-        elif tag == "p" and ({"lessonText", "poetryText"} & set(classes) or any(c.startswith("poetry") for c in classes)):
+        elif tag in ("p", "div") and ({"lessonText", "poetryText"} & set(classes) or any(c.startswith("poetry") for c in classes)):
             # poetryIndent carries quoted prophecy in a Gospel (Mark 1:2-3); dropping it printed half a sentence.
+            # Some pages hold a lesson's first paragraph in <div class="lessonText"> (Ezekiel 34:11-16, 20-24 on
+            # Christ the King, Year A); reading only <p> printed verses 20-24 alone.
+            self._flush()
             self._start("poetry" if any(c.startswith("poetry") for c in classes) else "prose")
+        elif tag == "p" and self._field in ("poetry", "prose"):
+            self._flush(keep=True)   # a bare <p> inside a lesson's text starts a new paragraph of the same kind
         elif tag == "br" and self._field in ("poetry", "prose"):
             self._buffer.append("\n")
 
     def _start(self, field):
         self._field, self._buffer = field, []
+
+    def _flush(self, keep: bool = False):
+        """End the paragraph being read, keeping its text; with keep, read on as the same kind of text."""
+        field = self._field
+        if field in ("poetry", "prose") and self._lesson is not None:
+            text = _join(self._buffer)
+            if text:
+                self._lesson["paragraphs"].append((field, text))
+        self._field, self._buffer = (field if keep else None), []
 
     def handle_data(self, data):
         if self._field:
@@ -97,7 +111,7 @@ class _Lessons(HTMLParser):
             self._lesson = self._field = None
         elif divine_name and self._field in ("poetry", "prose"):
             self._buffer.append("\x00")  # the page sometimes drops the space after this word; see _join
-        elif self._field and tag in ("h2", "h3", "p"):
+        elif self._field and tag in ("h2", "h3", "p", "div"):
             text = _join(self._buffer)
             if self._field in ("heading", "citation"):
                 self._lesson[self._field] = " ".join(text.split())

@@ -50,6 +50,16 @@ class ParsingTests(unittest.TestCase):
         self.assertIn("See, a messenger goes ahead", text)
         self.assertIn("So a messenger came", text)
 
+    def test_a_first_paragraph_held_in_a_div_is_kept(self):
+        # Christ the King, Year A: Ezekiel 34:11-16 sits in <div class="lessonText">, then 34:20-24 in a <p>.
+        page = ('<article><h2 class="lessonHeading">Old Testament</h2>'
+                '<h3 class="lessonCitation">Ezekiel 34:11-16, 20-24</h3>'
+                '<div class="lessonText"><span class="initCap">T</span>hus says the Lord: I will seek my sheep.<p></p>'
+                '<p class="lessonText">Therefore, thus says the Lord to them: I will judge.</p></div></article>')
+        lesson = W.parse_lessons(page)[0]
+        text, _ = W._lesson_text(lesson, None)
+        self.assertEqual(text, "Thus says the Lord: I will seek my sheep.\n\nTherefore, thus says the Lord to them: I will judge.")
+
     def test_the_collect_is_not_mistaken_for_a_lesson(self):
         self.assertNotIn("", [lesson["citation"] for lesson in W.parse_lessons(PAGE)])
 
