@@ -113,6 +113,25 @@ no private data, and it never asks for either.
 4. **Stephen merges.** Open a pull request and leave it for review. Never push
    to `main` or merge.
 
+## Bugs and fixes
+
+This repository has no issue tracker. Bug reports name churches and people, so every Labs bug, gap
+and idea is an issue in Stephen's private product repository (`stephenfsetzer/handbuilt`, label
+`labs`). Its `docs/agents/issue-tracker.md` explains how to file, triage and fix them. A church
+folder, the task store and chat are not trackers. Pastors report through the Church Labs
+connector's `report_problem`, which files the same kind of issue.
+
+1. **Filing from a church folder.** Use `gh issue create -R stephenfsetzer/handbuilt --label
+   labs,bug,needs-triage`, with the plugin version, the skill and step, the exact error and the
+   workaround. If you can't reach GitHub, tell Stephen. Don't start a local bug list.
+2. **Fixing.** Take one issue labeled `ready-for-agent`, open a `fix-<issue#>-<slug>` lane, and
+   write the failing check in `tests/test_field_regressions.py` before the fix. Pull request titles,
+   descriptions and commits here are public: describe the bug in general terms, with no issue
+   number, church name or church data.
+3. **Lanes are short.** Keep at most five fix lanes open. A lane merges within days or is closed.
+4. **Churches run releases.** A church folder runs a released version, never a lane, so a fix only
+   reaches churches once it's released.
+
 ## Repository verification
 
 The suite uses Python's built-in `unittest`. `pytest` is not a dependency and
