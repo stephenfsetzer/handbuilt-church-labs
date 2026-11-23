@@ -407,6 +407,16 @@ class RenderedTests(unittest.TestCase):
         self.assertTrue(one_sentence(summary))
         self.assertLessEqual(result.renders, pl.DEFAULT_MAX_RENDERS)
 
+    def test_a_church_that_has_not_chosen_gets_no_added_pages(self):
+        result = pl.fit(self.fourteen_page_service(), base_url=self.base_url, short_booklet=())
+        self.assertEqual(result.status, "failed")
+        self.assertNotIn("inside_cover", [a["step"] for a in result.adjustments])
+        self.assertNotIn("section_start", [a["step"] for a in result.adjustments])
+
+    def test_white_space_only_never_leaves_page_two_blank(self):
+        result = pl.fit(self.fourteen_page_service(), base_url=self.base_url, short_booklet=("white_space",))
+        self.assertNotIn("inside_cover", [a["step"] for a in result.adjustments])
+
     def test_tall_opening_hymn_is_scaled_to_fit_its_page(self):
         html = self.tall_opening_hymn()
         before = self.measure(html)

@@ -253,6 +253,15 @@ must answer to `bulletins/questions-<date>.json` as `{"questions": [{"id",
 `weekly` is true when the answer can only be for this Sunday (who preaches).
 Record a smaller call you made yourself in the same file with `taken`.
 
+A booklet that comes up short of the next multiple of four is the church's
+call, asked once. When `produce` stops with `short_booklet_choice_needed`,
+ask its `diagnostics.question` with its `diagnostics.options` word for word,
+under the id `short-booklet` (hosted: in the questions file; at the
+keyboard: ask, then `bulletin keep --key short-booklet --keep always`). The
+answer is kept, so later short weeks fill the same way without asking. A
+week's own `options.short_booklet` (moves in order from `blank_inside_cover`,
+`register_alone`, `white_space`) overrides it.
+
 Read [Weekly input](references/weekly-input.md) and its linked field schema
 before preparing the production JSON. Use those contracts rather than reading
 the Python implementation to discover ordinary input fields. The input adds:

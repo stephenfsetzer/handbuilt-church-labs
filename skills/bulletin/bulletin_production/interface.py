@@ -1233,6 +1233,54 @@ def _print_settings(church_config: dict[str, Any]) -> dict[str, Any]:
     return settings
 
 
+SHORT_BOOKLET_QUESTION = ("This week's bulletin comes up short of a folded booklet. "
+                          "How should the extra space be used, this week and when it happens again?")
+SHORT_BOOKLET_ANSWERS = {
+    "Leave page 2 blank so the service starts on page 3; if still short, the parish register alone on "
+    "the back page; then space before major parts": ("blank_inside_cover", "register_alone", "white_space"),
+    "Leave page 2 blank so the service starts on page 3; then space before major parts":
+        ("blank_inside_cover", "white_space"),
+    "Space before major parts of the service": ("white_space",),
+}
+
+
+def _parse_short_booklet(value: Any) -> tuple[str, ...] | None:
+    """A church's short-booklet choice from a list of moves, a comma list, or one of the asked answers."""
+    from ..renderer.print_layout import SHORT_BOOKLET_MOVES
+
+    if isinstance(value, str):
+        text = value.strip()
+        for label, moves in SHORT_BOOKLET_ANSWERS.items():
+            if text.casefold().rstrip(".") == label.casefold():
+                return moves
+        value = [part.strip() for part in text.split(",") if part.strip()]
+    if not isinstance(value, list) or not value or any(item not in SHORT_BOOKLET_MOVES for item in value):
+        return None
+    return tuple(dict.fromkeys(value))
+
+
+def _short_booklet_moves(bulletin: dict[str, Any], root: Path) -> tuple[str, ...]:
+    """The week's option first, then the church's kept answer; an empty tuple means not chosen yet."""
+    options = bulletin.get("options") or {}
+    if options.get("short_booklet") is not None:
+        moves = _parse_short_booklet(options.get("short_booklet"))
+        if moves is None:
+            raise StageFailure("invalid_request", "validation",
+                               "List the short-booklet moves in order from blank_inside_cover, register_alone "
+                               "and white_space.", field="options.short_booklet")
+        return moves
+    from .standing import applicable
+
+    try:
+        sunday = date.fromisoformat(str((bulletin.get("service") or {}).get("date")))
+    except ValueError:
+        return ()
+    for choice in applicable(root, sunday):
+        if choice.get("key") == "short-booklet":
+            return _parse_short_booklet(choice.get("answer")) or ()
+    return ()
+
+
 def _validate_back_page_merge(bulletin: dict[str, Any]) -> None:
     options = bulletin.get("options") or {}
     if not isinstance(options, dict) or options.get("merge_back_page") is not True:
@@ -2156,6 +2204,12 @@ _RENDER_PDF = (
 )
 
 
+def _short_of_fold(failure: "StageFailure") -> bool:
+    """The fit failed on the page count: with no way chosen to add pages, other findings may only follow from it."""
+    diagnostics = failure.diagnostics or {}
+    return "booklet_page_count" in (diagnostics.get("failing_checks") or []) and isinstance(diagnostics.get("pages"), int)
+
+
 def _print_gate(
     stage_dir: Path,
     html_path: Path,
@@ -2164,6 +2218,7 @@ def _print_gate(
     print_mode: str,
     inside_cover_allowed: bool,
     print_settings: dict[str, Any] | None = None,
+    short_booklet: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Check the rendered layout for its print mode and fit it when needed.
 
@@ -2195,6 +2250,8 @@ def _print_gate(
         command.extend(["--max-body-pt", str(settings["body_size_pt"])])
     if settings.get("music_min_scale") is not None:
         command.extend(["--music-min-scale", str(settings["music_min_scale"])])
+    if short_booklet is not None:
+        command.extend(["--short-booklet", ",".join(short_booklet) or "none"])
     completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
     try:
         result = json.loads(completed.stdout)
@@ -2215,7 +2272,8 @@ def _print_gate(
             "print_layout",
             blocking[0]["message"] if blocking else "The bulletin could not be fitted for printing.",
             diagnostics={"failing_checks": [f["check"] for f in blocking],
-                         "print_mode": print_mode, "renders": result.get("renders")},
+                         "print_mode": print_mode, "renders": result.get("renders"),
+                         "pages": result.get("pages")},
         )
     adjustments: list[dict[str, Any]] = []
     if status == "fit":
@@ -2915,15 +2973,44 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         ]
         if staged_liturgy is not None:
             render_command.extend(["--liturgy-dir", str(staged_liturgy)])
-        _run(render_command, stage="render", env=env, reject_warnings=True)
         stem = f"bulletin-{service['date']}-{template}"
         html_path = stage_dir / f"{stem}.html"
         sequential_pdf = stage_dir / f"{stem}.pdf"
         booklet_pdf = stage_dir / f"{stem}-booklet-11x17.pdf"
-        # Check, and fit when needed, before imposition so a booklet never
-        # reaches the imposer with a page count that needs padding blanks.
-        print_gate = _print_gate(stage_dir, html_path, sequential_pdf, env,
-                                 print_mode, inside_cover_allowed, print_settings)
+        # A short booklet is filled the church's way, in its order: a merged back page splits only when the
+        # church allows the parish register alone on the back page and the moves before it are not enough.
+        moves = _short_booklet_moves(source_resolved, root) if print_mode == "booklet" else ()
+        merged = (resolved.get("options") or {}).get("merge_back_page") is True
+        attempts = [(moves, merged)]
+        if merged and "register_alone" in moves:
+            attempts = [(moves[:moves.index("register_alone")], True), (moves, False)]
+        print_gate = None
+        for index, (allowed_moves, merge) in enumerate(attempts):
+            if merge != merged:
+                unmerged = copy.deepcopy(resolved)
+                unmerged.setdefault("options", {})["merge_back_page"] = False
+                render_config_path.write_text(json.dumps(unmerged, indent=2, ensure_ascii=False), encoding="utf-8")
+            _run(render_command, stage="render", env=env, reject_warnings=True)
+            # Check, and fit when needed, before imposition so a booklet never
+            # reaches the imposer with a page count that needs padding blanks.
+            try:
+                print_gate = _print_gate(stage_dir, html_path, sequential_pdf, env, print_mode,
+                                         inside_cover_allowed, print_settings, short_booklet=allowed_moves)
+                break
+            except StageFailure as failure:
+                if failure.code != "booklet_fit_failed":
+                    raise
+                if index + 1 < len(attempts):
+                    continue
+                if not moves and _short_of_fold(failure):
+                    raise StageFailure(
+                        "short_booklet_choice_needed", "print_layout",
+                        f"{failure.message} {SHORT_BOOKLET_QUESTION}",
+                        diagnostics={"question": SHORT_BOOKLET_QUESTION, "key": "short-booklet",
+                                     "options": list(SHORT_BOOKLET_ANSWERS),
+                                     "keep": "always", **(failure.diagnostics or {})},
+                    ) from failure
+                raise
         warnings.extend(print_gate["warnings"])
         open_items = _open_bracket_items(html_path, source_resolved, root)
         warnings.extend(open_items)

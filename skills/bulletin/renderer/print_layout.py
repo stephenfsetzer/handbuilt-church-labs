@@ -81,6 +81,10 @@ STRANDED_LEAD = 0.12
 
 # Relative cost of each fitting step, used to try the smallest change first.
 COST_INSIDE_COVER = 40.0   # a blank page 2 is the last resort (Handbuilt PRD-026)
+COST_CHOSEN_INSIDE_COVER = 0.5   # unless the church chose it first for a short booklet
+# How a church fills a booklet that comes up short of the next multiple of four, in its order of preference.
+# register_alone (the parish register alone on the back page) is a render choice, made by the caller.
+SHORT_BOOKLET_MOVES = ("blank_inside_cover", "register_alone", "white_space")
 COST_LINE_HEIGHT_STEP = 1.25
 COST_TYPE_STEP = 2.5
 COST_SAID_HOLD = 0.5
@@ -1195,11 +1199,19 @@ class _Budget(Exception):
 
 class _Fitter:
     def __init__(self, html, base_url, print_mode, inside_cover_allowed, pinned, max_renders,
-                 max_body_pt=MAX_BODY_PT, music_min_scale=MUSIC_MIN_SCALE):
+                 max_body_pt=MAX_BODY_PT, music_min_scale=MUSIC_MIN_SCALE, short_booklet=None):
         self.source = _annotate(html)
         self.base_url = base_url
         self.print_mode = print_mode
-        self.inside_cover_allowed = inside_cover_allowed
+        # None keeps the engine's own order (page starts, then a blank page 2 as the last resort).
+        # A tuple is the church's choice; an empty one means nothing chosen yet, so nothing is added.
+        moves = SHORT_BOOKLET_MOVES if short_booklet is None else tuple(short_booklet)
+        # Order matters: page 2 blank comes first only when the church put it before white space.
+        self.prefer_inside_cover = (short_booklet is not None and "blank_inside_cover" in moves and (
+            "white_space" not in moves or moves.index("blank_inside_cover") < moves.index("white_space")))
+        self.grow_sections = "white_space" in moves
+        self.inside_cover_allowed = inside_cover_allowed and (
+            short_booklet is None or "blank_inside_cover" in moves)
         self.pinned = set(pinned)
         self.max_renders = max_renders
         self.max_body_pt = max_body_pt
@@ -1238,7 +1250,9 @@ class _Fitter:
 
     def cost(self, params: _Params) -> float:
         base = self.base
-        cost = COST_INSIDE_COVER if params.inside_cover else 0.0
+        cost = 0.0
+        if params.inside_cover:
+            cost = COST_CHOSEN_INSIDE_COVER if self.prefer_inside_cover else COST_INSIDE_COVER
         if params.line_height is not None and base is not None:
             cost += COST_LINE_HEIGHT_STEP * round(
                 (params.line_height - base.base_line_height) / LINE_HEIGHT_STEP + 0.4999)
@@ -1430,8 +1444,8 @@ class _Fitter:
                 break
             _, params, layout, findings = best
             changed = True
-        # Then: a part of the service starts on a new page.
-        while layout.report.pages < target:
+        # Then: a part of the service starts on a new page, when the church allows the white space.
+        while self.grow_sections and layout.report.pages < target:
             options = [(heading, ref) for heading, ref in zip(layout.report.headings, layout.heading_refs)
                        if ref and ref not in params.sections and heading.id not in self.pinned]
             # A heading low on its page first: starting it on a new page leaves the page before it fullest.
@@ -1504,7 +1518,7 @@ class _Fitter:
             # Music split over two pages may give back the page that breaks the fold.
             params, _ = self.music_onto_one_page(params, require_pass=False)
             layout, findings = self.render(params)
-        if not self.count_ok(findings) and not params.inside_cover:
+        if not self.count_ok(findings) and (not params.inside_cover or self.prefer_inside_cover):
             # A booklet a page or two short starts a part of the service on a fresh page, as a parish does
             # by hand, rather than leaving page 2 blank.
             params, _ = self.grow_to_fold(params)
@@ -1519,9 +1533,15 @@ class _Fitter:
         _, findings = self.render(_Params())
         if not _blocking_failures(findings):
             return _Params()
-        settled = self.settle(_Params())
-        if settled is not None:
-            return settled
+        first = [_Params()]
+        if (self.prefer_inside_cover and self.print_mode == "booklet" and self.inside_cover_allowed
+                and not self.base.has_inside_cover and not self.count_ok(findings)):
+            # The church's own first choice for a short booklet: page 2 blank, the service from page 3.
+            first.insert(0, _Params(inside_cover=True))
+        for params in first:
+            settled = self.settle(params)
+            if settled is not None:
+                return settled
         for params in self.candidates():
             predicted = self.predicted_pages(params)
             if (predicted is not None and self.print_mode == "booklet"
@@ -1688,12 +1708,15 @@ def describe_adjustments(adjustments: list[dict]) -> str:
 def fit(html: str, *, base_url: str | None = None, print_mode: str = "booklet",
         inside_cover_allowed: bool = True, pinned_section_ids: tuple[str, ...] = (),
         max_renders: int = DEFAULT_MAX_RENDERS, max_body_pt: float | None = None,
-        music_min_scale: float | None = None) -> FitResult:
+        music_min_scale: float | None = None,
+        short_booklet: tuple[str, ...] | None = None) -> FitResult:
     """Fit a bulletin to its print mode with the smallest allowed adjustments.
 
     ``max_body_pt`` is the church's body type size (``bulletin.body_size``):
     fitting never sets body type above it. ``music_min_scale`` is the
     church's smallest music scale (``bulletin.music_min_scale``, default 95%).
+    ``short_booklet`` is the church's choice for filling a short booklet, from
+    ``SHORT_BOOKLET_MOVES`` in order; an empty tuple adds no pages at all.
     """
     if print_mode not in PRINT_MODES:
         raise ValueError(f"print_mode must be one of {', '.join(PRINT_MODES)}")
@@ -1703,7 +1726,8 @@ def fit(html: str, *, base_url: str | None = None, print_mode: str = "booklet",
         raise ValueError(f"music_min_scale must be between {MUSIC_MIN_SCALE_FLOOR} and 1.0")
     started = time.monotonic()
     fitter = _Fitter(html, base_url, print_mode, inside_cover_allowed,
-                     pinned_section_ids, max(1, max_renders), max_body_pt, music_min_scale)
+                     pinned_section_ids, max(1, max_renders), max_body_pt, music_min_scale,
+                     short_booklet)
     try:
         chosen = fitter.run()
     except _Budget:
@@ -1740,6 +1764,16 @@ def _finding_dicts(findings: list[Finding]) -> list[dict]:
     return [asdict(f) for f in findings]
 
 
+def _short_booklet_arg(value: str | None) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    moves = tuple(part.strip() for part in value.split(",") if part.strip() and part.strip() != "none")
+    unknown = [move for move in moves if move not in SHORT_BOOKLET_MOVES]
+    if unknown:
+        raise SystemExit(f"Unknown short-booklet move: {', '.join(unknown)}")
+    return moves
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check or fit a bulletin for printing.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1759,6 +1793,8 @@ def main(argv: list[str] | None = None) -> int:
                                  help="the church's body type size; fitting never goes above it")
             command.add_argument("--music-min-scale", type=float, default=None,
                                  help="the smallest scale music may print at (default 0.95)")
+            command.add_argument("--short-booklet", default=None,
+                                 help="the church's moves for a short booklet, comma separated, or 'none'")
     args = parser.parse_args(argv)
     path = Path(args.html)
     html = path.read_text(encoding="utf-8")
@@ -1773,7 +1809,8 @@ def main(argv: list[str] | None = None) -> int:
     result = fit(html, base_url=base_url, print_mode=args.print_mode,
                  inside_cover_allowed=allowed, pinned_section_ids=tuple(args.pin),
                  max_renders=args.max_renders, max_body_pt=args.max_body_pt,
-                 music_min_scale=args.music_min_scale)
+                 music_min_scale=args.music_min_scale,
+                 short_booklet=_short_booklet_arg(args.short_booklet))
     Path(args.out).write_text(result.html, encoding="utf-8")
     print(json.dumps({"status": result.status, "pages": result.report.pages,
                       "adjustments": result.adjustments,

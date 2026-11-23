@@ -74,7 +74,9 @@ class BookletProductionTests(unittest.TestCase):
         self.church = make_church(Path(self.temp.name))
 
     def test_fourteen_page_bulletin_is_fitted_to_sixteen_pages(self):
-        result = produce(self.church, fourteen_page_input())
+        bulletin = fourteen_page_input()
+        bulletin["options"]["short_booklet"] = ["white_space", "blank_inside_cover"]
+        result = produce(self.church, bulletin)
         self.assertEqual(result["status"], "ready_for_review", result.get("errors"))
         self.assertEqual(result["print_mode"], "booklet")
         signature = result["booklet_signature"]
@@ -119,6 +121,7 @@ class BookletProductionTests(unittest.TestCase):
     def test_bulletin_that_cannot_fit_blocks_with_one_plain_sentence(self):
         bulletin = bulletin_input()
         bulletin["options"]["print_mode"] = "booklet"
+        bulletin["options"]["short_booklet"] = "register_alone"   # no merged back page to split
         result = produce(self.church, bulletin)
         self.assertEqual(result["status"], "blocked")
         error = result["errors"][0]
@@ -131,9 +134,42 @@ class BookletProductionTests(unittest.TestCase):
         self.assertFalse(list((self.church / "bulletins").glob("2026/09/*/bulletin-*.pdf")))
         self.assertFalse(list((self.church / "bulletins" / ".staging").glob("*")))
 
+    def test_a_short_booklet_asks_the_church_once_and_keeps_the_answer(self):
+        from skills.bulletin.bulletin_production import standing
+        from datetime import date
+
+        bulletin = fourteen_page_input()
+        result = produce(self.church, bulletin)
+        self.assertEqual(result["status"], "blocked")
+        error = result["errors"][0]
+        self.assertEqual(error["code"], "short_booklet_choice_needed")
+        self.assertEqual(error["diagnostics"]["key"], "short-booklet")
+        self.assertEqual(error["diagnostics"]["options"], list(interface.SHORT_BOOKLET_ANSWERS))
+        self.assertFalse(list((self.church / "bulletins").glob("20*/*/*/bulletin-*.pdf")))
+        first = error["diagnostics"]["options"][0]
+        standing.keep(self.church, key="short-booklet", question=error["diagnostics"]["question"],
+                      answer=first, keep="always", sunday=date.fromisoformat(bulletin["service"]["date"]))
+        result = produce(self.church, fourteen_page_input())
+        self.assertEqual(result["status"], "ready_for_review", result.get("errors"))
+        self.assertEqual(result["booklet_signature"]["sequential_pages"], 16)
+        self.assertEqual(result["fit_adjustments"][0]["step"], "inside_cover")
+
+    def test_short_booklet_answers_parse_to_moves(self):
+        parse = interface._parse_short_booklet
+        for label, moves in interface.SHORT_BOOKLET_ANSWERS.items():
+            self.assertEqual(parse(label + "."), moves)
+        self.assertEqual(parse("white_space, blank_inside_cover"), ("white_space", "blank_inside_cover"))
+        self.assertEqual(parse(["register_alone"]), ("register_alone",))
+        self.assertIsNone(parse("whatever looks best"))
+        bad = fourteen_page_input()
+        bad["options"]["short_booklet"] = ["shrink_everything"]
+        result = produce(self.church, bad)
+        self.assertEqual(result["errors"][0]["field"], "options.short_booklet")
+
     def test_turning_off_the_inside_cover_still_folds_by_starting_parts_on_new_pages(self):
         bulletin = fourteen_page_input()
         bulletin["options"]["allow_blank_inside_cover"] = False
+        bulletin["options"]["short_booklet"] = ["blank_inside_cover", "white_space"]
         result = produce(self.church, bulletin)
         self.assertEqual(result["status"], "ready_for_review", result.get("errors"))
         self.assertEqual(result["booklet_signature"]["sequential_pages"], 16)
