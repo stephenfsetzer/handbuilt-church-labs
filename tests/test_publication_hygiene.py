@@ -230,6 +230,10 @@ class PublicationHygieneTest(unittest.TestCase):
             text.write_text("Strip numbers like 44" + "02B Sexton Wages.\n", encoding="utf-8")
             result = run_checker(root, "--text", str(text))
             self.assertIn("text:commit.txt:1  [unregistered account number]", result.stdout)
+            sizes = Path(tmp) / "sizes.txt"
+            sizes.write_text("Keep each file under 256 KiB, the folder under 50 MiB and 512 KB.\n", encoding="utf-8")
+            result = run_checker(root, "--text", str(sizes))
+            self.assertNotIn("sizes.txt", result.stdout)
 
     def test_this_repository_registers_every_account_number(self) -> None:
         result = run_checker(REPO_ROOT)

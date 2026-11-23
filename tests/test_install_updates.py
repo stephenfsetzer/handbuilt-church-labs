@@ -17,7 +17,7 @@ class VersionBumpTest(unittest.TestCase):
         changed = [
             "skills/sermon-video/SKILL.md",
             "tools/church_workflow.py",
-            ".claude/skills/sermon-video/SKILL.md",
+            ".agents/skills/finance-report/SKILL.md",
             "requirements.txt",
             "README.md",
             "INSTALL.md",
@@ -27,7 +27,7 @@ class VersionBumpTest(unittest.TestCase):
         ]
         self.assertEqual(
             check_version_bump.shipped(changed),
-            [".claude/skills/sermon-video/SKILL.md", "requirements.txt",
+            [".agents/skills/finance-report/SKILL.md", "requirements.txt",
              "skills/sermon-video/SKILL.md", "tools/church_workflow.py"],
         )
 

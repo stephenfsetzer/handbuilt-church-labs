@@ -60,7 +60,9 @@ class CrossHostPackagingTest(unittest.TestCase):
         )
         for skill in ("onboarding", "bulletin", "sermon-research", "sermon-video", "build-my-brand"):
             canonical = f"skills/{skill}/SKILL.md"
-            for host in (".agents", ".claude"):
+            # Claude loads skills/ from the plugin; .claude/skills/ is refused by the plugin directory.
+            self.assertFalse((REPO_ROOT / ".claude" / "skills").exists())
+            for host in (".agents",):
                 pointer = REPO_ROOT / host / "skills" / skill / "SKILL.md"
                 self.assertTrue(pointer.is_file())
                 pointer_text = pointer.read_text(encoding="utf-8")

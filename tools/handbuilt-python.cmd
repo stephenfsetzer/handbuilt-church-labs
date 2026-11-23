@@ -6,11 +6,18 @@ rem named in tools\python-dist.lock, checks it against the SHA-256 recorded ther
 rem and unpacks it into Handbuilt's private folder. It needs no installer, no
 rem administrator password, and changes nothing else on the computer.
 rem
+rem When Handbuilt's own Python cannot be fetched or started (a blocked download,
+rem or a computer that refuses to run it), a supported Python already on this
+rem computer stands in, and a note says so. HANDBUILT_NO_COMPUTER_PYTHON=1 turns
+rem that off, so a check can prove Handbuilt's own Python works.
+rem
 rem   handbuilt-python --where     print the path to this Python and stop
 rem   handbuilt-python script.py   run a script
 setlocal EnableExtensions DisableDelayedExpansion
 
-set "LOCK=%~dp0..\tools\python-dist.lock"
+set "LOCK=%~dp0python-dist.lock"
+set "WORK="
+set "CODE=1"
 if not exist "%LOCK%" (
     echo handbuilt-python: tools\python-dist.lock is missing from the plugin. 1>&2
     exit /b 2
@@ -35,7 +42,7 @@ if not defined URL goto nolock
 
 set "DIST=%ROOT%\python-dist\%TAG%"
 set "PY=%DIST%\python\python.exe"
-if exist "%PY%" goto run
+if exist "%PY%" goto started
 
 set "WORK=%ROOT%\python-dist\.tmp.%RANDOM%%RANDOM%"
 mkdir "%WORK%\x" || goto failed
@@ -57,6 +64,14 @@ if not exist "%DIST%" move "%WORK%\x" "%DIST%" >nul
 rmdir /s /q "%WORK%" 2>nul
 if not exist "%PY%" goto failed
 
+:started
+rem A computer can refuse to run a program it does not recognize.
+"%PY%" -c "" >nul 2>&1
+if errorlevel 1 (
+    set "REASON=Handbuilt's own Python is on this computer but could not start."
+    goto fallback
+)
+
 :run
 if "%~1"=="--where" (
     echo %PY%
@@ -67,20 +82,43 @@ rem UTF-8 mode: Windows would otherwise read and write text in an older encoding
 exit /b %errorlevel%
 
 :nolock
-echo handbuilt-python: tools\python-dist.lock has no build for Windows. 1>&2
-exit /b 2
+set "REASON=tools\python-dist.lock has no build for Windows."
+set "CODE=2"
+goto fallback
 
 :nodownload
-rmdir /s /q "%WORK%" 2>nul
-echo handbuilt-python: the download failed. Check the internet connection and try again. 1>&2
-exit /b 1
+set "REASON=the download failed. Check the internet connection and try again."
+goto fallback
 
 :badsum
-rmdir /s /q "%WORK%" 2>nul
-echo handbuilt-python: the download did not match its recorded checksum, so it was not used. 1>&2
-exit /b 1
+set "REASON=the download did not match its recorded checksum, so it was not used."
+goto fallback
 
 :failed
+set "REASON=Python could not be unpacked into Handbuilt's folder."
+goto fallback
+
+:fallback
+rem REASON says why Handbuilt's own Python cannot be used. Look for a Python
+rem 3.11 or newer already on this computer.
 if defined WORK rmdir /s /q "%WORK%" 2>nul
-echo handbuilt-python: Python could not be unpacked into Handbuilt's folder. 1>&2
-exit /b 1
+if "%HANDBUILT_NO_COMPUTER_PYTHON%"=="1" goto stop
+set "OWN="
+for %%n in (python3.exe python.exe) do (
+    for /f "delims=" %%p in ('where %%n 2^>nul') do (
+        if not defined OWN (
+            "%%p" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1 && set "OWN=%%p"
+        )
+    )
+)
+if not defined OWN (
+    for /f "delims=" %%p in ('py -3 -c "import sys; sys.exit(1) if sys.version_info < (3, 11) else print(sys.executable)" 2^>nul') do set "OWN=%%p"
+)
+if not defined OWN goto stop
+echo handbuilt-python: %REASON% Using the Python already on this computer instead: %OWN% 1>&2
+set "PY=%OWN%"
+goto run
+
+:stop
+echo handbuilt-python: %REASON% 1>&2
+exit /b %CODE%

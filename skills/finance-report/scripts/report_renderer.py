@@ -35,12 +35,12 @@ SHAPE_VERSION = "1.0"  # the report shape in references/shape.md, fixed on 2026-
 CHURCH_ROOT = Path.cwd()  # set from --church-folder in main()
 BUNDLED_FONTS = HERE.parents[1] / "bulletin" / "renderer" / "fonts"  # shared with the bulletin; OFL, see THIRD-PARTY-NOTICES.md
 BUNDLED = {
-    "Source Serif 4": [("SourceSerif4-Regular.ttf", 400), ("SourceSerif4-SemiBold.ttf", 600),
-                       ("SourceSerif4-Bold.ttf", 700)],
-    "Source Sans 3": [("SourceSans3-Regular.ttf", 400), ("SourceSans3-SemiBold.ttf", 600),
-                      ("SourceSans3-Bold.ttf", 700)],
-    "EB Garamond": [("EBGaramond-Regular.ttf", 400), ("EBGaramond-SemiBold.ttf", 600),
-                    ("EBGaramond-Bold.ttf", 700)],
+    "Source Serif 4": [("SourceSerif4-Regular.woff", 400), ("SourceSerif4-SemiBold.woff", 600),
+                       ("SourceSerif4-Bold.woff", 700)],
+    "Source Sans 3": [("SourceSans3-Regular.woff", 400), ("SourceSans3-SemiBold.woff", 600),
+                      ("SourceSans3-Bold.woff", 700)],
+    "EB Garamond": [("EBGaramond-Regular.woff", 400), ("EBGaramond-SemiBold.woff", 600),
+                    ("EBGaramond-Bold.woff", 700)],
 }
 DEFAULTS = {
     "paper": "#ffffff", "ink": "#1c1b1a",

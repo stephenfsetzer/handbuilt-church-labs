@@ -66,7 +66,8 @@ def coverage(text: str, expected: list[str]) -> float:
 
 
 def library() -> dict:
-    return json.loads((LABS / "skills/bulletin/resources/bcp1979/sunday.json").read_text(encoding="utf-8"))
+    from skills.bulletin.sunday_library import read_library
+    return read_library()
 
 
 def default_truth() -> dict:

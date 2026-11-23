@@ -16,15 +16,15 @@ whether the app-loaded plugin (the one containing this `skills/sermon-video`)
 updates itself:
 
 ```bash
-"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/claude_updates.py" check
+"<app-loaded-plugin-root>/tools/handbuilt-python" "<app-loaded-plugin-root>/tools/claude_updates.py" check
 ```
 
 It needs no church folder and changes nothing. If the result has a
 `next_action`, follow it before continuing; it asks the pastor's permission
 first. `nothing_to_ask` means continue. It never blocks the video work.
 
-Use the skill-owned helper. `handbuilt-python` is Handbuilt's own Python, at `<app-loaded-plugin-root>/bin/handbuilt-python`
-(`bin\handbuilt-python.cmd` on Windows without Git Bash). Use that full path when the
+Use the skill-owned helper. `handbuilt-python` is Handbuilt's own Python, at `<app-loaded-plugin-root>/tools/handbuilt-python`
+(`tools\handbuilt-python.cmd` on Windows without Git Bash). Use that full path when the
 short name is not found. Never ask the pastor to install Python.
 
 ```bash

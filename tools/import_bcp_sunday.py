@@ -14,9 +14,13 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Iterable, NamedTuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from skills.bulletin.sunday_library import PART_LIMIT_BYTES, split_library  # noqa: E402
 
 
 SOURCE_URL = "https://www.episcopalchurch.org/wp-content/uploads/2021/02/book-of-common-prayer-2006.pdf"
@@ -501,13 +505,19 @@ def build_library(pdf: Path) -> dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pdf", type=Path, required=True, help="verified 1979 BCP PDF")
-    parser.add_argument("--output-dir", type=Path, required=True, help="directory for bcp1979/sunday.json")
+    parser.add_argument("--output-dir", type=Path, required=True, help="directory for the bcp1979 library parts")
     args = parser.parse_args()
     library = build_library(args.pdf)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = args.output_dir / "sunday.json"
-    output_path.write_text(json.dumps(library, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"ok": True, "output": str(output_path), "sha256": sha256(output_path)}, ensure_ascii=False))
+    parts = []
+    # The library ships in parts, each under the plugin directory's file limit.
+    for name, part in split_library(library):
+        output_path = args.output_dir / name
+        output_path.write_text(json.dumps(part, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+        if output_path.stat().st_size >= PART_LIMIT_BYTES:
+            raise ValueError(f"{name} is too large for the plugin directory; divide the library further")
+        parts.append({"file": name, "sha256": sha256(output_path)})
+    print(json.dumps({"ok": True, "output_dir": str(args.output_dir), "parts": parts}, ensure_ascii=False))
     return 0
 
 

@@ -31,15 +31,84 @@ def _matches_release(path: Path, expected: str) -> bool:
                         hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest())
 
 
-def _read_data() -> dict:
-    path = RESOURCE_DIR / "sunday.json"
+# The library ships in parts so no file reaches the plugin directory's 256 KiB
+# limit. Each part has the same shape as the whole library with some entries;
+# merged in manifest order they give back the whole library.
+PART_LIMIT_BYTES = 256 * 1024
+_CATEGORIES = ("collects", "prefaces", "psalms")
+_PARTS = (
+    ("sunday-collects-prefaces.json", lambda key, number: key in ("collects", "prefaces")),
+    ("sunday-psalms-1-75.json", lambda key, number: key == "psalms" and number <= 75),
+    ("sunday-psalms-76-150.json", lambda key, number: key == "psalms" and number > 75),
+)
+
+
+def split_library(data: dict) -> list[tuple[str, dict]]:
+    """Divide the whole library into the parts the plugin ships."""
+    parts = []
+    for name, belongs in _PARTS:
+        part: dict = {"schema_version": data["schema_version"]}
+        if name == _PARTS[0][0]:
+            part["source"] = data["source"]
+        for category in _CATEGORIES:
+            entries = {key: value for key, value in data[category].items()
+                       if belongs(category, int(key) if category == "psalms" else 0)}
+            if entries:
+                part[category] = entries
+        parts.append((name, part))
+    placed = sum(len(part.get(category, {})) for _, part in parts for category in _CATEGORIES)
+    if placed != sum(len(data[category]) for category in _CATEGORIES):
+        raise ValueError("Every Sunday library entry must belong to exactly one part")
+    return parts
+
+
+def merge_parts(parts: list[dict]) -> dict:
+    """Join library parts, in order, back into the whole library."""
+    data: dict = {}
+    for part in parts:
+        if not isinstance(part, dict) or part.get("schema_version") != 1:
+            raise ValueError("A Sunday library part has an unsupported format")
+        for key, value in part.items():
+            if key == "schema_version":
+                data[key] = value
+            elif key in _CATEGORIES:
+                merged = data.setdefault(key, {})
+                if not isinstance(value, dict) or set(merged) & set(value):
+                    raise ValueError("Sunday library parts overlap")
+                merged.update(value)
+            elif key == "source" and key not in data:
+                data[key] = value
+            else:
+                raise ValueError(f"Unexpected Sunday library entry {key!r}")
+    if set(data) != {"schema_version", "source", *_CATEGORIES}:
+        raise ValueError("The Sunday library parts are incomplete")
+    return {key: data[key] for key in ("schema_version", "source", *_CATEGORIES)}
+
+
+def part_paths(resource_dir: Path = RESOURCE_DIR) -> list[tuple[Path, str]]:
+    """The shipped part files with the fingerprint the manifest records for each."""
+    manifest = json.loads((resource_dir / "manifest.json").read_text(encoding="utf-8"))
+    entries = manifest["data"]["parts"]
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("The manifest lists no Sunday library parts")
+    found = []
+    for entry in entries:
+        name = entry["file"]
+        if not isinstance(name, str) or Path(name).name != name or not name.endswith(".json"):
+            raise ValueError("A Sunday library part must be a JSON file in its own folder")
+        found.append((resource_dir / name, entry["sha256"]))
+    return found
+
+
+def read_library(resource_dir: Path = RESOURCE_DIR) -> dict:
+    """The whole verified Sunday library, each part checked against the manifest."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        manifest = json.loads((RESOURCE_DIR / "manifest.json").read_text(encoding="utf-8"))
-        expected = manifest["data"]["sha256"]
-        if not _matches_release(path, expected):
-            raise ValueError("Bundled Sunday text differs from its verified release")
-        return data
+        parts = []
+        for path, expected in part_paths(resource_dir):
+            if not _matches_release(path, expected):
+                raise ValueError("Bundled Sunday text differs from its verified release")
+            parts.append(json.loads(path.read_text(encoding="utf-8")))
+        return merge_parts(parts)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise SundayLibraryError("The bundled Sunday library is missing or changed. Restore the verified plugin release before using its text.") from exc
 
@@ -63,7 +132,7 @@ def verify_shipped_liturgy(identifier: str, *, plugin_root: Path | None = None) 
 def catalog(category: str) -> dict:
     if category not in ("collects", "prefaces", "psalms"):
         raise SundayLibraryError("Choose collects, prefaces, or psalms")
-    data = _read_data()
+    data = read_library()
     return {key: {"title": item.get("title", item.get("latin_title", f"Psalm {key}")),
                   "source_pages": item["source_pages"]}
             for key, item in data[category].items()}
@@ -88,7 +157,7 @@ def lookup(category: str, identifier: str, *, verses: str | None = None,
            psalm_format: str = "responsive_half_verse", response_start: str = "second") -> dict:
     if category not in ("collects", "prefaces", "psalms"):
         raise SundayLibraryError("Choose collects, prefaces, or psalms")
-    data = _read_data()
+    data = read_library()
     if str(identifier) not in data[category]:
         raise SundayLibraryError(f"No bundled {category} entry named {identifier}. List the available entries first.")
     item = copy.deepcopy(data[category][str(identifier)])

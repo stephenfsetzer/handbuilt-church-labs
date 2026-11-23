@@ -92,19 +92,19 @@ Give a brief setup orientation, then follow
 Check all dependencies together, using workspace readiness for this stage:
 
 ```bash
-"<plugin-root>/bin/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
+"<plugin-root>/tools/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
 ```
 
-`handbuilt-python` is Handbuilt's own Python (`bin\handbuilt-python.cmd` on Windows without
+`handbuilt-python` is Handbuilt's own Python (`tools\handbuilt-python.cmd` on Windows without
 Git Bash); never ask the pastor to install Python. After `ready`, use the returned
 `runtime.python` for workflow commands. `<plugin-root>` is the installed plugin directory. Quote complete executable and file paths.
-Missing PDF tools remain pending until PDF import or bulletin work needs them.
-Before that work, run the separate `verify` check described in the reference.
+Missing PDF tools wait until PDF import or bulletin work, which first runs the `verify` check in the reference.
+If a check result has a `problem_report`, offer a report to Stephen as its `next_action` says; send only on a yes.
 
 After the private church folder exists, run the app-loaded adapter once:
 
 ```bash
-"<app-loaded-plugin-root>/bin/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
+"<app-loaded-plugin-root>/tools/handbuilt-python" "<app-loaded-plugin-root>/tools/church_workflow.py" \
   --church-folder "<church-folder>" start onboarding
 ```
 

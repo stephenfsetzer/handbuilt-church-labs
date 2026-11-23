@@ -228,7 +228,7 @@ class SermonReflectionTest(unittest.TestCase):
                 bridge.execute(self.church, "sermon-reflection", "delete", [])
 
     def test_packaging_registers_the_skill_for_both_hosts(self):
-        for host in (".agents", ".claude"):
+        for host in (".agents",):
             pointer = (ROOT / host / "skills/sermon-reflection/SKILL.md").read_text(encoding="utf-8")
             self.assertIn("skills/sermon-reflection/SKILL.md", pointer)
             self.assertLessEqual(len(pointer.splitlines()), 10)

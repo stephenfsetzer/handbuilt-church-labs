@@ -20,8 +20,8 @@ sys.path.insert(0, str(ROOT))
 from tools import native_libraries, native_tools, runtime_security  # noqa: E402
 
 LOCK = ROOT / "tools" / "python-dist.lock"
-SHELL_LAUNCHER = ROOT / "bin" / "handbuilt-python"
-WINDOWS_LAUNCHER = ROOT / "bin" / "handbuilt-python.cmd"
+SHELL_LAUNCHER = ROOT / "tools" / "handbuilt-python"
+WINDOWS_LAUNCHER = ROOT / "tools" / "handbuilt-python.cmd"
 COMPUTERS = {"darwin-aarch64", "darwin-x86_64", "linux-aarch64", "linux-x86_64", "windows-x86_64"}
 SOURCE = "https://github.com/astral-sh/python-build-standalone/releases/download/"
 
@@ -82,7 +82,7 @@ class Launchers(unittest.TestCase):
             self.assertIn("--where", text)
             self.assertNotRegex(text, r"[^\x00-\x7f]")
         # The checksum is compared before anything is unpacked.
-        self.assertLess(shell.index('[ "$got" = "$sha" ]'), shell.index("tar -xzf"))
+        self.assertLess(shell.index('[ "$got" != "$sha" ]'), shell.index("tar -xzf"))
         self.assertLess(windows.index('"%GOT%"=="%SHA%"'), windows.index("tar.exe"))
         # Windows uses its own curl and tar, not Git's, which cannot read C:\ paths.
         self.assertIn(r"%SystemRoot%\System32\tar.exe", windows)
@@ -106,9 +106,8 @@ class Launchers(unittest.TestCase):
     def test_a_download_that_does_not_match_is_refused(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
-            (base / "bin").mkdir()
             (base / "tools").mkdir()
-            launcher = base / "bin" / "handbuilt-python"
+            launcher = base / "tools" / "handbuilt-python"
             launcher.write_bytes(SHELL_LAUNCHER.read_bytes())
             launcher.chmod(0o755)
             # A fake curl that "downloads" something else.
@@ -121,13 +120,55 @@ class Launchers(unittest.TestCase):
             lock = LOCK.read_text(encoding="utf-8")
             (base / "tools" / "python-dist.lock").write_text(lock, encoding="utf-8")
             home = base / "runtime"
-            done = subprocess.run(
-                [str(launcher), "--where"], capture_output=True, text=True,
-                env={**os.environ, "HANDBUILT_RUNTIME_HOME": str(home), "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"})
+            env = {**os.environ, "HANDBUILT_RUNTIME_HOME": str(home),
+                   "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}", "HANDBUILT_NO_COMPUTER_PYTHON": "1"}
+            done = subprocess.run([str(launcher), "--where"], capture_output=True, text=True, env=env)
             self.assertNotEqual(done.returncode, 0)
             self.assertIn("did not match its recorded checksum", done.stderr)
             self.assertEqual(list((home / "python-dist").glob("cpython-*")), [], "an unchecked download was kept")
             self.assertEqual(list((home / "python-dist").glob(".tmp.*")), [], "the failed download was left behind")
+
+            # With a Python already on the computer, that one stands in and the note says why.
+            (fake / "python3").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            (fake / "python3").chmod(0o755)
+            env.pop("HANDBUILT_NO_COMPUTER_PYTHON")
+            done = subprocess.run([str(launcher), "--where"], capture_output=True, text=True, env=env)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(done.stdout.strip(), str(fake / "python3"))
+            self.assertIn("did not match its recorded checksum", done.stderr)
+            self.assertIn("Using the Python already on this computer instead", done.stderr)
+            self.assertEqual(list((home / "python-dist").glob("cpython-*")), [], "an unchecked download was kept")
+
+    @unittest.skipIf(os.name == "nt", "the shell launcher is exercised in the install workflow on Windows")
+    def test_a_python_the_computer_refuses_to_start_falls_back(self):
+        """Windows can refuse to run a program it does not recognize."""
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            (base / "tools").mkdir()
+            launcher = base / "tools" / "handbuilt-python"
+            launcher.write_bytes(SHELL_LAUNCHER.read_bytes())
+            launcher.chmod(0o755)
+            (base / "tools" / "python-dist.lock").write_text(LOCK.read_text(encoding="utf-8"), encoding="utf-8")
+            home = base / "runtime"
+            own = home / "python-dist" / read_lock()["release"][0] / "python" / "bin" / "python3"
+            own.parent.mkdir(parents=True)
+            own.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            own.chmod(0o755)
+            fake = base / "fakebin"
+            fake.mkdir()
+            (fake / "python3").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            (fake / "python3").chmod(0o755)
+            env = {**os.environ, "HANDBUILT_RUNTIME_HOME": str(home), "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"}
+            # The install workflow turns the fallback off for the whole job; this test needs it on.
+            env.pop("HANDBUILT_NO_COMPUTER_PYTHON", None)
+            done = subprocess.run([str(launcher), "--where"], capture_output=True, text=True, env=env)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(done.stdout.strip(), str(fake / "python3"))
+            self.assertIn("could not start", done.stderr)
+            done = subprocess.run([str(launcher), "--where"], capture_output=True, text=True,
+                                  env={**env, "HANDBUILT_NO_COMPUTER_PYTHON": "1"})
+            self.assertNotEqual(done.returncode, 0)
+            self.assertIn("could not start", done.stderr)
 
 
 class NativeLibraries(unittest.TestCase):
@@ -414,7 +455,7 @@ class Instructions(unittest.TestCase):
         for needed in ("Do not install Python", "**File**, then **Exit**", "has not loaded Handbuilt yet"):
             self.assertIn(needed, install)
         doctor_advice = (ROOT / "tools" / "handbuilt_runtime.py").read_text(encoding="utf-8")
-        self.assertIn("bin/handbuilt-python", doctor_advice)
+        self.assertIn("tools/handbuilt-python", doctor_advice)
 
 
 if __name__ == "__main__":

@@ -198,7 +198,7 @@ it. After the preferred
 route, run it from the marketplace copy Claude Code just downloaded:
 
 ```bash
-"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" enable
 ```
 
 It prints `turned_on` or `already_on`. If it reports an error, the settings
@@ -208,7 +208,7 @@ merge shown in section 2. The fallback route's settings already include both.
 Then confirm the result:
 
 ```bash
-"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/bin/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/handbuilt-python" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/marketplaces/handbuilt-church-labs/tools/claude_updates.py" status
 ```
 
 `status` reports the installed version, the latest release, and whether both
@@ -252,21 +252,26 @@ on this computer." Do the checking yourself and report in plain words.
 3. Run the workspace check, and prepare what is missing:
 
    ```bash
-   "<plugin-root>/bin/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
+   "<plugin-root>/tools/handbuilt-python" "<plugin-root>/tools/handbuilt_runtime.py" doctor --capability workspace --format json
    ```
 
    If it is not `ready`, run `setup` and check again. Handbuilt fetches its
-   own tools; the pastor installs nothing.
+   own tools; the pastor installs nothing. When the setup result has a
+   `pdf_tools` section with `ready` false, the computer is ready for sermon and
+   Church Command Center work, and bulletins and finance reports wait; see
+   "When the PDF check fails" in `handbook/runtime-setup.md`.
 4. Reply with three short lines (the version installed, whether updates are
    on, whether the computer is prepared) and end with exactly one of these
    sentences, so the pastor can pass it on:
 
    > This computer is ready for Handbuilt.
 
+   > This computer is ready for Handbuilt, except bulletins and finance reports: (one plain reason).
+
    > This computer is not ready yet: (one plain reason).
 
-If it is not ready and you cannot fix it, write the short email described
-under "If something goes wrong" for the pastor to send.
+If it is not ready and you cannot fix it, offer the problem report described
+under "If something goes wrong".
 
 ## 4. Hand off to church setup
 
@@ -332,7 +337,9 @@ including any missing computer tools, with the same guided approach.
 - Do not install other tools, change system settings, or delete anything to
   work around a problem without the pastor's yes.
 - When setup is blocked by the plugin itself, Handbuilt needs to hear about it.
-  If the Church Labs connection will not send a report (for example, the
-  pastor's email is not enrolled), write the report as a short email the
-  pastor can send to hello@gethandbuilt.com: what they were doing, the exact
-  error, the plugin version, and Windows or Mac. Leave out church details.
+  A failed check result carries a `problem_report` section. Ask the pastor
+  "Send Stephen a report?", run its `build` command with the result on stdin,
+  and show the pastor the printed `text` exactly. Run `send` only after the
+  pastor says yes; it needs no sign-in. If sending fails, `send` prints the
+  text to copy into an email to hello@gethandbuilt.com. See "Send Stephen a
+  problem report" in `handbook/runtime-setup.md`.
