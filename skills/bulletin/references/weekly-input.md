@@ -162,5 +162,7 @@ These carry forward from the last approved bulletin through `carry-forward`:
 - `options.announcements_style`: `box` prints all of the Sunday's notices inside one outlined box.
 - `announcements[].until`: the last Sunday a notice prints. A notice without one is asked about the next
   week instead of carried.
-- a hymn's `composer_style`: `label` ("Composer: Name", the default), `plain` (the name alone) or
-  `hidden` (the music already shows it).
+- a hymn's `composer_style`: `label` ("Composer: Name"), `plain` (the name alone) or `hidden`. The
+  default is `hidden` for a hymn printed from a music picture with no lyrics (the music already shows who
+  wrote it) and `label` otherwise. A missing composer line under music is that default, not a fault: set
+  this only when the pastor asks.

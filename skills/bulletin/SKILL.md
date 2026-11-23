@@ -243,7 +243,8 @@ Parts the church sets in the input rather than by editing pages afterward:
 `service.preacher_note` (a line under the preacher's name),
 `liturgy.dismissal_speaker` (who says the dismissal), `options.announcements_style:
 box` (all notices in one box), `announcements[].until` (the last Sunday a notice
-prints), a hymn's `composer_style` (`label`, `plain` or `hidden`) and a hymn's
+prints), a hymn's `composer_style` (`label`, `plain` or `hidden`; music pictures
+hide it by default, so set it only when the pastor asks) and a hymn's
 `each_week` (sung one stanza a week: carry-forward moves it on a stanza). Never edit
 a produced page by hand: finalize refuses a changed page, and a change made
 outside the input is lost next week. Put the change in the input and revise.
