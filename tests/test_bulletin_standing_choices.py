@@ -125,6 +125,35 @@ class CarryForwardTest(unittest.TestCase):
         self.assertIsNone(standing.carry_forward(self.root, date(2026, 11, 29))["carried_from"])
 
 
+class EachWeekTest(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        config = advent_one_config()
+        config["hymns"]["gospel_acclamation"] = {
+            "number": 56, "title": "O come, O come, Emmanuel", "images": ["music/H56-stanza-1.png"],
+            "each_week": {"stanza": 1, "images": "music/H56-stanza-{stanza}.png"}}
+        for n in (1, 2):
+            write(self.root / f"music/H56-stanza-{n}.png", "png")
+        standing.adopt(self.root, approve_week(self.root, config), approved_by="x")
+
+    def test_a_stanza_a_week_hymn_moves_to_the_next_stanza(self):
+        result = standing.carry_forward(self.root, date(2026, 12, 6), write=False)
+        hymn = result["draft"]["hymns"]["gospel_acclamation"]
+        self.assertEqual(hymn["images"], ["music/H56-stanza-2.png"])
+        self.assertEqual(hymn["each_week"]["stanza"], 2)
+        last_week = json.loads(json.dumps(result["draft"]))
+        last_week["hymns"]["gospel_acclamation"]["images"] = ["music/H56-stanza-1.png"]
+        with self.assertRaises(standing.StandingError) as refused:
+            standing.check_carried(self.root, last_week)
+        self.assertIn("stanza 2 this Sunday", str(refused.exception))
+
+    def test_a_missing_stanza_picture_is_asked_not_reprinted(self):
+        result = standing.carry_forward(self.root, date(2026, 12, 13), write=False)
+        self.assertEqual(result["draft"]["hymns"]["gospel_acclamation"]["images"], ["music/H56-stanza-1.png"])
+        ask = next(ask for ask in result["asks"] if ask["id"] == "gospel-acclamation-stanza")
+        self.assertIn("Stanza 3", ask["question"])
+
+
 class CheckCarriedTest(unittest.TestCase):
     def test_dropping_a_carried_part_is_refused_unless_named(self):
         root = Path(tempfile.mkdtemp())

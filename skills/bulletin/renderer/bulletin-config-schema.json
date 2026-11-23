@@ -177,6 +177,7 @@
       "properties": {
         "label": {"type": "string", "description": "Optional printed heading that replaces the slot's default music label."},
         "composer_style": {"enum": ["label", "plain", "hidden"], "description": "label prints 'Composer: Name' (default); plain prints the name alone; hidden prints nothing because the music shows it."},
+        "each_week": {"type": "object", "required": ["stanza", "images"], "description": "A hymn sung one stanza a week: carry-forward moves it to the next stanza and its picture each week.", "properties": {"stanza": {"type": "integer", "minimum": 1}, "images": {"type": "string", "description": "Picture path with {stanza}, for example music/H56-stanza-{stanza}.png"}}},
         "number": {"type": ["string", "number"]},
         "title": {"type": "string"},
         "tune": {"type": "string"},

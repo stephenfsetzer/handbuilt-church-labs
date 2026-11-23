@@ -181,6 +181,7 @@ class BulletinFieldRegressions(unittest.TestCase):
                 self.setUp()
                 request = fourteen_page_input()
                 request["readings"]["gospel"]["text"] = long_gospel(sentences)
+                request["options"]["short_booklet"] = ["white_space", "blank_inside_cover"]
                 result = produce(self.church, request)
                 if result["status"] == "blocked":
                     # An honest block is acceptable only if it names the page count.

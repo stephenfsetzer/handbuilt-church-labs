@@ -212,6 +212,7 @@ def carry_forward(root: Path, sunday: date, *, service_id: str | None = None, oc
         else:
             unsure.append(notice)
     draft["announcements"] = carried
+    _advance_each_week(root, draft, config, entry, sunday, asks)
     if unsure:
         titles = [str(notice.get("title") or "").strip() for notice in unsure]
         asks.append({"id": "notices", "question": "Which of last week's notices print again this Sunday?",
@@ -230,6 +231,37 @@ def carry_forward(root: Path, sunday: date, *, service_id: str | None = None, oc
     return result
 
 
+def _advance_each_week(root: Path, draft: dict[str, Any], config: dict[str, Any], entry: dict[str, Any],
+                       sunday: date, asks: list[dict[str, Any]]) -> None:
+    """A hymn sung one stanza a week (an Advent acclamation, say) moves on a stanza for each week since.
+
+    The hymn says so itself: `each_week: {"stanza": 1, "images": "music/.../H56-stanza-{stanza}.png"}`.
+    When the next stanza's picture is missing, the pastor is asked rather than last week's stanza reprinted.
+    """
+    try:
+        weeks = (sunday - date.fromisoformat(str(entry.get("date") or (config.get("service") or {}).get("date")))).days // 7
+    except ValueError:
+        return
+    for group in ("hymns", "service_music"):
+        for slot, hymn in (draft.get(group) or {}).items():
+            rule = hymn.get("each_week") if isinstance(hymn, dict) else None
+            if not isinstance(rule, dict) or not isinstance(rule.get("stanza"), int) or weeks < 1:
+                continue
+            stanza = rule["stanza"] + weeks
+            template = rule.get("images")
+            image = template.format(stanza=stanza) if isinstance(template, str) else None
+            if image and ((root / image).is_file() or (root / "music" / image).is_file()):
+                hymn["images"] = [image]
+                hymn.pop("image", None)
+                hymn["each_week"] = {**rule, "stanza": stanza}
+            else:
+                hymn.pop("each_week", None)   # the pastor's answer decides this week's picture, not the guard
+                asks.append({"id": f"{slot.replace('_', '-')}-stanza",
+                             "question": f"Which stanza of {hymn.get('title') or 'the ' + slot.replace('_', ' ')} "
+                                         f"is sung on {sunday:%B} {sunday.day}? Stanza {stanza} has no music picture yet.",
+                             "options": [f"Stanza {stanza}"], "weekly": True})
+
+
 def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
     """Refuse a bulletin that silently drops what carry-forward carried for its Sunday.
 
@@ -243,12 +275,14 @@ def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
         return
     # Recomputed from approved history every time: the draft file on disk is the agent's to edit, so it is
     # never the measure of what last week carried.
+    draft_path = Path("bulletins/drafts") / when / (service.get("service_id") or "main") / (service.get("occurrence_id") or "main") / "input.json"
+    if not (root / draft_path).is_file() and not bulletin.get("carried_from"):
+        return   # this week did not start from last week (a first bulletin, or one built fresh)
     carried = carry_forward(root, date.fromisoformat(when), service_id=service.get("service_id"),
                             occurrence_id=service.get("occurrence_id"), write=False)
     draft = carried.get("draft")
     if not draft:
         return
-    draft_path = Path("bulletins/drafts") / when / (service.get("service_id") or "main") / (service.get("occurrence_id") or "main") / "input.json"
     dropped = set(bulletin.get("dropped_from_last_week") or [])
     missing = [key for key in draft if key not in ("carried_from",) and key not in bulletin and key not in dropped]
     missing += [f"liturgy.{key}" for key in (draft.get("liturgy") or {})
@@ -258,6 +292,12 @@ def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
     for group in ("hymns", "service_music"):
         missing += [f"{group}.{slot}" for slot in (draft.get(group) or {})
                     if slot not in (bulletin.get(group) or {}) and f"{group}.{slot}" not in dropped]
+    for group in ("hymns", "service_music"):
+        for slot, hymn in (draft.get(group) or {}).items():
+            mine = (bulletin.get(group) or {}).get(slot)
+            if (isinstance(hymn, dict) and hymn.get("each_week") and isinstance(mine, dict)
+                    and mine.get("images") != hymn.get("images") and f"{group}.{slot}.images" not in dropped):
+                missing.append(f"{group}.{slot}.images (stanza {hymn['each_week'].get('stanza')} this Sunday)")
     missing += [f"service.{key}" for key in (draft.get("service") or {})
                 if key not in service and f"service.{key}" not in dropped]
     if missing:
@@ -265,7 +305,8 @@ def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
             "carried_part_dropped",
             "This Sunday's input leaves out what last week's approved bulletin carried: " + ", ".join(sorted(missing))
             + f". Build the input on {draft_path.as_posix()} as carry-forward wrote it, or list each part you mean to drop "
-            "in dropped_from_last_week.")
+            "in dropped_from_last_week. Drop a part only when the pastor's note or files say so; a part you only think "
+            "belonged to last week is a question for the pastor, never your call.")
 
 
 # --- adopting an approval made outside the skill ---------------------------------------------------------

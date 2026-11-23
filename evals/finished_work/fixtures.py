@@ -220,4 +220,8 @@ def seed_church(root: Path) -> Path:
     brand.update(BRAND)
     (root / "brand.json").write_text(json.dumps(brand, indent=2) + "\n", encoding="utf-8")
     (root / "worship" / "profile.yaml").write_text(PROFILE, encoding="utf-8")
+    # The church already answered how a short booklet is filled (asked once, kept from now on).
+    (root / "worship" / "standing-choices.json").write_text(json.dumps({"choices": [{
+        "key": "short-booklet", "question": "How should a short booklet's extra space be used?",
+        "answer": "white_space, blank_inside_cover", "until": None}]}, indent=1) + "\n", encoding="utf-8")
     return root
