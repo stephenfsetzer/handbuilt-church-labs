@@ -2058,7 +2058,10 @@ def _copy_liturgy_sources(
     explicit_files = copy.deepcopy(files)
 
     destination = stage / "liturgy"
-    shutil.copytree(_renderer_dir() / "liturgy", destination)
+    # The staged copy is the run's own: an installed plugin may be read-only, and its modes must not carry over.
+    shutil.copytree(_renderer_dir() / "liturgy", destination, copy_function=shutil.copyfile)
+    for folder in [destination, *(path for path in destination.rglob("*") if path.is_dir())]:
+        folder.chmod(folder.stat().st_mode | 0o700)
 
     def copy_source(identifier: str, raw_path: Any, field: str) -> str:
         source = Path(str(raw_path))
@@ -2089,7 +2092,7 @@ def _copy_liturgy_sources(
         # "custom" can occur several times, and sanitized keys can collide.
         suffix = hashlib.sha256(field.encode("utf-8")).hexdigest()[:16]
         safe_id = f"church-{safe_id}-{suffix}"
-        shutil.copy2(resolved, destination / f"{safe_id}.md")
+        shutil.copyfile(resolved, destination / f"{safe_id}.md")
         return safe_id
 
     def alias_keys(key: str, selected: str) -> tuple[str, ...]:
