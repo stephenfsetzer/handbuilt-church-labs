@@ -381,7 +381,10 @@ body {
 }
 
 /* All of a Sunday's notices in one box (options.announcements_style: box). */
-.announcements-box { border: 1.5pt solid $ink; padding: 10pt 12pt 4pt; box-decoration-break: clone; }
-.announcements-box .announcement { break-inside: avoid; }
+.announcements-box { border: 0.75pt solid #6B6B6B; border-radius: 8pt; padding: 4pt 14pt; box-decoration-break: clone; }
+.announcements-box .announcement { break-inside: avoid; padding: 8pt 0 9pt 0; margin: 0; background: none; border: none; }
+.announcements-box .announcement + .announcement { border-top: 0.5pt solid #BDBDBD; }
+.announcements-box .ann-title { font-weight: 700; margin: 0 0 3pt 0; }
+.announcements-box .ann-text { margin: 0; }
 /* The people's response after the Gospel stays with the Gospel's last lines. */
 .after-gospel { break-before: avoid; margin-top: 4pt; }

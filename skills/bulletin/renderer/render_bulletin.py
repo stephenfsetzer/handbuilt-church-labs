@@ -442,6 +442,20 @@ def cover_logo(brand, repo_root, template="classic"):
     return None
 
 
+def black_variant(path):
+    """The church's own black version of a logo file (lockup-horizontal.png -> lockup-horizontal-black.png)."""
+    if path is None:
+        return None
+    stem = re.sub(r"-(navy|ice|white|color|colour)$", "", path.stem)
+    candidate = path.with_name(f"{stem}-black{path.suffix}")
+    return candidate if candidate.is_file() else path
+
+
+def cover_ink(cfg):
+    """`black` when the church prints its cover in black and gray (church.yaml bulletin.cover_ink)."""
+    return str(((cfg.get("options") or {}).get("cover_ink") or "")).strip().lower()
+
+
 def cover_page(cfg, brand, repo_root, template):
     svc = cfg["service"]
     church = brand["church"]
@@ -450,6 +464,8 @@ def cover_page(cfg, brand, repo_root, template):
     logo_html = ""
     if template == "classic":
         mark = cover_logo(brand, repo_root, template)
+        if cover_ink(cfg) == "black":
+            mark = black_variant(mark)
         if mark:
             logo_html = (f'<img class="cover-mark" '
                          f'src="{file_uri(mark)}" alt="Church logo">')
@@ -460,6 +476,8 @@ def cover_page(cfg, brand, repo_root, template):
         if logo:
             banner = (brand.get("logo") or {}).get("banner")
             uses_banner = isinstance(banner, str) and banner and (repo_root / banner).resolve() == logo
+            if cover_ink(cfg) == "black":
+                logo = black_variant(logo)
             logo_class = "cover-logo" if uses_banner else "cover-logo cover-logo-mark"
             logo_html = (f'<img class="{logo_class}" '
                          f'src="{file_uri(logo)}" alt="Church logo">')
@@ -2079,6 +2097,59 @@ def _section_label(content, start, end):
     return _plain_text(content[head:head_end]) or None
 
 
+SAID_TEXTS = (("The Nicene Creed", "We believe in one God"), ("The Lord's Prayer", "Our Father"))
+
+
+def apply_church_layout(content, cfg):
+    """The church's standing layout from church.yaml (copied into options): said texts and page starts.
+
+    - `said_texts: {size_pt: 12, label_above: ["The Nicene Creed"]}` sets the Creed and the Lord's Prayer
+      in a narrower speaker column at that size with short hanging indents; a text named in label_above
+      prints its speaker label ("Together") above the text, so every line gets the whole column.
+    - `page_starts: ["The Prayers of the People"]` starts each named part of the service on a new page.
+    """
+    options = cfg.get("options") or {}
+    said = options.get("said_texts") if isinstance(options.get("said_texts"), dict) else None
+    if said:
+        above = set(said.get("label_above") or [])
+        for name, opening in SAID_TEXTS:
+            at = content.find(opening)
+            if at < 0:
+                continue
+            start = content.rfind('<div class="dialogue response"', 0, at)
+            if start < 0:
+                continue
+            extra = " said-stack" if name in above else ""
+            tag = '<div class="dialogue response"'
+            content = content[:start] + f'<div class="dialogue response said-block{extra}"' + content[start + len(tag):]
+    for name in options.get("page_starts") or []:
+        marker = f'data-print-id="{esc(name)}"'
+        at = content.find(marker)
+        if at < 0:
+            continue
+        close = content.find(">", at)
+        content = content[:close] + ' style="break-before: page; margin-top: 0;"' + content[close:]
+    return content
+
+
+def church_layout_css(cfg):
+    options = cfg.get("options") or {}
+    css = []
+    if cover_ink(cfg) == "black":
+        css.append(".cover-kicker, .cover-proper { color: #000000 !important; }")
+    said = options.get("said_texts") if isinstance(options.get("said_texts"), dict) else None
+    if said:
+        size = float(said.get("size_pt") or 12)
+        css.append(f""".dialogue.said-block .speaker {{ width: 0.95in; }}
+.dialogue.said-stack, .said-stack .line {{ display: block; }}
+.dialogue.said-stack .speaker {{ display: block; width: auto; margin: 0 0 3pt 0; }}
+.said-block .dlg-line {{ font-size: {size:g}pt; }}
+.said-block .dlg-line.lvl0 {{ padding-left: 0.2in; text-indent: -0.2in; }}
+.said-block .dlg-line.lvl1 {{ padding-left: 0.4in; text-indent: -0.2in; }}
+.said-block .dlg-line.lvl2 {{ padding-left: 0.6in; text-indent: -0.2in; }}""")
+    return "\n".join(css)
+
+
 def mark_print_units(content):
     """Add data-print-unit attributes to every music, prayer, section, and back page."""
     import html as html_module
@@ -2249,8 +2320,8 @@ def main():
         content = build_full_content(cfg, brand, repo_root, config_dir,
                                      args.template)
 
-    content = mark_print_units(content)
-    css = build_css(args.template, brand, repo_root)
+    content = apply_church_layout(mark_print_units(content), cfg)
+    css = build_css(args.template, brand, repo_root) + "\n" + church_layout_css(cfg)
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><style>

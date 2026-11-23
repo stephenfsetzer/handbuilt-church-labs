@@ -430,7 +430,7 @@ def _standing_bulletin_preferences(church_config: dict[str, Any]) -> dict[str, A
     leadership = leadership if isinstance(leadership, dict) else {}
     values: dict[str, Any] = {}
     for key in ("include_serving_today", "serving_roles", "serving_today_roles", "serving_role_policy",
-                "print_mode", "allow_blank_inside_cover"):
+                "print_mode", "allow_blank_inside_cover", "cover_ink", "said_texts", "page_starts"):
         value = bulletin.get(key)
         if value is None:
             value = defaults.get(key)
@@ -2207,6 +2207,35 @@ _RENDER_PDF = (
 )
 
 
+def _check_locked_wording(root: Path, html_path: Path) -> list[str]:
+    """A church's locked wording for its standard texts (worship/locked-wording.json), checked before printing.
+
+    Each rule applies when its `when` phrase is in the bulletin: every `require` phrase must be there and no
+    `forbid` phrase may be. The church sets these once; a drift in a standard text stops the bulletin.
+    """
+    path = root / "worship" / "locked-wording.json"
+    if not path.is_file():
+        return []
+    try:
+        rules = json.loads(path.read_text(encoding="utf-8")).get("rules") or []
+    except (OSError, ValueError, AttributeError):
+        raise StageFailure("invalid_church_setting", "validation",
+                           "worship/locked-wording.json could not be read; fix it before making a bulletin.",
+                           field="worship/locked-wording.json")
+    page = html_path.read_text(encoding="utf-8")
+    body = page[page.find("<body"):]
+    plain = re.sub(r"\s+", " ", html_text.unescape(re.sub(r"<[^>]+>", " ", body)))
+    for mark in (",", ";", ".", ":"):
+        plain = plain.replace(" " + mark, mark)
+    problems = []
+    for rule in rules:
+        if not isinstance(rule, dict) or str(rule.get("when") or "") not in plain or not rule.get("when"):
+            continue
+        problems += [f'{rule.get("text")}: missing "{phrase}"' for phrase in rule.get("require") or [] if phrase not in plain]
+        problems += [f'{rule.get("text")}: must not say "{phrase}"' for phrase in rule.get("forbid") or [] if phrase in plain]
+    return problems
+
+
 def _short_of_fold(failure: "StageFailure") -> bool:
     """The fit failed on the page count: with no way chosen to add pages, other findings may only follow from it."""
     diagnostics = failure.diagnostics or {}
@@ -3015,6 +3044,11 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
                     ) from failure
                 raise
         warnings.extend(print_gate["warnings"])
+        locked = _check_locked_wording(root, html_path)
+        if locked:
+            raise StageFailure("locked_wording_changed", "validation",
+                               "A standard text no longer matches the church's locked wording: " + "; ".join(locked),
+                               field="worship/locked-wording.json", diagnostics={"problems": locked})
         open_items = _open_bracket_items(html_path, source_resolved, root)
         warnings.extend(open_items)
         _run([sys.executable, str(impose_script), str(sequential_pdf), str(booklet_pdf)], stage="imposition")
