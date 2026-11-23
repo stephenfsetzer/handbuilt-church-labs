@@ -29,7 +29,7 @@ KEY = re.compile(r"^[a-z0-9][a-z0-9-]{0,59}$")
 
 # What the date decides afresh. Everything else in last week's input carries.
 DATE_DECIDES = ("readings", "collect_of_day", "proper_preface", "selected_parts", "service_context", "choice_origins")
-SERVICE_DATE_DECIDES = ("date", "occasion", "proper", "lectionary_track", "liturgical_color", "preacher")
+SERVICE_DATE_DECIDES = ("date", "occasion", "proper", "lectionary_track", "liturgical_color", "preacher", "preacher_note")
 
 
 class StandingError(ValueError):
@@ -196,6 +196,9 @@ def carry_forward(root: Path, sunday: date, *, service_id: str | None = None, oc
     kept = {item["key"]: item for item in applicable(root, sunday)}
     if "preacher" in kept:
         service["preacher"] = kept["preacher"]["answer"]
+        last = config.get("service") or {}
+        if last.get("preacher_note") and last.get("preacher") == service["preacher"]:
+            service["preacher_note"] = last["preacher_note"]   # the line under a name travels with that person
     else:
         asks.append({"id": "preacher", "question": f"Who preaches on {sunday:%B} {sunday.day}?",
                      "options": [name for name in [(config.get("service") or {}).get("preacher")] if name], "weekly": True})
@@ -238,13 +241,14 @@ def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
     when = service.get("date")
     if not isinstance(when, str):
         return
-    svc, occ = service.get("service_id") or "main", service.get("occurrence_id") or "main"
-    draft_path = root / "bulletins" / "drafts" / when / svc / occ / "input.json"
-    if not draft_path.is_file():
+    # Recomputed from approved history every time: the draft file on disk is the agent's to edit, so it is
+    # never the measure of what last week carried.
+    carried = carry_forward(root, date.fromisoformat(when), service_id=service.get("service_id"),
+                            occurrence_id=service.get("occurrence_id"), write=False)
+    draft = carried.get("draft")
+    if not draft:
         return
-    draft = json.loads(draft_path.read_text(encoding="utf-8"))
-    if not draft.get("carried_from"):
-        return
+    draft_path = Path("bulletins/drafts") / when / (service.get("service_id") or "main") / (service.get("occurrence_id") or "main") / "input.json"
     dropped = set(bulletin.get("dropped_from_last_week") or [])
     missing = [key for key in draft if key not in ("carried_from",) and key not in bulletin and key not in dropped]
     missing += [f"liturgy.{key}" for key in (draft.get("liturgy") or {})
@@ -260,7 +264,7 @@ def check_carried(root: Path, bulletin: dict[str, Any]) -> None:
         raise StandingError(
             "carried_part_dropped",
             "This Sunday's input leaves out what last week's approved bulletin carried: " + ", ".join(sorted(missing))
-            + f". Build the input on {draft_path.relative_to(root).as_posix()}, or list each part you mean to drop "
+            + f". Build the input on {draft_path.as_posix()} as carry-forward wrote it, or list each part you mean to drop "
             "in dropped_from_last_week.")
 
 

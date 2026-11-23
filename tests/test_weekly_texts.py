@@ -30,13 +30,25 @@ PAGE = """<html><body>
 <p class="lessonText">A sower went out at dawn.</p>
 <p class="poetryText">\N{LEFT DOUBLE QUOTATION MARK}The field is wide,<br>and the day is long.\N{RIGHT DOUBLE QUOTATION MARK}</p>
 <p class="lessonText">And they went home glad.</p></div></article>
+<article><h2 class="lessonHeading" id="gsp2">The Gospel</h2>
+<h3 class="lessonCitation">Mark 20:1-3</h3><div>
+<p class="lessonText">As it is written in the prophet,</p>
+<p class="poetryIndent">“See, a messenger goes ahead,<br>and the road is made straight.”</p>
+<p class="lessonText">So a messenger came.</p></div></article>
 </body></html>"""
 
 
 class ParsingTests(unittest.TestCase):
     def test_each_lesson_is_found_with_its_citation(self):
         citations = [lesson["citation"] for lesson in W.parse_lessons(PAGE)]
-        self.assertEqual(citations, ["Ruth 9:1-4", "Amos 12:1\N{EN DASH}3", "Mark 19:5-9"])
+        self.assertEqual(citations, ["Ruth 9:1-4", "Amos 12:1\N{EN DASH}3", "Mark 19:5-9", "Mark 20:1-3"])
+
+    def test_indented_poetry_inside_a_gospel_is_kept(self):
+        # The published page sets quoted prophecy (Mark 1:2-3) as poetryIndent; dropping it left half a sentence.
+        gospel = [lesson for lesson in W.parse_lessons(PAGE) if lesson["citation"] == "Mark 20:1-3"][0]
+        text = json.dumps(gospel)
+        self.assertIn("See, a messenger goes ahead", text)
+        self.assertIn("So a messenger came", text)
 
     def test_the_collect_is_not_mistaken_for_a_lesson(self):
         self.assertNotIn("", [lesson["citation"] for lesson in W.parse_lessons(PAGE)])

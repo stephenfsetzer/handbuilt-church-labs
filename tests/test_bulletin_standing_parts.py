@@ -60,5 +60,36 @@ class ReadingFormatTest(unittest.TestCase):
         self.assertEqual(bulletin["readings"]["first"], {"format": "poetry", "text": "a\nb"})
 
 
+class StagingTest(unittest.TestCase):
+    def test_brand_fonts_stay_relative_and_travel_with_the_staged_brand(self) -> None:
+        import json, tempfile
+        from skills.bulletin.bulletin_production.interface import _stage_effective_brand
+        root, stage = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp())
+        (root / "brand/type").mkdir(parents=True)
+        (root / "brand/type/League.woff2").write_bytes(b"wOF2font")
+        (root / "brand/logo.png").write_bytes(b"png")
+        brand = {"logo": "brand/logo.png",
+                 "brand_system": {"type": {"display": {"files": {"regular": "brand/type/League.woff2"}}}}}
+        staged = json.loads(_stage_effective_brand(brand, {}, root, stage).read_text(encoding="utf-8"))
+        self.assertEqual(staged["brand_system"]["type"]["display"]["files"]["regular"], "brand/type/League.woff2")
+        self.assertEqual((stage / "brand/type/League.woff2").read_bytes(), b"wOF2font")
+        self.assertTrue(Path(staged["logo"]).is_absolute())
+
+    def test_two_hymns_named_page_1_both_keep_their_own_music(self) -> None:
+        import tempfile
+        from skills.bulletin.bulletin_production.interface import _copy_music_assets
+        root, stage = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp())
+        for hymn in ("H75", "H67"):
+            (root / "music/hymn-library" / hymn).mkdir(parents=True)
+            (root / "music/hymn-library" / hymn / "page-1.png").write_bytes(hymn.encode())
+        bulletin = {"hymns": {"entrance": {"images": ["music/hymn-library/H75/page-1.png"]},
+                              "offertory": {"images": ["music/hymn-library/H67/page-1.png"]}}}
+        _copy_music_assets(bulletin, root, stage, [])
+        entrance, offertory = bulletin["hymns"]["entrance"]["images"][0], bulletin["hymns"]["offertory"]["images"][0]
+        self.assertNotEqual(entrance, offertory)
+        self.assertEqual((stage / entrance).read_bytes(), b"H75")
+        self.assertEqual((stage / offertory).read_bytes(), b"H67")
+
+
 if __name__ == "__main__":
     unittest.main()

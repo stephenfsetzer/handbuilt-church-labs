@@ -74,8 +74,9 @@ class _Lessons(HTMLParser):
             self._start("heading")
         elif tag == "h3" and "lessonCitation" in classes:
             self._start("citation")
-        elif tag == "p" and {"lessonText", "poetryText"} & set(classes):
-            self._start("poetry" if "poetryText" in classes else "prose")
+        elif tag == "p" and ({"lessonText", "poetryText"} & set(classes) or any(c.startswith("poetry") for c in classes)):
+            # poetryIndent carries quoted prophecy in a Gospel (Mark 1:2-3); dropping it printed half a sentence.
+            self._start("poetry" if any(c.startswith("poetry") for c in classes) else "prose")
         elif tag == "br" and self._field in ("poetry", "prose"):
             self._buffer.append("\n")
 

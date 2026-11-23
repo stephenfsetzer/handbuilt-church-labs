@@ -1617,7 +1617,34 @@ def _stage_effective_brand(
                 pass
         return value
 
+    # Brand fonts stay relative and are copied beside the staged brand: the renderer embeds a font only from
+    # inside the folder that holds the brand file, so an absolute path is refused (Handbuilt #554).
+    system = effective.get("brand_system") if isinstance(effective.get("brand_system"), dict) else None
+    type_block = system.pop("type", None) if system else None
     effective = absolutize(effective)
+    if type_block is not None:
+        effective["brand_system"]["type"] = type_block
+
+        def stage_fonts(value: Any) -> None:
+            if isinstance(value, dict):
+                for child in value.values():
+                    stage_fonts(child)
+            elif isinstance(value, list):
+                for child in value:
+                    stage_fonts(child)
+            elif isinstance(value, str):
+                relative = Path(value)
+                try:
+                    source = (root / relative).resolve()
+                    if relative.is_absolute() or ".." in relative.parts or not source.is_file() or not _inside(source, root):
+                        return
+                except (OSError, ValueError):
+                    return
+                target = stage_dir / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+
+        stage_fonts(type_block)
     path = stage_dir / "effective-brand.json"
     path.write_text(json.dumps(effective, indent=2, ensure_ascii=False), encoding="utf-8")
     return path
@@ -1838,6 +1865,13 @@ def _copy_music_assets(
                         field=f"{group_name}.{slot}",
                     )
                 target = destination / source.name
+                if target.exists() and target.read_bytes() != source.read_bytes():
+                    # Two pieces of music share a file name (page-1.png); each keeps its own copy (#552).
+                    target = destination / f"{source.parent.name}-{source.name}"
+                    if target.exists() and target.read_bytes() != source.read_bytes():
+                        raise StageFailure("music_name_collision", "asset_resolution",
+                                           f"Two music files would print under one name: {raw}",
+                                           field=f"{group_name}.{slot}")
                 shutil.copy2(source, target)
                 copied.append(f"hymn-images/{target.name}")
             if not requested and not entry.get("lyrics"):

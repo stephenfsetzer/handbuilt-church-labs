@@ -146,6 +146,16 @@ class CheckCarriedTest(unittest.TestCase):
             standing.check_carried(root, no_acclamation)
         self.assertIn("hymns.entrance", str(hymns.exception))
 
+    def test_editing_the_draft_file_does_not_change_what_must_carry(self):
+        root = Path(tempfile.mkdtemp())
+        standing.adopt(root, approve_week(root, advent_one_config()), approved_by="x")
+        path = root / standing.carry_forward(root, date(2026, 12, 6))["draft_input"]
+        draft = json.loads(path.read_text(encoding="utf-8"))
+        draft.pop("after_gospel")
+        path.write_text(json.dumps(draft), encoding="utf-8")
+        with self.assertRaises(standing.StandingError):
+            standing.check_carried(root, draft)
+
     def test_no_draft_means_no_check(self):
         standing.check_carried(Path(tempfile.mkdtemp()), {"service": {"date": "2026-12-06"}})
 

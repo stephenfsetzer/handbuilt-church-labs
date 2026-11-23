@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import os
 import re
 import sys
 import time
@@ -60,6 +61,7 @@ CHECK_NAMES = (
 )
 
 FILL_BLOCK = 0.40
+FILL_BLOCK_DELIBERATE = 0.30   # the page before a part the fitter starts on a new page
 FILL_WARN = 0.60
 MAX_LINE_HEIGHT = 1.5
 LINE_HEIGHT_STEP = 0.05
@@ -701,7 +703,8 @@ def _allowed_blank_pages(report: LayoutReport, inside_cover_allowed: bool) -> se
 
 
 def check(report: LayoutReport, *, print_mode: str = "booklet",
-          inside_cover_allowed: bool = True) -> list[Finding]:
+          inside_cover_allowed: bool = True, division_ends: frozenset[int] = frozenset(),
+          deliberate_ends: frozenset[int] = frozenset()) -> list[Finding]:
     """Evaluate every layout rule for this print mode, passing ones too."""
     if print_mode not in PRINT_MODES:
         raise ValueError(f"print_mode must be one of {', '.join(PRINT_MODES)}")
@@ -825,7 +828,18 @@ def check(report: LayoutReport, *, print_mode: str = "booklet",
     findings.append(_said_wrap_finding(report))
     findings.append(_stranded_finding(report))
 
+    # The page before a part the fitter started on a new page may run shorter than an accidental gap
+    # (deliberate_ends), but never nearly empty.
     exempt = _exempt_pages(report)
+    # The page before a full page of music runs short too: engraved music that fills a page cannot start
+    # halfway down the page before it.
+    first_on_page: dict[int, Unit] = {}
+    for unit in report.units:
+        first_on_page.setdefault(unit.first_page, unit)
+    for page, unit in first_on_page.items():
+        if (unit.kind == "music" and unit.last_page == page and page > 1
+                and report.fill[page - 1] >= 0.8):
+            exempt.add(page - 1)
     low, thin = [], []
     for i, value in enumerate(report.fill):
         number = i + 1
@@ -833,7 +847,7 @@ def check(report: LayoutReport, *, print_mode: str = "booklet",
             continue
         if report.blank[i] and print_mode == "booklet":
             continue
-        if value < FILL_BLOCK:
+        if value < (FILL_BLOCK_DELIBERATE if number in deliberate_ends else FILL_BLOCK):
             low.append(number)
         elif value < FILL_WARN:
             thin.append(number)
@@ -1193,8 +1207,15 @@ class _Fitter:
                          self.base_url)
         if self.base is None:
             self.base = layout
-        findings = check(layout.report, print_mode=self.print_mode,
-                         inside_cover_allowed=self.inside_cover_allowed)
+            pass
+        division_ends = frozenset(
+            heading.page - 1 for heading, ref in zip(layout.report.headings, layout.heading_refs)
+            if heading.kind == "title" and ref in params.sections and heading.page > 1)
+        deliberate_ends = frozenset(
+            heading.page - 1 for heading, ref in zip(layout.report.headings, layout.heading_refs)
+            if ref in params.sections and heading.page > 1)
+        findings = check(layout.report, print_mode=self.print_mode, inside_cover_allowed=self.inside_cover_allowed,
+                         division_ends=division_ends, deliberate_ends=deliberate_ends)
         findings.append(_wording_finding(self.base.report.text, layout.report.text))
         self.cache[params] = (layout, findings)
         score = (len(_blocking_failures(findings)), self.cost(params), self.renders)
@@ -1370,7 +1391,8 @@ class _Fitter:
         while layout.report.pages < target:
             options = [(heading, ref) for heading, ref in zip(layout.report.headings, layout.heading_refs)
                        if ref and ref not in params.sections and heading.id not in self.pinned]
-            options.sort(key=lambda item: 0 if item[0].kind == "title" else 1)
+            # A heading low on its page first: starting it on a new page leaves the page before it fullest.
+            options.sort(key=lambda item: item[0].lead)
             best = None
             for heading, ref in options[:14]:
                 trial = replace(params, sections=params.sections + (ref,))

@@ -162,8 +162,12 @@ class FitRoundTwoRenderedTests(unittest.TestCase):
         acclamation = [u for u in before.units if u.id == "Gospel Acclamation"][0]
         self.assertEqual((acclamation.first_page, acclamation.last_page), (2, 3))
 
+        # At the default 95% it cannot shrink onto page 2, so it moves whole onto page 3 instead of turning
+        # mid-hymn; the short page before a full page of music is allowed (Handbuilt PRD-026).
         default = pl.fit(html, base_url=self.base_url, print_mode="duplex")
-        self.assertEqual(default.status, "unchanged")
+        self.assertEqual(default.status, "fit")
+        whole = [u for u in default.report.units if u.id == "Gospel Acclamation"][0]
+        self.assertEqual(whole.first_page, whole.last_page)
 
         result = pl.fit(html, base_url=self.base_url, print_mode="duplex", music_min_scale=0.85)
         self.assertEqual(result.status, "fit")
