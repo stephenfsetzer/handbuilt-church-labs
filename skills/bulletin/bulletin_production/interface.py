@@ -2223,6 +2223,28 @@ _RENDER_PDF = (
 FEAST_PROPERS = {"proper 29": "Christ the King"}
 
 
+def _tunes_from_hymn_library(bulletin: dict[str, Any], root: Path) -> None:
+    """A hymn printed from the hosted hymn library names its tune, as the library records it."""
+    for group in ("hymns", "service_music"):
+        for hymn in (bulletin.get(group) or {}).values():
+            if not isinstance(hymn, dict) or hymn.get("tune"):
+                continue
+            images = hymn.get("images") or ([hymn["image"]] if hymn.get("image") else [])
+            for image in images:
+                if "hymn-library" not in str(image):
+                    continue
+                record = (root / str(image)).parent / "source.json"
+                if not record.is_file():
+                    record = (root / "music" / str(image)).parent / "source.json"
+                try:
+                    tune = json.loads(record.read_text(encoding="utf-8")).get("tune")
+                except (OSError, ValueError):
+                    continue
+                if isinstance(tune, str) and tune.strip():
+                    hymn["tune"] = tune.strip()
+                    break
+
+
 def _name_the_feast(bulletin: dict[str, Any]) -> None:
     """A proper that is a feast prints the feast's name: the Last Sunday after Pentecost is Christ the King."""
     service = bulletin.get("service")
@@ -2879,6 +2901,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         _validate_service_time_choice(church_config, source_resolved)
         _normalize_liturgy(source_resolved)
         _name_the_feast(source_resolved)
+        _tunes_from_hymn_library(source_resolved, root)
         _resolve_standing_preferences(source_resolved, church_config)
         _resolve_parish_information(source_resolved, church_config)
         _validate_leadership(church_config)

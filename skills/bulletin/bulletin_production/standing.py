@@ -213,6 +213,7 @@ def carry_forward(root: Path, sunday: date, *, service_id: str | None = None, oc
             unsure.append(notice)
     draft["announcements"] = carried
     _advance_each_week(root, draft, config, entry, sunday, asks)
+    _apply_current_profile(root, draft, sunday)
     if unsure:
         titles = [str(notice.get("title") or "").strip() for notice in unsure]
         asks.append({"id": "notices", "question": "Which of last week's notices print again this Sunday?",
@@ -229,6 +230,27 @@ def carry_forward(root: Path, sunday: date, *, service_id: str | None = None, oc
     else:
         result["draft"] = draft
     return result
+
+
+def _apply_current_profile(root: Path, draft: dict[str, Any], sunday: date) -> None:
+    """The church's worship profile as it stands now wins over last week's copy of the same choice.
+
+    A profile change made after last week's approval (a parish's blessing placeholder, 2026-11-18) is a
+    standing decision; carrying last week's liturgy unchanged would undo it.
+    """
+    try:
+        from ..worship_resolution import resolve_worship_profile
+        current = resolve_worship_profile(root, {"service": {"date": sunday.isoformat()}}, standing_only=True)
+    except Exception:   # a church with no profile, or one the resolver asks about, keeps last week's liturgy
+        return
+    liturgy = current.get("liturgy") if isinstance(current, dict) else None
+    if not isinstance(liturgy, dict) or not isinstance(draft.get("liturgy"), dict):
+        return
+    for key, value in liturgy.items():
+        if key in ("files", "sources") and isinstance(value, dict) and isinstance(draft["liturgy"].get(key), dict):
+            draft["liturgy"][key] = {**draft["liturgy"][key], **value}
+        elif value not in (None, "", [], {}):
+            draft["liturgy"][key] = copy.deepcopy(value)
 
 
 def _advance_each_week(root: Path, draft: dict[str, Any], config: dict[str, Any], entry: dict[str, Any],
