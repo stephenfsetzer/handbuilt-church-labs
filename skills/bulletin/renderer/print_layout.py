@@ -74,7 +74,7 @@ DEFAULT_MAX_RENDERS = 100
 STRANDED_LEAD = 0.12
 
 # Relative cost of each fitting step, used to try the smallest change first.
-COST_INSIDE_COVER = 1.0
+COST_INSIDE_COVER = 40.0   # a blank page 2 is the last resort (Handbuilt PRD-026)
 COST_LINE_HEIGHT_STEP = 1.25
 COST_TYPE_STEP = 2.5
 COST_SAID_HOLD = 0.5
@@ -1353,6 +1353,41 @@ class _Fitter:
                 break
         return params, changed
 
+    def grow_to_fold(self, params: _Params) -> tuple[_Params, bool]:
+        """Reach the next multiple of four by starting parts of the service on a new page.
+
+        Each step tries a page start before a heading (a division title such as "The Holy Communion" first,
+        then a section) and keeps the one that adds exactly one page with the fewest other failures.
+        """
+        if self.print_mode != "booklet":
+            return params, False
+        layout, findings = self.render(params)
+        pages = layout.report.pages
+        if self.count_ok(findings) or pages % 4 == 0:
+            return params, False
+        target = pages + (4 - pages % 4)
+        changed = False
+        while layout.report.pages < target:
+            options = [(heading, ref) for heading, ref in zip(layout.report.headings, layout.heading_refs)
+                       if ref and ref not in params.sections and heading.id not in self.pinned]
+            options.sort(key=lambda item: 0 if item[0].kind == "title" else 1)
+            best = None
+            for heading, ref in options[:14]:
+                trial = replace(params, sections=params.sections + (ref,))
+                trial_layout, trial_findings = self.render(trial)
+                if trial_layout.report.pages != layout.report.pages + 1:
+                    continue
+                score = (0 if self.count_ok(trial_findings) else 1, len(_blocking_failures(trial_findings)))
+                if best is None or score < best[0]:
+                    best = (score, trial, trial_layout, trial_findings)
+                if score == (0, 0):
+                    break
+            if best is None:
+                break
+            _, params, layout, findings = best
+            changed = True
+        return params, changed
+
     def fix_sections(self, params: _Params) -> tuple[_Params, bool]:
         params, changed = self.fix_stranded(params)
         layout, findings = self.render(params)
@@ -1404,8 +1439,13 @@ class _Fitter:
             # Music split over two pages may give back the page that breaks the fold.
             params, _ = self.music_onto_one_page(params, require_pass=False)
             layout, findings = self.render(params)
-            if not self.count_ok(findings):
-                return None
+        if not self.count_ok(findings) and not params.inside_cover:
+            # A booklet a page or two short starts a part of the service on a fresh page, as a parish does
+            # by hand, rather than leaving page 2 blank.
+            params, _ = self.grow_to_fold(params)
+            layout, findings = self.render(params)
+        if not self.count_ok(findings):
+            return None
         if not _blocking_failures(findings):
             return params
         return self.repair(params)

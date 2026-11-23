@@ -598,7 +598,8 @@ def hymn_block(label, hymn, config_dir, full_page=True, max_h=None, content_w=No
                  if head else "")
     # composer_style: "label" (Composer: Name, the default), "plain" (the name alone), or "hidden" when the
     # music itself already prints it.
-    composer_style = str(hymn.get("composer_style") or "label").strip().lower()
+    # Engraved music printed on its own already shows its credits, so its composer line is off unless asked.
+    composer_style = str(hymn.get("composer_style") or ("hidden" if imgs and not lyrics else "label")).strip().lower()
     composer_html = (f'<p class="hymn-composer">{"Composer: " if composer_style == "label" else ""}{esc(str(composer))}</p>'
                      if str(composer or "").strip() and composer_style != "hidden" else "")
     # An optional posture or other instruction ("Please stand.") prints under

@@ -36,6 +36,8 @@ class StandingPartsTest(unittest.TestCase):
         self.assertIn(">Doris Akers<", plain)
         self.assertNotIn("Composer:", plain)
         self.assertNotIn("Doris Akers", hymn_block("Closing Hymn", {**hymn, "composer_style": "hidden"}, Path("/tmp")))
+        # Engraved music prints its own credits, so no composer line by default.
+        self.assertNotIn("Composer:", hymn_block("Closing Hymn", {**hymn, "images": ["missing.png"]}, Path("/tmp")))
 
 
 class ReadingFormatTest(unittest.TestCase):

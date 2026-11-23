@@ -85,10 +85,13 @@ class BookletProductionTests(unittest.TestCase):
         receipt = json.loads(Path(result["receipt_path"]).read_text(encoding="utf-8"))
         adjustments = receipt["fit_adjustments"]
         self.assertTrue(adjustments)
-        self.assertEqual(adjustments[0]["step"], "inside_cover")
-        self.assertEqual(adjustments[0]["detail"]["pages_before"], 14)
-        self.assertEqual(adjustments[0]["detail"]["pages"], 16)
-        self.assertTrue(receipt["fit_summary"].startswith("To fold into 16 pages, page 2 is left blank"))
+        # Handbuilt PRD-026: parts of the service start on a new page; page 2 is never left blank to fold.
+        self.assertNotIn("inside_cover", [item["step"] for item in adjustments])
+        starts = [item for item in adjustments if item["step"] == "section_start"]
+        self.assertTrue(starts)
+        self.assertEqual(starts[0]["detail"]["pages_before"], 14)
+        self.assertEqual(starts[0]["detail"]["pages"], 16)
+        self.assertIn("starts a new page", receipt["fit_summary"])
         self.assertTrue(one_sentence(receipt["fit_summary"]))
         self.assertEqual(result["fit_summary"], receipt["fit_summary"])
         self.assertEqual(receipt["print_mode"], "booklet")
@@ -105,8 +108,8 @@ class BookletProductionTests(unittest.TestCase):
         # The fitted HTML and the PDF made from it are what the pastor reviews.
         week = Path(result["week_folder"])
         html = next(week.glob("bulletin-*-classic.html")).read_text(encoding="utf-8")
-        self.assertIn('class="inside-cover"', html)
-        self.assertIn('data-print-fit="1"', html)
+        self.assertNotIn('class="inside-cover"', html)
+        self.assertIn('break-before: page', html)
         self.assertNotIn("data-pl-ref", html)
         pdf = next(week.glob("bulletin-*-classic.pdf"))
         self.assertEqual(len(PdfReader(str(pdf)).pages), 16)
@@ -128,16 +131,13 @@ class BookletProductionTests(unittest.TestCase):
         self.assertFalse(list((self.church / "bulletins").glob("2026/09/*/bulletin-*.pdf")))
         self.assertFalse(list((self.church / "bulletins" / ".staging").glob("*")))
 
-    def test_turning_off_the_inside_cover_is_respected(self):
-        # Without the inside cover, type and spacing alone cannot reach 16
-        # pages, so production blocks instead of padding blank pages.
+    def test_turning_off_the_inside_cover_still_folds_by_starting_parts_on_new_pages(self):
         bulletin = fourteen_page_input()
         bulletin["options"]["allow_blank_inside_cover"] = False
         result = produce(self.church, bulletin)
-        self.assertEqual(result["status"], "blocked")
-        self.assertEqual(result["errors"][0]["code"], "booklet_fit_failed")
-        self.assertIn("14 pages", result["errors"][0]["message"])
-        self.assertTrue(one_sentence(result["errors"][0]["message"]))
+        self.assertEqual(result["status"], "ready_for_review", result.get("errors"))
+        self.assertEqual(result["booklet_signature"]["sequential_pages"], 16)
+        self.assertEqual(result["booklet_signature"]["blank_pages"], 0)
 
     def test_renderer_marks_print_units_the_gate_reads_the_same_way(self):
         result = produce(self.church, bulletin_input())
