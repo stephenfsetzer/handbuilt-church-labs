@@ -61,6 +61,10 @@ CHECK_NAMES = (
 )
 
 FILL_BLOCK = 0.40
+FULL_MUSIC_WIDTH_PX = 5.9 * 96    # music given its own page fills the text column
+FULL_MUSIC_HEIGHT_PX = 7.6 * 96
+MAX_MUSIC_GROWTH = 1.6
+COST_MUSIC_PAGE = 2.0
 FILL_BLOCK_DELIBERATE = 0.30   # the page before a part the fitter starts on a new page
 FILL_WARN = 0.60
 MAX_LINE_HEIGHT = 1.5
@@ -966,6 +970,7 @@ class _Params:
     sections: tuple[str, ...] = ()
     said_hold: tuple[str, ...] = ()   # said blocks kept at the theme's size
     said_stack: tuple[str, ...] = ()  # said blocks with the speaker label above
+    music_pages: tuple[str, ...] = ()  # inline music given a page of its own, enlarged (growing a short booklet)
 
 
 def _annotate(html: str) -> str:
@@ -1143,6 +1148,14 @@ def _build(source: str, params: _Params, base: _Layout) -> str:
                 measured = base.img_px.get(img_ref)
                 html = _edit_tag(html, img_ref,
                                  lambda tag, m=measured: _scale_img_tag(tag, scale, m))
+    for ref in params.music_pages:
+        html = _edit_tag(html, ref, lambda tag: _add_style(tag, "break-before: page; break-after: page; break-inside: avoid"))
+        for img_ref in base.img_refs.get(ref, []):
+            measured = base.img_px.get(img_ref)
+            if measured and measured[0] and measured[1]:
+                grow = min(FULL_MUSIC_WIDTH_PX / measured[0], FULL_MUSIC_HEIGHT_PX / measured[1], MAX_MUSIC_GROWTH)
+                if grow > 1.0:
+                    html = _edit_tag(html, img_ref, lambda tag, m=measured, g=grow: _scale_img_tag(tag, g, m))
     for ref in params.sections:
         html = _edit_tag(html, ref, lambda tag: _add_style(tag, "break-before: page"))
     if params.said_hold and params.font_pt is not None:
@@ -1232,7 +1245,7 @@ class _Fitter:
         if params.font_pt is not None and base is not None:
             cost += COST_TYPE_STEP * round((params.font_pt - base.base_font_pt) / BODY_PT_STEP)
         cost += sum(0.5 + (1.0 - k) * 20 for _, k in params.music)
-        cost += 3.0 * len(params.sections)
+        cost += 3.0 * len(params.sections) + COST_MUSIC_PAGE * len(params.music_pages)
         cost += COST_SAID_HOLD * len(params.said_hold) + COST_SAID_STACK * len(params.said_stack)
         return cost
 
@@ -1388,6 +1401,36 @@ class _Fitter:
             return params, False
         target = pages + (4 - pages % 4)
         changed = False
+        # First: inline music (a communion hymn, an anthem) gets a page of its own at a readable size.
+        while layout.report.pages < target:
+            def fills_a_page(ref: str) -> bool:
+                """Enlarged to the column, the music must fill most of a page; a one-verse strip cannot."""
+                sizes = [self.base.img_px.get(img) for img in self.base.img_refs.get(ref, [])]
+                sizes = [size for size in sizes if size and size[0] and size[1]]
+                if not sizes:
+                    return False
+                grow = min(min(FULL_MUSIC_WIDTH_PX / w, FULL_MUSIC_HEIGHT_PX / h, MAX_MUSIC_GROWTH) for w, h in sizes)
+                return sum(h for _, h in sizes) * grow >= 0.7 * FULL_MUSIC_HEIGHT_PX
+
+            inline = [ref for unit, ref in zip(layout.report.units, layout.unit_refs)
+                      if unit.kind == "music" and ref and ref not in params.music_pages and fills_a_page(ref)
+                      and unit.first_page == unit.last_page and unit.id not in self.pinned
+                      and any(other is not unit and other.first_page == unit.first_page and other.kind != "music"
+                              for other in layout.report.units)]
+            best = None
+            for ref in inline[:6]:
+                trial = replace(params, music_pages=params.music_pages + (ref,))
+                trial_layout, trial_findings = self.render(trial)
+                if not layout.report.pages < trial_layout.report.pages <= target:
+                    continue
+                score = (0 if self.count_ok(trial_findings) else 1, len(_blocking_failures(trial_findings)))
+                if best is None or score < best[0]:
+                    best = (score, trial, trial_layout, trial_findings)
+            if best is None:
+                break
+            _, params, layout, findings = best
+            changed = True
+        # Then: a part of the service starts on a new page.
         while layout.report.pages < target:
             options = [(heading, ref) for heading, ref in zip(layout.report.headings, layout.heading_refs)
                        if ref and ref not in params.sections and heading.id not in self.pinned]
@@ -1603,6 +1646,13 @@ def _adjustments(params: _Params, base: _Layout, final: _Layout, print_mode: str
                        "detail": {"id": unit.id if unit else None, "scale": scale,
                                   "min_scale": music_min_scale, "page": page, **common},
                        "summary": summary})
+    for ref in params.music_pages:
+        unit = by_ref.get(ref)
+        name = unit.id if unit and unit.id else "a piece of music"
+        page = unit.first_page if unit else None
+        result.append({"step": "music_page",
+                       "detail": {"id": unit.id if unit else None, "page": page, **common},
+                       "summary": f"{name} prints on a page of its own" + (f" (page {page})" if page else "")})
     heading_by_ref = dict(zip(final.heading_refs, final.report.headings))
     for ref in params.sections:
         unit = by_ref.get(ref)
