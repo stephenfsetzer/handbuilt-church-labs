@@ -80,9 +80,9 @@ class TuneTest(unittest.TestCase):
         root = Path(tempfile.mkdtemp())
         db = root / "music" / "church-music-db"
         db.mkdir(parents=True)
-        (db / "H56-page-1.source.json").write_text(json.dumps({"hymn": "H56", "tune": "Veni, veni, Emmanuel"}))
-        (db / "H56-stanza-1.source.json").write_text(json.dumps({"hymn": "H56", "made_from": "H56-page-1.png"}))
-        (db / "H68-page-1.source.json").write_text(json.dumps({"hymn": "H68", "tune": "Llangloffan"}))
+        (db / "H56-page-1.source.json").write_text(json.dumps({"hymn": "H56", "tune": "Veni, veni, Emmanuel"}), encoding="utf-8")
+        (db / "H56-stanza-1.source.json").write_text(json.dumps({"hymn": "H56", "made_from": "H56-page-1.png"}), encoding="utf-8")
+        (db / "H68-page-1.source.json").write_text(json.dumps({"hymn": "H68", "tune": "Llangloffan"}), encoding="utf-8")
         bulletin = {"hymns": {"gospel_acclamation": {"images": ["music/church-music-db/H56-stanza-1.png"]},
                               "entrance": {"images": ["music/church-music-db/H68-page-1.png"]},
                               "closing": {"images": ["music/church-music-db/H68-page-1.png"], "tune": "Kept"},
