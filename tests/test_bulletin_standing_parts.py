@@ -72,6 +72,28 @@ class ReadingFormatTest(unittest.TestCase):
         self.assertEqual(bulletin["readings"]["first"], {"format": "poetry", "text": "a\nb"})
 
 
+class TuneTest(unittest.TestCase):
+    def test_a_stanza_cut_from_the_hymn_page_names_the_page_s_tune(self) -> None:
+        import json
+        import tempfile
+        from skills.bulletin.bulletin_production.interface import _tunes_from_hymn_library
+        root = Path(tempfile.mkdtemp())
+        db = root / "music" / "church-music-db"
+        db.mkdir(parents=True)
+        (db / "H56-page-1.source.json").write_text(json.dumps({"hymn": "H56", "tune": "Veni, veni, Emmanuel"}))
+        (db / "H56-stanza-1.source.json").write_text(json.dumps({"hymn": "H56", "made_from": "H56-page-1.png"}))
+        (db / "H68-page-1.source.json").write_text(json.dumps({"hymn": "H68", "tune": "Llangloffan"}))
+        bulletin = {"hymns": {"gospel_acclamation": {"images": ["music/church-music-db/H56-stanza-1.png"]},
+                              "entrance": {"images": ["music/church-music-db/H68-page-1.png"]},
+                              "closing": {"images": ["music/church-music-db/H68-page-1.png"], "tune": "Kept"},
+                              "communion": {"images": ["music/other.png"]}}}
+        _tunes_from_hymn_library(bulletin, root)
+        self.assertEqual(bulletin["hymns"]["gospel_acclamation"]["tune"], "Veni, veni, Emmanuel")
+        self.assertEqual(bulletin["hymns"]["entrance"]["tune"], "Llangloffan")
+        self.assertEqual(bulletin["hymns"]["closing"]["tune"], "Kept")
+        self.assertNotIn("tune", bulletin["hymns"]["communion"])
+
+
 class StagingTest(unittest.TestCase):
     def test_brand_fonts_stay_relative_and_travel_with_the_staged_brand(self) -> None:
         import json, tempfile

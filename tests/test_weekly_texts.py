@@ -61,7 +61,11 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(text, "Thus says the Lord: I will seek my sheep.\n\nTherefore, thus says the Lord to them: I will judge.")
 
     def test_two_hyphens_print_as_the_long_dash(self):
-        self.assertEqual(W._join(["from your presence-- as when fire"]), "from your presence\N{EM DASH} as when fire")
+        # Within a line the dash closes up, as the printed NRSV has it (1 Corinthians 1:5, Advent 1, Year B).
+        self.assertEqual(W._join(["of every kind-- just as the testimony"]), "of every kind\N{EM DASH}just as the testimony")
+        self.assertEqual(W._join(["keep awake--for you"]), "keep awake\N{EM DASH}for you")
+        # At the end of a poetry line it stays at the end of the line.
+        self.assertEqual(W._join(["from your presence-- \nas when fire"]), "from your presence\N{EM DASH}\nas when fire")
 
     def test_a_page_from_another_lectionary_year_is_refused(self):
         from skills.bulletin.bulletin_production import standing

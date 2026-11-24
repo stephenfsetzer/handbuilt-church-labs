@@ -247,7 +247,11 @@ box` (all notices in one box), `announcements[].until` (the last Sunday a notice
 prints), a hymn's `composer_style` (`label`, `plain` or `hidden`; music pictures
 hide it by default, so set it only when the pastor asks) and a hymn's
 `each_week` (sung one stanza a week: carry-forward moves it on a stanza). Print music titles and credits as
-the musician's sheet gives them (composer, words, arranger, who sings). Never edit
+the musician's sheet gives them (composer, words, arranger, who sings). The sheet is the week's order of
+music, often a document such as "Order of Hymns" or a music list beside the month's music files; open it for
+every Sunday even when the request names only the hymn files. A credit the sheet sets in parentheses after a
+title goes in that piece's `tune` (it prints in parentheses after the title), and a line such as "Sung by
+Ruth Alder" goes in `custom_text`. A hymn picture's tune comes from its record without being asked. Never edit
 a produced page by hand: finalize refuses a changed page, and a change made
 outside the input is lost next week. Put the change in the input and revise.
 

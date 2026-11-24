@@ -2258,25 +2258,48 @@ def _check_reading_year(bulletin: dict[str, Any]) -> None:
 
 
 def _tunes_from_hymn_library(bulletin: dict[str, Any], root: Path) -> None:
-    """A hymn printed from the hosted hymn library names its tune, as the library records it."""
+    """A hymn printed from a recorded picture names its tune, as the record gives it.
+
+    Two kinds of record: the hosted hymn library's `source.json` beside its pages, and a church's own
+    `<picture>.source.json` beside a picture it keeps. A picture cut from another (a single stanza cut
+    from the full page) records `made_from`; the tune comes from that page's record."""
     for group in ("hymns", "service_music"):
         for hymn in (bulletin.get(group) or {}).values():
             if not isinstance(hymn, dict) or hymn.get("tune"):
                 continue
             images = hymn.get("images") or ([hymn["image"]] if hymn.get("image") else [])
             for image in images:
-                if "hymn-library" not in str(image):
-                    continue
-                record = (root / str(image)).parent / "source.json"
-                if not record.is_file():
-                    record = (root / "music" / str(image)).parent / "source.json"
-                try:
-                    tune = json.loads(record.read_text(encoding="utf-8")).get("tune")
-                except (OSError, ValueError):
-                    continue
-                if isinstance(tune, str) and tune.strip():
-                    hymn["tune"] = tune.strip()
+                tune = _recorded_tune(root, str(image))
+                if tune:
+                    hymn["tune"] = tune
                     break
+
+
+def _recorded_tune(root: Path, image: str) -> str | None:
+    picture = root / image
+    records = [picture.with_name(picture.stem + ".source.json")]
+    if "hymn-library" in image:
+        records += [picture.parent / "source.json", (root / "music" / image).parent / "source.json"]
+    for record in records:
+        try:
+            data = json.loads(record.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        tune = data.get("tune")
+        if isinstance(tune, str) and tune.strip():
+            return tune.strip()
+        made_from = data.get("made_from")
+        if isinstance(made_from, str) and made_from and "/" not in made_from:
+            parent = picture.with_name(made_from)
+            try:
+                tune = json.loads(parent.with_name(parent.stem + ".source.json").read_text(encoding="utf-8")).get("tune")
+            except (OSError, ValueError, AttributeError):
+                continue
+            if isinstance(tune, str) and tune.strip():
+                return tune.strip()
+    return None
 
 
 def _name_the_feast(bulletin: dict[str, Any]) -> None:
