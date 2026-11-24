@@ -1207,6 +1207,8 @@ class _Fitter:
         # A tuple is the church's choice; an empty one means nothing chosen yet, so nothing is added.
         moves = SHORT_BOOKLET_MOVES if short_booklet is None else tuple(short_booklet)
         # Order matters: page 2 blank comes first only when the church put it before white space.
+        self.church_chose = short_booklet is not None
+        self.allow_moves = True
         self.prefer_inside_cover = (short_booklet is not None and "blank_inside_cover" in moves and (
             "white_space" not in moves or moves.index("blank_inside_cover") < moves.index("white_space")))
         self.grow_sections = "white_space" in moves
@@ -1518,7 +1520,7 @@ class _Fitter:
             # Music split over two pages may give back the page that breaks the fold.
             params, _ = self.music_onto_one_page(params, require_pass=False)
             layout, findings = self.render(params)
-        if not self.count_ok(findings) and (not params.inside_cover or self.prefer_inside_cover):
+        if self.allow_moves and not self.count_ok(findings) and (not params.inside_cover or self.prefer_inside_cover):
             # A booklet a page or two short starts a part of the service on a fresh page, as a parish does
             # by hand, rather than leaving page 2 blank.
             params, _ = self.grow_to_fold(params)
@@ -1533,6 +1535,16 @@ class _Fitter:
         _, findings = self.render(_Params())
         if not _blocking_failures(findings):
             return _Params()
+        if self.church_chose:
+            # A church that chose how to fill a short booklet still gets the ordinary fit first: type and spacing
+            # within its own size limit (a parish's approved Advent 1 at 13pt, with no blank page). Only when that
+            # cannot fold do its short-booklet moves come in, in its order.
+            self.allow_moves = False
+            for params in [_Params()] + [p for p in self.candidates() if not p.inside_cover]:
+                settled = self.settle(params)
+                if settled is not None:
+                    return settled
+            self.allow_moves = True
         first = [_Params()]
         if (self.prefer_inside_cover and self.print_mode == "booklet" and self.inside_cover_allowed
                 and not self.base.has_inside_cover and not self.count_ok(findings)):

@@ -16,6 +16,18 @@ class StandingPartsTest(unittest.TestCase):
         self.assertEqual(after_gospel_block({}), "")
         self.assertEqual(after_gospel_block({"after_gospel": {"text": "  "}}), "")
 
+    def test_the_response_after_the_gospel_can_come_from_the_church_s_file(self) -> None:
+        import tempfile
+        from skills.bulletin.bulletin_production.interface import _after_gospel_from_file
+        root = Path(tempfile.mkdtemp())
+        (root / "worship").mkdir()
+        (root / "worship" / "refrain.md").write_text("<!-- a note -->\n\n*All sing the refrain.*\n\nRejoice! Rejoice!\nshall come\n",
+                                                     encoding="utf-8")
+        bulletin = {"after_gospel": {"file": "worship/refrain.md"}}
+        _after_gospel_from_file(bulletin, root)
+        self.assertEqual(bulletin["after_gospel"], {"speaker": "Together", "text": "Rejoice! Rejoice!\nshall come",
+                                                    "rubric": "All sing the refrain."})
+
     def test_a_note_prints_under_the_preacher(self) -> None:
         html = sermon_block({"preacher": "Jordan Reyes", "preacher_note": "Seminarian at Riverbend Seminary"})
         self.assertIn("Jordan Reyes", html)

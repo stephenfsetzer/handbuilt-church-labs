@@ -2223,6 +2223,23 @@ _RENDER_PDF = (
 FEAST_PROPERS = {"proper 29": "Christ the King"}
 
 
+def _after_gospel_from_file(bulletin: dict[str, Any], root: Path) -> None:
+    """`after_gospel: {"file": ...}` prints the church's own file: a *rubric* line, then the words everyone says or sings."""
+    value = bulletin.get("after_gospel")
+    if not isinstance(value, dict) or not value.get("file"):
+        return
+    path = (root / str(value["file"])).resolve()
+    if not _inside(path, root) or not path.is_file():
+        raise StageFailure("missing_liturgy_source", "asset_resolution",
+                           f"The file for the words after the Gospel was not found: {value['file']}", field="after_gospel.file")
+    text = re.sub(r"<!--.*?-->", "", path.read_text(encoding="utf-8"), flags=re.S)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    rubric = next((line.strip("*").strip() for line in lines if line.startswith("*") and line.endswith("*")), "")
+    words = [line for line in lines if not (line.startswith("*") and line.endswith("*"))]
+    bulletin["after_gospel"] = {"speaker": value.get("speaker") or "Together", "text": "\n".join(words),
+                                **({"rubric": rubric} if rubric else {})}
+
+
 def _check_reading_year(bulletin: dict[str, Any]) -> None:
     """Readings taken from another lectionary year than the Sunday's are refused before anything prints."""
     from .standing import lectionary_year, page_year
@@ -2920,6 +2937,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         _name_the_feast(source_resolved)
         _tunes_from_hymn_library(source_resolved, root)
         _check_reading_year(source_resolved)
+        _after_gospel_from_file(source_resolved, root)
         _resolve_standing_preferences(source_resolved, church_config)
         _resolve_parish_information(source_resolved, church_config)
         _validate_leadership(church_config)

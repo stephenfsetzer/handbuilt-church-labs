@@ -239,7 +239,8 @@ signature pages, sides, sheets, and blanks, and the pastor reviews that page
 before finalization.
 
 Parts the church sets in the input rather than by editing pages afterward:
-`after_gospel` (a response everyone gives right after the Gospel),
+`after_gospel` (a response everyone gives right after the Gospel; `{"file": "worship/liturgy/...md"}`
+prints the church's own file, rubric and words),
 `service.preacher_note` (a line under the preacher's name),
 `liturgy.dismissal_speaker` (who says the dismissal), `options.announcements_style:
 box` (all notices in one box), `announcements[].until` (the last Sunday a notice
