@@ -16,6 +16,12 @@ class StandingPartsTest(unittest.TestCase):
         self.assertEqual(after_gospel_block({}), "")
         self.assertEqual(after_gospel_block({"after_gospel": {"text": "  "}}), "")
 
+    def test_everyone_s_part_uses_the_bulletin_s_one_label_whatever_the_request_called_it(self) -> None:
+        for word in ("Everyone", "All", "congregation", "Together"):
+            html = after_gospel_block({"after_gospel": {"speaker": word, "text": "Rejoice! Rejoice! Emmanuel"}})
+            self.assertEqual(html.count(">Together<"), 1, word)
+        self.assertIn(">Choir<", after_gospel_block({"after_gospel": {"speaker": "Choir", "text": "Alleluia"}}))
+
     def test_the_response_after_the_gospel_can_come_from_the_church_s_file(self) -> None:
         import tempfile
         from skills.bulletin.bulletin_production.interface import _after_gospel_from_file

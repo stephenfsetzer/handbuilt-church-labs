@@ -44,6 +44,9 @@ THEMES_DIR = HERE / "themes"
 
 SPEAKERS = ("Priest", "People", "Together", "Leader", "Reader", "Deacon",
             "Presider", "Celebrant", "Bishop", "Family")
+# Words a request may use for everyone at once; the bulletin prints them all as "Together".
+ALL_VOICES = {"together", "everyone", "everybody", "all", "all together", "congregation", "the congregation",
+              "all sing", "all say", "unison"}
 
 NEUTRAL_BRAND = {
     "church": {
@@ -861,6 +864,10 @@ def after_gospel_block(cfg):
     if not isinstance(response, dict) or not str(response.get("text") or "").strip():
         return ""
     speaker = str(response.get("speaker") or "Together").strip()
+    # Everyone's part carries the bulletin's one label for all voices, as the Creed and Confession do, whatever
+    # word the request used for it ("Everyone", "All", "Congregation").
+    if speaker.lower() in ALL_VOICES:
+        speaker = "Together"
     lines = [line for line in str(response["text"]).splitlines() if line.strip()]
     # One response with a line each, as a hand-set refrain prints (a parish's Advent 1, 2026).
     rows = (f'<div class="dialogue response"><span class="speaker">{esc(speaker)}</span><span class="line">'
