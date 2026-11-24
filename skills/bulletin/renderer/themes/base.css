@@ -166,8 +166,8 @@ body {
 }
 .service-person.center { text-align: center; }
 /* A line under the preacher's name, such as "Seminarian at Riverbend Seminary". */
-.service-person-note { margin: -2pt 0 0 0; font-style: italic; }
-.service-person-note.center { text-align: center; }
+/* It sits with the name as one more line of it, aligned as the name is. */
+.service-person.service-person-note { margin-top: 0; font-style: italic; }
 .speaker-mark {
     font-size: 10.5pt;
     font-style: italic;
@@ -387,7 +387,8 @@ body {
 .announcements-box .ann-title { font-weight: 700; margin: 0 0 3pt 0; }
 .announcements-box .ann-text { margin: 0; }
 /* The people's response after the Gospel stays with the Gospel's last lines. */
-.after-gospel { break-before: avoid; margin-top: 4pt; }
+/* The response follows the Gospel as part of it, with no gap for a new section. */
+.section.after-gospel { break-before: avoid; margin-top: 0; }
 
 /* A psalm short enough for one page stays on one page; a longer one breaks where it must. */
 .psalm-whole { break-inside: avoid; }

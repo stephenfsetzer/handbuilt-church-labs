@@ -464,9 +464,17 @@ def _resolve_reading_format(bulletin: dict[str, Any], saved_bulletin: dict[str, 
         blocks = source or re.split(r"\n\s*\n", str(reading.get("text", "")))
         joined = [" ".join(line.strip() for line in str(block).splitlines() if line.strip()) for block in blocks]
         joined = [paragraph for paragraph in joined if paragraph]
+        # A block that opens in lowercase continues the sentence before it: "In those days, after that
+        # suffering," then the quoted lines "the sun will be darkened..." are one paragraph in print (Mark 13:24).
+        merged: list[str] = []
+        for paragraph in joined:
+            if merged and paragraph[0].islower():
+                merged[-1] = f"{merged[-1]} {paragraph}"
+            else:
+                merged.append(paragraph)
         reading["format"] = "prose"
         reading.pop("paragraphs", None)
-        reading["text"] = "\n\n".join(joined)
+        reading["text"] = "\n\n".join(merged)
 
 
 def _resolve_standing_preferences(bulletin: dict[str, Any], church_config: dict[str, Any]) -> None:
@@ -2273,6 +2281,16 @@ def _tunes_from_hymn_library(bulletin: dict[str, Any], root: Path) -> None:
                 if tune:
                     hymn["tune"] = tune
                     break
+            else:
+                # A picture taken from elsewhere (the musician's file) still names the tune the church's
+                # recorded page for that hymn number gives.
+                number = str(hymn.get("number") or "").strip()
+                if images and number.isdigit():
+                    for record in sorted((root / "music").glob(f"*/H{number}-page-1.source.json")):
+                        tune = _recorded_tune(root, record.relative_to(root).as_posix().removesuffix(".source.json") + ".png")
+                        if tune:
+                            hymn["tune"] = tune
+                            break
 
 
 def _recorded_tune(root: Path, image: str) -> str | None:

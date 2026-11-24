@@ -862,8 +862,9 @@ def after_gospel_block(cfg):
         return ""
     speaker = str(response.get("speaker") or "Together").strip()
     lines = [line for line in str(response["text"]).splitlines() if line.strip()]
-    rows = "".join(f'<div class="dialogue response"><span class="speaker">{esc(speaker if i == 0 else "")}</span>'
-                   f'<span class="line">{esc(line.strip())}</span></div>' for i, line in enumerate(lines))
+    # One response with a line each, as a hand-set refrain prints (a parish's Advent 1, 2026).
+    rows = (f'<div class="dialogue response"><span class="speaker">{esc(speaker)}</span><span class="line">'
+            + "".join(f'<p class="dlg-line lvl0">{esc(line.strip())}</p>' for line in lines) + '</span></div>')
     rubric = str(response.get("rubric") or "").strip()
     return ('<div class="section after-gospel">' + keep(*( [f'<p class="rubric">{esc(rubric)}</p>'] if rubric else []), rows)
             + '</div>')
@@ -875,7 +876,7 @@ def sermon_block(svc):
     return ('<div class="section">'
             + keep(section_head("The Sermon"),
                    f'<p class="service-person center">{esc(svc.get("preacher", ""))}</p>',
-                   *([f'<p class="service-person-note center">{esc(note)}</p>'] if note else []))
+                   *([f'<p class="service-person center service-person-note">{esc(note)}</p>'] if note else []))
             + '</div>')
 
 

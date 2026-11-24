@@ -31,7 +31,7 @@ class StandingPartsTest(unittest.TestCase):
     def test_a_note_prints_under_the_preacher(self) -> None:
         html = sermon_block({"preacher": "Jordan Reyes", "preacher_note": "Seminarian at Riverbend Seminary"})
         self.assertIn("Jordan Reyes", html)
-        self.assertIn('class="service-person-note center">Seminarian at Riverbend Seminary', html)
+        self.assertIn('class="service-person center service-person-note">Seminarian at Riverbend Seminary', html)
         self.assertNotIn("service-person-note", sermon_block({"preacher": "Jordan Reyes"}))
 
     def test_the_church_s_choice_of_who_dismisses(self) -> None:
@@ -65,6 +65,16 @@ class ReadingFormatTest(unittest.TestCase):
                                         "A voice cries out: In the wilderness prepare the way")
         self.assertEqual(bulletin["readings"]["psalm"]["format"], "responsive_half_verse")
 
+    def test_quoted_lines_that_finish_a_sentence_join_its_paragraph(self) -> None:
+        from skills.bulletin.bulletin_production.interface import _resolve_reading_format
+        mark = ("Jesus said, \u201cIn those days, after that suffering,\n\nthe sun will be darkened,\n"
+                "and the moon will not give its light.\n\nThen they will see")
+        bulletin = {"readings": {"gospel": {"format": "poetry", "text": mark}}}
+        _resolve_reading_format(bulletin, {})
+        self.assertEqual(bulletin["readings"]["gospel"]["text"],
+                         "Jesus said, \u201cIn those days, after that suffering, the sun will be darkened, "
+                         "and the moon will not give its light.\n\nThen they will see")
+
     def test_a_church_may_keep_poetry_lines_on_purpose(self) -> None:
         from skills.bulletin.bulletin_production.interface import _resolve_reading_format
         bulletin = {"readings": {"first": {"format": "poetry", "text": "a\nb"}}}
@@ -92,6 +102,11 @@ class TuneTest(unittest.TestCase):
         self.assertEqual(bulletin["hymns"]["entrance"]["tune"], "Llangloffan")
         self.assertEqual(bulletin["hymns"]["closing"]["tune"], "Kept")
         self.assertNotIn("tune", bulletin["hymns"]["communion"])
+        from_the_sheet = {"hymns": {"entrance": {"number": 68, "images": ["music/reused/h82-68-image1.png"]},
+                                    "closing": {"title": "Day by Day", "images": []}}}
+        _tunes_from_hymn_library(from_the_sheet, root)
+        self.assertEqual(from_the_sheet["hymns"]["entrance"]["tune"], "Llangloffan")
+        self.assertNotIn("tune", from_the_sheet["hymns"]["closing"])
 
 
 class StagingTest(unittest.TestCase):

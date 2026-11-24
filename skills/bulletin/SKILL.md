@@ -251,7 +251,10 @@ the musician's sheet gives them (composer, words, arranger, who sings). The shee
 music, often a document such as "Order of Hymns" or a music list beside the month's music files; open it for
 every Sunday even when the request names only the hymn files. A credit the sheet sets in parentheses after a
 title goes in that piece's `tune` (it prints in parentheses after the title), and a line such as "Sung by
-Ruth Alder" goes in `custom_text`. A hymn picture's tune comes from its record without being asked. Never edit
+Ruth Alder" goes in `custom_text`. The sheet gives words only: take each piece's picture from the church's
+music assets as usual (a recorded page such as `music/church-music-db/H492-page-1.png`), not from pictures
+inside the sheet or the musician's files, unless the assets lack the piece. A hymn's tune comes from its
+picture's record, or from the recorded page for its number, without being asked. Never edit
 a produced page by hand: finalize refuses a changed page, and a change made
 outside the input is lost next week. Put the change in the input and revise.
 
