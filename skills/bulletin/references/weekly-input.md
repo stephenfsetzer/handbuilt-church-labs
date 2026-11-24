@@ -51,6 +51,9 @@ response format. Then run:
   --lectionary-page <this Sunday's page on https://lectionarypage.net/>
 ```
 
+Use the page for this Sunday's lectionary year: `carry-forward` prints it as `lectionary_year` (each year begins
+on the First Sunday of Advent; Advent 2026 begins Year B). The tool refuses a page from another year.
+
 The tool downloads that page, finds each lesson by its citation, and writes
 the words and their source into the file. The psalm, collect and preface come
 from the bundled Sunday library. It reports each part it filled and how many

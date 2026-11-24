@@ -183,6 +183,20 @@ def _psalm_request(number) -> tuple[str, str | None]:
     return match.group(1), verses or None
 
 
+def _check_year(bulletin: dict, page_url: str | None) -> None:
+    """Refuse a lectionary page from another year than the Sunday's (Advent 1 2026 is Year B, not Year A)."""
+    from skills.bulletin.bulletin_production.standing import lectionary_year, page_year
+    when = str((bulletin.get("service") or {}).get("date") or "")
+    found = page_year(page_url or "")
+    if not found or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", when):
+        return
+    wanted = lectionary_year(datetime.date.fromisoformat(when))
+    if found != wanted:
+        raise WeeklyTextsError(
+            f"That page is for Year {found}, but {when} is in Year {wanted} (each year begins on the First Sunday "
+            f"of Advent). Use this Sunday's Year {wanted} page.")
+
+
 def _blank(value) -> bool:
     return not str(value or "").strip()
 
@@ -199,6 +213,7 @@ def fill(bulletin: dict, *, page_html: str | None = None, page_url: str | None =
     if wanted:
         if page_html is None:
             raise WeeklyTextsError("Give the lectionary page for this Sunday with --lectionary-page.")
+        _check_year(bulletin, page_url)
         lessons = {_key(lesson["citation"]): lesson for lesson in parse_lessons(page_html)}
         for slot in wanted:
             reading = readings[slot]

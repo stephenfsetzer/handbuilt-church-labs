@@ -2223,6 +2223,23 @@ _RENDER_PDF = (
 FEAST_PROPERS = {"proper 29": "Christ the King"}
 
 
+def _check_reading_year(bulletin: dict[str, Any]) -> None:
+    """Readings taken from another lectionary year than the Sunday's are refused before anything prints."""
+    from .standing import lectionary_year, page_year
+    try:
+        wanted = lectionary_year(date.fromisoformat(str((bulletin.get("service") or {}).get("date"))))
+    except ValueError:
+        return
+    for slot, reading in (bulletin.get("readings") or {}).items():
+        source = reading.get("source") if isinstance(reading, dict) else None
+        found = page_year(str((source or {}).get("location") or "")) if isinstance(source, dict) else None
+        if found and found != wanted:
+            raise StageFailure("readings_wrong_year", "validation",
+                               f"The {slot} reading came from the Year {found} page, but this Sunday is in Year {wanted} "
+                               "(each year begins on the First Sunday of Advent). Fill the readings from this "
+                               f"Sunday's Year {wanted} page.", field=f"readings.{slot}")
+
+
 def _tunes_from_hymn_library(bulletin: dict[str, Any], root: Path) -> None:
     """A hymn printed from the hosted hymn library names its tune, as the library records it."""
     for group in ("hymns", "service_music"):
@@ -2902,6 +2919,7 @@ def produce(church_folder: str | Path, bulletin: dict[str, Any], *, _revision: d
         _normalize_liturgy(source_resolved)
         _name_the_feast(source_resolved)
         _tunes_from_hymn_library(source_resolved, root)
+        _check_reading_year(source_resolved)
         _resolve_standing_preferences(source_resolved, church_config)
         _resolve_parish_information(source_resolved, church_config)
         _validate_leadership(church_config)

@@ -59,6 +59,19 @@ def advent_sunday(year: int) -> date:
     return christmas - timedelta(days=(christmas.isoweekday() % 7 or 7) + 21)
 
 
+def lectionary_year(day: date) -> str:
+    """The Revised Common Lectionary year (A, B or C) for a day. Each year begins on the First Sunday of Advent:
+    Advent 2025 began Year A, so Advent 2026 begins Year B."""
+    start = day.year if day >= advent_sunday(day.year) else day.year - 1
+    return "ABC"[(start - 2025) % 3]
+
+
+def page_year(url: str) -> str | None:
+    """The lectionary year a Lectionary Page address is for (…/YearB_RCL/…), or None."""
+    match = re.search(r"/Year([ABC])_", url or "")
+    return match.group(1) if match else None
+
+
 def season_end(sunday: date) -> date:
     """The last day of the church season containing `sunday`."""
     year = sunday.year
@@ -220,6 +233,7 @@ def carry_forward(root: Path, sunday: date, *, service_id: str | None = None, oc
                      "options": [title for title in titles if title] + ["None of them"], "carried": unsure})
     draft["carried_from"] = {"date": entry.get("date"), "package": folder.relative_to(root).as_posix()}
     result = {"status": "ok", "carried_from": draft["carried_from"], "asks": asks,
+              "lectionary_year": lectionary_year(sunday),
               "dropped_notices": [notice.get("title") for notice in dropped], "standing_choices": list(kept.values())}
     if write:
         svc = service_id or service.get("service_id") or "main"

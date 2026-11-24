@@ -63,6 +63,18 @@ class ParsingTests(unittest.TestCase):
     def test_two_hyphens_print_as_the_long_dash(self):
         self.assertEqual(W._join(["from your presence-- as when fire"]), "from your presence\N{EM DASH} as when fire")
 
+    def test_a_page_from_another_lectionary_year_is_refused(self):
+        from skills.bulletin.bulletin_production import standing
+        from datetime import date
+        self.assertEqual(standing.lectionary_year(date(2026, 11, 22)), "A")
+        self.assertEqual(standing.lectionary_year(date(2026, 11, 29)), "B")
+        self.assertEqual(standing.lectionary_year(date(2027, 11, 28)), "C")
+        bulletin = {"service": {"date": "2026-11-29"}, "readings": {"first": {"citation": "Isaiah 2:1-5"}}}
+        with self.assertRaises(W.WeeklyTextsError) as refused:
+            W.fill(bulletin, page_html="<html></html>",
+                   page_url="https://lectionarypage.net/YearA_RCL/Advent/AAdv1_RCL.html")
+        self.assertIn("Year B", str(refused.exception))
+
     def test_the_collect_is_not_mistaken_for_a_lesson(self):
         self.assertNotIn("", [lesson["citation"] for lesson in W.parse_lessons(PAGE)])
 
