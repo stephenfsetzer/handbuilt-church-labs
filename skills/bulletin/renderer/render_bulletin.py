@@ -748,8 +748,15 @@ def _bold_psalm_response(text):
     return f"<strong>{inline_md(clean)}</strong>"
 
 
-def psalm_block(psalm):
+def psalm_heading_style(cfg):
+    """`number` prints "Psalm 80" with the chosen verses below it (church.yaml bulletin.psalm_heading)."""
+    return str((cfg.get("options") or {}).get("psalm_heading") or "").strip().lower()
+
+
+def psalm_block(psalm, heading_style=""):
     num = psalm.get("number", "")
+    if heading_style == "number":
+        num = str(num).split(":")[0].strip()
     latin = psalm.get("latin_title", "")
     explicit_mode = psalm.get("format")
     mode = explicit_mode or "responsive_half_verse"
@@ -788,7 +795,8 @@ def psalm_block(psalm):
     else:
         latin_html = f' <span class="tune">({esc(latin)})</span>' if latin else ""
         citation = f"Psalm {esc(str(num))}{latin_html}"
-    return (f'<div class="section">'
+    # A psalm short enough for one page is never split over a page turn (a parish's Advent 1, 2026).
+    return (f'<div class="section psalm-whole">'
             + section_head("The Psalm")
             + f'<p class="citation">{citation}</p>'
             + f'<p class="rubric">{rubric}</p>'
@@ -1650,7 +1658,7 @@ def build_full_content(cfg, brand, repo_root, config_dir, template):
     parts.append(hymn_block("Psalm Antiphon", music.get("psalm_antiphon"), config_dir,
                             full_page=False))
     if readings.get("psalm"):
-        parts.append(psalm_block(readings["psalm"]))
+        parts.append(psalm_block(readings["psalm"], psalm_heading_style(cfg)))
     if include_first and include_second and readings.get("second"):
         parts.append(reading_block("The Second Reading", readings["second"]))
     parts.append(hymn_block("Gradual Hymn", hymns.get("gradual"), config_dir))
@@ -1804,7 +1812,7 @@ def build_lutheran_content(cfg, brand, repo_root, config_dir, template):
     parts.append(hymn_block("Psalm Antiphon", music.get("psalm_antiphon"), config_dir,
                             full_page=False))
     if readings.get("psalm"):
-        parts.append(psalm_block(readings["psalm"]))
+        parts.append(psalm_block(readings["psalm"], psalm_heading_style(cfg)))
     if include_first and include_second and readings.get("second"):
         parts.append(reading_block("The Second Reading", readings["second"]))
     parts.append(hymn_block("Gospel Acclamation", hymns.get("gospel_acclamation"), config_dir))
@@ -1924,7 +1932,7 @@ def build_compact_content(cfg, brand, repo_root, config_dir):
             readings_html += (f'<div class="dialogue"><span class="speaker-wide">{label}</span>'
                               f'<span class="line">{esc(r.get("citation", ""))}</span></div>')
 
-    psalm_html = psalm_block(readings["psalm"]) if readings.get("psalm") else ""
+    psalm_html = psalm_block(readings["psalm"], psalm_heading_style(cfg)) if readings.get("psalm") else ""
 
     date_line = fmt_date(svc["date"])
     parts = [f"""

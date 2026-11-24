@@ -388,3 +388,6 @@ body {
 .announcements-box .ann-text { margin: 0; }
 /* The people's response after the Gospel stays with the Gospel's last lines. */
 .after-gospel { break-before: avoid; margin-top: 4pt; }
+
+/* A psalm short enough for one page stays on one page; a longer one breaks where it must. */
+.psalm-whole { break-inside: avoid; }

@@ -431,7 +431,7 @@ def _standing_bulletin_preferences(church_config: dict[str, Any]) -> dict[str, A
     values: dict[str, Any] = {}
     for key in ("include_serving_today", "serving_roles", "serving_today_roles", "serving_role_policy",
                 "print_mode", "allow_blank_inside_cover", "cover_ink", "said_texts", "page_starts",
-                "announcements_style"):
+                "announcements_style", "psalm_heading"):
         value = bulletin.get(key)
         if value is None:
             value = defaults.get(key)
