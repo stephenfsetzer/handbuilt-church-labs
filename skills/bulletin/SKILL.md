@@ -254,7 +254,17 @@ title goes in that piece's `tune` (it prints in parentheses after the title), an
 Ruth Alder" goes in `custom_text`. The sheet gives words only: take each piece's picture from the church's
 music assets as usual (a recorded page such as `music/church-music-db/H492-page-1.png`), not from pictures
 inside the sheet or the musician's files, unless the assets lack the piece. A hymn's tune comes from its
-picture's record, or from the recorded page for its number, without being asked. Never edit
+picture's record, or from the recorded page for its number, without being asked.
+
+Find this Sunday's announcements the same way, every Sunday, even when the request says nothing about them
+or says "nothing new". Look for a drafted list in the church folder, usually under `communications/` (for
+example `communications/print/<season>/announcements.json`), whose entries are keyed or dated for this Sunday
+(`nov22`, `2026-11-22`, "November 22"). Use that Sunday's items as written, with any end dates they give, in
+place of carried notices they replace, and name the file you used in the summary. Ask only when two drafts
+disagree or a carried notice has no end date. "Nothing new" means no new instructions from the pastor, not
+that the church has nothing to announce.
+
+Never edit
 a produced page by hand: finalize refuses a changed page, and a change made
 outside the input is lost next week. Put the change in the input and revise.
 
