@@ -648,8 +648,12 @@ def normalize_lyric_group(group):
     lines = group.get("lines") or []
     if isinstance(lines, str):
         lines = lines.splitlines()
+    label = str(group.get("speaker") or group.get("part") or "")
+    # Everyone's part in a song carries the bulletin's one label for all voices (Stephen, 2026-11-24: consistency).
+    if label.strip().lower() in ALL_VOICES:
+        label = "Together"
     return {
-        "label": str(group.get("speaker") or group.get("part") or ""),
+        "label": label,
         "lines": [str(line) for line in lines],
         "bold": bool(group.get("bold") or group.get("people")),
     }

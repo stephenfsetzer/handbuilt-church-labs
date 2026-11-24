@@ -21,6 +21,9 @@ class StandingPartsTest(unittest.TestCase):
             html = after_gospel_block({"after_gospel": {"speaker": word, "text": "Rejoice! Rejoice! Emmanuel"}})
             self.assertEqual(html.count(">Together<"), 1, word)
         self.assertIn(">Choir<", after_gospel_block({"after_gospel": {"speaker": "Choir", "text": "Alleluia"}}))
+        from skills.bulletin.renderer.render_bulletin import normalize_lyric_group
+        self.assertEqual(normalize_lyric_group({"part": "Everyone", "lines": ["Day by day"]})["label"], "Together")
+        self.assertEqual(normalize_lyric_group({"part": "Choir", "lines": ["Day by day"]})["label"], "Choir")
 
     def test_the_response_after_the_gospel_can_come_from_the_church_s_file(self) -> None:
         import tempfile
