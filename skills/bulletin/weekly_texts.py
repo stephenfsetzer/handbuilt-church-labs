@@ -123,6 +123,8 @@ class _Lessons(HTMLParser):
 def _join(pieces: list[str]) -> str:
     """Join a paragraph's pieces, keeping line breaks and repairing a space the page dropped after the divine name."""
     text = re.sub(r"\x00(?=[A-Za-z])", " ", "".join(pieces)).replace("\x00", "")
+    # The page types some of the NRSV's dashes as two hyphens; the printed Bible has one long dash.
+    text = re.sub(r"(?<=\S)--(?=\s|\S)", "\N{EM DASH}", text)
     lines = [" ".join(line.split()) for line in text.split("\n")]
     return "\n".join(line for line in lines if line)
 

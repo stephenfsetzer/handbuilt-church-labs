@@ -60,6 +60,9 @@ class ParsingTests(unittest.TestCase):
         text, _ = W._lesson_text(lesson, None)
         self.assertEqual(text, "Thus says the Lord: I will seek my sheep.\n\nTherefore, thus says the Lord to them: I will judge.")
 
+    def test_two_hyphens_print_as_the_long_dash(self):
+        self.assertEqual(W._join(["from your presence-- as when fire"]), "from your presence\N{EM DASH} as when fire")
+
     def test_the_collect_is_not_mistaken_for_a_lesson(self):
         self.assertNotIn("", [lesson["citation"] for lesson in W.parse_lessons(PAGE)])
 
