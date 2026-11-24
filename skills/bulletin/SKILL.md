@@ -246,7 +246,8 @@ prints the church's own file, rubric and words),
 box` (all notices in one box), `announcements[].until` (the last Sunday a notice
 prints), a hymn's `composer_style` (`label`, `plain` or `hidden`; music pictures
 hide it by default, so set it only when the pastor asks) and a hymn's
-`each_week` (sung one stanza a week: carry-forward moves it on a stanza). Never edit
+`each_week` (sung one stanza a week: carry-forward moves it on a stanza). Print music titles and credits as
+the musician's sheet gives them (composer, words, arranger, who sings). Never edit
 a produced page by hand: finalize refuses a changed page, and a change made
 outside the input is lost next week. Put the change in the input and revise.
 

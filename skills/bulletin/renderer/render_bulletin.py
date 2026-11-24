@@ -816,6 +816,7 @@ def reading_block(label, reading, response=("Reader", "The Word of the Lord.",
 
 
 GOSPEL_ACCLAMATIONS = ("lord", "savior")
+GOSPEL_WHOLE_WORDS = 450   # a Gospel this long fits one page; a longer one breaks where it must, with no gap before it
 
 
 def gospel_acclamation_choice(cfg):
@@ -839,16 +840,19 @@ def gospel_block(reading, acclamation="lord"):
     book = citation.split()[0] if citation else "the Gospel"
     title = "Savior" if acclamation == "savior" else "Lord"
     body = _reading_body(reading)
+    # The Gospel is read whole on one page when it fits, its heading with it (a parish's Advent 1, 2026).
     return (f'<div class="section">'
             + keep(section_head("The Holy Gospel"),
                    f'<p class="citation">{esc(citation)}</p>',
                    dialogue_pair("Priest",
                                  f"The Holy Gospel of our {title} Jesus Christ according to {book}.",
                                  "People", "Glory to you, Lord Christ."))
+            + ('<div class="gospel-text">' if len(str(reading.get("text") or "").split()) <= GOSPEL_WHOLE_WORDS
+               else '<div>')
             + body
             + dialogue_pair("Priest", "The Gospel of the Lord.",
                             "People", "Praise to you, Lord Christ.")
-            + "</div>")
+            + "</div></div>")
 
 
 def after_gospel_block(cfg):

@@ -391,3 +391,5 @@ body {
 
 /* A psalm short enough for one page stays on one page; a longer one breaks where it must. */
 .psalm-whole { break-inside: avoid; }
+/* The Gospel reading stays on one page when it fits. */
+.gospel-text { break-inside: avoid; }

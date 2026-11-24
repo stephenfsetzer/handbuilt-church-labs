@@ -131,6 +131,7 @@ class Heading:
     lead: float  # share of the page height from the heading's top to the page's last ink
     continues: bool  # its text runs on past this page
     section: str | None = None  # for a title, the section that follows it on its page
+    complete: bool = False  # its own announcement completes it (the Gospel's), so it may end a page
 
 
 @dataclass
@@ -548,7 +549,8 @@ def _layout(html: str, base_url: str | None) -> _Layout:
         if lead is None:
             continue
         headings.append(Heading(kind="section", id=uid, page=first,
-                                lead=lead, continues=last > first))
+                                lead=lead, continues=last > first,
+                                complete="head-complete" in _classes(el)))
         heading_refs.append(el.get(_REF_ATTR))
     for index, el in enumerate(title_els):
         if index not in title_pos:
@@ -926,7 +928,7 @@ def _said_wrap_finding(report: LayoutReport) -> Finding:
 def _stranded(report: LayoutReport) -> list[tuple[int, Heading]]:
     exempt = _exempt_pages(report)
     found = [(i, h) for i, h in enumerate(report.headings)
-             if h.continues and h.lead < STRANDED_LEAD and h.page not in exempt]
+             if h.continues and h.lead < STRANDED_LEAD and h.page not in exempt and not h.complete]
     # A section that sits under a stranded title is the same problem; the
     # title is the heading to move.
     under_title = {(h.section, h.page) for _, h in found if h.kind == "title" and h.section}
